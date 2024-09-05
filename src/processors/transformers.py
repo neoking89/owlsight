@@ -1,26 +1,20 @@
-from typing import Optional, List, Any, Dict, Tuple
+from typing import Optional, List, Dict, Tuple
 import sys
-import time
 
 import pandas as pd
-import onnxruntime_genai as og
 import torch
 from transformers import (
     AutoModelForCausalLM,
-    AutoModelForSeq2SeqLM,
     pipeline,
     BitsAndBytesConfig,
     TextIteratorStreamer,
     AutoTokenizer,
 )
-from colorama import Fore, Style, init
 
 sys.path.append(".")
 from src.utils.threads import KillableThread
 from src.utils.custom_classes import StopWordCriteria
-from src.finetuning.helper_functions import clean_gpu
-
-init(autoreset=True)
+from src.utils.helper_functions import clean_gpu
 
 
 def is_flash_attention_available() -> bool:
@@ -30,48 +24,6 @@ def is_flash_attention_available() -> bool:
         return True
     except ImportError:
         return False
-
-
-def calculate_confidence(logits: torch.Tensor) -> float:
-    """
-    Calculates confidence as the maximum probability from the softmax distribution.
-    Output is a value between 0 and 1, where 1 is the most confident.
-    """
-    probs = torch.softmax(logits, dim=-1)
-    max_prob = torch.max(probs).item()
-    return max_prob
-
-
-def get_color_based_on_confidence(confidence: float) -> str:
-    """
-    Returns a color string based on the confidence score.
-    Scale from red (low confidence) to green (high confidence).
-    """
-    red = int((1 - confidence) * 255)
-    green = int(confidence * 255)
-    return f"\033[38;2;{red};{green};0m"
-
-
-def format_confidence_table(df: pd.DataFrame) -> str:
-    """
-    Formats a DataFrame containing 'text' and 'confidence' columns into a table string.
-
-    Parameters:
-    df (pd.DataFrame): DataFrame with 'text' and 'confidence' columns.
-
-    Returns:
-    str: A formatted string representing the table.
-    """
-    table_str = (
-        "| Row | text           | confidence |\n|-----|----------------|------------|\n"
-    )
-    for i, row in df.iterrows():
-        text = f'"{row["text"]}"' if pd.notna(row["text"]) else "<NA>"
-        confidence = (
-            f'{row["confidence"]:.6f}' if pd.notna(row["confidence"]) else "<NA>"
-        )
-        table_str += f"| {i:<3} | {text:<14} | {confidence:<10} |\n"
-    return table_str
 
 
 class TextGenerationProcessor:
@@ -188,7 +140,6 @@ class TextGenerationProcessor:
         input_text: str,
         max_new_tokens: int = 512,
         temperature: float = 0.0,
-        add_confidence: bool = False,
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[dict] = None,
     ) -> str:
@@ -220,23 +171,6 @@ class TextGenerationProcessor:
 
         generated_text = ""
         for new_text in self.streamer:
-            if add_confidence:
-                try:
-                    # Calculate confidence for the last token
-                    input_ids = self.pipe.tokenizer.encode(
-                        new_text, return_tensors="pt"
-                    ).to(self.device)
-                    last_token_logits = self.pipe.model(input_ids=input_ids).logits[
-                        :, -1, :
-                    ]
-                    confidence = calculate_confidence(last_token_logits)
-                    self._confidence_stats.append((new_text, confidence))
-                    color = get_color_based_on_confidence(confidence)
-                    new_text = f"{color}{new_text}{Style.RESET_ALL}"
-                except RuntimeError:
-                    self._confidence_stats.append((new_text, pd.NA))
-                    new_text = f"{Fore.WHITE}{new_text}{Style.RESET_ALL}"
-
             generated_text += new_text
             print(new_text, end="", flush=True)
 
@@ -246,4 +180,3 @@ class TextGenerationProcessor:
         generation_thread.join()
 
         return generated_text
-

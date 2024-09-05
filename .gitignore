@@ -2,3 +2,9 @@
 /.ruff_cache
 /.venv
 /models
+
+# Ignore all .pyc files
+*.pyc
+
+# Also ignore the __pycache__ directories where .pyc files are stored
+__pycache__/

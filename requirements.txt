@@ -1,3 +1,10 @@
 onnxruntime_genai
 onnxruntime-genai-cuda
 transformers
+torch
+bitsandbytes
+accelerate
+
+# dev
+pytest
+ruff
