@@ -1,0 +1,4 @@
+/.cache
+/.ruff_cache
+/.venv
+/models
