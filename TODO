@@ -1,0 +1,6 @@
+- fix bug in test_code_executor_install_missing_module_in_venv: test runs forever, because it correctly installs missing module in venv, but doesnt execute it in venv, resulting in eternal loop
+  when doing above, make sure globals() are captured correctly as state to pass to StateManager. exec can do this, but cant be setup correctly in venv, while a venv cant capture globals() correctly.
+- add system prompt arg
+- make sure chat template is universal and not model specific (like now for microsoft phi) in TextGenerationProcessors. Use langchain?
+- add option to parse/not parse code
+- make venv ONLY if python code is called
