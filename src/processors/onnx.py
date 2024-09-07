@@ -35,7 +35,6 @@ class TextGenerationProcessorOnnx:
 
     def cleanup(self):
         import gc
-
         gc.collect()
 
     def _set_environment_variables(self) -> None:
@@ -129,3 +128,4 @@ class TextGenerationProcessorOnnx:
             self.history.append(generated_text.strip())
 
         return generated_text.strip()
+    
