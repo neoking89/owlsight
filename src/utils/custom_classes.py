@@ -143,5 +143,17 @@ class StateManager:
     def set(self, key, value):
         self.state[key] = value
 
-    def clear(self):
+    def clear_state(self):
         self.state.clear()
+
+    def get_state(self):
+        """
+        Returns all the stored variables in the state.
+        """
+        return self.state
+
+    def update_state(self, new_state: dict):
+        """
+        Updates the state with the provided dictionary.
+        """
+        self.state.update(new_state)
