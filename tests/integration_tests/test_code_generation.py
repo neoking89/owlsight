@@ -90,5 +90,5 @@ def test_code_executor_install_missing_module_in_venv():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_code_executor_install_missing_module_in_venv()
+    pytest.main([__file__])
+    # test_code_executor_install_missing_module_in_venv()
