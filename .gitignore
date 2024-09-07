@@ -8,3 +8,5 @@
 
 # Also ignore the __pycache__ directories where .pyc files are stored
 __pycache__/
+
+tmp*.py
