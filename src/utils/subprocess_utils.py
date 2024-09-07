@@ -4,10 +4,11 @@ import os
 import platform
 
 from src.utils.logger_manager import LoggerManager
+
 logger = LoggerManager.get_logger(__name__)
 
 
-def _run_subprocess(command: list) -> Tuple[str, str]:
+def run_subprocess(command: list) -> Tuple[str, str]:
     """
     Run subprocess command and capture stdout and stderr.
 
@@ -44,11 +45,12 @@ def _build_shell_command(activate_script: str, command: str) -> str:
     str
         The full shell command including virtual environment activation.
     """
-    return (
-        f'call "{activate_script}" && {command}'
-        if platform.system().lower() == "windows"
-        else f'bash -c "source {activate_script} && {command}"'
-    )
+    if platform.system().lower() == "windows":
+        # For Windows, use `call` to activate and `&&` to run the Python command
+        return f'call "{activate_script}" && {command}'
+    else:
+        # For Unix-like systems, use `source` to activate and `&&` to run the Python command
+        return f'bash -c "source {activate_script} && {command}"'
 
 
 def _log_shell_output(result: subprocess.CompletedProcess) -> None:
@@ -65,9 +67,11 @@ def _log_shell_output(result: subprocess.CompletedProcess) -> None:
     None
     """
     if result.stdout:
-        print(result.stdout)
-    if result.stderr:
+        logger.info(result.stdout)
+    elif result.stderr:
         logger.warning(f"Command produced stderr output: {result.stderr}")
+    else:
+        raise ValueError("No output from shell command.")
 
 
 def _get_activate_script(venv_path: str) -> str:
@@ -113,6 +117,6 @@ def execute_shell_command(command: str, venv_path: str) -> None:
             full_command, shell=True, capture_output=True, text=True, check=True
         )
         _log_shell_output(result)
+        return result
     except subprocess.CalledProcessError as e:
         logger.error(f"Command failed with exit code {e.returncode}: {e.stderr}")
-        raise
