@@ -14,7 +14,6 @@ from transformers import (
 sys.path.append(".")
 from src.utils.threads import KillableThread
 from src.utils.custom_classes import StopWordCriteria
-from src.utils.helper_functions import clean_gpu
 
 
 def is_flash_attention_available() -> bool:
