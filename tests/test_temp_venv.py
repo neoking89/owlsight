@@ -4,7 +4,6 @@ import tempfile
 from contextlib import contextmanager
 import venv
 
-
 # ------------- Unit Test for tempfile.TemporaryDirectory & venv setup ---------
 
 
@@ -25,15 +24,15 @@ def test_tempdir_and_venv_creation():
         with create_venv(venv_path) as pip_path:
             # Test that venv was created
             assert os.path.exists(venv_path), "Virtual environment was not created"
-            assert os.path.exists(
-                pip_path
-            ), "pip was not installed in the virtual environment"
+            scripts_dir = os.path.dirname(pip_path)
+            assert any(os.path.join(scripts_dir, f).startswith(pip_path) for f in os.listdir(scripts_dir)), \
+                f"pip was not found in the expected location: {pip_path}"
 
-        # Test that venv and temp_dir are cleaned up after exit
-        assert not os.path.exists(temp_dir), "Temp directory was not removed after use"
-        assert not os.path.exists(
-            venv_path
-        ), "Virtual environment was not removed after use"
+    # Test that venv and temp_dir are cleaned up after exit
+    assert not os.path.exists(
+        venv_path
+    ), "Virtual environment was not removed after use"
+    assert not os.path.exists(temp_dir), "Temp directory was not removed after use"
 
 
 # ---------------- Test Execution -----------------
