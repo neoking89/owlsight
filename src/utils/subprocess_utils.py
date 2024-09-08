@@ -2,6 +2,8 @@ import subprocess
 from typing import Tuple
 import os
 import platform
+import re
+from ast import literal_eval
 
 from src.utils.logger_manager import LoggerManager
 
@@ -68,10 +70,9 @@ def _log_shell_output(result: subprocess.CompletedProcess) -> None:
     """
     if result.stdout:
         logger.info(result.stdout)
-    elif result.stderr:
+    if result.stderr:
         logger.warning(f"Command produced stderr output: {result.stderr}")
-    else:
-        raise ValueError("No output from shell command.")
+        logger.warning(f"Command produced output: {result.output}")
 
 
 def _get_activate_script(venv_path: str) -> str:
@@ -95,7 +96,7 @@ def _get_activate_script(venv_path: str) -> str:
     )
 
 
-def execute_shell_command(command: str, venv_path: str) -> None:
+def execute_shell_command(command: str, venv_path: str) -> subprocess.CompletedProcess:
     """
     Execute a shell command inside the virtual environment.
 
@@ -108,15 +109,50 @@ def execute_shell_command(command: str, venv_path: str) -> None:
 
     Returns
     -------
-    None
+    subprocess.CompletedProcess
+        The result of the subprocess run or the exception if failed.
     """
     activate_script = _get_activate_script(venv_path)
     full_command = _build_shell_command(activate_script, command)
+
+    result = None
     try:
         result = subprocess.run(
             full_command, shell=True, capture_output=True, text=True, check=True
         )
-        _log_shell_output(result)
-        return result
     except subprocess.CalledProcessError as e:
         logger.error(f"Command failed with exit code {e.returncode}: {e.stderr}")
+        logger.error(f"Output: {e.output}")
+        result = e
+    finally:
+        _log_shell_output(
+            result
+        )  # Log the output of the command regardless of success or failure
+
+    return result
+
+
+def parse_globals_from_stdout(stdout: str) -> dict:
+    """
+    Parse the globals dictionary from the stdout of a Python command.
+    """
+    # Remove newline characters and strip outer curly braces
+    stdout = stdout.strip().strip("{}")
+
+    # Regular expression to match key-value pairs
+    pattern = r"'(\w+)':\s*([^,]+)(?:,|$)"
+
+    result = {}
+    for match in re.finditer(pattern, stdout):
+        key, value = match.groups()
+
+        # Try to evaluate the value, if it fails, keep it as a string
+        try:
+            parsed_value = literal_eval(value)
+        except:
+            parsed_value = value.strip()
+            logger.error(f"Failed to parse value '{value}' for key '{key}'")
+
+        result[key] = parsed_value
+
+    return result
