@@ -6,8 +6,7 @@ import os
 sys.path.append(".")
 sys.path.append("tests")
 from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
-from src.utils.custom_classes import StateManager
-from src.utils.venv_manager import create_venv
+from src.utils.venv_manager import get_venv_path, get_pip_path
 
 try:
     from conftest import MockTextGenerationProcessor
@@ -24,7 +23,7 @@ def code_executor(request):
             save_history=True,
             mock_responses=mock_responses,
         ),
-        state_manager=StateManager(),
+        temp_dir = "temp_dir",
         pip_path="pip",
         venv_path="venv",
         max_new_tokens=512,
@@ -38,11 +37,29 @@ def test_code_executor_execute_python_code_succesfully(code_executor: CodeExecut
     )
     assert result
 
+
 def test_code_executor_python_state_is_saved(code_executor: CodeExecutor):
-    code_executor.execute_python_code(
-        "a=5"
-    )
-    assert code_executor.state_manager.get("a") == 5
+    # Test that variables are correctly set in the state after execution
+    code_executor.execute_python_code("x = 10")
+    assert code_executor.global_dict.get("x") == 10
+
+    # Test executing another block of code that uses the state
+    code_executor.execute_python_code("y = x + 5")
+    assert code_executor.global_dict.get("y") == 15
+
+    # Test that the state is persistent across executions
+    assert code_executor.global_dict.get("x") == 10  # x should still be available
+
+
+def test_clear_state(code_executor: CodeExecutor):
+    # Set some state
+    code_executor.execute_python_code("x = 20")
+    assert code_executor.global_dict.get("x") == 20
+
+    # Clear the state and check if it's removed
+    code_executor.global_dict.clear()
+    assert code_executor.global_dict.get("x") is None  # State should be cleared
+
 
 def test_code_executor_install_missing_module_in_venv():
     # arrange
@@ -59,17 +76,16 @@ def test_code_executor_install_missing_module_in_venv():
         save_history=True,
         mock_responses=[model_response],
     )
-    venv_dir = "venv"
-    state_manager = StateManager()
+
     max_retries = 3
     max_new_tokens = 256
 
-    with tempfile.TemporaryDirectory() as temp_dir, create_venv(
-        os.path.join(temp_dir, venv_dir)
-    ) as pip_path:
-        venv_path = os.path.join(temp_dir, venv_dir)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        venv_path = get_venv_path()
+        pip_path = get_pip_path(venv_path)
+
         code_executor = CodeExecutor(
-            processor, venv_path, pip_path, state_manager, max_retries, max_new_tokens
+            processor, venv_path, pip_path, temp_dir, max_retries, max_new_tokens
         )
         results = execute_code_with_feedback(
             model_response,
@@ -83,10 +99,10 @@ def test_code_executor_install_missing_module_in_venv():
         assert results[0]["success"]
 
         # lib is installed in venv
-        assert module_name in os.listdir(code_executor.lib_path)
+        assert module_name in os.listdir(code_executor.temp_dir)
 
         # state is saved correctly
-        assert state_manager.get("a") == 5
+        assert code_executor.global_dict.get("a") == 5
 
 
 if __name__ == "__main__":
