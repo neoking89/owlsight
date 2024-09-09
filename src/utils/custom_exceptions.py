@@ -1,7 +1,9 @@
+from typing import List
+
 class ModuleNotFoundInVenvError(Exception):
     """Exception raised when a module is not found in the virtual environment."""
 
-    def __init__(self, module_name, venv_path, lib_contents):
+    def __init__(self, module_name: str, venv_path: str, lib_contents: List[str]):
         self.module_name = module_name
         self.venv_path = venv_path
         self.lib_contents = lib_contents
