@@ -103,6 +103,7 @@ class CodeExecutor:
                 )
         except Exception as e:
             logger.error(f"Error executing code: {e}")
+            raise e
 
     def _reset_retries(self) -> None:
         self.retries_left = self.max_retries
