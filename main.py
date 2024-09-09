@@ -71,11 +71,14 @@ def main() -> None:
                     logger.info("Quitting...")
                     break
 
+                # look into python global state
                 if question.strip().lower() == "#python":
                     code_input = input(
                         "Enter Python code to execute using current state:\n"
                     )
                     code_executor.execute_code_block("python", code_input)
+
+                # clear all past states and history
                 elif question.strip().lower() == "#clear":
                     code_executor.global_dict.clear()
                     processor.history.clear()
