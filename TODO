@@ -1,0 +1,8 @@
+
+- add system prompt arg
+
+- make sure chat template is universal and not model specific (like now for microsoft phi) in TextGenerationProcessors. Use langchain?
+
+- add option to parse/not parse code
+
+- make venv ONLY if python code is called

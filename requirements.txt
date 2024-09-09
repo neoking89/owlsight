@@ -4,6 +4,8 @@ transformers
 torch
 bitsandbytes
 accelerate
+gguf
+sentencepiece
 
 # dev
 pytest
