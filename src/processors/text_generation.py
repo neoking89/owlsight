@@ -29,7 +29,9 @@ def is_flash_attention_available() -> bool:
 
 
 class TextGenerationProcessor(ABC):
-    def __init__(self, model_id: str, save_history: bool = False):
+    def __init__(
+        self, model_id: str, save_history: bool, system_prompt: str
+    ):
         """
         Abstract class for text generation processors.
 
@@ -44,6 +46,7 @@ class TextGenerationProcessor(ABC):
         self.model_id = model_id
         self.save_history = save_history
         self.history = []
+        self.system_prompt = system_prompt
 
     @abstractmethod
     def generate(
@@ -77,6 +80,7 @@ class TextGenerationProcessor(ABC):
             Generated text.
         """
 
+
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
     def __init__(
         self,
@@ -88,6 +92,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
         save_history: bool = False,
+        system_prompt: str = None
     ):
         """
         Text generation processor using Hugging Face Transformers library.
@@ -129,6 +134,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         )
         self.save_history = save_history
         self.history = []
+        self.system_prompt = system_prompt
 
         tokenizer, model = self._load_tokenizer_model(
             quantization_bits,
@@ -146,7 +152,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         self.streamer = TextIteratorStreamer(
             self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True
         )
-        self._confidence_stats: List[Tuple[str, float]] = []
 
     def _load_tokenizer_model(
         self,
@@ -196,7 +201,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        self._confidence_stats = []
+        if self.system_prompt is not None:
+            input_text = f"{self.system_prompt}\n\n{input_text}"
+
         _generation_kwargs = {
             "max_new_tokens": max_new_tokens,
             "streamer": self.streamer,
@@ -244,12 +251,14 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         verbose: bool = False,
         num_threads: int = 1,
         save_history: bool = False,
+        system_prompt: str = None
     ):
         self.model_id = model_id
         self.verbose = verbose
         self.num_threads = num_threads
         self.save_history = save_history
         self.history = []
+        self.system_prompt = system_prompt
 
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"Model not found at {model_id}")
@@ -286,6 +295,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         buffer_wordsize: int = 10,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
+        if self.system_prompt is not None:
+            input_text = f"{self.system_prompt}\n\n{input_text}"
+        
         search_options = {
             "do_sample": temperature > 0.0,
             "max_length": max_new_tokens,
