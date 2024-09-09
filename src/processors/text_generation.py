@@ -34,6 +34,7 @@ class TextGenerationProcessor(ABC):
     ):
         """
         Abstract class for text generation processors.
+        Provides a common interface for text generation models.
 
         Parameters
         ----------
