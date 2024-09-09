@@ -1,14 +1,12 @@
 import os
 import re
 from typing import Dict, List
-import subprocess
 
 from src.processors.text_generation import TextGenerationProcessor
 from src.utils.custom_exceptions import ModuleNotFoundInVenvError
-from src.utils.custom_classes import StateManager
-from src.utils.subprocess_utils import execute_shell_command, parse_globals_from_stdout
+from src.utils.subprocess_utils import execute_shell_command
 from src.utils.helper_functions import extract_markdown
-from src.utils.venv_manager import install_module
+from src.utils.venv_manager import install_module, get_lib_path, get_python_executable
 
 from src.utils.logger_manager import LoggerManager
 
@@ -26,14 +24,15 @@ class CodeExecutor:
         processor: TextGenerationProcessor,
         venv_path: str,
         pip_path: str,
-        state_manager: StateManager,
+        temp_dir: str,
         max_retries: int,
         max_new_tokens: int,
     ):
         self.processor = processor
-        self.state_manager = state_manager
+        self.temp_dir = temp_dir
         self.max_new_tokens = max_new_tokens
         self.max_retries = max_retries
+        self.global_dict = {}
 
         self._init_python_properties(venv_path, pip_path)
         self._reset_retries()
@@ -81,101 +80,29 @@ class CodeExecutor:
         else:
             logger.warning(f"Unsupported language: {lang}")
 
-    # def execute_python_code(self, code_block: str, python_executable: str) -> None:
-    #     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
-    #         temp_file.write(code_block)
-    #         temp_file_path = temp_file.name
-
-    #     try:
-    #         stdout, stderr = run_subprocess([python_executable, temp_file_path])
-    #         self._handle_python_output(stdout, stderr, code_block, python_executable)
-    #     finally:
-    #         os.unlink(temp_file_path)
-
-    # def _handle_python_output(self, stdout: str, stderr: str, code_block: str, python_executable: str) -> None:
-    #     if stdout:
-    #         logger.info(stdout)
-    #     if stderr:
-    #         logger.error(f"Error: {stderr}")
-    #         missing_module = extract_missing_module(stderr)
-    #         if missing_module:
-    #             logger.info(f"Module '{missing_module}' not found. Attempting to install...")
-    #             if install_module(missing_module, self.pip_path):
-    #                 self.execute_python_code(code_block, python_executable)
-    #         else:
-    #             raise Exception(stderr)
-    #     else:
-    #         logger.info("Code executed successfully.")
-
-    def execute_python_code(
-        self, code_block: str
-    ) -> subprocess.CompletedProcess | None:
+    def execute_python_code(self, code_block: str) -> None:
         """Execute Python code block."""
-        reformatted_code_block = code_block.replace("\n", ";")
-        reformatted_code_block += (
-            ";print(globals())"  # parse globals later from stout of subprocess
-        )
-        python_command = f'{self.python_executable} -c "{reformatted_code_block}"'
-        result = execute_shell_command(python_command, self.venv_path)
-
-        # if an error occurred during execution:
-        if result.stderr:
-            if "ModuleNotFoundError" in result.stderr:
-                missing_module = extract_missing_module(result.stderr)
-                if missing_module:
-                    logger.info(
-                        f"Module '{missing_module}' not found. Attempting to install..."
+        try:
+            exec(code_block, self.global_dict)
+        except ModuleNotFoundError as e:
+            logger.error(f"Module not found: {e}")
+            missing_module = extract_missing_module(str(e))
+            logger.info(f"Attempting to install module: {missing_module}")
+            if install_module(missing_module, self.pip_path, self.temp_dir):
+                if not missing_module in os.listdir(self.temp_dir):
+                    raise ModuleNotFoundInVenvError(
+                        missing_module,
+                        self.venv_path,
+                        os.listdir(self.temp_dir),
                     )
-                    # install missing module with pip inside the virtual environment
-                    if install_module(missing_module, self.pip_path):
-                        if not missing_module in os.listdir(self.lib_path):
-                            raise ModuleNotFoundInVenvError(
-                                missing_module,
-                                self.venv_path,
-                                os.listdir(self.lib_path),
-                            )
-                        result = self.execute_python_code(code_block)
+                logger.info(f"Retrying execution after installing {missing_module}")
+                self.execute_python_code(code_block)  # Retry execution
             else:
                 logger.error(
-                    f"An error occured during execution of python command {python_command} in shell: {result.stderr}"
+                    f"Failed to install {missing_module}. Cannot execute the code."
                 )
-                logger.error(f"Output: {result.stdout}")
-
-            # logger.error(f"Error: {result.stderr}")
-            # missing_module = extract_missing_module(result.stderr)
-            # if missing_module:
-            #     logger.info(f"Module '{missing_module}' not found. Attempting to install...")
-            #     if install_module(missing_module, self.pip_path):
-            #         return self.execute_python_code(code_block)
-            # else:
-            #     raise Exception(result.stderr)
-
-        # except ModuleNotFoundError as e:
-        #     logger.error(f"Module not found: {e}")
-        #     module_name = str(e).split("'")[1]
-        #     logger.info(f"Attempting to install module: {module_name}")
-        #     if install_module(module_name, self.pip_path):
-        #         module_in_venv = module_name in os.listdir(self.lib_path)
-        #         if not module_in_venv:
-        #             raise RuntimeError(f"{module_name} not found in venv {self.venv_path}: {os.listdir(self.lib_path)}")
-        #         logger.info(f"Retrying execution after installing {module_name}")
-        #         self.execute_python_code(
-        #             code_block
-        #         )  # Retry execution
-        #     else:
-        #         logger.error(
-        #             f"Failed to install {module_name}. Cannot execute the code."
-        #         )
-        # except Exception as e:
-        #     logger.error(f"Error executing code: {e}")
-
-        if result.stdout:
-            logger.info(f"stdout: {result.stdout}")
-            globals_dict = parse_globals_from_stdout(result.stdout)
-            logger.info(f"parsed globals from result.stdout: {globals_dict}")
-            self.state_manager.update_state(globals_dict)
-
-        return result
+        except Exception as e:
+            logger.error(f"Error executing code: {e}")
 
     def _reset_retries(self) -> None:
         self.retries_left = self.max_retries
@@ -205,10 +132,8 @@ class CodeExecutor:
 
     def _init_python_properties(self, venv_path: str, pip_path: str):
         self.venv_path = venv_path
-        self.lib_path = os.path.join(self.venv_path, "Lib/site-packages")
-        self.python_executable = os.path.join(
-            self.venv_path, "Scripts" if os.name == "nt" else "bin", "python"
-        )
+        self.lib_path = get_lib_path(venv_path)
+        self.python_executable = get_python_executable(venv_path)
         self.pip_path = pip_path
 
 
