@@ -1,3 +1,6 @@
+# run tests first
+pytest
+
 # Save the current branch name
 $currentBranch = git rev-parse --abbrev-ref HEAD
 
