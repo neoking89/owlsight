@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 import os
 import time
 import onnxruntime_genai as og
@@ -11,6 +11,7 @@ from transformers import (
     BitsAndBytesConfig,
     TextIteratorStreamer,
     AutoTokenizer,
+    PreTrainedTokenizer,
 )
 from src.utils.threads import KillableThread
 from src.utils.custom_classes import StopWordCriteria
@@ -46,37 +47,35 @@ class TextGenerationProcessor(ABC):
         self.history = []
         self.system_prompt = system_prompt
 
-    @abstractmethod
-    def generate(
-        self,
-        input_text: str,
-        max_new_tokens: int = 512,
-        temperature: float = 0.0,
-        stopwords: Optional[List[str]] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+    def apply_chat_template(
+        self, input_text: str, tokenizer: PreTrainedTokenizer
     ) -> str:
-        """
-        Generate text based on the input text and other optional parameters.
-        This method must be implemented by all subclasses.
+        """Apply chat template to the input text."""
+        messages = []
 
-        Parameters
-        ----------
-        input_text : str
-            The input text to use for generation.
-        max_new_tokens : int
-            Maximum number of new tokens to generate.
-        temperature : float
-            Sampling temperature. A higher temperature leads to more random outputs.
-        stopwords : List[str], optional
-            List of stop words to use during generation.
-        generation_kwargs : dict, optional
-            Additional arguments for generation.
+        if self.save_history:
+            messages = self.history.copy()
 
-        Returns
-        -------
-        str
-            Generated text.
-        """
+        messages.append({"role": "user", "content": input_text})
+        messages.append({"role": "assistant", "content": ""})
+        if self.system_prompt is not None:
+            messages.insert(0, {"role": "system", "content": self.system_prompt})
+
+        # temporarily set eos_token to None to avoid adding it to the end of the text
+        eos_token = tokenizer.eos_token
+        tokenizer.eos_token = None
+        templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
+        tokenizer.eos_token = eos_token
+
+        return templated_text
+
+    def update_history(self, input_text: str, generated_text: str):
+        """Update the history with the input and generated text."""
+        if self.save_history:
+            self.history.append({"role": "user", "content": input_text})
+            self.history.append(
+                {"role": "assistant", "content": generated_text.strip()}
+            )
 
 
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
@@ -199,8 +198,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        if self.system_prompt is not None:
-            input_text = f"{self.system_prompt}\n\n{input_text}"
+        templated_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
 
         _generation_kwargs = {
             "max_new_tokens": max_new_tokens,
@@ -212,7 +210,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         if stopwords is not None:
             _generation_kwargs["stopping_criteria"] = StopWordCriteria(
-                prompts=[input_text],
+                prompts=[templated_text],
                 stop_words=stopwords,
                 tokenizer=self.pipe.tokenizer,
             )
@@ -221,7 +219,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             _generation_kwargs.update(generation_kwargs)
 
         generation_thread = KillableThread(
-            target=self.pipe, args=(input_text,), kwargs=_generation_kwargs
+            target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs
         )
         generation_thread.start()
 
@@ -246,17 +244,41 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
+        huggingface_id: str,
         verbose: bool = False,
         num_threads: int = 1,
         save_history: bool = False,
         system_prompt: str = None,
     ):
+        """
+        Text generation processor using ONNX Runtime.
+
+        Parameters
+        ----------
+        model_id : str
+            The model ID to use for generation.
+            Usually the name of the model or the path to the model.
+        hugingface_id : str
+            The Hugging Face model ID to use for tokenization.
+            This tokenizer allows universal use of chat templates.
+        verbose : bool
+            Whether to print verbose logs.
+        num_threads : int
+            Number of threads to use for generation.
+        save_history : bool
+            Set to True if you want model to generate responses based on previous inputs.
+        system_prompt : str
+            The system prompt to prepend to the input text.
+        """
+
         self.model_id = model_id
         self.verbose = verbose
         self.num_threads = num_threads
         self.save_history = save_history
         self.history = []
         self.system_prompt = system_prompt
+
+        self.hf_tokenizer = AutoTokenizer.from_pretrained(huggingface_id)
 
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"Model not found at {model_id}")
@@ -286,15 +308,13 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
     def generate(
         self,
         input_text: str,
-        chat_template: str = "<|user|>\n{input}\n<|assistant|>\n{output}",
         max_new_tokens: int = 512,
         temperature: float = 0.1,
         stopwords: Optional[List[str]] = None,
         buffer_wordsize: int = 10,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        if self.system_prompt is not None:
-            input_text = f"{self.system_prompt}\n\n{input_text}"
+        templated_text = self.apply_chat_template(input_text, self.hf_tokenizer)
 
         search_options = {
             "do_sample": temperature > 0.0,
@@ -303,15 +323,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             **(generation_kwargs or {}),
         }
 
-        prompt = ""
-        for i in range(0, len(self.history), 2):
-            user_message = self.history[i]
-            assistant_message = self.history[i + 1] if i + 1 < len(self.history) else ""
-            prompt += chat_template.format(input=user_message, output=assistant_message)
-
-        prompt += chat_template.format(input=input_text, output="")
-
-        input_tokens = self.tokenizer.encode(prompt)
+        input_tokens = self.tokenizer.encode(templated_text)
 
         params = og.GeneratorParams(self.model)
         params.set_search_options(**search_options)
@@ -352,8 +364,6 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         logger.info(f"Generation took {total_time:.2f} seconds")
         logger.info(f"Tokens per second: {token_counter / total_time:.2f}")
 
-        if self.save_history:
-            self.history.append(input_text)
-            self.history.append(generated_text.strip())
+        self.update_history(input_text, generated_text.strip())
 
         return generated_text.strip()

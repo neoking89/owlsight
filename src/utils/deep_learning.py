@@ -109,3 +109,14 @@ def check_bfloat16_support():
     except Exception as e:
         print(f"bfloat16 is not supported on your GPU: {e}")
         return False
+
+
+def calculate_memory_for_model(n_bit: int, n_bilion_parameters: int) -> float:
+    """
+    Calculate the memory required for a model in GB.
+
+    Parameters:
+    n_bit (int): The number of bits used to represent the model parameters. Default is usually 32. Quantized models use 16/8/4 bits.
+    n_bilion_parameters (int): The number of parameters in the model in billions.
+    """
+    return ((n_bilion_parameters * 4) / (32 / n_bit)) * 1.2

@@ -3,9 +3,11 @@ import os
 import tempfile
 import signal
 import sys
+import stat
 from src.utils.deep_learning import check_gpu_and_cuda
 from src.processors.text_generation import (
     TextGenerationProcessorOnnx,
+    TextGenerationProcessorTransformers,
 )
 from src.utils.logger_manager import LoggerManager
 from src.utils.venv_manager import get_venv_path, get_pip_path, get_lib_path
@@ -19,15 +21,18 @@ def handle_exit(signum, frame):
     sys.exit(0)
 
 
+# Function to handle removing files that are marked as read-only or locked
+def handle_remove_readonly(func, path, exc_info):
+    os.chmod(path, stat.S_IWRITE)  # Change the file to writable
+    func(path)  # Retry the function that raised the error (either rmtree or os.remove)
+
+
 def force_delete(temp_dir: str) -> None:
     if os.path.exists(temp_dir):
         try:
-            shutil.rmtree(temp_dir)
-        except PermissionError as e:
-            os.chmod(temp_dir, 0o777)
-            os.rmdir(temp_dir)
-        except OSError as e:
-            logger.error("Error: %s - %s." % (e.filename, e.strerror))
+            shutil.rmtree(temp_dir, onerror=handle_remove_readonly)
+        except Exception as e:
+            logger.error(f"Error deleting directory {temp_dir}: {e}")
 
     if os.path.exists(temp_dir):
         logger.error(f"Failed to delete temporary directory: {temp_dir}")
@@ -46,15 +51,32 @@ def main() -> None:
     lib_path = get_lib_path(venv_path)
     pip_path = get_pip_path(venv_path)
 
+    # Remove any lingering temporary directories
+    for d in os.listdir(lib_path):
+        if d.startswith("tmp"):
+            logger.info(f"Removing temporary directory: {d}")
+            force_delete(os.path.join(lib_path, d))
+
     model_path = r"models\small\cuda\cuda-int4-rtn-block-32"
+    model_hf_id = "microsoft/Phi-3-mini-4k-instruct"
+
+    # processor = TextGenerationProcessorTransformers(
+    #     model_id=model_hf_id,
+    #     quantization_bits=4,
+    #     save_history=True,
+    #     )
+
     processor = TextGenerationProcessorOnnx(
-        model_id=model_path, verbose=True, save_history=False
+        model_id=model_path,
+        huggingface_id=model_hf_id,
+        verbose=True,
+        save_history=True,
     )
 
     max_retries = 3
     max_new_tokens = 2048
 
-    # create temp dir in venv to install packages
+    # Create temp dir in venv to install packages
     with tempfile.TemporaryDirectory(dir=lib_path) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
 
@@ -71,24 +93,28 @@ def main() -> None:
                     logger.info("Quitting...")
                     break
 
+                # Look into Python global state
                 if question.strip().lower() == "#python":
                     code_input = input(
                         "Enter Python code to execute using current state:\n"
                     )
                     code_executor.execute_code_block("python", code_input)
+
+                # Clear all past states and history
                 elif question.strip().lower() == "#clear":
                     code_executor.global_dict.clear()
                     processor.history.clear()
                     logger.info("State and history cleared.")
                 else:
                     response = processor.generate(
-                        question, max_new_tokens=max_new_tokens, stopwords=["```\n"]
+                        question,
+                        max_new_tokens=max_new_tokens,
+                        stopwords=["```\n"],
                     )
                     execute_code_with_feedback(response, question, code_executor)
         finally:
             logger.info(f"Removing temporary directory: {temp_dir}")
-
-        force_delete(temp_dir)
+            force_delete(temp_dir)
 
 
 if __name__ == "__main__":

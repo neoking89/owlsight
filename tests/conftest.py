@@ -11,7 +11,7 @@ class MockTextGenerationProcessor(TextGenerationProcessor):
         save_history: bool = False,
         mock_responses: Union[str, List[str]] = "Default mock response",
     ):
-        super().__init__(model_id, save_history)
+        super().__init__(model_id, save_history, system_prompt=None)
         self.mock_responses = (
             [mock_responses] if isinstance(mock_responses, str) else mock_responses
         )
