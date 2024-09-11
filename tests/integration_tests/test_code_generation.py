@@ -23,7 +23,7 @@ def code_executor(request):
             save_history=True,
             mock_responses=mock_responses,
         ),
-        temp_dir = "temp_dir",
+        temp_dir="temp_dir",
         pip_path="pip",
         venv_path="venv",
         max_new_tokens=512,

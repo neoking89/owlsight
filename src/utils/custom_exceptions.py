@@ -1,5 +1,6 @@
 from typing import List
 
+
 class ModuleNotFoundInVenvError(Exception):
     """Exception raised when a module is not found in the virtual environment."""
 

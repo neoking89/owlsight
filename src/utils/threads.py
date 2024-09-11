@@ -1,6 +1,7 @@
 from threading import Thread
 import sys
 
+
 class KillableThread(Thread):
     def __init__(self, *args, **keywords):
         Thread.__init__(self, *args, **keywords)

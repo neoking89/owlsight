@@ -46,9 +46,9 @@ def check_gpu_and_cuda():
     try:
         output_cuda = subprocess.check_output(["nvcc", "--version"]).decode("utf-8")
         cuda_version = output_cuda[
-            output_cuda.find("release")
-            + len("release")
-            + 1 : output_cuda.find(",", output_cuda.find("release"))
+            output_cuda.find("release") + len("release") + 1 : output_cuda.find(
+                ",", output_cuda.find("release")
+            )
         ]
         logger.info("CUDA %s is installed.", cuda_version)
     except subprocess.CalledProcessError:

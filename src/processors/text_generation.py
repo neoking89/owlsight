@@ -29,9 +29,7 @@ def is_flash_attention_available() -> bool:
 
 
 class TextGenerationProcessor(ABC):
-    def __init__(
-        self, model_id: str, save_history: bool, system_prompt: str
-    ):
+    def __init__(self, model_id: str, save_history: bool, system_prompt: str):
         """
         Abstract class for text generation processors.
 
@@ -92,7 +90,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
         save_history: bool = False,
-        system_prompt: str = None
+        system_prompt: str = None,
     ):
         """
         Text generation processor using Hugging Face Transformers library.
@@ -251,7 +249,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         verbose: bool = False,
         num_threads: int = 1,
         save_history: bool = False,
-        system_prompt: str = None
+        system_prompt: str = None,
     ):
         self.model_id = model_id
         self.verbose = verbose
@@ -297,7 +295,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
     ) -> str:
         if self.system_prompt is not None:
             input_text = f"{self.system_prompt}\n\n{input_text}"
-        
+
         search_options = {
             "do_sample": temperature > 0.0,
             "max_length": max_new_tokens,
