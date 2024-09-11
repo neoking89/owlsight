@@ -70,11 +70,11 @@ def main() -> None:
         model_id=model_path,
         huggingface_id=model_hf_id,
         verbose=True,
-        save_history=True,
+        save_history=False,
     )
 
     max_retries = 3
-    max_new_tokens = 2048
+    max_new_tokens = 1024
 
     # Create temp dir in venv to install packages
     with tempfile.TemporaryDirectory(dir=lib_path) as temp_dir:
@@ -110,6 +110,7 @@ def main() -> None:
                         question,
                         max_new_tokens=max_new_tokens,
                         stopwords=["```\n"],
+                        generation_kwargs={"repetition_penalty": 1.2},
                     )
                     execute_code_with_feedback(response, question, code_executor)
         finally:
