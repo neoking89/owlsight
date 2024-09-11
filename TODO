@@ -1,3 +1,4 @@
+- only use BASH and CMD inside the temp venv
 - improve interface of model processor to prevent DRY -> pydantic? dataclasses?
 
 - make venv ONLY if python code is called
