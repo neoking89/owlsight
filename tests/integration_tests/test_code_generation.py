@@ -41,24 +41,24 @@ def test_code_executor_execute_python_code_succesfully(code_executor: CodeExecut
 def test_code_executor_python_state_is_saved(code_executor: CodeExecutor):
     # Test that variables are correctly set in the state after execution
     code_executor.execute_python_code("x = 10")
-    assert code_executor.global_dict.get("x") == 10
+    assert code_executor.globals_dict.get("x") == 10
 
     # Test executing another block of code that uses the state
     code_executor.execute_python_code("y = x + 5")
-    assert code_executor.global_dict.get("y") == 15
+    assert code_executor.globals_dict.get("y") == 15
 
     # Test that the state is persistent across executions
-    assert code_executor.global_dict.get("x") == 10  # x should still be available
+    assert code_executor.globals_dict.get("x") == 10  # x should still be available
 
 
 def test_clear_state(code_executor: CodeExecutor):
     # Set some state
     code_executor.execute_python_code("x = 20")
-    assert code_executor.global_dict.get("x") == 20
+    assert code_executor.globals_dict.get("x") == 20
 
     # Clear the state and check if it's removed
-    code_executor.global_dict.clear()
-    assert code_executor.global_dict.get("x") is None  # State should be cleared
+    code_executor.globals_dict.clear()
+    assert code_executor.globals_dict.get("x") is None  # State should be cleared
 
 
 def test_code_executor_install_missing_module_in_venv():
@@ -91,6 +91,7 @@ def test_code_executor_install_missing_module_in_venv():
             model_response,
             question,
             code_executor,
+            prompt_execution=False,
         )
 
         assert isinstance(results, list)
@@ -102,7 +103,7 @@ def test_code_executor_install_missing_module_in_venv():
         assert module_name in os.listdir(code_executor.temp_dir)
 
         # state is saved correctly
-        assert code_executor.global_dict.get("a") == 5
+        assert code_executor.globals_dict.get("a") == 5
 
 
 if __name__ == "__main__":
