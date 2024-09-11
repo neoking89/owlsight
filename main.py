@@ -16,31 +16,12 @@ from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
 logger = LoggerManager.get_logger(__name__)
 
 
-def handle_exit(signum, frame):
-    logger.info("Received exit signal. Exiting gracefully...")
-    sys.exit(0)
-
-
-# Function to handle removing files that are marked as read-only or locked
-def handle_remove_readonly(func, path, exc_info):
-    os.chmod(path, stat.S_IWRITE)  # Change the file to writable
-    func(path)  # Retry the function that raised the error (either rmtree or os.remove)
-
-
 def force_delete(temp_dir: str) -> None:
     if os.path.exists(temp_dir):
         try:
-            shutil.rmtree(temp_dir, onerror=handle_remove_readonly)
+            shutil.rmtree(temp_dir)
         except Exception as e:
             logger.error(f"Error deleting directory {temp_dir}: {e}")
-
-    if os.path.exists(temp_dir):
-        logger.error(f"Failed to delete temporary directory: {temp_dir}")
-
-
-# Set up signal handling
-signal.signal(signal.SIGINT, handle_exit)
-signal.signal(signal.SIGTERM, handle_exit)
 
 
 def main() -> None:
@@ -95,8 +76,15 @@ def main() -> None:
 
                 # Acces Python global state in interactive console
                 if question.strip().lower() == "#python":
-                    code_executor.init_interactive_py_console()
-
+                    try:
+                        code_executor.init_interactive_py_console()
+                    except Exception as e:
+                        logger.error(f"Unexpected error in interactive console: {e}")
+                    
+                    # Check if stdin is still usable
+                    if sys.stdin.closed:
+                        logger.warning("stdin is closed. Reopening for further input.")
+                        sys.stdin = open(0)
                 # Clear all past states and history
                 elif question.strip().lower() == "#clear":
                     code_executor.globals_dict.clear()
@@ -110,9 +98,11 @@ def main() -> None:
                         generation_kwargs={"repetition_penalty": 1.2},
                     )
                     execute_code_with_feedback(response, question, code_executor, prompt_execution=True)
-        finally:
-            logger.info(f"Removing temporary directory: {temp_dir}")
-            force_delete(temp_dir)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            
+    logger.info(f"Removing temporary directory: {temp_dir}")
+    force_delete(temp_dir)
 
 
 if __name__ == "__main__":
