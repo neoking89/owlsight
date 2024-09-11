@@ -1,3 +1,4 @@
+- fix bug when interactive py console is close with exit()
 - only use BASH and CMD inside the temp venv
 - improve interface of model processor to prevent DRY -> pydantic? dataclasses?
 
