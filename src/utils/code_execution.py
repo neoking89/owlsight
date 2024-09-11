@@ -108,6 +108,7 @@ class CodeExecutor:
             # raise e
 
     def init_interactive_py_console(self) -> None:
+        """Initialize an interactive Python console."""
         console = code.InteractiveConsole(self.globals_dict)
 
         try:
