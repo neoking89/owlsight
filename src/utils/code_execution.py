@@ -1,3 +1,4 @@
+import code
 import os
 import re
 from typing import Dict, List
@@ -33,7 +34,7 @@ class CodeExecutor:
         self.temp_dir = temp_dir
         self.max_new_tokens = max_new_tokens
         self.max_retries = max_retries
-        self.global_dict = {}
+        self.globals_dict = {}
 
         self._init_python_properties(venv_path, pip_path)
         self._reset_retries()
@@ -84,7 +85,7 @@ class CodeExecutor:
     def execute_python_code(self, code_block: str) -> None:
         """Execute Python code block."""
         try:
-            exec(code_block, self.global_dict)
+            exec(code_block, self.globals_dict)
         except ModuleNotFoundError as e:
             logger.error(f"Module not found: {e}")
             missing_module = extract_missing_module(str(e))
@@ -105,6 +106,16 @@ class CodeExecutor:
         except Exception as e:  # fatal errors here
             logger.error(f"Error executing code: {traceback.format_exc()}")
             # raise e
+
+    def init_interactive_py_console(self) -> None:
+        console = code.InteractiveConsole(self.globals_dict)
+
+        try:
+            console.interact(
+                "Interactive Python interpreter activated. Type 'exit()' to quit the console."
+            )
+        except SystemExit:
+            logger.info("Exiting interactive console and returning to the script.")
 
     def _reset_retries(self) -> None:
         self.retries_left = self.max_retries
@@ -171,12 +182,12 @@ def execute_code_with_feedback(
         if prompt_execution:
             while True:
                 logger.info(f"Code block in {lang.capitalize()}:\n{code_block}")
-                
+
                 # Use the editable_input function to allow users to edit the code block
-                code_block = editable_input('Edit the code block: ', code_block)
-                
+                code_block = editable_input("Edit the code block: ", code_block)
+
                 logger.info(f"Edited Code Block:\n{code_block}")
-                
+
                 user_input = input("Execute this code block? (y/n): ").strip().lower()
 
                 if user_input == "y":

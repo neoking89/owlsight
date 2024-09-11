@@ -93,16 +93,13 @@ def main() -> None:
                     logger.info("Quitting...")
                     break
 
-                # Look into Python global state
+                # Acces Python global state in interactive console
                 if question.strip().lower() == "#python":
-                    code_input = input(
-                        "Enter Python code to execute using current state:\n"
-                    )
-                    code_executor.execute_code_block("python", code_input)
+                    code_executor.init_interactive_py_console()
 
                 # Clear all past states and history
                 elif question.strip().lower() == "#clear":
-                    code_executor.global_dict.clear()
+                    code_executor.globals_dict.clear()
                     processor.history.clear()
                     logger.info("State and history cleared.")
                 else:
@@ -112,7 +109,7 @@ def main() -> None:
                         stopwords=["```\n"],
                         generation_kwargs={"repetition_penalty": 1.2},
                     )
-                    execute_code_with_feedback(response, question, code_executor)
+                    execute_code_with_feedback(response, question, code_executor, prompt_execution=True)
         finally:
             logger.info(f"Removing temporary directory: {temp_dir}")
             force_delete(temp_dir)

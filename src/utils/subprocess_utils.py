@@ -72,6 +72,7 @@ def _log_shell_output(result: subprocess.CompletedProcess) -> None:
         logger.info(result.stdout)
     if result.stderr:
         logger.warning(f"Command produced stderr output: {result.stderr}")
+    if hasattr(result, "output") and result.output:
         logger.warning(f"Command produced output: {result.output}")
 
 
