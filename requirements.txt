@@ -6,6 +6,7 @@ bitsandbytes
 accelerate
 gguf
 sentencepiece
+prompt_toolkit
 
 # dev
 pytest

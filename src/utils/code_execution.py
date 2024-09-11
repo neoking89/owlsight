@@ -1,11 +1,12 @@
 import os
 import re
 from typing import Dict, List
+import traceback
 
 from src.processors.text_generation import TextGenerationProcessor
 from src.utils.custom_exceptions import ModuleNotFoundInVenvError
 from src.utils.subprocess_utils import execute_shell_command
-from src.utils.helper_functions import extract_markdown
+from src.utils.helper_functions import extract_markdown, editable_input
 from src.utils.venv_manager import install_module, get_lib_path, get_python_executable
 
 from src.utils.logger_manager import LoggerManager
@@ -101,11 +102,9 @@ class CodeExecutor:
                 logger.error(
                     f"Failed to install {missing_module}. Cannot execute the code."
                 )
-        except NameError as e:  # non-fatal errors here
-            logger.error(f"Error executing code: {e}")
         except Exception as e:  # fatal errors here
-            logger.error(f"Error executing code: {e}")
-            raise e
+            logger.error(f"Error executing code: {traceback.format_exc()}")
+            # raise e
 
     def _reset_retries(self) -> None:
         self.retries_left = self.max_retries
@@ -172,6 +171,12 @@ def execute_code_with_feedback(
         if prompt_execution:
             while True:
                 logger.info(f"Code block in {lang.capitalize()}:\n{code_block}")
+                
+                # Use the editable_input function to allow users to edit the code block
+                code_block = editable_input('Edit the code block: ', code_block)
+                
+                logger.info(f"Edited Code Block:\n{code_block}")
+                
                 user_input = input("Execute this code block? (y/n): ").strip().lower()
 
                 if user_input == "y":
