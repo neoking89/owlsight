@@ -54,5 +54,6 @@ def test_mock_text_generator_history(mock_text_generator):
         ("Input Y", "Response Y"),
     ]
 
+
 if __name__ == "__main__":
     pytest.main([__file__])

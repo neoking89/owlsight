@@ -1,6 +1,7 @@
 from typing import List, Tuple
 import re
 
+
 def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
     """
     Extract language and code blocks from a markdown string.

@@ -1,5 +1,6 @@
-- make sure chat template is universal and not model specific (like now for microsoft phi) in TextGenerationProcessors. Use langchain?
-improve interface of model processor to prevent DRY -> pydantic? dataclasses?
+make sure chat template is universal and not model specific (like now for microsoft phi) in TextGenerationProcessors. use the web to find a solution
+
+- improve interface of model processor to prevent DRY -> pydantic? dataclasses?
 
 - add option to parse/not parse code
 

@@ -67,9 +67,9 @@ def main() -> None:
     #     )
 
     processor = TextGenerationProcessorOnnx(
-        model_id=model_path, 
+        model_id=model_path,
         huggingface_id=model_hf_id,
-        verbose=True, 
+        verbose=True,
         save_history=True,
     )
 
@@ -107,8 +107,8 @@ def main() -> None:
                     logger.info("State and history cleared.")
                 else:
                     response = processor.generate(
-                        question, 
-                        max_new_tokens=max_new_tokens, 
+                        question,
+                        max_new_tokens=max_new_tokens,
                         stopwords=["```\n"],
                     )
                     execute_code_with_feedback(response, question, code_executor)

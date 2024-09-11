@@ -60,6 +60,7 @@ def get_lib_path(venv_path: str) -> str:
     """
     return os.path.join(venv_path, "Lib", "site-packages")
 
+
 def get_python_executable(venv_path: str) -> str:
     """
     Get the path to the Python executable within the virtual environment.
@@ -75,6 +76,7 @@ def get_python_executable(venv_path: str) -> str:
         The path to the Python executable.
     """
     return os.path.join(venv_path, "Scripts" if os.name == "nt" else "bin", "python")
+
 
 def get_venv_path() -> str:
     """

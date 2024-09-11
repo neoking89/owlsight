@@ -36,20 +36,23 @@ class TextGenerationProcessor(ABC):
         self.history = []
         self.system_prompt = system_prompt
 
-    def apply_chat_template(self, input_text: str, tokenizer: PreTrainedTokenizer) -> str:
+    def apply_chat_template(
+        self, input_text: str, tokenizer: PreTrainedTokenizer
+    ) -> str:
         """Apply chat template to the input text."""
         messages = []
 
         if self.save_history:
             messages = self.history.copy()
-        
+
         messages.append({"role": "user", "content": input_text})
         messages.append({"role": "assistant", "content": ""})
         if self.system_prompt is not None:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
 
+
+        # temporarily set eos_token to None to avoid adding it to the end of the text
         eos_token = tokenizer.eos_token
-        # set eos_token to None to avoid adding it to the end of the text
         tokenizer.eos_token = None
         templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
         tokenizer.eos_token = eos_token
@@ -60,7 +63,9 @@ class TextGenerationProcessor(ABC):
         """Update the history with the input and generated text."""
         if self.save_history:
             self.history.append({"role": "user", "content": input_text})
-            self.history.append({"role": "assistant", "content": generated_text.strip()})
+            self.history.append(
+                {"role": "assistant", "content": generated_text.strip()}
+            )
 
 
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
@@ -183,9 +188,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        templated_text = self.apply_chat_template(
-            input_text, self.pipe.tokenizer # Copy tokenizer to avoid modifying the original eos_token in apply_chat_template
-        )
+        templated_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
 
         _generation_kwargs = {
             "max_new_tokens": max_new_tokens,
@@ -301,9 +304,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         buffer_wordsize: int = 10,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        templated_text = self.apply_chat_template(
-            input_text, self.hf_tokenizer
-        )
+        templated_text = self.apply_chat_template(input_text, self.hf_tokenizer)
 
         search_options = {
             "do_sample": temperature > 0.0,

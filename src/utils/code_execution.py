@@ -101,9 +101,9 @@ class CodeExecutor:
                 logger.error(
                     f"Failed to install {missing_module}. Cannot execute the code."
                 )
-        except (NameError) as e: # non-fatal errors here
+        except NameError as e:  # non-fatal errors here
             logger.error(f"Error executing code: {e}")
-        except Exception as e: # fatal errors here
+        except Exception as e:  # fatal errors here
             logger.error(f"Error executing code: {e}")
             raise e
 
