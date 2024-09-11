@@ -144,14 +144,53 @@ def execute_code_with_feedback(
     response: str,
     original_question: str,
     code_executor: CodeExecutor,
+    prompt_execution: bool = True,
 ) -> List[Dict]:
     """
     Extract code blocks from a response and execute them with feedback and retry logic.
+
+    Parameters:
+        response (str): The response containing the code blocks in markdown format.
+        original_question (str): The original question that prompted the code execution.
+        code_executor (CodeExecutor): An instance of CodeExecutor that handles code execution.
+        prompt_execution (bool): If True, prompts the user before executing each code block.
+
+    Returns:
+        List[Dict]: A list of dictionaries with execution results, including success status, language, and code.
     """
     results = []
-    for lang, code_block in extract_markdown(response):
-        is_succes = code_executor.execute_and_retry(lang, code_block, original_question)
-        result = {"success": is_succes, "language": lang, "code": code_block}
-        results.append(result)
+
+    # Extract code blocks with their associated language
+    code_blocks = extract_markdown(response)
+    if not code_blocks:
+        logger.info("No code blocks found in the response.")
+        return results
+
+    # Iterate over extracted code blocks
+    for lang, code_block in code_blocks:
+        execute = True
+        if prompt_execution:
+            while True:
+                logger.info(f"Code block in {lang.capitalize()}:\n{code_block}")
+                user_input = input("Execute this code block? (y/n): ").strip().lower()
+
+                if user_input == "y":
+                    logger.info("Executing code block.")
+                    break
+                elif user_input == "n":
+                    logger.info("Skipping code block.")
+                    execute = False
+                    break
+                else:
+                    logger.info("Invalid input. Please choose 'y' or 'n'.")
+                    continue
+
+        # Only execute the code block and add to results if the user has chosen to do so
+        if execute:
+            is_success = code_executor.execute_and_retry(
+                lang, code_block, original_question
+            )
+            result = {"success": is_success, "language": lang, "code": code_block}
+            results.append(result)
 
     return results
