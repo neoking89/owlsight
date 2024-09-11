@@ -16,7 +16,7 @@ git merge --no-ff $currentBranch
 # Push the changes to the remote repository
 git push origin main
 
-# Switch back to the original branch
-git checkout $currentBranch
+# # Switch back to the original branch
+# git checkout $currentBranch
 
 Write-Output "Main branch has been updated with the latest changes from $currentBranch."
