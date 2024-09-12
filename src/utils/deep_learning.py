@@ -103,7 +103,7 @@ def check_bfloat16_support():
 
     try:
         # Create a tensor with bfloat16 dtype
-        tensor = torch.tensor([1.0, 2.0], dtype=torch.bfloat16, device="cuda")
+        _ = torch.tensor([1.0, 2.0], dtype=torch.bfloat16, device="cuda")
         print("bfloat16 is supported on your GPU.")
         return True
     except Exception as e:
