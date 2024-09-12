@@ -91,7 +91,7 @@ def test_code_executor_install_missing_module_in_venv():
             model_response,
             question,
             code_executor,
-            prompt_execution=False,
+            prompt_code_execution=False,
         )
 
         assert isinstance(results, list)

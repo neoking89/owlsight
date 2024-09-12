@@ -155,7 +155,7 @@ def execute_code_with_feedback(
     response: str,
     original_question: str,
     code_executor: CodeExecutor,
-    prompt_execution: bool = True,
+    prompt_code_execution: bool = True,
 ) -> List[Dict]:
     """
     Extract code blocks from a response and execute them with feedback and retry logic.
@@ -164,7 +164,7 @@ def execute_code_with_feedback(
         response (str): The response containing the code blocks in markdown format.
         original_question (str): The original question that prompted the code execution.
         code_executor (CodeExecutor): An instance of CodeExecutor that handles code execution.
-        prompt_execution (bool): If True, prompts the user before executing each code block.
+        prompt_code_execution (bool): If True, prompts the user before executing each code block.
 
     Returns:
         List[Dict]: A list of dictionaries with execution results, including success status, language, and code.
@@ -180,7 +180,7 @@ def execute_code_with_feedback(
     # Iterate over extracted code blocks
     for lang, code_block in code_blocks:
         execute = True
-        if prompt_execution:
+        if prompt_code_execution:
             while True:
                 logger.info(f"Code block in {lang.capitalize()}:\n{code_block}")
 

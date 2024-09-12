@@ -113,8 +113,9 @@ def execute_shell_command(command: str, venv_path: str) -> subprocess.CompletedP
     subprocess.CompletedProcess
         The result of the subprocess run or the exception if failed.
     """
-    activate_script = _get_activate_script(venv_path)
-    full_command = _build_shell_command(activate_script, command)
+    # first activate venv and then run the command
+    activate_venv = _get_activate_script(venv_path)
+    full_command = _build_shell_command(activate_venv, command)
 
     result = None
     try:
