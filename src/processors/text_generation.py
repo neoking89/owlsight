@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Optional, List, Dict, Any
 import os
 import time
@@ -7,11 +7,11 @@ import onnxruntime_genai as og
 import torch
 from transformers import (
     AutoModelForCausalLM,
-    pipeline,
     BitsAndBytesConfig,
     TextIteratorStreamer,
     AutoTokenizer,
     PreTrainedTokenizer,
+    pipeline,
 )
 from src.utils.threads import KillableThread
 from src.utils.custom_classes import StopWordCriteria
@@ -20,7 +20,7 @@ from src.utils.logger_manager import LoggerManager
 logger = LoggerManager.get_logger(__name__)
 
 
-def is_flash_attention_available() -> bool:
+def flash_attention_is_available() -> bool:
     try:
         from flash_attn import flash_attn_fn
 
@@ -50,7 +50,10 @@ class TextGenerationProcessor(ABC):
     def apply_chat_template(
         self, input_text: str, tokenizer: PreTrainedTokenizer
     ) -> str:
-        """Apply chat template to the input text."""
+        """
+        Apply chat template to the input text.
+        This is used to format the input text before generating a response and should be universal across all models.
+        """
         messages = []
 
         if self.save_history:
@@ -127,7 +130,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         self.model_id = model_id
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self._attention_implementation = (
-            "flash" if is_flash_attention_available() else "eager"
+            "flash" if flash_attention_is_available() else "eager"
         )
         self.save_history = save_history
         self.history = []
@@ -244,7 +247,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
-        huggingface_id: str,
+        tokenizer: str | PreTrainedTokenizer,
         verbose: bool = False,
         num_threads: int = 1,
         save_history: bool = False,
@@ -258,8 +261,10 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         model_id : str
             The model ID to use for generation.
             Usually the name of the model or the path to the model.
-        hugingface_id : str
-            The Hugging Face model ID to use for tokenization.
+        tokenizer : str | PreTrainedTokenizer
+            The tokenizer to use for generation.
+            If str, it should be the model ID of the tokenizer.
+            else, it should be a PreTrainedTokenizer object.
             This tokenizer allows universal use of chat templates.
         verbose : bool
             Whether to print verbose logs.
@@ -270,6 +275,8 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         system_prompt : str
             The system prompt to prepend to the input text.
         """
+        if not os.path.exists(model_id):
+            raise FileNotFoundError(f"Model not found at {model_id}")
 
         self.model_id = model_id
         self.verbose = verbose
@@ -278,13 +285,15 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.history = []
         self.system_prompt = system_prompt
 
-        self.hf_tokenizer = AutoTokenizer.from_pretrained(huggingface_id)
-
-        if not os.path.exists(model_id):
-            raise FileNotFoundError(f"Model not found at {model_id}")
-
+        self._set_tokenizer(tokenizer)
         self._set_environment_variables()
         self._initialize_model()
+
+    def _set_tokenizer(self, tokenizer):
+        if isinstance(tokenizer, str):
+            self.hf_tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        else:
+            self.hf_tokenizer = tokenizer
 
     def _set_environment_variables(self) -> None:
         os.environ.update(

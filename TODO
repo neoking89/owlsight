@@ -1,5 +1,12 @@
-- fix bug when interactive py console is close with exit()
-- only use BASH and CMD inside the temp venv
+- add option to write code to a (txt/py/whatever) file during code validation phase
+- fix bug when retrying 2nd attempt when fixing python code
+- implement dspy (COT, react, etc) to improve prompts -> try to seperate a problem into smaller problems with different prompts
+
+- venv should be activated when usiong BASH and CMD
+
+NICE TO HAVE:
+- add more coloring to the output so that its clear for user what is happening
 - improve interface of model processor to prevent DRY -> pydantic? dataclasses?
+- add voicemodel to speak prompts instead of writing them for faster interaction
 
 - make venv ONLY if python code is called
