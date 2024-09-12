@@ -151,9 +151,11 @@ def parse_globals_from_stdout(stdout: str) -> dict:
         # Try to evaluate the value, if it fails, keep it as a string
         try:
             parsed_value = literal_eval(value)
-        except:
+        except Exception as e:
             parsed_value = value.strip()
-            logger.error(f"Failed to parse value '{value}' for key '{key}'")
+            logger.error(
+                f"Failed to parse value '{value}' for key '{key}' because:\n{e}"
+            )
 
         result[key] = parsed_value
 
