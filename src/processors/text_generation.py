@@ -339,6 +339,26 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         buffer_wordsize: int = 10,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
+        """
+        Generate text using the ONNX model.
+
+        Parameters
+        ----------
+        input_text : str
+            The input text to generate a response for.
+        max_new_tokens : int
+            The maximum number of tokens to generate.
+        temperature : float
+            The temperature for sampling.
+        stopwords : List[str], optional
+            List of stop words to stop generation at.
+        buffer_wordsize : int
+            The buffer word size for generation.
+            Larger buffer sizes will check later for stop words.
+        generation_kwargs : Dict[str, Any], optional
+            Additional keyword arguments for generation.
+            Example: {"top_k": 50, "top_p": 0.95}
+        """
         templated_text = self.apply_chat_template(input_text, self.hf_tokenizer)
 
         search_options = {
