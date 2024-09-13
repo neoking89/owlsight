@@ -1,5 +1,6 @@
 from typing import List, Optional
 import tempfile
+import traceback
 
 from src.processors.text_generation import TextGenerationProcessor
 from src.main_logic.handlers import (
@@ -23,8 +24,8 @@ def run_code_generation_loop(
     prompt_code_execution: bool,
 ) -> None:
     """Runs the main loop for code generation and user interaction."""
-    try:
-        while True:
+    while True:
+        try:
             question = input("What can I do for you (Type 'q' or 'quit' to exit)?\n")
             if question.lower() in ["q", "quit"]:
                 logger.info("Quitting...")
@@ -52,8 +53,12 @@ def run_code_generation_loop(
                     code_executor,
                     prompt_code_execution=prompt_code_execution,
                 )
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt received. Restarting...")
+            continue
+        except Exception:
+            logger.error(f"Unexpected error:\n{traceback.format_exc()}")
+            raise
 
 
 def main(
