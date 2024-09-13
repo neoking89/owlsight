@@ -2,6 +2,7 @@ from typing import List, Tuple
 import os
 import shutil
 import re
+import traceback
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
@@ -64,8 +65,10 @@ def force_delete(temp_dir: str) -> None:
     if os.path.exists(temp_dir):
         try:
             shutil.rmtree(temp_dir)
-        except Exception as e:
-            logger.error(f"Error deleting directory {temp_dir}: {e}")
+        except Exception:
+            logger.error(
+                f"Error deleting directory {temp_dir}:\n{traceback.format_exc()}"
+            )
 
 
 def remove_temp_directories(lib_path: str) -> None:
@@ -74,3 +77,20 @@ def remove_temp_directories(lib_path: str) -> None:
         if d.startswith("tmp"):
             logger.info(f"Removing temporary directory: {d}")
             force_delete(os.path.join(lib_path, d))
+
+
+def format_error_message(e: Exception) -> str:
+    """
+    Format an error message to be displayed to the user.
+
+    Parameters
+    ----------
+    error : Exception
+        The exception that occurred.
+
+    Returns
+    -------
+    str
+        The formatted error message.
+    """
+    return "{e.__class__.__name__}: {e}".format(e=e)
