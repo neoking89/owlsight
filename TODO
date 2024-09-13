@@ -1,8 +1,8 @@
 - add option to write code to a (txt/py/whatever) file during code validation phase
-- fix bug when retrying 2nd attempt when fixing python code
-- implement dspy (COT, react, etc) to improve prompts -> try to seperate a problem into smaller problems with different prompts
 
 - venv should be activated when usiong BASH and CMD
+- implement dspy (COT, react, etc) to improve prompts -> try to seperate a problem into smaller problems with different prompts
+https://dspy-docs.vercel.app/api/functional/dspy_TypedCoT
 
 NICE TO HAVE:
 - add more coloring to the output so that its clear for user what is happening
