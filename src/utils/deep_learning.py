@@ -46,9 +46,9 @@ def check_gpu_and_cuda():
     try:
         output_cuda = subprocess.check_output(["nvcc", "--version"]).decode("utf-8")
         cuda_version = output_cuda[
-            output_cuda.find("release") + len("release") + 1 : output_cuda.find(
-                ",", output_cuda.find("release")
-            )
+            output_cuda.find("release")
+            + len("release")
+            + 1 : output_cuda.find(",", output_cuda.find("release"))
         ]
         logger.info("CUDA %s is installed.", cuda_version)
     except subprocess.CalledProcessError:
@@ -111,12 +111,12 @@ def check_bfloat16_support():
         return False
 
 
-def calculate_memory_for_model(n_bit: int, n_bilion_parameters: int) -> float:
+def calculate_memory_for_model(n_bilion_parameters: int, n_bit: int = 32) -> float:
     """
     Calculate the memory required for a model in GB.
 
     Parameters:
-    n_bit (int): The number of bits used to represent the model parameters. Default is usually 32. Quantized models use 16/8/4 bits.
     n_bilion_parameters (int): The number of parameters in the model in billions.
+    n_bit (int): The number of bits used to represent the model parameters. Default is 32. Quantized models use 16/8/4 bits.
     """
     return ((n_bilion_parameters * 4) / (32 / n_bit)) * 1.2

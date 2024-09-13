@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import traceback
 
 from src.utils.code_execution import CodeExecutor
 from src.utils.logger_manager import LoggerManager
@@ -20,7 +21,7 @@ def handle_interactive_code_execution(code_executor: CodeExecutor) -> None:
     try:
         code_executor.init_interactive_py_console()
     except Exception as e:
-        logger.error(f"Unexpected error in interactive console: {e}")
+        logger.error(f"Unexpected error in interactive console: {traceback.format_exc()}")
     # Reopen stdin if it's closed
     if sys.stdin.closed:
         logger.warning("stdin is closed. Reopening for further input.")

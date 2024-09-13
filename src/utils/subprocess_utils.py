@@ -3,6 +3,7 @@ from typing import Tuple
 import os
 import platform
 import re
+import traceback
 from ast import literal_eval
 
 from src.utils.logger_manager import LoggerManager
@@ -154,7 +155,7 @@ def parse_globals_from_stdout(stdout: str) -> dict:
         except Exception as e:
             parsed_value = value.strip()
             logger.error(
-                f"Failed to parse value '{value}' for key '{key}' because:\n{e}"
+                f"Failed to parse value '{value}' for key '{key}' because:\n{traceback.format_exc()}"
             )
 
         result[key] = parsed_value

@@ -7,7 +7,11 @@ import traceback
 from src.processors.text_generation import TextGenerationProcessor
 from src.utils.custom_exceptions import ModuleNotFoundInVenvError
 from src.utils.subprocess_utils import execute_shell_command
-from src.utils.helper_functions import extract_markdown, editable_input
+from src.utils.helper_functions import (
+    extract_markdown,
+    editable_input,
+    format_error_message,
+)
 from src.utils.venv_manager import install_module, get_lib_path, get_python_executable
 
 from src.utils.logger_manager import LoggerManager
@@ -60,8 +64,13 @@ class CodeExecutor:
                     logger.info(
                         f"Retrying... ({self._get_nth_attempt()}/{self.max_retries})"
                     )
-                    code_block = self._generate_fixed_code(
-                        original_question, code_block, str(e)
+                    response_with_fixed_code = self._generate_fixed_code_response(
+                        original_question, code_block, format_error_message(e)
+                    )
+                    code_block = (
+                        extract_markdown(response_with_fixed_code)[0][1]
+                        if response_with_fixed_code
+                        else code_block
                     )
                 else:
                     logger.error(
@@ -122,24 +131,24 @@ class CodeExecutor:
     def _get_nth_attempt(self) -> int:
         return self.max_retries - self.retries_left + 1
 
-    def _generate_fixed_code(
+    def _generate_fixed_code_response(
         self, original_question: str, code_block: str, error: str
     ) -> str:
-        new_question = f"""
-        # ORIGINAL QUESTION:
-        {original_question}
+        new_question = f"""\
+# ORIGINAL QUESTION:
+{original_question}
 
-        # ANSWER WHICH GENERATED THE ERROR:
-        {code_block}
+# ANSWER WHICH GENERATED THE ERROR:
+{code_block}
 
-        # ERROR:
-        {error}
+# ERROR:
+{error}
 
-        # TASK: 
-        1. Look at the error message and identify the issue.
-        2. Do NOT make the same mistake again.
-        3. Please provide updated Python code that addresses this error.
-        """
+# TASK:
+1. Analyze the error message.
+2. Step-by-step, determine how to fix the error.
+3. Generate updated Python code that resolves the issue.
+""".strip()
         return self.processor.generate(new_question, max_new_tokens=self.max_new_tokens)
 
     def _init_python_properties(self, venv_path: str, pip_path: str):
@@ -184,7 +193,9 @@ def execute_code_with_feedback(
 
                 # Use the editable_input function to allow users to edit the code block
                 code_block = editable_input(
-                    "Edit the code block:\n", code_block, color="blue"
+                    "Edit the code block (press ENTER to confim):\n",
+                    code_block,
+                    color="blue",
                 )
 
                 logger.info(f"Edited Code Block:\n{code_block}")

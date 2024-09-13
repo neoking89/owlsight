@@ -48,7 +48,10 @@ class TextGenerationProcessor(ABC):
         self.system_prompt = system_prompt
 
     def apply_chat_template(
-        self, input_text: str, tokenizer: PreTrainedTokenizer
+        self,
+        input_text: str,
+        tokenizer: PreTrainedTokenizer,
+        # exclude_eos_token: bool = False,
     ) -> str:
         """
         Apply chat template to the input text.
@@ -64,11 +67,16 @@ class TextGenerationProcessor(ABC):
         if self.system_prompt is not None:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
 
-        # temporarily set eos_token to None to avoid adding it to the end of the text
-        eos_token = tokenizer.eos_token
-        tokenizer.eos_token = None
-        templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
-        tokenizer.eos_token = eos_token
+        # templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
+
+        try:
+            eos_token = tokenizer.eos_token
+            tokenizer.eos_token = None
+            templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
+            tokenizer.eos_token = eos_token
+        except Exception as e:
+            logger.warning(f"Error applying chat template:\n{e}")
+            templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
 
         return templated_text
 
@@ -79,6 +87,9 @@ class TextGenerationProcessor(ABC):
             self.history.append(
                 {"role": "assistant", "content": generated_text.strip()}
             )
+
+    def generate(self) -> str:
+        raise NotImplementedError("Generate method must be implemented in the subclass.")
 
 
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
@@ -161,8 +172,11 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         bnb_kwargs: Dict,
         model_kwargs: Dict,
     ):
+        if quantization_bits and self.device == "cpu":
+            raise RuntimeError("Quantization is not supported on CPU")
+
         quantization_config = None
-        if quantization_bits == 4 and self.device != "cpu":
+        if quantization_bits == 4:
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
@@ -170,7 +184,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
                 bnb_4bit_quant_type="nf4",
                 **bnb_kwargs,
             )
-        elif quantization_bits == 8 and self.device != "cpu":
+        elif quantization_bits == 8:
             quantization_config = BitsAndBytesConfig(load_in_8bit=True, **bnb_kwargs)
 
         model_kwargs.update(
@@ -237,8 +251,10 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         generation_thread.join()
 
         if self.save_history:
-            self.history.append(input_text)
-            self.history.append(generated_text.strip())
+            self.history.append({"role": "user", "content": input_text})
+            self.history.append(
+                {"role": "assistant", "content": generated_text.strip()}
+            )
 
         return generated_text
 
