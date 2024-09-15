@@ -16,18 +16,18 @@ if __name__ == "__main__":
     model_hf_id = "microsoft/Phi-3-mini-4k-instruct"
 
     # Initialize processor (uncomment if Transformers processor is needed)
-    processor = TextGenerationProcessorTransformers(
-        model_id=model_hf_id,
-        quantization_bits=None,
+    # processor = TextGenerationProcessorTransformers(
+    #     model_id=model_hf_id,
+    #     quantization_bits=None,
+    #     save_history=False,
+    # )
+
+    processor = TextGenerationProcessorOnnx(
+        model_id=model_path,
+        tokenizer=model_hf_id,
+        verbose=True,
         save_history=False,
     )
-
-    # processor = TextGenerationProcessorOnnx(
-    #     model_id=model_path,
-    #     tokenizer=model_hf_id,
-    #     verbose=True,
-    #     save_history=True,
-    # )
 
     # initialize agent
     main(processor, max_retries=3, max_new_tokens=1024, prompt_code_execution=True)
