@@ -12,6 +12,7 @@ from src.utils.constants import PROMPT_COLOR
 
 
 from src.utils.logger_manager import LoggerManager
+
 logger = LoggerManager.get_logger(__name__)
 
 
@@ -33,9 +34,9 @@ def run_code_generation_loop(
             menu_choices = ["python", "clear history", "quit"]
 
             question = choose_from_prompt_and_menu(prompt, initial_input, menu_choices)
-            
+
             # Mapping menu choices to actual commands
-            if question.lower() == "quit":
+            if question == "quit":
                 logger.info("Quitting...")
                 break
             elif question == "python":
