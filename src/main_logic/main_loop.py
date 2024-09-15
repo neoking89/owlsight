@@ -3,13 +3,13 @@ import tempfile
 import traceback
 
 from src.processors.text_generation import TextGenerationProcessor
-from src.main_logic.handlers import (
-    handle_interactive_code_execution,
-    handle_interactive_shell,
-)
+from src.main_logic.handlers import handle_interactive_code_execution
 from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
 from src.utils.helper_functions import force_delete, remove_temp_directories
 from src.utils.venv_manager import get_lib_path, get_pip_path, get_venv_path
+from src.utils.console import choose_from_prompt_and_menu, print_colored
+from src.utils.constants import PROMPT_COLOR
+
 
 from src.utils.logger_manager import LoggerManager
 logger = LoggerManager.get_logger(__name__)
@@ -26,21 +26,26 @@ def run_code_generation_loop(
     """Runs the main loop for code generation and user interaction."""
     while True:
         try:
-            question = input("What can I do for you (Type 'q' or 'quit' to exit)?\n")
-            if question.lower() in ["q", "quit"]:
+            print_colored("Make a choice:", color=PROMPT_COLOR)
+            # Use choose_from_prompt_and_menu to gather user input with menu options
+            prompt = "What can I do for you?"
+            initial_input = ""  # Start with an empty string for the initial input
+            menu_choices = ["python", "clear history", "quit"]
+
+            question = choose_from_prompt_and_menu(prompt, initial_input, menu_choices)
+            
+            # Mapping menu choices to actual commands
+            if question.lower() == "quit":
                 logger.info("Quitting...")
                 break
-
-            if question.strip().lower() == "!python":
+            elif question == "python":
                 handle_interactive_code_execution(code_executor)
-            elif question.strip().lower() in ["!cmd", "!bash"]:
-                logger.info("Starting an interactive shell. Type 'exit' to return.")
-                handle_interactive_shell(question)
-            elif question.strip().lower() == "!clear":
+            elif question == "clear history":
                 code_executor.globals_dict.clear()
                 processor.history.clear()
                 logger.info("State and history cleared.")
             else:
+                # Handle free-form input (anything not matching the predefined menu options)
                 response = processor.generate(
                     question,
                     max_new_tokens=max_new_tokens,
@@ -53,6 +58,7 @@ def run_code_generation_loop(
                     code_executor,
                     prompt_code_execution=prompt_code_execution,
                 )
+
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt received. Restarting...")
             continue
