@@ -179,9 +179,6 @@ def _display_prompt_and_choices(
     # Move cursor back to end of user input on the first line
     sys.stdout.write(f"\033[{len(choices)}A\033[{len(prompt) + len(user_input) + 3}G")
     sys.stdout.flush()
-        # Clear the console
-    sys.stdout.write("\033[H\033[J")
-
 
 
 def print_colored(text: str, color: str) -> None:
