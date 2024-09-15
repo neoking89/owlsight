@@ -12,7 +12,9 @@ from src.utils.helper_functions import (
     editable_input,
     format_error_message,
 )
+from src.utils.console import choose_from_menu
 from src.utils.venv_manager import install_module, get_lib_path, get_python_executable
+from src.utils.constants import PROMPT_COLOR
 
 from src.utils.logger_manager import LoggerManager
 
@@ -167,14 +169,21 @@ def execute_code_with_feedback(
     """
     Extract code blocks from a response and execute them with feedback and retry logic.
 
-    Parameters:
-        response (str): The response containing the code blocks in markdown format.
-        original_question (str): The original question that prompted the code execution.
-        code_executor (CodeExecutor): An instance of CodeExecutor that handles code execution.
-        prompt_code_execution (bool): If True, prompts the user before executing each code block.
+    Parameters
+    ----------
+    response : str
+        The response containing the code blocks in markdown format.
+    original_question : str
+        The original question that prompted the code execution.
+    code_executor : CodeExecutor
+        An instance of CodeExecutor that handles code execution.
+    prompt_code_execution : bool
+        If True, prompts the user before executing each code block.
 
-    Returns:
-        List[Dict]: A list of dictionaries with execution results, including success status, language, and code.
+    Returns
+    -------
+    List[Dict]
+        A list of dictionaries with execution results, including success status, language, and code.
     """
     results = []
 
@@ -186,35 +195,42 @@ def execute_code_with_feedback(
 
     # Iterate over extracted code blocks
     for lang, code_block in code_blocks:
-        execute = True
+        execute_code = False
+        code_is_edited = False
         if prompt_code_execution:
             while True:
-                logger.info(f"Code block in {lang.capitalize()}:\n{code_block}")
 
                 # Use the editable_input function to allow users to edit the code block
-                code_block = editable_input(
-                    "Edit the code block (press ENTER to confim):\n",
-                    code_block,
-                    color="blue",
+                if not code_is_edited:
+                    logger.info(f"Code block in {lang.capitalize()}:\n{code_block}")
+                    code_block = editable_input(
+                        "Edit the code block (press ENTER to confirm):\n",
+                        code_block,
+                        color=PROMPT_COLOR,
+                    )
+                    logger.info(f"Edited Code Block:\n{code_block}")
+                    code_is_edited = True
+
+                # Provide a menu for the user to choose between "Execute", "Skip", or "Write code to file"
+                user_choice = choose_from_menu(
+                    ["Execute code", "Skip code", "Write code to file"]
                 )
 
-                logger.info(f"Edited Code Block:\n{code_block}")
-
-                user_input = input("Execute this code block? (y/n): ").strip().lower()
-
-                if user_input == "y":
+                if user_choice == "Execute code":
                     logger.info("Executing code block.")
-                    break
-                elif user_input == "n":
+                    execute_code = True
+                    break  # Exit the while loop and execute the code
+                elif user_choice == "Skip code":
                     logger.info("Skipping code block.")
-                    execute = False
-                    break
-                else:
-                    logger.info("Invalid input. Please choose 'y' or 'n'.")
-                    continue
+                    break  # Exit the while loop and skip execution
+                elif user_choice == "Write code to file":
+                    # Handle writing to a file or going back
+                    _handle_write_code_to_file_choice(code_block)
+                    # After handling file, stay in the menu for further selection
+                    continue  # Stay in the while loop to allow more choices
 
         # Only execute the code block and add to results if the user has chosen to do so
-        if execute:
+        if execute_code:
             is_success = code_executor.execute_and_retry(
                 lang, code_block, original_question
             )
@@ -222,3 +238,37 @@ def execute_code_with_feedback(
             results.append(result)
 
     return results
+
+
+def _handle_write_code_to_file_choice(code_block: str):
+    """
+    Handles the process of writing a code block to a file, providing options for entering
+    a filename or returning to the main menu.
+
+    Parameters
+    ----------
+    code_block : str
+        The code block to write to the file.
+    """
+    while True:
+        file_choice = choose_from_menu(["Enter filename", "Go back"])
+
+        if file_choice == "Go back":
+            logger.info("Returning to the main menu.")
+            return  # Return to the main menu
+
+        elif file_choice == "Enter filename":
+            file_name = input("Enter the filename: ")
+            if file_name:  # If a filename is entered
+                try:
+                    with open(file_name, "w") as f:
+                        f.write(code_block)
+                        logger.info(f"Code block written to file: {file_name}")
+                    # After writing, return to the main menu without breaking the loop
+                    return
+                except Exception as e:
+                    logger.error(
+                        f"Error writing code block to file: {e}. Please try again."
+                    )
+            else:
+                logger.info("No file name entered. Please try again.")
