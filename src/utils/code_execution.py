@@ -196,6 +196,7 @@ def execute_code_with_feedback(
 
     # Iterate over extracted code blocks
     for lang, code_block in code_blocks:
+        execute_code = True
         code_is_edited = False
         if prompt_code_execution:
             while True:
@@ -225,6 +226,7 @@ def execute_code_with_feedback(
                     break  # Exit the while loop and execute the code
                 elif user_choice == "Skip code":
                     logger.info("Skipping code block.")
+                    execute_code = False
                     break  # Exit the while loop and skip execution
                 elif user_choice == "Write code to file":
                     # Handle writing to a file or going back
@@ -232,6 +234,8 @@ def execute_code_with_feedback(
                     # After handling file, stay in the menu for further selection
                     continue  # Stay in the while loop to allow more choices
 
+        if not execute_code:
+            continue  # Skip execution if skip code is selected
         is_success = code_executor.execute_and_retry(
             lang, code_block, original_question
         )
