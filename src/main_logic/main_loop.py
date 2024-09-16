@@ -7,7 +7,7 @@ from src.main_logic.handlers import handle_interactive_code_execution
 from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
 from src.utils.helper_functions import force_delete, remove_temp_directories
 from src.utils.venv_manager import get_lib_path, get_pip_path, get_venv_path
-from src.utils.console import choose_from_prompt_and_menu, print_colored
+from src.utils.console import get_user_choice, print_colored
 from src.utils.constants import PROMPT_COLOR
 
 
@@ -28,12 +28,14 @@ def run_code_generation_loop(
     while True:
         try:
             print_colored("Make a choice:", color=PROMPT_COLOR)
-            # Use choose_from_prompt_and_menu to gather user input with menu options
             prompt = "What can I do for you?"
-            initial_input = ""  # Start with an empty string for the initial input
-            menu_choices = ["python", "clear history", "quit"]
 
-            question = choose_from_prompt_and_menu(prompt, initial_input, menu_choices)
+            question = get_user_choice({
+                prompt : "",
+                "python": None,
+                "clear chathistory": None,
+                "quit": None
+            })
 
             # Mapping menu choices to actual commands
             if question == "quit":
@@ -41,7 +43,7 @@ def run_code_generation_loop(
                 break
             elif question == "python":
                 handle_interactive_code_execution(code_executor)
-            elif question == "clear history":
+            elif question == "clear chathistory":
                 code_executor.globals_dict.clear()
                 processor.history.clear()
                 logger.info("State and history cleared.")

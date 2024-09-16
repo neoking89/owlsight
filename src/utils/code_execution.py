@@ -12,7 +12,7 @@ from src.utils.helper_functions import (
     editable_input,
     format_error_message,
 )
-from src.utils.console import choose_from_menu
+from src.utils.console import get_user_choice
 from src.utils.venv_manager import install_module, get_lib_path, get_python_executable
 from src.utils.constants import PROMPT_COLOR
 
@@ -179,6 +179,7 @@ def execute_code_with_feedback(
         An instance of CodeExecutor that handles code execution.
     prompt_code_execution : bool
         If True, prompts the user before executing each code block.
+        Acts as a safety measure to prevent accidental execution.
 
     Returns
     -------
@@ -195,7 +196,6 @@ def execute_code_with_feedback(
 
     # Iterate over extracted code blocks
     for lang, code_block in code_blocks:
-        execute_code = False
         code_is_edited = False
         if prompt_code_execution:
             while True:
@@ -212,13 +212,16 @@ def execute_code_with_feedback(
                     code_is_edited = True
 
                 # Provide a menu for the user to choose between "Execute", "Skip", or "Write code to file"
-                user_choice = choose_from_menu(
-                    ["Execute code", "Skip code", "Write code to file"]
+                user_choice = get_user_choice(
+                    {
+                        "Execute code": None,
+                        "Skip code": None,
+                        "Write code to file": None,
+                    }
                 )
 
                 if user_choice == "Execute code":
                     logger.info("Executing code block.")
-                    execute_code = True
                     break  # Exit the while loop and execute the code
                 elif user_choice == "Skip code":
                     logger.info("Skipping code block.")
@@ -229,13 +232,11 @@ def execute_code_with_feedback(
                     # After handling file, stay in the menu for further selection
                     continue  # Stay in the while loop to allow more choices
 
-        # Only execute the code block and add to results if the user has chosen to do so
-        if execute_code:
-            is_success = code_executor.execute_and_retry(
-                lang, code_block, original_question
-            )
-            result = {"success": is_success, "language": lang, "code": code_block}
-            results.append(result)
+        is_success = code_executor.execute_and_retry(
+            lang, code_block, original_question
+        )
+        result = {"success": is_success, "language": lang, "code": code_block}
+        results.append(result)
 
     return results
 
@@ -251,7 +252,12 @@ def _handle_write_code_to_file_choice(code_block: str):
         The code block to write to the file.
     """
     while True:
-        file_choice = choose_from_menu(["Enter filename", "Go back"])
+        file_choice = get_user_choice(
+            {
+                "Enter filename": None,
+                "Go back": None,
+            }
+        )
 
         if file_choice == "Go back":
             logger.info("Returning to the main menu.")
