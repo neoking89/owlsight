@@ -1,11 +1,9 @@
-- add option to write code to a (txt/py/whatever) file during code validation phase
-
 - venv should be activated when usiong BASH and CMD
-- implement dspy (COT, react, etc) to improve prompts -> try to seperate a problem into smaller problems with different prompts
-https://dspy-docs.vercel.app/api/functional/dspy_TypedCoT
+- add config option to set params (model, n_tries, temperature, etc)
 
 NICE TO HAVE:
 - add more coloring to the output so that its clear for user what is happening
+- add rag for code libraries
 - improve interface of model processor to prevent DRY -> pydantic? dataclasses?
 - add voicemodel to speak prompts instead of writing them for faster interaction
 
