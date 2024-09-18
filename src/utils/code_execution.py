@@ -86,7 +86,7 @@ class CodeExecutor:
     def execute_code_block(self, lang: str, code_block: str) -> None:
         if lang == "python":
             self.execute_python_code(code_block)
-        elif lang in ["cmd", "bash"]:
+        elif lang in ["cmd", "bash", "shell"]:
             if "pip install" in code_block:
                 module_to_install = code_block.split("pip install")[1].strip()
                 logger.info(f"pip install found in command '{code_block}'. Installing module {module_to_install} to target directory {self.temp_dir}")
