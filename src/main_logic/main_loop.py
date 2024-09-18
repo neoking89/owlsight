@@ -5,7 +5,7 @@ import traceback
 from src.processors.text_generation import TextGenerationProcessor
 from src.main_logic.handlers import handle_interactive_code_execution
 from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
-from src.utils.helper_functions import force_delete, remove_temp_directories
+from src.utils.helper_functions import force_delete, remove_temp_directories, replace_bracket_placeholders
 from src.utils.venv_manager import get_lib_path, get_pip_path, get_venv_path
 from src.utils.console import get_user_choice, print_colored
 from src.utils.constants import PROMPT_COLOR
@@ -32,10 +32,10 @@ def run_code_generation_loop(
             user_choice_key = None
             user_choice = get_user_choice(
                 {
-                    "What can I do for you?": "",
+                    "what can I do for you?": "",
                     "shell": "",
                     "python": None,
-                    "clear chathistory": None,
+                    "clear history": None,
                     "quit": None,
                 },
                 return_value_only=False,
@@ -55,14 +55,14 @@ def run_code_generation_loop(
             if user_choice == "quit":
                 logger.info("Quitting...")
                 break
-
             elif user_choice == "python":
                 handle_interactive_code_execution(code_executor)
-            elif user_choice == "clear chathistory":
+            elif user_choice == "clear history":
                 code_executor.globals_dict.clear()
                 processor.history.clear()
                 logger.info("State and history cleared.")
             else:
+                user_choice = replace_bracket_placeholders(user_choice, code_executor.globals_dict)
                 # user_choice is question
                 response = processor.generate(
                     user_choice,
