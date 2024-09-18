@@ -1,8 +1,9 @@
-- venv should be activated when usiong BASH and CMD
+- add some kind of brackets in question to access python variables
+- add extra option for pip location for user
 - add config option to set params (model, n_tries, temperature, etc)
 
 NICE TO HAVE:
-- add more coloring to the output so that its clear for user what is happening
+- add owl logo
 - add rag for code libraries
 - improve interface of model processor to prevent DRY -> pydantic? dataclasses?
 - add voicemodel to speak prompts instead of writing them for faster interaction
