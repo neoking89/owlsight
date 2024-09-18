@@ -56,7 +56,7 @@ def _build_shell_command(activate_script: str, command: str) -> str:
         return f'bash -c "source {activate_script} && {command}"'
 
 
-def _log_shell_output(result: subprocess.CompletedProcess) -> None:
+def _log_shell_output(result: subprocess.CompletedProcess | None) -> None:
     """
     Log the output of a shell command.
 
@@ -69,12 +69,13 @@ def _log_shell_output(result: subprocess.CompletedProcess) -> None:
     -------
     None
     """
-    if result.stdout:
-        logger.info(result.stdout)
-    if result.stderr:
-        logger.warning(f"Command produced stderr output: {result.stderr}")
-    if hasattr(result, "output") and result.output:
-        logger.warning(f"Command produced output: {result.output}")
+    if result is not None:
+        if result.stdout:
+            logger.info(result.stdout)
+        if result.stderr:
+            logger.warning(f"Command produced stderr output: {result.stderr}")
+        if result.output:
+            logger.warning(f"Command produced output: {result.output}")
 
 
 def _get_activate_script(venv_path: str) -> str:
