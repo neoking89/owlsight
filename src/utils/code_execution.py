@@ -86,8 +86,17 @@ class CodeExecutor:
     def execute_code_block(self, lang: str, code_block: str) -> None:
         if lang == "python":
             self.execute_python_code(code_block)
-        elif lang in ["cmd", "bash"]:
-            execute_shell_command(code_block, self.venv_path)
+        elif lang in ["cmd", "bash", "shell"]:
+            if "pip install" in code_block:
+                module_to_install = code_block.split("pip install")[1].strip()
+                logger.info(f"pip install found in command '{code_block}'. Installing module {module_to_install} to target directory {self.temp_dir}")
+                install_module(
+                    module_to_install,
+                    self.pip_path,
+                    self.temp_dir,
+                )
+            else:
+                execute_shell_command(code_block, self.venv_path)
         else:
             logger.warning(f"Unsupported language: {lang}")
 

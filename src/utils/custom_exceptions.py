@@ -10,3 +10,7 @@ class ModuleNotFoundInVenvError(Exception):
         self.lib_contents = lib_contents
         self.message = f"Module '{module_name}' not found in venv '{venv_path}'. Contents of lib directory: {lib_contents}"
         super().__init__(self.message)
+
+
+class QuantizationNotSupportedError(Exception):
+    """Exception raised when quantization is not supported for a given model."""

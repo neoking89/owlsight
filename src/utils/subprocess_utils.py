@@ -56,7 +56,7 @@ def _build_shell_command(activate_script: str, command: str) -> str:
         return f'bash -c "source {activate_script} && {command}"'
 
 
-def _log_shell_output(result: subprocess.CompletedProcess) -> None:
+def _log_shell_output(result: subprocess.CompletedProcess | None) -> None:
     """
     Log the output of a shell command.
 
@@ -69,12 +69,13 @@ def _log_shell_output(result: subprocess.CompletedProcess) -> None:
     -------
     None
     """
-    if result.stdout:
-        logger.info(result.stdout)
-    if result.stderr:
-        logger.warning(f"Command produced stderr output: {result.stderr}")
-    if hasattr(result, "output") and result.output:
-        logger.warning(f"Command produced output: {result.output}")
+    if result is not None:
+        if result.stdout:
+            logger.info(result.stdout)
+        if result.stderr:
+            logger.warning(f"Command produced stderr output: {result.stderr}")
+        if result.output:
+            logger.warning(f"Command produced output: {result.output}")
 
 
 def _get_activate_script(venv_path: str) -> str:
@@ -114,12 +115,23 @@ def execute_shell_command(command: str, venv_path: str) -> subprocess.CompletedP
     subprocess.CompletedProcess
         The result of the subprocess run or the exception if failed.
     """
-    # first activate venv and then run the command
+    # Get the correct activate script based on the virtual environment
     activate_venv = _get_activate_script(venv_path)
-    full_command = _build_shell_command(activate_venv, command)
+
+    # Determine the OS and build the appropriate shell command
+    current_os = platform.system().lower()
+    if "windows" in current_os:
+        # For Windows, use cmd.exe and the '/c' option
+        full_command = f'cmd /c "{_build_shell_command(activate_venv, command)}"'
+    elif "linux" in current_os or "darwin" in current_os:
+        # For Linux or macOS, use bash and the '-c' option
+        full_command = f'bash -c "{_build_shell_command(activate_venv, command)}"'
+    else:
+        raise OSError(f"Unsupported operating system: {current_os}")
 
     result = None
     try:
+        # Run the command with the appropriate shell
         result = subprocess.run(
             full_command, shell=True, capture_output=True, text=True, check=True
         )
@@ -128,9 +140,8 @@ def execute_shell_command(command: str, venv_path: str) -> subprocess.CompletedP
         logger.error(f"Output: {e.output}")
         result = e
     finally:
-        _log_shell_output(
-            result
-        )  # Log the output of the command regardless of success or failure
+        # Log the output of the command regardless of success or failure
+        _log_shell_output(result)
 
     return result
 

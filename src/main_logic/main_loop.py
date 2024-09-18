@@ -28,37 +28,52 @@ def run_code_generation_loop(
     while True:
         try:
             print_colored("Make a choice:", color=PROMPT_COLOR)
-            prompt = "What can I do for you?"
 
-            question = get_user_choice({
-                prompt : "",
-                "python": None,
-                "clear chathistory": None,
-                "quit": None
-            })
+            user_choice_key = None
+            user_choice = get_user_choice(
+                {
+                    "What can I do for you?": "",
+                    "shell": "",
+                    "python": None,
+                    "clear chathistory": None,
+                    "quit": None,
+                },
+                return_value_only=False,
+            )
 
-            # Mapping menu choices to actual commands
-            if question == "quit":
+            if isinstance(user_choice, dict):
+                user_choice_key = list(user_choice.keys())[0]
+                user_choice = user_choice[user_choice_key]
+
+            if user_choice_key == "shell":
+                code_executor.execute_code_block(
+                    lang=user_choice_key,
+                    code_block=user_choice,
+                )
+                continue
+
+            if user_choice == "quit":
                 logger.info("Quitting...")
                 break
-            elif question == "python":
+
+            elif user_choice == "python":
                 handle_interactive_code_execution(code_executor)
-            elif question == "clear chathistory":
+            elif user_choice == "clear chathistory":
                 code_executor.globals_dict.clear()
                 processor.history.clear()
                 logger.info("State and history cleared.")
             else:
-                # Handle free-form input (anything not matching the predefined menu options)
+                # user_choice is question
                 response = processor.generate(
-                    question,
+                    user_choice,
                     max_new_tokens=max_new_tokens,
                     stopwords=stopwords,
                     generation_kwargs=generation_kwargs,
                 )
                 execute_code_with_feedback(
-                    response,
-                    question,
-                    code_executor,
+                    response=response,
+                    original_question=user_choice,
+                    code_executor=code_executor,
                     prompt_code_execution=prompt_code_execution,
                 )
 
