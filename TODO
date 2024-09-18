@@ -1,5 +1,6 @@
-- add some kind of brackets in question to access python variables
 - add extra option for pip location for user
+- add a cursor when typing a question
+- add expressions to the double brackets placeholder. maybe like: expr({{df}}.head())
 - add config option to set params (model, n_tries, temperature, etc)
 
 NICE TO HAVE:

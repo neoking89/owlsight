@@ -1,0 +1,8 @@
+Create a logo of an own with glasses in ASCII art.
+The logo should be printed in a python function.
+
+The following requirements should be met:
+- the logo should be minimalistic
+- the logo should be recognizable
+- the logo should be created in ASCII art
+- styles: wisdom, modern, minimalistic

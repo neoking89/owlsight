@@ -4,12 +4,14 @@ from src.processors.text_generation import (
     TextGenerationProcessorOnnx,
     TextGenerationProcessorTransformers,
 )
+from src.ui.logo import print_logo
 from src.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 
 
 if __name__ == "__main__":
+    print_logo()
     check_gpu_and_cuda()
 
     model_path = r"models\small\cuda\cuda-int4-rtn-block-32"
