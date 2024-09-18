@@ -28,10 +28,11 @@ def run_code_generation_loop(
     while True:
         try:
             print_colored("Make a choice:", color=PROMPT_COLOR)
-            prompt = "What can I do for you?"
+
+            user_choice_key = None
             user_choice = get_user_choice(
                 {
-                    prompt: "",
+                    "What can I do for you?": "",
                     "shell": "",
                     "python": None,
                     "clear chathistory": None,
@@ -40,43 +41,41 @@ def run_code_generation_loop(
                 return_value_only=False,
             )
 
-            # user_choice can be a dict, for example: {"shell": "ls"}
-            # or a string, for example: "python" (activates interpreter) or "tell me a joke" (asks a question to model)
             if isinstance(user_choice, dict):
                 user_choice_key = list(user_choice.keys())[0]
-                user_choice_val = user_choice[user_choice_key]
-                if user_choice_key == "shell":
-                    code_executor.execute_code_block(
-                        lang=user_choice_key,
-                        code_block=user_choice_val,
-                    )
-                else:
-                    raise ValueError(f"Invalid choice: {user_choice}")
-            else:
-                if user_choice == "quit":
-                    logger.info("Quitting...")
-                    break
+                user_choice = user_choice[user_choice_key]
 
-                elif user_choice == "python":
-                    handle_interactive_code_execution(code_executor)
-                elif user_choice == "clear chathistory":
-                    code_executor.globals_dict.clear()
-                    processor.history.clear()
-                    logger.info("State and history cleared.")
-                else:
-                    # user_choice is question
-                    response = processor.generate(
-                        user_choice,
-                        max_new_tokens=max_new_tokens,
-                        stopwords=stopwords,
-                        generation_kwargs=generation_kwargs,
-                    )
-                    execute_code_with_feedback(
-                        response=response,
-                        original_question=user_choice,
-                        code_executor=code_executor,
-                        prompt_code_execution=prompt_code_execution,
-                    )
+            if user_choice_key == "shell":
+                code_executor.execute_code_block(
+                    lang=user_choice_key,
+                    code_block=user_choice,
+                )
+                continue
+
+            if user_choice == "quit":
+                logger.info("Quitting...")
+                break
+
+            elif user_choice == "python":
+                handle_interactive_code_execution(code_executor)
+            elif user_choice == "clear chathistory":
+                code_executor.globals_dict.clear()
+                processor.history.clear()
+                logger.info("State and history cleared.")
+            else:
+                # user_choice is question
+                response = processor.generate(
+                    user_choice,
+                    max_new_tokens=max_new_tokens,
+                    stopwords=stopwords,
+                    generation_kwargs=generation_kwargs,
+                )
+                execute_code_with_feedback(
+                    response=response,
+                    original_question=user_choice,
+                    code_executor=code_executor,
+                    prompt_code_execution=prompt_code_execution,
+                )
 
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt received. Restarting...")
