@@ -14,6 +14,7 @@ from transformers import (
     pipeline,
 )
 from src.utils.threads import KillableThread
+from src.utils.custom_exceptions import QuantizationNotSupportedError
 from src.utils.custom_classes import StopWordCriteria
 from src.utils.logger_manager import LoggerManager
 
@@ -89,7 +90,9 @@ class TextGenerationProcessor(ABC):
             )
 
     def generate(self) -> str:
-        raise NotImplementedError("Generate method must be implemented in the subclass.")
+        raise NotImplementedError(
+            "Generate method must be implemented in the subclass."
+        )
 
 
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
@@ -173,7 +176,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         model_kwargs: Dict,
     ):
         if quantization_bits and self.device == "cpu":
-            raise RuntimeError("Quantization is not supported on CPU")
+            raise QuantizationNotSupportedError("Quantization is not supported on CPU")
 
         quantization_config = None
         if quantization_bits == 4:
@@ -305,31 +308,6 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self._set_environment_variables()
         self._initialize_model()
 
-    def _set_tokenizer(self, tokenizer):
-        if isinstance(tokenizer, str):
-            self.hf_tokenizer = AutoTokenizer.from_pretrained(tokenizer)
-        else:
-            self.hf_tokenizer = tokenizer
-
-    def _set_environment_variables(self) -> None:
-        os.environ.update(
-            {
-                "OMP_NUM_THREADS": str(self.num_threads),
-                "OMP_WAIT_POLICY": "ACTIVE",
-                "OMP_SCHEDULE": "STATIC",
-                "ONNXRUNTIME_INTRA_OP_NUM_THREADS": str(self.num_threads),
-                "ONNXRUNTIME_INTER_OP_NUM_THREADS": "1",
-            }
-        )
-
-    def _initialize_model(self) -> None:
-        logger.info("Loading model...")
-        self.model = og.Model(self.model_id)
-        self.tokenizer = og.Tokenizer(self.model)
-        self.tokenizer_stream = self.tokenizer.create_stream()
-        logger.info(f"Model loaded using {self.num_threads} threads")
-        logger.info("Tokenizer created")
-
     def generate(
         self,
         input_text: str,
@@ -412,3 +390,28 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.update_history(input_text, generated_text.strip())
 
         return generated_text.strip()
+
+    def _set_tokenizer(self, tokenizer):
+        if isinstance(tokenizer, str):
+            self.hf_tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        else:
+            self.hf_tokenizer = tokenizer
+
+    def _set_environment_variables(self) -> None:
+        os.environ.update(
+            {
+                "OMP_NUM_THREADS": str(self.num_threads),
+                "OMP_WAIT_POLICY": "ACTIVE",
+                "OMP_SCHEDULE": "STATIC",
+                "ONNXRUNTIME_INTRA_OP_NUM_THREADS": str(self.num_threads),
+                "ONNXRUNTIME_INTER_OP_NUM_THREADS": "1",
+            }
+        )
+
+    def _initialize_model(self) -> None:
+        logger.info("Loading model...")
+        self.model = og.Model(self.model_id)
+        self.tokenizer = og.Tokenizer(self.model)
+        self.tokenizer_stream = self.tokenizer.create_stream()
+        logger.info(f"Model loaded using {self.num_threads} threads")
+        logger.info("Tokenizer created")
