@@ -3,15 +3,16 @@ from typing import List, Dict, Tuple, Union, Any
 import sys
 
 from prompt_toolkit import Application
-from prompt_toolkit.layout import Layout, Window, HSplit
+from prompt_toolkit.layout import Layout, HSplit, VSplit, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.application.current import get_app
 
 sys.path.append(".")
 from src.utils.constants import COLOR_CODES
 
 
-# Enum for different option types
 class OptionType(Enum):
     SINGLE = auto()  # A static option that can be selected
     EDITABLE = auto()  # An option where the user can input text
@@ -21,11 +22,14 @@ class OptionType(Enum):
 class Selector:
     def __init__(self, options_dict: Dict[str, Union[None, str, List[Any]]]) -> None:
         """
-        Initializes the Selector with the given options.
+        Initialize the Selector with the given options.
 
-        :param options_dict: A dictionary where the key is the option label and the value defines
-                             the type of option. None is for static options, an empty string for editable input,
-                             and a list (e.g., [True, False], [1, 2, 3]) for toggleable options.
+        Parameters
+        ----------
+        options_dict : Dict[str, Union[None, str, List[Any]]]
+            A dictionary where the key is the option label and the value defines
+            the type of option. None is for static options, an empty string for editable input,
+            and a list (e.g., [True, False], [1, 2, 3]) for toggleable options.
         """
         self.options: List[Tuple[str, OptionType]] = []
         self.current_index: int = 0
@@ -50,149 +54,218 @@ class Selector:
                 self.options.append((key, OptionType.EDITABLE))
                 self.user_inputs[key] = ""  # Initialize editable field as empty
 
-    def get_formatted_options(self) -> List[Tuple[str, str]]:
-        """
-        Formats the options for display with an arrow pointing to the current selection.
 
-        :return: A list of formatted text representing each option.
+class OptionSelectorApp:
+    def __init__(self, selector: Selector) -> None:
         """
-        formatted = []
-        for i, (label, opt_type) in enumerate(self.options):
+        Initialize the OptionSelectorApp.
+
+        Parameters
+        ----------
+        selector : Selector
+            The Selector object containing the options and state.
+        """
+        self.selector = selector
+        self.controls: List[Any] = []
+        self.buffers: Dict[str, TextArea] = {}
+        self.kb = KeyBindings()
+        self.build_controls()
+        self.layout = Layout(HSplit(self.controls))
+        self.build_key_bindings()
+        self.application = Application(
+            layout=self.layout,
+            key_bindings=self.kb,
+            full_screen=False,
+        )
+
+    def build_controls(self) -> None:
+        """Build the controls for each option."""
+        for i, (label, opt_type) in enumerate(self.selector.options):
             if opt_type == OptionType.SINGLE:
-                formatted.append(
-                    ("", f"{'>' if i == self.current_index else ' '} {label}\n")
-                )
+                control = self.create_single_option_control(i, label)
+                self.controls.append(control)
             elif opt_type == OptionType.TOGGLE:
-                current_value = self.toggle_values[label]
-                formatted.append(
-                    (
-                        "",
-                        f"{'>' if i == self.current_index else ' '} {label}: {current_value}\n",
-                    )
-                )
+                control = self.create_toggle_option_control(i, label)
+                self.controls.append(control)
             elif opt_type == OptionType.EDITABLE:
-                formatted.append(
-                    (
-                        "",
-                        f"{'>' if i == self.current_index else ' '} {label} {self.user_inputs[label]}\n",
-                    )
-                )
-        return formatted
+                control = self.create_editable_option_control(i, label)
+                self.controls.append(control)
 
-    def cycle_toggle_left(self, label: str) -> None:
-        """Cycle to the previous value in the toggle list."""
-        choices = self.toggle_choices[label]
-        current_value = self.toggle_values[label]
-        current_index = choices.index(current_value)
-        self.toggle_values[label] = choices[
-            (current_index - 1) % len(choices)
-        ]  # Move left
+    def get_arrow(self, i: int) -> str:
+        """Get the arrow for the current selection."""
+        return ">" if i == self.selector.current_index else " "
 
-    def cycle_toggle_right(self, label: str) -> None:
-        """Cycle to the next value in the toggle list."""
-        choices = self.toggle_choices[label]
-        current_value = self.toggle_values[label]
-        current_index = choices.index(current_value)
-        self.toggle_values[label] = choices[
-            (current_index + 1) % len(choices)
-        ]  # Move right
+    def invalidate(self) -> None:
+        """Force redraw of the application."""
+        app = get_app()
+        if app:
+            app.invalidate()
+
+    def create_single_option_control(self, i: int, label: str) -> Window:
+        """Create a control for a single option."""
+
+        def get_text():
+            arrow = self.get_arrow(i)
+            return [("", f"{arrow} {label}")]
+
+        control = FormattedTextControl(get_text)
+        window = Window(content=control, height=1)
+        return window
+
+    def create_toggle_option_control(self, i: int, label: str) -> Window:
+        """Create a control for a toggle option."""
+
+        def get_text():
+            arrow = self.get_arrow(i)
+            current_value = self.selector.toggle_values[label]
+            return [("", f"{arrow} {label}: {current_value}")]
+
+        control = FormattedTextControl(get_text)
+        window = Window(content=control, height=1)
+        return window
+
+    def create_editable_option_control(self, i: int, label: str) -> VSplit:
+        """Create a control for an editable option."""
+        # Create a TextArea for the editable field
+        text_area = TextArea(
+            text=self.selector.user_inputs[label],
+            multiline=False,
+            wrap_lines=False,
+            focus_on_click=True,
+            height=1,  # Limit the TextArea to one line
+        )
+        self.buffers[label] = text_area
+
+        # Create a dynamic prompt that updates based on selection
+        def get_prompt():
+            arrow = self.get_arrow(i)
+            return f"{arrow} {label} "
+
+        prompt_control = FormattedTextControl(lambda: [("", get_prompt())])
+        prompt_window = Window(content=prompt_control, dont_extend_width=True)
+
+        # Combine the prompt and the TextArea in a VSplit
+        control = VSplit(
+            [
+                prompt_window,
+                text_area,
+            ],
+            height=1,
+        )
+        return control
+
+    def update_focus(self, app: Application) -> None:
+        """Set focus to the current control."""
+        current_option, opt_type = self.selector.options[self.selector.current_index]
+        if opt_type == OptionType.EDITABLE:
+            app.layout.focus(self.buffers[current_option])
+        else:
+            app.layout.focus(self.controls[self.selector.current_index])
+
+    def build_key_bindings(self) -> None:
+        """Define the key bindings for the application."""
+
+        @self.kb.add("up")
+        def move_up(event):
+            self.selector.current_index = (self.selector.current_index - 1) % len(
+                self.selector.options
+            )
+            self.update_focus(event.app)
+            self.invalidate()
+
+        @self.kb.add("down")
+        def move_down(event):
+            self.selector.current_index = (self.selector.current_index + 1) % len(
+                self.selector.options
+            )
+            self.update_focus(event.app)
+            self.invalidate()
+
+        @self.kb.add("left")
+        def left(event):
+            current_option, opt_type = self.selector.options[
+                self.selector.current_index
+            ]
+            if opt_type == OptionType.TOGGLE:
+                choices = self.selector.toggle_choices[current_option]
+                current_value = self.selector.toggle_values[current_option]
+                current_index = choices.index(current_value)
+                self.selector.toggle_values[current_option] = choices[
+                    (current_index - 1) % len(choices)
+                ]
+                self.invalidate()
+
+        @self.kb.add("right")
+        def right(event):
+            current_option, opt_type = self.selector.options[
+                self.selector.current_index
+            ]
+            if opt_type == OptionType.TOGGLE:
+                choices = self.selector.toggle_choices[current_option]
+                current_value = self.selector.toggle_values[current_option]
+                current_index = choices.index(current_value)
+                self.selector.toggle_values[current_option] = choices[
+                    (current_index + 1) % len(choices)
+                ]
+                self.invalidate()
+
+        @self.kb.add("enter")
+        def enter(event):
+            self.selector.selected = True
+            current_option, opt_type = self.selector.options[
+                self.selector.current_index
+            ]
+            if opt_type == OptionType.EDITABLE:
+                # Update the user input from the TextArea buffer
+                self.selector.user_inputs[current_option] = self.buffers[
+                    current_option
+                ].text
+            event.app.exit()
+
+        @self.kb.add("c-c")
+        @self.kb.add("c-q")
+        def exit_(event):
+            event.app.exit()
+
+    def run(self) -> None:
+        """Run the application."""
+
+        # Set initial focus
+        def pre_run():
+            self.update_focus(self.application)
+
+        self.application.run(pre_run=pre_run)
 
 
 def get_user_choice(
     options_dict: Dict[str, Union[None, str, List[Any]]],
     return_value_only: bool = True,
-) -> str | Dict[str, Any]:
+) -> Union[str, Dict[str, Any]]:
     """
     Runs the command-line interface that allows the user to select or input options.
 
-    :param options_dict: The options to display to the user.
-    :return: The selected or inputted option as a string.
+    Parameters
+    ----------
+    options_dict : Dict[str, Union[None, str, List[Any]]]
+        The options to display to the user.
+    return_value_only : bool, optional
+        If True, return only the value; if False, return a dictionary with the key.
+
+    Returns
+    -------
+    Union[str, Dict[str, Any]]
+        The selected or inputted option as a string or dictionary.
     """
     selector = Selector(options_dict)
+    app = OptionSelectorApp(selector)
+    app.run()
 
-    def get_text_fragments() -> List[Tuple[str, str]]:
-        return selector.get_formatted_options()
-
-    text_area = Window(
-        content=FormattedTextControl(get_text_fragments),
-        always_hide_cursor=True,
-    )
-
-    kb = KeyBindings()
-
-    @kb.add("up")
-    def up_key(event) -> None:
-        """Move the selection up."""
-        selector.current_index = (selector.current_index - 1) % len(selector.options)
-
-    @kb.add("down")
-    def down_key(event) -> None:
-        """Move the selection down."""
-        selector.current_index = (selector.current_index + 1) % len(selector.options)
-
-    @kb.add("enter")
-    def enter_key(event) -> None:
-        """Mark the option as selected and exit."""
-        selector.selected = True
-        event.app.exit()
-
-    @kb.add("left")
-    def left_key(event) -> None:
-        """Cycle to the previous value if the current option is a toggleable field."""
-        current_option, opt_type = selector.options[selector.current_index]
-        if opt_type == OptionType.TOGGLE:
-            selector.cycle_toggle_left(current_option)
-        event.app.invalidate()
-
-    @kb.add("right")
-    def right_key(event) -> None:
-        """Cycle to the next value if the current option is a toggleable field."""
-        current_option, opt_type = selector.options[selector.current_index]
-        if opt_type == OptionType.TOGGLE:
-            selector.cycle_toggle_right(current_option)
-        event.app.invalidate()
-
-    @kb.add("c-c", eager=True)
-    @kb.add("c-q")
-    def exit_(event) -> None:
-        """Exit the application gracefully on Ctrl+C or Ctrl+Q."""
-        event.app.exit()
-
-    @kb.add("<any>")
-    def handle_input(event) -> None:
-        """Handle character input for editable fields."""
-        current_option, opt_type = selector.options[selector.current_index]
-        if opt_type == OptionType.EDITABLE:
-            key = event.key_sequence[0].key
-            if key == " " and not selector.user_inputs[current_option]:
-                return  # Prevent leading space
-            if len(key) == 1 and key.isprintable():
-                selector.user_inputs[current_option] += key
-                event.app.invalidate()
-
-    @kb.add("backspace")
-    def handle_backspace(event) -> None:
-        """Handle backspace for editable fields."""
-        current_option, opt_type = selector.options[selector.current_index]
-        if opt_type == OptionType.EDITABLE and selector.user_inputs[current_option]:
-            selector.user_inputs[current_option] = selector.user_inputs[current_option][
-                :-1
-            ]
-            event.app.invalidate()
-
-    layout = Layout(HSplit([text_area]))
-
-    application = Application(
-        layout=layout,
-        key_bindings=kb,
-    )
-
-    application.run()
-
-    # Return the selected option as a string based on its type
+    # Return the selected option based on its type
     if selector.selected:
         selected_option, opt_type = selector.options[selector.current_index]
         if opt_type == OptionType.EDITABLE:
+            # Update the user input from the TextArea buffer
+            selector.user_inputs[selected_option] = app.buffers[selected_option].text
             # Return the user input for editable fields
             return (
                 {selected_option: selector.user_inputs[selected_option]}
@@ -254,4 +327,4 @@ if __name__ == "__main__":
     }
 
     result = get_user_choice(options)
-    print(result)
+    print("Result:", result)
