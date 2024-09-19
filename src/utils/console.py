@@ -322,7 +322,7 @@ if __name__ == "__main__":
     # Example options dictionary with default values for editable inputs
     options = {
         "You are a:": "Human",  # Editable input with default value
-        "apple": None,  # Static option
+        "apple": None,  # Static option, use None for single-select options
         "pear": None,  # Static option
         "banana": None,  # Static option
         "Is it ripe?": [True, False],  # Toggleable option
