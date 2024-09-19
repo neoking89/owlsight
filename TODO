@@ -1,12 +1,8 @@
+- add autocorrect + history in python
 - add extra option for pip location for user
-- add a cursor when typing a question
-- add expressions to the double brackets placeholder. maybe like: expr({{df}}.head())
 - add config option to set params (model, n_tries, temperature, etc)
 
 NICE TO HAVE:
-- add owl logo
 - add rag for code libraries
 - improve interface of model processor to prevent DRY -> pydantic? dataclasses?
 - add voicemodel to speak prompts instead of writing them for faster interaction
-
-- make venv ONLY if python code is called
