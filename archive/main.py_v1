@@ -340,7 +340,7 @@ if __name__ == "__main__":
         if INTERACTIVE_MODE:
             while True:
                 question = input(
-                    "What can I do for you (Type 'q' or 'quit' to exit)?\n"
+                    "what can I do for you (Type 'q' or 'quit' to exit)?\n"
                 )
                 if question.lower() in ["q", "quit"]:
                     print("Quitting...")

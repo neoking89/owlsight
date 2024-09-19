@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 import os
 import shutil
 import re
@@ -21,6 +21,86 @@ def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
     return [
         (match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)
     ]
+
+def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
+    """
+    Replaces placeholders in the form of `{{}}` in the given text with values from a dictionary.
+    Supports method calls and simple expressions.
+
+    Parameters
+    ----------
+    text : str
+        The input string that contains placeholders in the form of `{{}}`.
+    var_dict : dict
+        A dictionary where keys correspond to the placeholders and values are the replacements.
+
+    Returns
+    -------
+    str
+        The input string with placeholders replaced by corresponding values from the dictionary.
+
+    Examples
+    --------
+    >>> df = pd.DataFrame({'A': [1, 2, 3], 'B': [4, 5, 6]})
+    >>> var_dict = {'df': df, 'name': 'Alice', 'age': 30}
+    >>> replace_bracket_placeholders("{{name}} is {{age}} years old. DataFrame mean: {{df.mean()}}", var_dict)
+    'Alice is 30 years old. DataFrame mean: A    2.0\nB    5.0\ndtype: float64'
+    >>> replace_bracket_placeholders("1 + 1 = {{1+1}}", var_dict)
+    '1 + 1 = 2'
+    """
+    def evaluate_expression(expr: str) -> Any:
+        try:
+            return eval(expr, {"__builtins__": None}, var_dict)
+        except Exception as e:
+            return f"Error evaluating {expr}:\n{traceback.format_exc()}"
+
+    # Pattern to match content inside {{ }}
+    pattern = r"\{\{(.*?)\}\}"
+
+    # Find all placeholders
+    placeholders = re.findall(pattern, text)
+
+    # Replace each placeholder with the evaluated expression
+    for placeholder in placeholders:
+        evaluated = evaluate_expression(placeholder)
+        text = text.replace(f"{{{{{placeholder}}}}}", str(evaluated))
+
+    return text
+
+
+# def replace_bracket_placeholders(text: str, var_dict: Dict[str, str]) -> str:
+#     """
+#     Replaces placeholders in the form of `{{}}` in the given text with values from a dictionary.
+
+#     Parameters
+#     ----------
+#     text : str
+#         The input string that contains placeholders in the form of `{{}}`.
+#     var_dict : dict
+#         A dictionary where keys correspond to the placeholders and values are the replacements.
+
+#     Returns
+#     -------
+#     str
+#         The input string with placeholders replaced by corresponding values from the dictionary.
+
+#     Examples
+#     --------
+#     >>> replace_bracket_placeholders("I want to tell {{person}} I found {{n_marbles}} marbles", {'person': 'Alice', 'n_marbles': '5'})
+#     'I want to tell Alice I found 5 marbles'
+#     """
+#     # Pattern to match content inside {{ }}
+#     pattern = r"\{\{(.*?)\}\}"
+
+#     # Find all placeholders
+#     placeholders = re.findall(pattern, text)
+
+#     # Replace each placeholder with the corresponding value from the var_dict
+#     for placeholder in placeholders:
+#         if placeholder in var_dict:
+#             text = text.replace(f"{{{{{placeholder}}}}}", str(var_dict[placeholder]))
+
+#     return text
 
 
 def editable_input(
