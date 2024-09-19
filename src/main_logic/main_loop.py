@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 import tempfile
 import traceback
 
@@ -30,7 +30,7 @@ def run_code_generation_loop(
             print_colored("Make a choice:", color=PROMPT_COLOR)
 
             user_choice_key = None
-            user_choice = get_user_choice(
+            user_choice: str | dict = get_user_choice(
                 {
                     "what can I do for you?": "",
                     "shell": "",
@@ -43,7 +43,12 @@ def run_code_generation_loop(
 
             if isinstance(user_choice, dict):
                 user_choice_key = list(user_choice.keys())[0]
-                user_choice = user_choice[user_choice_key]
+                user_choice: str = user_choice[user_choice_key]
+
+            # here we know user_choice is a string
+            if not user_choice:
+                logger.error("User choice is empty. Please try again.")
+                continue
 
             if user_choice_key == "shell":
                 code_executor.execute_code_block(
