@@ -1,6 +1,6 @@
-- add autocorrect + history in python
-- add extra option for pip location for user
 - add config option to set params (model, n_tries, temperature, etc)
+- add autocorrect + history in python
+- add extra option for pip location for user -> add to config
 
 NICE TO HAVE:
 - add rag for code libraries
