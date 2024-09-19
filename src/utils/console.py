@@ -28,8 +28,9 @@ class Selector:
         ----------
         options_dict : Dict[str, Union[None, str, List[Any]]]
             A dictionary where the key is the option label and the value defines
-            the type of option. None is for static options, an empty string for editable input,
-            and a list (e.g., [True, False], [1, 2, 3]) for toggleable options.
+            the type of option. None is for static options, a string for editable input
+            (empty string or default value), and a list (e.g., [True, False], [1, 2, 3])
+            for toggleable options.
         """
         self.options: List[Tuple[str, OptionType]] = []
         self.current_index: int = 0
@@ -50,9 +51,11 @@ class Selector:
                 self.options.append((key, OptionType.TOGGLE))
                 self.toggle_choices[key] = value  # Store available toggle values
                 self.toggle_values[key] = value[0]  # Set default to the first value
-            elif value == "":
+            elif isinstance(value, str):
                 self.options.append((key, OptionType.EDITABLE))
-                self.user_inputs[key] = ""  # Initialize editable field as empty
+                self.user_inputs[key] = (
+                    value  # Use the provided string as default value
+                )
 
 
 class OptionSelectorApp:
@@ -316,14 +319,15 @@ def print_colored(text: str, color: str) -> None:
 
 if __name__ == "__main__":
     print_colored("make a choice:", "cyan")
-    # Example options dictionary
+    # Example options dictionary with default values for editable inputs
     options = {
-        "You are a:": "",  # Editable input
+        "You are a:": "Human",  # Editable input with default value
         "apple": None,  # Static option
         "pear": None,  # Static option
         "banana": None,  # Static option
         "Is it ripe?": [True, False],  # Toggleable option
         "Days in sun": [1, 2, 3],  # Toggleable option
+        "Your name:": "",  # Editable input without default value
     }
 
     result = get_user_choice(options)
