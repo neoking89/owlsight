@@ -85,28 +85,28 @@ class ConfigManager:
     def config_choices(self) -> Dict[str, Dict[str, str]]:
         config_choices = {
             "main": {
-                "max_retries_on_error": self._config["main"]["max_retries_on_error"],
-                "prompt_code_execution": _order_list_for_choices(
+                "max_retries_on_error": _prepare_toggle_choices(self._config["main"]["max_retries_on_error"], list(range(0, 10))),
+                "prompt_code_execution": _prepare_toggle_choices(
                     self._config["main"]["prompt_code_execution"], [False, True]
                 ),
             },
             "model": {
                 "model_id": self._config["model"]["model_id"],
                 "tokenizer": self._config["model"]["tokenizer"],
-                "save_history": _order_list_for_choices(
+                "save_history": _prepare_toggle_choices(
                     self._config["model"]["save_history"], [False, True]
                 ),
                 "system_prompt": self._config["model"]["system_prompt"],
                 # specific parameters for the different processors
                 # transformers
-                "device": _order_list_for_choices(
+                "device": _prepare_toggle_choices(
                     self._config["model"]["device"], [None, "cpu", "cuda"]
                 ),
-                "quantization_bits": _order_list_for_choices(
+                "quantization_bits": _prepare_toggle_choices(
                     self._config["model"]["quantization_bits"], [None, 8, 4]
                 ),
                 # onnx
-                "verbose": _order_list_for_choices(
+                "verbose": _prepare_toggle_choices(
                     self._config["model"]["verbose"], [False, True]
                 ),
                 "num_threads": self._config["model"]["num_threads"],
@@ -142,7 +142,18 @@ class DottedDict(dict):
         del self[attr.lower()]
 
 
-def _order_list_for_choices(current_val: Any, possible_vals: List[Any]) -> List[Any]:
+def _prepare_toggle_choices(current_val: Any, possible_vals: List[Any]) -> List[Any]:
+    """
+    Prepare the config_choices to be used in the UI for toggling between choices.
+    
+    Parameters
+    ----------
+    current_val : Any
+        The current value. Can be seen as default value.
+    possible_vals : List[Any]
+        The possible values for the configuration parameter.
+        Allow user to toggle between the values.
+    """
     if current_val in possible_vals:
         possible_vals.remove(current_val)
         possible_vals.insert(0, current_val)
