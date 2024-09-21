@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Type
 import os
 import time
 import onnxruntime_genai as og
@@ -21,9 +21,29 @@ from src.utils.logger_manager import LoggerManager
 logger = LoggerManager.get_logger(__name__)
 
 
+def select_processor_type(model_id: str) -> Type["TextGenerationProcessor"]:
+    """
+    Select the appropriate text generation processor based on the model ID.
+    """
+    # first decide if model_id exists locally
+    if os.path.exists(model_id):
+        if not os.path.isdir(model_id):
+            raise NotADirectoryError(f"{model_id} is not a valid directory.")
+        if any([f.endswith(".onnx") for f in os.listdir(model_id)]):
+            return TextGenerationProcessorOnnx
+        else:
+            return TextGenerationProcessorTransformers
+    else:
+        if not "onnx" in model_id:
+            return TextGenerationProcessorTransformers
+        else:
+            return TextGenerationProcessorOnnx
+
+
 def flash_attention_is_available() -> bool:
     try:
         from flash_attn import flash_attn_fn
+
         return True
     except ImportError:
         return False
