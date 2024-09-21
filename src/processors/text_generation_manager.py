@@ -8,6 +8,7 @@ from src.processors.text_generation_processor import (
 )
 from src.configurations.config_manager import ConfigManager
 from src.utils.helper_functions import convert_to_real_type
+from src.utils.deep_learning import free_memory
 
 from src.utils.logger_manager import LoggerManager
 
@@ -94,9 +95,13 @@ class TextGenerationManager:
                     raise ValueError("Processor is not initialized yet. Cannot reload.")
                 # Save the history from the old processor
                 old_history = self.processor.history
+                processor_type = self.processor.__class__
 
                 # Inmediately overwrite the processor with a new instance to save memory
-                self.processor = self.processor.__class__(
+                self.processor = None
+                free_memory()
+                
+                self.processor = processor_type(
                     **self.config_manager.get("model", {})
                 )
                 self.processor.history = old_history
