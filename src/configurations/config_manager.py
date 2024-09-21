@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Iterable
 
 
 class ConfigManager:
@@ -83,33 +83,43 @@ class ConfigManager:
 
     @property
     def config_choices(self) -> Dict[str, Dict[str, str]]:
-        return {
+        config_choices = {
             "main": {
                 "max_retries_on_error": self._config["main"]["max_retries_on_error"],
-                "prompt_code_execution": get_list_bools(
-                    self._config["main"]["prompt_code_execution"]
+                "prompt_code_execution": _order_list_for_choices(
+                    self._config["main"]["prompt_code_execution"], [False, True]
                 ),
             },
             "model": {
-                "model_id": "",
-                "tokenizer": "",
-                "save_history": get_list_bools(self._config["model"]["save_history"]),
-                "system_prompt": "",
+                "model_id": self._config["model"]["model_id"],
+                "tokenizer": self._config["model"]["tokenizer"],
+                "save_history": _order_list_for_choices(
+                    self._config["model"]["save_history"], [False, True]
+                ),
+                "system_prompt": self._config["model"]["system_prompt"],
                 # specific parameters for the different processors
                 # transformers
-                "device": [None, "cpu", "cuda"],
-                "quantization_bits": [None, 8, 4],
+                "device": _order_list_for_choices(
+                    self._config["model"]["device"], [None, "cpu", "cuda"]
+                ),
+                "quantization_bits": _order_list_for_choices(
+                    self._config["model"]["quantization_bits"], [None, 8, 4]
+                ),
                 # onnx
-                "verbose": get_list_bools(self._config["model"]["verbose"]),
+                "verbose": _order_list_for_choices(
+                    self._config["model"]["verbose"], [False, True]
+                ),
                 "num_threads": self._config["model"]["num_threads"],
             },
             "generate": {
-                "stopwords": [],
+                "stopwords": str(self._config["generate"]["stopwords"]),
                 "max_new_tokens": self._config["generate"]["max_new_tokens"],
                 "temperature": self._config["generate"]["temperature"],
-                "generation_kwargs": {},
+                "generation_kwargs": str(self._config["generate"]["generation_kwargs"]),
             },
         }
+
+        return config_choices
 
     def __repr__(self):
         return repr(self._config)
@@ -132,5 +142,14 @@ class DottedDict(dict):
         del self[attr.lower()]
 
 
-def get_list_bools(b: bool):
-    return [b, not b]
+def _order_list_for_choices(current_val: Any, possible_vals: List[Any]) -> List[Any]:
+    if current_val in possible_vals:
+        possible_vals.remove(current_val)
+        possible_vals.insert(0, current_val)
+    return possible_vals
+
+def _handle_iterables_for_choices(value: Iterable) -> str:
+    pass
+
+# def get_list_bools(b: bool):
+#     return [b, not b]
