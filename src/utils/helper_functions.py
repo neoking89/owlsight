@@ -156,6 +156,6 @@ def convert_to_real_type(value):
         if not isinstance(evaluated_value, str):
             return evaluated_value
     except (ValueError, SyntaxError):
-        pass  # Return original string if evaluation fails
+        pass # Return original string if evaluation fails
 
     return value  # Return the original string if it's not evaluable
