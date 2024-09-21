@@ -36,6 +36,8 @@ def run_code_generation_loop(
                     "python": None,
                     "clear history": None,
                     "config": list(manager.get_config().keys()),
+                    "save": "",
+                    "load": "",
                     "quit": None,
                 },
                 return_value_only=False,
@@ -57,7 +59,7 @@ def run_code_generation_loop(
                 )
                 continue
             elif user_choice_key == "config":
-                logger.info("Chosen config: " + user_choice)
+                logger.info(f"Chosen config: {user_choice}")
                 nested_config = manager.get_config_choices()[user_choice]
                 config_choice: dict = get_user_choice(
                     nested_config, return_value_only=False
@@ -65,13 +67,24 @@ def run_code_generation_loop(
                 config_key = f"{user_choice}.{list(config_choice.keys())[0]}"
                 v = list(config_choice.values())[0]
                 manager.update_config(config_key, v)
-
+                continue
+            elif user_choice_key == "save":
+                manager.save_config(user_choice)
+                continue
+            elif user_choice_key == "load":
+                manager.load_config(user_choice)
                 continue
             elif user_choice == "quit":
                 logger.info("Quitting...")
                 break
             elif user_choice == "python":
                 handle_interactive_code_execution(code_executor)
+
+
+            # for the following options, manager.processor needs to be set
+            if manager.processor is None:
+                logger.error("Processor not set. Please load a model first by setting 'model.model_id' in the config!")
+                continue
             elif user_choice == "clear history":
                 code_executor.globals_dict.clear()
                 manager.processor.history.clear()
@@ -130,7 +143,7 @@ def main(
     # Remove lingering temporary directories
     remove_temp_directories(lib_path)
 
-    # Create temporary directory in venv to install packages
+    # Create temporary directory in venv to install packages, until end of execution lifecycle
     with tempfile.TemporaryDirectory(dir=lib_path) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
 
