@@ -1,7 +1,17 @@
 from typing import Any, Dict, List, Iterable
+import json
+import os
+
+import numpy as np
+
+from src.utils.logger_manager import LoggerManager
+
+logger = LoggerManager.get_logger(__name__)
 
 
 class ConfigManager:
+    """A class which carries the configuration for the application."""
+
     def __init__(self):
         """
         Configuration that notifies observers when a value is changed.
@@ -34,7 +44,6 @@ class ConfigManager:
                 },
             }
         )
-        # self._observers: List = []
 
     def get(self, key: str, default=None):
         """
@@ -60,32 +69,14 @@ class ConfigManager:
                 d[k] = {}  # Create the nested dictionary if it doesn't exist
             d = d[k]  # Move deeper into the nested dictionary
         d[keys[-1]] = value  # Set the final key's value
-        # self._notify_observers(key, value)
-
-    # def subscribe(self, observer):
-    #     """
-    #     Register an observer to be notified when config changes.
-    #     """
-    #     self._observers.append(observer)
-
-    # def unsubscribe(self, observer):
-    #     """
-    #     Unregister an observer.
-    #     """
-    #     self._observers.remove(observer)
-
-    # def _notify_observers(self, key: str, value: Any):
-    #     """
-    #     Notify all registered observers of the config change.
-    #     """
-    #     for observer in self._observers:
-    #         observer.update_config(key, value)
 
     @property
     def config_choices(self) -> Dict[str, Dict[str, str]]:
         config_choices = {
             "main": {
-                "max_retries_on_error": _prepare_toggle_choices(self._config["main"]["max_retries_on_error"], list(range(0, 10))),
+                "max_retries_on_error": _prepare_toggle_choices(
+                    self._config["main"]["max_retries_on_error"], list(range(0, 10))
+                ),
                 "prompt_code_execution": _prepare_toggle_choices(
                     self._config["main"]["prompt_code_execution"], [False, True]
                 ),
@@ -113,13 +104,76 @@ class ConfigManager:
             },
             "generate": {
                 "stopwords": str(self._config["generate"]["stopwords"]),
-                "max_new_tokens": self._config["generate"]["max_new_tokens"],
-                "temperature": self._config["generate"]["temperature"],
+                "max_new_tokens": _prepare_toggle_choices(
+                    self._config["generate"]["max_new_tokens"],
+                    [32 * (2**i) for i in range(15)],
+                ),
+                "temperature": _prepare_toggle_choices(
+                    self._config["generate"]["temperature"],
+                    np.round(np.arange(0.0, 1.05, 0.05), 2).tolist(),
+                ),
                 "generation_kwargs": str(self._config["generate"]["generation_kwargs"]),
             },
         }
 
         return config_choices
+
+    def save(self, path: str) -> None:
+        """
+        Save the configuration to a file as JSON.
+        """
+        err_msg = "Cannot save config."
+        if not isinstance(path, str) or not path:
+            logger.error(f"{err_msg} Invalid file path provided.")
+            return
+
+        # Ensure that the directory exists
+        directory = os.path.dirname(path)
+        if directory and not os.path.exists(directory):
+            logger.error(f"{err_msg} Directory does not exist: {directory}")
+            return
+
+        try:
+            with open(path, "w") as f:
+                json.dump(
+                    self._config,
+                    f,
+                    indent=4,
+                )
+                logger.info(f"{err_msg} Configuration saved  succesfully to {path}")
+        except (IOError, OSError) as e:
+            logger.error(f"{err_msg} Error writing to file {path}: {e}")
+        except TypeError as e:
+            logger.error(f"{err_msg} Error serializing configuration to JSON: {e}")
+
+    def load(self, path: str):
+        """
+        Load the configuration from a file as JSON.
+        """
+        err_msg = "Cannot load config."
+        if not isinstance(path, str) or not path:
+            logger.error("Invalid file path provided.")
+            return
+
+        if not os.path.exists(path):
+            logger.error(f"{err_msg} Configuration file does not exist: '{path}'")
+            return
+
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+        except (IOError, OSError) as e:
+            logger.error(f"{err_msg} Error reading from file '{path}': {e}")
+            return
+        except json.JSONDecodeError as e:
+            logger.error(f"{err_msg} Error parsing JSON in file '{path}': {e}")
+            return
+
+        try:
+            self._config = DottedDict(data)
+            logger.info(f"{err_msg} Configuration loaded succesfully from '{path}'")
+        except Exception as e:
+            logger.error(f"{err_msg} Error initializing configuration: {e}")
 
     def __repr__(self):
         return repr(self._config)
@@ -145,7 +199,7 @@ class DottedDict(dict):
 def _prepare_toggle_choices(current_val: Any, possible_vals: List[Any]) -> List[Any]:
     """
     Prepare the config_choices to be used in the UI for toggling between choices.
-    
+
     Parameters
     ----------
     current_val : Any
@@ -155,12 +209,6 @@ def _prepare_toggle_choices(current_val: Any, possible_vals: List[Any]) -> List[
         Allow user to toggle between the values.
     """
     if current_val in possible_vals:
-        possible_vals.remove(current_val)
-        possible_vals.insert(0, current_val)
+        index = possible_vals.index(current_val)
+        possible_vals = possible_vals[index:] + possible_vals[:index]
     return possible_vals
-
-def _handle_iterables_for_choices(value: Iterable) -> str:
-    pass
-
-# def get_list_bools(b: bool):
-#     return [b, not b]
