@@ -8,11 +8,12 @@ from src.utils.logger_manager import LoggerManager
 logger = LoggerManager.get_logger(__name__)
 
 
-def clean_gpu(device: torch.device):
+def free_memory():
     """Free up memory and reset stats."""
     gc.collect()
-    torch.cuda.empty_cache()
-    torch.cuda.reset_peak_memory_stats(device)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
 
 
 def print_memory_stats(device: torch.device):
