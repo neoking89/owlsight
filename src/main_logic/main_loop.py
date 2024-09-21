@@ -1,11 +1,14 @@
-from typing import List, Optional, Union
 import tempfile
 import traceback
 
-from src.processors.text_generation import TextGenerationProcessor
+from src.processors.text_generation_manager import TextGenerationManager
 from src.main_logic.handlers import handle_interactive_code_execution
 from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
-from src.utils.helper_functions import force_delete, remove_temp_directories, replace_bracket_placeholders
+from src.utils.helper_functions import (
+    force_delete,
+    remove_temp_directories,
+    replace_bracket_placeholders,
+)
 from src.utils.venv_manager import get_lib_path, get_pip_path, get_venv_path
 from src.utils.console import get_user_choice, print_colored
 from src.utils.constants import PROMPT_COLOR
@@ -18,11 +21,7 @@ logger = LoggerManager.get_logger(__name__)
 
 def run_code_generation_loop(
     code_executor: CodeExecutor,
-    processor: TextGenerationProcessor,
-    max_new_tokens: int,
-    stopwords: Optional[List[str]],
-    generation_kwargs: Optional[dict],
-    prompt_code_execution: bool,
+    manager: TextGenerationManager,
 ) -> None:
     """Runs the main loop for code generation and user interaction."""
     while True:
@@ -36,6 +35,7 @@ def run_code_generation_loop(
                     "shell": "",
                     "python": None,
                     "clear history": None,
+                    "config": list(manager.get_config().keys()),
                     "quit": None,
                 },
                 return_value_only=False,
@@ -56,30 +56,41 @@ def run_code_generation_loop(
                     code_block=user_choice,
                 )
                 continue
+            elif user_choice_key == "config":
+                logger.info("Chosen config: " + user_choice)
+                nested_config = manager.get_config_choices()[user_choice]
+                config_choice: dict = get_user_choice(
+                    nested_config, return_value_only=False
+                )
+                config_key = f"{user_choice}.{list(config_choice.keys())[0]}"
+                v = list(config_choice.values())[0]
+                manager.update_config(config_key, v)
 
-            if user_choice == "quit":
+                continue
+            elif user_choice == "quit":
                 logger.info("Quitting...")
                 break
             elif user_choice == "python":
                 handle_interactive_code_execution(code_executor)
             elif user_choice == "clear history":
                 code_executor.globals_dict.clear()
-                processor.history.clear()
+                manager.processor.history.clear()
                 logger.info("State and history cleared.")
             else:
-                user_choice = replace_bracket_placeholders(user_choice, code_executor.globals_dict)
+                user_choice = replace_bracket_placeholders(
+                    user_choice, code_executor.globals_dict
+                )
                 # user_choice is question
-                response = processor.generate(
+                response = manager.generate(
                     user_choice,
-                    max_new_tokens=max_new_tokens,
-                    stopwords=stopwords,
-                    generation_kwargs=generation_kwargs,
                 )
                 execute_code_with_feedback(
                     response=response,
                     original_question=user_choice,
                     code_executor=code_executor,
-                    prompt_code_execution=prompt_code_execution,
+                    prompt_code_execution=manager.config_manager.get(
+                        "main.prompt_code_execution"
+                    ),
                 )
 
         except KeyboardInterrupt:
@@ -91,12 +102,7 @@ def run_code_generation_loop(
 
 
 def main(
-    processor: TextGenerationProcessor,
-    max_retries: int = 3,
-    max_new_tokens: int = 1024,
-    stopwords: Optional[List[str]] = None,
-    generation_kwargs: Optional[dict] = None,
-    prompt_code_execution: bool = True,
+    manager: TextGenerationManager,
 ) -> None:
     """
     Main function to run the interactive loop for code generation and execution
@@ -128,17 +134,11 @@ def main(
     with tempfile.TemporaryDirectory(dir=lib_path) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
 
-        code_executor = CodeExecutor(
-            processor, venv_path, pip_path, temp_dir, max_retries, max_new_tokens
-        )
+        code_executor = CodeExecutor(manager, venv_path, pip_path, temp_dir)
 
         run_code_generation_loop(
             code_executor,
-            processor,
-            max_new_tokens,
-            stopwords,
-            generation_kwargs,
-            prompt_code_execution,
+            manager,
         )
 
     logger.info(f"Removing temporary directory: {temp_dir}")

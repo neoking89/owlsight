@@ -24,14 +24,13 @@ logger = LoggerManager.get_logger(__name__)
 def flash_attention_is_available() -> bool:
     try:
         from flash_attn import flash_attn_fn
-
         return True
     except ImportError:
         return False
 
 
 class TextGenerationProcessor(ABC):
-    def __init__(self, model_id: str, save_history: bool, system_prompt: str):
+    def __init__(self, model_id: str, save_history: bool, system_prompt: str, **kwargs):
         """
         Abstract class for text generation processors.
 
@@ -43,6 +42,9 @@ class TextGenerationProcessor(ABC):
         save_history : bool
             Whether or not to save the history of inputs and outputs.
         """
+        if not model_id:
+            raise ValueError("Model ID cannot be empty.")
+
         self.model_id = model_id
         self.save_history = save_history
         self.history = []
@@ -106,7 +108,8 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
         save_history: bool = False,
-        system_prompt: str = None,
+        system_prompt: str = "",
+        **kwargs,
     ):
         """
         Text generation processor using Hugging Face Transformers library.
@@ -141,14 +144,12 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         save_history : bool
             Set to True if you want model to generate responses based on previous inputs.
         """
-        self.model_id = model_id
+        super().__init__(model_id, save_history, system_prompt, **kwargs)
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self._attention_implementation = (
             "flash" if flash_attention_is_available() else "eager"
         )
-        self.save_history = save_history
         self.history = []
-        self.system_prompt = system_prompt
 
         tokenizer, model = self._load_tokenizer_model(
             quantization_bits,
@@ -271,6 +272,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         num_threads: int = 1,
         save_history: bool = False,
         system_prompt: str = None,
+        **kwargs,
     ):
         """
         Text generation processor using ONNX Runtime.
@@ -297,12 +299,10 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"Model not found at {model_id}")
 
-        self.model_id = model_id
+        super().__init__(model_id, save_history, system_prompt, **kwargs)
         self.verbose = verbose
         self.num_threads = num_threads
-        self.save_history = save_history
         self.history = []
-        self.system_prompt = system_prompt
 
         self._set_tokenizer(tokenizer)
         self._set_environment_variables()

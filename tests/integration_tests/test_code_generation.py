@@ -85,7 +85,7 @@ def test_code_executor_install_missing_module_in_venv():
         pip_path = get_pip_path(venv_path)
 
         code_executor = CodeExecutor(
-            processor, venv_path, pip_path, temp_dir, max_retries, max_new_tokens
+            processor, venv_path, pip_path, temp_dir
         )
         results = execute_code_with_feedback(
             model_response,

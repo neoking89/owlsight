@@ -1,4 +1,5 @@
 from typing import List, Tuple, Dict, Any
+import ast
 import os
 import shutil
 import re
@@ -21,6 +22,7 @@ def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
     return [
         (match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)
     ]
+
 
 def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
     """
@@ -48,6 +50,7 @@ def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
     >>> replace_bracket_placeholders("1 + 1 = {{1+1}}", var_dict)
     '1 + 1 = 2'
     """
+
     def evaluate_expression(expr: str) -> Any:
         try:
             return eval(expr, {"__builtins__": None}, var_dict)
@@ -66,41 +69,6 @@ def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
         text = text.replace(f"{{{{{placeholder}}}}}", str(evaluated))
 
     return text
-
-
-# def replace_bracket_placeholders(text: str, var_dict: Dict[str, str]) -> str:
-#     """
-#     Replaces placeholders in the form of `{{}}` in the given text with values from a dictionary.
-
-#     Parameters
-#     ----------
-#     text : str
-#         The input string that contains placeholders in the form of `{{}}`.
-#     var_dict : dict
-#         A dictionary where keys correspond to the placeholders and values are the replacements.
-
-#     Returns
-#     -------
-#     str
-#         The input string with placeholders replaced by corresponding values from the dictionary.
-
-#     Examples
-#     --------
-#     >>> replace_bracket_placeholders("I want to tell {{person}} I found {{n_marbles}} marbles", {'person': 'Alice', 'n_marbles': '5'})
-#     'I want to tell Alice I found 5 marbles'
-#     """
-#     # Pattern to match content inside {{ }}
-#     pattern = r"\{\{(.*?)\}\}"
-
-#     # Find all placeholders
-#     placeholders = re.findall(pattern, text)
-
-#     # Replace each placeholder with the corresponding value from the var_dict
-#     for placeholder in placeholders:
-#         if placeholder in var_dict:
-#             text = text.replace(f"{{{{{placeholder}}}}}", str(var_dict[placeholder]))
-
-#     return text
 
 
 def editable_input(
@@ -174,3 +142,20 @@ def format_error_message(e: Exception) -> str:
         The formatted error message.
     """
     return "{e.__class__.__name__}: {e}".format(e=e)
+
+
+def convert_to_real_type(value):
+    # If it's not a string, return it as is
+    if not isinstance(value, str):
+        return value
+
+    # Try to evaluate the string and return the result only if it's not a string
+    try:
+        evaluated_value = ast.literal_eval(value)
+        # Only return the evaluated value if it is not a string
+        if not isinstance(evaluated_value, str):
+            return evaluated_value
+    except (ValueError, SyntaxError):
+        pass  # Return original string if evaluation fails
+
+    return value  # Return the original string if it's not evaluable

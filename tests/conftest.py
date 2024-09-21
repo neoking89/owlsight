@@ -1,7 +1,7 @@
 import pytest
 from typing import List, Optional, Dict, Any, Union
 
-from src.processors.text_generation import TextGenerationProcessor
+from src.processors.text_generation_processor import TextGenerationProcessor
 
 
 class MockTextGenerationProcessor(TextGenerationProcessor):
