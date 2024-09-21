@@ -1,6 +1,11 @@
-from typing import Type, Any, Dict
+from typing import Any, Optional
+from ast import literal_eval
+import traceback
 
-from src.processors.text_generation_processor import TextGenerationProcessor
+from src.processors.text_generation_processor import (
+    TextGenerationProcessor,
+    select_processor_type,
+)
 from src.configurations.config_manager import ConfigManager
 from src.utils.helper_functions import convert_to_real_type
 
@@ -10,9 +15,7 @@ logger = LoggerManager.get_logger(__name__)
 
 
 class TextGenerationManager:
-    def __init__(
-        self, processor: Type[TextGenerationProcessor], config_manager: ConfigManager
-    ):
+    def __init__(self, config_manager: ConfigManager):
         """
         Manage the lifecycle of a TextGenerationProcessor and its interaction with the configuration.
 
@@ -23,8 +26,8 @@ class TextGenerationManager:
         config_manager : ConfigManager
             Configuration dictionary to manage settings for the processor.
         """
-        self.processor = processor(**config_manager.get("model", {}))
         self.config_manager = config_manager
+        self.processor: Optional[TextGenerationProcessor] = None
 
     def generate(self, input_text: str):
         """
@@ -39,31 +42,70 @@ class TextGenerationManager:
         """
         Update the configuration dynamically. If 'model_id' is updated, reload the processor.
         """
-        # if not isinstance(value, str):
-        #     raise ValueError(f"Value must be a string. Got {type(value)} instead.")
-
-        # Convert the value to its real type if possible
-        value = convert_to_real_type(value)
-        self.config_manager.set(key, value)
+        try:
+            value = convert_to_real_type(value)
+            self.config_manager.set(key, value)
+            logger.info(f"Configuration updated: {key} = {value}")
+        except Exception:
+            logger.error(
+                f"Error updating configuration for key '{key}': {traceback.format_exc()}"
+            )
+            return
 
         # If 'model_id' is updated, reload the processor
-        if key == "model_id":
-            logger.info(f"Model ID updated to {value}. Reloading the processor.")
-            self.reload_processor()
+        if key == "model.model_id":
+            self.load_model_processor(reload=self.processor is not None)
 
-    def reload_processor(self):
+    def save_config(self, path: str):
         """
-        Reload the processor with a new 'model_id' while keeping other configurations.
+        Save the configuration to a file.
         """
-        model_id = self.config_manager.get("model.model_id")
-        logger.info(f"Reloading processor with new model_id: {model_id}")
+        self.config_manager.save(path)
 
-        # Save the history from the old processor
-        old_history = self.processor.history
+    def load_config(self, path: str):
+        """
+        Load the configuration from a file.
+        """
+        self.config_manager.load(path)
+        self.load_model_processor(reload=self.processor is not None)
 
-        # Inmediately overwrite the processor with a new instance to save memory
-        self.processor = self.processor.__class__(**self.config_manager.get("model", {}))
-        self.processor.history = old_history
+    def load_model_processor(self, reload=False):
+        """
+        Load the model processor with a 'model_id', to load the correct model and tokenizer.
+
+        Parameters
+        ----------
+        reload : bool, optional
+            If True, reload the processor with the same model_id, by default False.
+            Assumes that the processor is already initialized with another model.
+        """
+        model_id = self.config_manager.get("model.model_id", "")
+        if not model_id:
+            logger.error(
+                "No model_id provided. Please set a model_id in the configuration."
+            )
+            return
+
+        logger.info(f"Loading processor with new model_id: {model_id}")
+
+        try:
+            if reload:
+                if self.processor is None:
+                    raise ValueError("Processor is not initialized yet. Cannot reload.")
+                # Save the history from the old processor
+                old_history = self.processor.history
+
+                # Inmediately overwrite the processor with a new instance to save memory
+                self.processor = self.processor.__class__(
+                    **self.config_manager.get("model", {})
+                )
+                self.processor.history = old_history
+            else:
+                processor_type = select_processor_type(model_id)
+                self.processor = processor_type(**self.config_manager.get("model", {}))
+        except Exception:
+            logger.error(f"Error loading  model_processor: {traceback.format_exc()}")
+            return
 
         logger.info(f"Processor reloaded with model_id: {model_id}")
 
@@ -79,43 +121,13 @@ class TextGenerationManager:
         """
         return self.config_manager._config
 
-    def get_config_choices(self, convert_keys_to_string=False) -> dict:
+    def get_config_choices(self) -> dict:
         """
         Return the available configuration choices.
 
-        Parameters
-        ----------
-        convert_keys_to_string : bool, optional
-            Convert keys to string if True, by default False
-            All empty lists, empty dicts, are converted to an empty string.
+        Returns
+        -------
+        dict
+            Dictionary with the available configuration choices.
         """
-        if convert_keys_to_string:
-            return convert_to_string(self.config_manager.config_choices)
-
         return self.config_manager.config_choices
-
-
-def convert_to_string(d: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Recursively converts all elements of a dictionary to strings.
-    If an element is an empty collection (list, string, or dictionary), it converts it to an empty string.
-
-    Parameters
-    ----------
-    d : dict
-        Input dictionary with mixed types.
-
-    Returns
-    -------
-    dict
-        Dictionary with all values converted to strings and empty collections as "".
-    """
-
-    def handle_value(value: Any) -> str:
-        if isinstance(value, dict):
-            return convert_to_string(value)  # Recurse for nested dictionaries
-        if isinstance(value, (list, dict, str)) and not value:
-            return ""  # Convert empty collections to an empty string
-        return str(value)  # Convert everything else to string
-
-    return {key: handle_value(value) for key, value in d.items()}
