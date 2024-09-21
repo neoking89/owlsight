@@ -1,14 +1,8 @@
-+ add config option to set params (model, n_tries, temperature, etc)
-- bring every single configuration at a class/instance level
-- add a "config" option to the application
-- add nested logic: if user_choice == "config":
-    add:
-        - main_settings
-        - model_settings
-        - generate_settings
-    see: .env file
-- make the changed settings persistent only through the running session
-- add a "save" option to save the settings to a seperate .env file (?)
++ now only the last changed configruation is applied when pressing enter. all changes before are not applied. fix this
++ add a "back" option to go back to the previous menu
++ improve flow of mainloop. now it is a bit messy
++ add type validation per configuration
++ keep the cursor in the same position at higest level
 + add autocorrect + history in python interpreter, to make "python" react like a real intepreter in shell. see the prompt_toolkit documentation.
 + add extra option for pip location for user -> add to "config"
 

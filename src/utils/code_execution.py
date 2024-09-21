@@ -4,7 +4,7 @@ import re
 from typing import Dict, List
 import traceback
 
-from src.processors.text_generation import TextGenerationProcessor
+from src.processors.text_generation_manager import TextGenerationManager
 from src.utils.custom_exceptions import ModuleNotFoundInVenvError
 from src.utils.subprocess_utils import execute_shell_command
 from src.utils.helper_functions import (
@@ -29,17 +29,13 @@ def extract_missing_module(stderr: str) -> str:
 class CodeExecutor:
     def __init__(
         self,
-        processor: TextGenerationProcessor,
+        manager: TextGenerationManager,
         venv_path: str,
         pip_path: str,
         temp_dir: str,
-        max_retries: int,
-        max_new_tokens: int,
     ):
-        self.processor = processor
+        self.manager = manager
         self.temp_dir = temp_dir
-        self.max_new_tokens = max_new_tokens
-        self.max_retries = max_retries
         self.globals_dict = {}
 
         self._init_python_properties(venv_path, pip_path)
@@ -89,7 +85,9 @@ class CodeExecutor:
         elif lang in ["cmd", "bash", "shell"]:
             if "pip install" in code_block:
                 module_to_install = code_block.split("pip install")[1].strip()
-                logger.info(f"pip install found in command '{code_block}'. Installing module {module_to_install} to target directory {self.temp_dir}")
+                logger.info(
+                    f"pip install found in command '{code_block}'. Installing module {module_to_install} to target directory {self.temp_dir}"
+                )
                 install_module(
                     module_to_install,
                     self.pip_path,
@@ -136,6 +134,10 @@ class CodeExecutor:
         except SystemExit:
             logger.info("Exiting interactive console and returning to the script.")
 
+    @property
+    def max_retries(self) -> int:
+        return self.manager.config_manager.get("main.max_retries_on_error")
+
     def _reset_retries(self) -> None:
         self.retries_left = self.max_retries
 
@@ -160,7 +162,7 @@ class CodeExecutor:
 2. Step-by-step, determine how to fix the error.
 3. Generate updated Python code that resolves the issue.
 """.strip()
-        return self.processor.generate(new_question, max_new_tokens=self.max_new_tokens)
+        return self.manager.generate(new_question)
 
     def _init_python_properties(self, venv_path: str, pip_path: str):
         self.venv_path = venv_path

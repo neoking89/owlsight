@@ -1,6 +1,7 @@
 onnxruntime_genai
 onnxruntime-genai-cuda
 transformers
+numpy
 torch
 bitsandbytes
 accelerate

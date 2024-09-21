@@ -196,7 +196,12 @@ class OptionSelectorApp:
                 self.selector.toggle_values[current_option] = choices[
                     (current_index - 1) % len(choices)
                 ]
-                self.invalidate()
+            elif opt_type == OptionType.EDITABLE:
+                # Move cursor to the left in the TextArea buffer
+                buffer = self.buffers[current_option].buffer
+                buffer.cursor_left()
+
+            self.invalidate()
 
         @self.kb.add("right")
         def right(event):
@@ -210,7 +215,12 @@ class OptionSelectorApp:
                 self.selector.toggle_values[current_option] = choices[
                     (current_index + 1) % len(choices)
                 ]
-                self.invalidate()
+            elif opt_type == OptionType.EDITABLE:
+                # Move cursor to the right in the TextArea buffer
+                buffer = self.buffers[current_option].buffer
+                buffer.cursor_right()
+
+            self.invalidate()
 
         @self.kb.add("enter")
         def enter(event):
