@@ -13,10 +13,6 @@ class ConfigManager:
     """A class which carries the configuration for the application."""
 
     def __init__(self):
-        """
-        Configuration that notifies observers when a value is changed.
-        """
-
         self._config = DottedDict(
             {
                 "main": {
