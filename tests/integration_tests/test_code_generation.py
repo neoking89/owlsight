@@ -8,26 +8,14 @@ sys.path.append("tests")
 from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
 from src.utils.venv_manager import get_venv_path, get_pip_path
 
-try:
-    from conftest import MockTextGenerationProcessor
-except ImportError:
-    from tests.conftest import MockTextGenerationProcessor
-
 
 @pytest.fixture
-def code_executor(request):
-    mock_responses = getattr(request, "param", ["Default Response"])
+def code_executor(text_generation_manager):
     return CodeExecutor(
-        MockTextGenerationProcessor(
-            "model_id",
-            save_history=True,
-            mock_responses=mock_responses,
-        ),
+        text_generation_manager,
         temp_dir="temp_dir",
         pip_path="pip",
         venv_path="venv",
-        max_new_tokens=512,
-        max_retries=3,
     )
 
 
@@ -61,7 +49,7 @@ def test_clear_state(code_executor: CodeExecutor):
     assert code_executor.globals_dict.get("x") is None  # State should be cleared
 
 
-def test_code_executor_install_missing_module_in_venv():
+def test_code_executor_install_missing_module_in_venv(text_generation_manager):
     # arrange
     module_name = "tinydb"
     question = f"Use python to generate code which uses the '{module_name}' module"
@@ -71,22 +59,11 @@ def test_code_executor_install_missing_module_in_venv():
     import {module_name} as md\na = 5
     ```
     """.strip()
-    processor = MockTextGenerationProcessor(
-        "model_id",
-        save_history=True,
-        mock_responses=[model_response],
-    )
-
-    max_retries = 3
-    max_new_tokens = 256
-
     with tempfile.TemporaryDirectory() as temp_dir:
         venv_path = get_venv_path()
         pip_path = get_pip_path(venv_path)
 
-        code_executor = CodeExecutor(
-            processor, venv_path, pip_path, temp_dir
-        )
+        code_executor = CodeExecutor(text_generation_manager, venv_path, pip_path, temp_dir)
         results = execute_code_with_feedback(
             model_response,
             question,
@@ -104,8 +81,3 @@ def test_code_executor_install_missing_module_in_venv():
 
         # state is saved correctly
         assert code_executor.globals_dict.get("a") == 5
-
-
-if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_code_executor_install_missing_module_in_venv()
