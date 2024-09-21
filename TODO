@@ -1,3 +1,4 @@
++ improve flow of mainloop. now it is a bit messy
 + add type validation per configuration
 + add a "back" option to go back to the previous menu
 + keep the cursor in the same position at higest level
