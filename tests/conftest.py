@@ -2,6 +2,8 @@ import pytest
 from typing import List, Optional, Dict, Any, Union
 
 from src.processors.text_generation_processor import TextGenerationProcessor
+from src.processors.text_generation_manager import TextGenerationManager
+from src.configurations.config_manager import ConfigManager
 
 
 class MockTextGenerationProcessor(TextGenerationProcessor):
@@ -41,3 +43,13 @@ def mock_text_generator(request):
     return MockTextGenerationProcessor(
         "mock-model", save_history=True, mock_responses=mock_responses
     )
+
+
+@pytest.fixture
+def config_manager():
+    return ConfigManager()
+
+
+@pytest.fixture
+def text_generation_manager(config_manager):
+    return TextGenerationManager(config_manager=config_manager)
