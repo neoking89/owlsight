@@ -1,5 +1,6 @@
 + now only the last changed configruation is applied when pressing enter. all changes before are not applied. fix this
 + add a "back" option to go back to the previous menu
++ add "transformers" and "onnx" options to configuration
 + improve flow of mainloop. now it is a bit messy
 + add type validation per configuration
 + keep the cursor in the same position at higest level
