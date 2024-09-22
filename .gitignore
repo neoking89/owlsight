@@ -5,6 +5,7 @@
 
 # Ignore all .pyc files
 *.pyc
+*.json
 
 # Also ignore the __pycache__ directories where .pyc files are stored
 __pycache__/
