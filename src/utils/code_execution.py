@@ -88,11 +88,7 @@ class CodeExecutor:
                 logger.info(
                     f"pip install found in command '{code_block}'. Installing module {module_to_install} to target directory {self.temp_dir}"
                 )
-                install_module(
-                    module_to_install,
-                    self.pip_path,
-                    self.temp_dir,
-                )
+                self.pip_install(module_to_install)
             else:
                 execute_shell_command(code_block, self.venv_path)
         else:
@@ -105,8 +101,8 @@ class CodeExecutor:
         except ModuleNotFoundError as e:
             logger.error(f"Module not found: {e}")
             missing_module = extract_missing_module(str(e))
-            logger.info(f"Attempting to install module: {missing_module}")
-            if install_module(missing_module, self.pip_path, self.temp_dir):
+            module_is_installed = self.pip_install(missing_module)
+            if module_is_installed:
                 if missing_module not in os.listdir(self.temp_dir):
                     raise ModuleNotFoundInVenvError(
                         missing_module,
@@ -133,6 +129,23 @@ class CodeExecutor:
             )
         except SystemExit:
             logger.info("Exiting interactive console and returning to the script.")
+
+    def pip_install(self, module: str) -> bool:
+        """Install a Python module using pip."""
+        logger.info(f"Attempting to install module: {module}")
+        extra_index_url = self.manager.get_config_key("main.extra_index_url")
+        if extra_index_url:
+            module_is_installed = install_module(
+                module,
+                self.pip_path,
+                self.temp_dir,
+                "--extra-index-url",
+                extra_index_url,
+            )
+        else:
+            module_is_installed = install_module(module, self.pip_path, self.temp_dir)
+
+        return module_is_installed
 
     @property
     def max_retries(self) -> int:
