@@ -122,19 +122,8 @@ def main(
 
     Parameters
     ----------
-    processor : TextGenerationProcessor
-        The text generation processor to use for generating code.
-    max_retries : int, optional
-        The maximum number of retries for code execution, by default 3
-    max_new_tokens : int, optional
-        The maximum number of new tokens to generate, by default 1024
-    stopwords : Optional[List[str]], optional
-        List of stopwords to stop generation at, by default None
-    generation_kwargs : Optional[dict], optional
-        Additional keyword arguments for model generation, by default None
-        For example: {"top_k": 50, "top_p": 0.95}
-    prompt_code_execution : bool, optional
-        Whether to prompt the user before executing the generated code, by default True
+    manager : TextGenerationManager
+        TextGenerationManager instance to handle the code generation and execution
     """
     venv_path = get_venv_path()
     lib_path = get_lib_path(venv_path)
