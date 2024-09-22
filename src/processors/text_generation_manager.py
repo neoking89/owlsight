@@ -1,5 +1,4 @@
 from typing import Any, Optional
-from ast import literal_eval
 import traceback
 
 from src.processors.text_generation_processor import (
@@ -100,10 +99,8 @@ class TextGenerationManager:
                 # Inmediately overwrite the processor with a new instance to save memory
                 self.processor = None
                 free_memory()
-                
-                self.processor = processor_type(
-                    **self.config_manager.get("model", {})
-                )
+
+                self.processor = processor_type(**self.config_manager.get("model", {}))
                 self.processor.history = old_history
             else:
                 processor_type = select_processor_type(model_id)
@@ -136,3 +133,9 @@ class TextGenerationManager:
             Dictionary with the available configuration choices.
         """
         return self.config_manager.config_choices
+
+    def get_config_key(self, key: str, default: Any = None) -> Any:
+        """
+        Get the value of a key in the configuration.
+        """
+        return self.config_manager.get(key, default)

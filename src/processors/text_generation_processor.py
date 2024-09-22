@@ -263,16 +263,18 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs
         )
         generation_thread.start()
-
         generated_text = ""
-        for new_text in self.streamer:
-            generated_text += new_text
-            print(new_text, end="", flush=True)
 
-        print()  # Print newline after generation is done
-
-        generation_thread.kill()
-        generation_thread.join()
+        try:
+            for new_text in self.streamer:
+                generated_text += new_text
+                print(new_text, end="", flush=True)
+        except KeyboardInterrupt:
+            logger.warning("Control+C pressed, aborting generation")
+        finally:
+            print()  # Print newline after generation is done
+            generation_thread.kill()
+            generation_thread.join()
 
         if self.save_history:
             self.history.append({"role": "user", "content": input_text})

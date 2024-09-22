@@ -10,20 +10,50 @@ logger = LoggerManager.get_logger(__name__)
 
 
 class ConfigManager:
-    """A class which carries the configuration for the application."""
+    """
+    A singleton class which carries the configuration for the whole application.
+    
+    Most important to know, is that there are 2 different configurations:
+    - self._config: the true configuration that is used in the application backend.
+    - config_choices: the configuration that presented in the UI, where the user can toggle between choices.
+    """
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(ConfigManager, cls).__new__(cls)
+            cls._instance.config = {}
+        return cls._instance
+
 
     def __init__(self):
+        """
+        Initialize the configuration manager with default values.
+        """
         self._config = DottedDict(
             {
                 "main": {
                     "max_retries_on_error": 3,
                     "prompt_code_execution": True,
+                    "extra_index_url": ""
                 },
                 "model": {
                     "model_id": "",
                     "tokenizer": "",
                     "save_history": False,
-                    "system_prompt": "",
+                    "system_prompt": """
+# ROLE:
+You are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.
+
+# TASK:
+- Prioritize Python solutions when appropriate.
+- Present code in markdown format. Example:```python print("Hello, World!")```
+- Clearly state when non-Python solutions are necessary.
+- Break down complex problems into manageable steps and think through the solution step-by-step.
+- Adhere to best coding practices, including error handling and consideration of edge cases.
+- Acknowledge any limitations in your solutions.
+- Always aim to provide the best solution to the user's problem, whether it involves Python or not.
+                    """.strip(),
                     # specific parameters for the different processors
                     # transformers
                     "device": None,
@@ -41,7 +71,7 @@ class ConfigManager:
             }
         )
 
-    def get(self, key: str, default=None):
+    def get(self, key: str, default=None) -> Any:
         """
         Get a configuration value using dotted notation for nested keys.
         """
@@ -54,7 +84,7 @@ class ConfigManager:
                 return default
         return value
 
-    def set(self, key: str, value: Any):
+    def set(self, key: str, value: Any) -> None:
         """
         Set a configuration value using dotted notation for nested keys and notify observers.
         """
@@ -68,6 +98,13 @@ class ConfigManager:
 
     @property
     def config_choices(self) -> Dict[str, Dict[str, str]]:
+        """
+        Get the configuration choices for the UI.
+
+        If value is None, the key can only be selected, similar to pushing a button which might trigger a predefined action, based on the key.
+        If value is a list, the key can be toggled between the values in the list.
+        If value is a string, the user is free to enter any string.
+        """
         config_choices = {
             "main": {
                 "max_retries_on_error": _prepare_toggle_choices(
@@ -76,6 +113,7 @@ class ConfigManager:
                 "prompt_code_execution": _prepare_toggle_choices(
                     self._config["main"]["prompt_code_execution"], [False, True]
                 ),
+                "extra_index_url": self._config["main"]["extra_index_url"],
             },
             "model": {
                 "model_id": self._config["model"]["model_id"],
@@ -126,7 +164,7 @@ class ConfigManager:
         # Ensure that the directory exists
         directory = os.path.dirname(path)
         if directory and not os.path.exists(directory):
-            logger.error(f"{err_msg} Directory does not exist: {directory}")
+            logger.error(f"{err_msg} Directory does not exist: '{directory}'")
             return
 
         try:
@@ -136,9 +174,9 @@ class ConfigManager:
                     f,
                     indent=4,
                 )
-                logger.info(f"{err_msg} Configuration saved  succesfully to {path}")
+                logger.info(f"{err_msg} Configuration saved succesfully to '{path}'")
         except (IOError, OSError) as e:
-            logger.error(f"{err_msg} Error writing to file {path}: {e}")
+            logger.error(f"{err_msg} Error writing to file '{path}': {e}")
         except TypeError as e:
             logger.error(f"{err_msg} Error serializing configuration to JSON: {e}")
 
@@ -167,7 +205,7 @@ class ConfigManager:
 
         try:
             self._config = DottedDict(data)
-            logger.info(f"{err_msg} Configuration loaded succesfully from '{path}'")
+            logger.info(f"Configuration loaded succesfully from '{path}'")
         except Exception as e:
             logger.error(f"{err_msg} Error initializing configuration: {e}")
 
