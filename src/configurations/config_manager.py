@@ -10,14 +10,24 @@ logger = LoggerManager.get_logger(__name__)
 
 
 class ConfigManager:
-    """A class which carries the configuration for the application."""
+    """
+    A class which carries the configuration for the application.
+    
+    Most important to know, is that there are 2 different configurations:
+    - self._config: the true configuration that is used in the application backend.
+    - config_choices: the configuration that presented in the UI, where the user can toggle between choices.
+    """
 
     def __init__(self):
+        """
+        Initialize the configuration manager with default values.
+        """
         self._config = DottedDict(
             {
                 "main": {
                     "max_retries_on_error": 3,
                     "prompt_code_execution": True,
+                    "extra_index_url": ""
                 },
                 "model": {
                     "model_id": "",
@@ -68,6 +78,13 @@ class ConfigManager:
 
     @property
     def config_choices(self) -> Dict[str, Dict[str, str]]:
+        """
+        Get the configuration choices for the UI.
+
+        If value is None, the key can only be selected, similar to pushing a button which might trigger a predefined action, based on the key.
+        If value is a list, the key can be toggled between the values in the list.
+        If value is a string, the user is free to enter any string.
+        """
         config_choices = {
             "main": {
                 "max_retries_on_error": _prepare_toggle_choices(
@@ -76,6 +93,7 @@ class ConfigManager:
                 "prompt_code_execution": _prepare_toggle_choices(
                     self._config["main"]["prompt_code_execution"], [False, True]
                 ),
+                "extra_index_url": self._config["main"]["extra_index_url"],
             },
             "model": {
                 "model_id": self._config["model"]["model_id"],
