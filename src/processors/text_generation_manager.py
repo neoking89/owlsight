@@ -1,5 +1,4 @@
 from typing import Any, Optional
-from ast import literal_eval
 import traceback
 
 from src.processors.text_generation_processor import (
