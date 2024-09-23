@@ -1,3 +1,4 @@
+- should we check for venv?
 + now only the last changed configruation is applied when pressing enter. all changes before are not applied. fix this
 + add a "back" option to go back to the previous menu
 + add "transformers" and "onnx" options to configuration
