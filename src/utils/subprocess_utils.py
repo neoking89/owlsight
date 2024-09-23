@@ -78,13 +78,13 @@ def _log_shell_output(result: subprocess.CompletedProcess | None) -> None:
             logger.warning(f"Command produced output: {result.output}")
 
 
-def _get_activate_script(venv_path: str) -> str:
+def _get_activate_script(pyenv_path: str) -> str:
     """
     Get the path to the virtual environment's activation script.
 
     Parameters
     ----------
-    venv_path : str
+    pyenv_path : str
         Path to the virtual environment.
 
     Returns
@@ -93,22 +93,22 @@ def _get_activate_script(venv_path: str) -> str:
         The path to the activation script for the virtual environment.
     """
     return os.path.join(
-        venv_path,
+        pyenv_path,
         "Scripts" if platform.system().lower() == "windows" else "bin",
         "activate",
     )
 
 
-def execute_shell_command(command: str, venv_path: str) -> subprocess.CompletedProcess:
+def execute_shell_command(command: str, pyenv_path: str) -> subprocess.CompletedProcess:
     """
-    Execute a shell command inside the virtual environment.
+    Execute a shell command inside the (virtual) python environment.
 
     Parameters
     ----------
     command : str
         The shell command to execute.
-    venv_path : str
-        Path to the virtual environment.
+    pyenv_path : str
+        Path to the (virtual) python environment.
 
     Returns
     -------
@@ -116,7 +116,7 @@ def execute_shell_command(command: str, venv_path: str) -> subprocess.CompletedP
         The result of the subprocess run or the exception if failed.
     """
     # Get the correct activate script based on the virtual environment
-    activate_venv = _get_activate_script(venv_path)
+    activate_venv = _get_activate_script(pyenv_path)
 
     # Determine the OS and build the appropriate shell command
     current_os = platform.system().lower()

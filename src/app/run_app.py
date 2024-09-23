@@ -11,7 +11,7 @@ from utils.helper_functions import (
     remove_temp_directories,
     replace_bracket_placeholders,
 )
-from utils.venv_manager import get_lib_path, get_pip_path, get_venv_path
+from utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
 from utils.console import get_user_choice, print_colored
 from utils.constants import PROMPT_COLOR
 from utils.logger_manager import LoggerManager
@@ -150,9 +150,9 @@ def run(manager: TextGenerationManager) -> None:
     manager : TextGenerationManager
         TextGenerationManager instance to handle the code generation and execution
     """
-    venv_path = get_venv_path()
-    lib_path = get_lib_path(venv_path)
-    pip_path = get_pip_path(venv_path)
+    pyenv_path = get_pyenv_path()
+    lib_path = get_lib_path(pyenv_path)
+    pip_path = get_pip_path(pyenv_path)
 
     # Remove lingering temporary directories
     remove_temp_directories(lib_path)
@@ -161,7 +161,7 @@ def run(manager: TextGenerationManager) -> None:
     with tempfile.TemporaryDirectory(dir=lib_path) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
 
-        code_executor = CodeExecutor(manager, venv_path, pip_path, temp_dir)
+        code_executor = CodeExecutor(manager, pyenv_path, pip_path, temp_dir)
 
         run_code_generation_loop(code_executor, manager)
 

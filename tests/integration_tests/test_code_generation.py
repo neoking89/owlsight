@@ -6,7 +6,7 @@ import os
 sys.path.append(".")
 sys.path.append("tests")
 from utils.code_execution import CodeExecutor, execute_code_with_feedback
-from utils.venv_manager import get_venv_path, get_pip_path
+from utils.venv_manager import get_pyenv_path, get_pip_path
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def code_executor(text_generation_manager):
         text_generation_manager,
         temp_dir="temp_dir",
         pip_path="pip",
-        venv_path="venv",
+        pyenv_path="venv",
     )
 
 
@@ -60,10 +60,10 @@ def test_code_executor_install_missing_module_in_venv(text_generation_manager):
     ```
     """.strip()
     with tempfile.TemporaryDirectory() as temp_dir:
-        venv_path = get_venv_path()
-        pip_path = get_pip_path(venv_path)
+        pyenv_path = get_pyenv_path()
+        pip_path = get_pip_path(pyenv_path)
 
-        code_executor = CodeExecutor(text_generation_manager, venv_path, pip_path, temp_dir)
+        code_executor = CodeExecutor(text_generation_manager, pyenv_path, pip_path, temp_dir)
         results = execute_code_with_feedback(
             model_response,
             question,

@@ -30,7 +30,7 @@ class CodeExecutor:
     def __init__(
         self,
         manager: TextGenerationManager,
-        venv_path: str,
+        pyenv_path: str,
         pip_path: str,
         temp_dir: str,
     ):
@@ -38,7 +38,7 @@ class CodeExecutor:
         self.temp_dir = temp_dir
         self.globals_dict = {}
 
-        self._init_python_properties(venv_path, pip_path)
+        self._init_python_properties(pyenv_path, pip_path)
         self._reset_retries()
 
     def execute_and_retry(
@@ -90,7 +90,7 @@ class CodeExecutor:
                 )
                 self.pip_install(module_to_install)
             else:
-                execute_shell_command(code_block, self.venv_path)
+                execute_shell_command(code_block, self.pyenv_path)
         else:
             logger.warning(f"Unsupported language: {lang}")
 
@@ -106,7 +106,7 @@ class CodeExecutor:
                 if missing_module not in os.listdir(self.temp_dir):
                     raise ModuleNotFoundInVenvError(
                         missing_module,
-                        self.venv_path,
+                        self.pyenv_path,
                         os.listdir(self.temp_dir),
                     )
                 logger.info(f"Retrying execution after installing {missing_module}")
@@ -177,10 +177,10 @@ class CodeExecutor:
 """.strip()
         return self.manager.generate(new_question)
 
-    def _init_python_properties(self, venv_path: str, pip_path: str):
-        self.venv_path = venv_path
-        self.lib_path = get_lib_path(venv_path)
-        self.python_executable = get_python_executable(venv_path)
+    def _init_python_properties(self, pyenv_path: str, pip_path: str):
+        self.pyenv_path = pyenv_path
+        self.lib_path = get_lib_path(pyenv_path)
+        self.python_executable = get_python_executable(pyenv_path)
         self.pip_path = pip_path
 
 

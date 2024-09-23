@@ -11,13 +11,13 @@ logger = LoggerManager.get_logger(__name__)
 
 
 @contextmanager
-def create_venv(venv_path: str) -> str:
+def create_venv(pyenv_path: str) -> str:
     """
     Context manager to create and manage a Python virtual environment.
 
     Parameters
     ----------
-    venv_path : str
+    pyenv_path : str
         The path where the virtual environment will be created.
 
     Yields
@@ -25,8 +25,8 @@ def create_venv(venv_path: str) -> str:
     str
         Path to the pip executable within the created virtual environment.
     """
-    venv.create(venv_path, with_pip=True)
-    pip_path = os.path.join(venv_path, "Scripts" if os.name == "nt" else "bin", "pip")
+    venv.create(pyenv_path, with_pip=True)
+    pip_path = os.path.join(pyenv_path, "Scripts" if os.name == "nt" else "bin", "pip")
     yield pip_path
 
 
@@ -44,30 +44,30 @@ def in_venv() -> bool:
     )
 
 
-def get_lib_path(venv_path: str) -> str:
+def get_lib_path(pyenv_path: str) -> str:
     """
     Get the path to the lib directory within the virtual environment.
 
     Parameters
     ----------
-    venv_path : str
-        The path to the virtual environment.
+    pyenv_path : str
+        The path to the (virtual) python environment.
 
     Returns
     -------
     str
         The path to the lib directory.
     """
-    return os.path.join(venv_path, "Lib", "site-packages")
+    return os.path.join(pyenv_path, "Lib", "site-packages")
 
 
-def get_python_executable(venv_path: str) -> str:
+def get_python_executable(pyenv_path: str) -> str:
     """
     Get the path to the Python executable within the virtual environment.
 
     Parameters
     ----------
-    venv_path : str
+    pyenv_path : str
         The path to the virtual environment.
 
     Returns
@@ -75,38 +75,38 @@ def get_python_executable(venv_path: str) -> str:
     str
         The path to the Python executable.
     """
-    return os.path.join(venv_path, "Scripts" if os.name == "nt" else "bin", "python")
+    return os.path.join(pyenv_path, "Scripts" if os.name == "nt" else "bin", "python")
 
 
-def get_venv_path() -> str:
+def get_pyenv_path() -> str:
     """
-    Get the path to the current virtual environment.
+    Get the path to the current (virtual) python environment.
 
     Returns
     -------
     bool
-        The path to the current virtual environment.
+        The path to the current (virtual) python environment.
     """
-    if not in_venv():
-        raise RuntimeError("Not running inside a virtual environment.")
+    # if not in_venv():
+    #     raise RuntimeError("Not running inside a virtual environment.")
     return sys.prefix
 
 
-def get_pip_path(venv_path: str) -> str:
+def get_pip_path(pyenv_path: str) -> str:
     """
-    Get the path to the pip executable within the virtual environment.
+    Get the path to the pip executable within the (virtual) python environment.
 
     Parameters
     ----------
-    venv_path : str
-        The path to the virtual environment.
+    pyenv_path : str
+        The path to the (virtual) python environment.
 
     Returns
     -------
     str
         The path to the pip executable.
     """
-    return os.path.join(venv_path, "Scripts" if os.name == "nt" else "bin", "pip")
+    return os.path.join(pyenv_path, "Scripts" if os.name == "nt" else "bin", "pip")
 
 
 def install_module(
