@@ -16,3 +16,4 @@ tmp*.py
 /dist
 deploy.ps1
 build.bat
+.egg-info/*
