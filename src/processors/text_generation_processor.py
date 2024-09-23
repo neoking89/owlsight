@@ -2,7 +2,6 @@ from abc import ABC
 from typing import Optional, List, Dict, Any, Type
 import os
 import time
-import onnxruntime_genai as og
 
 import torch
 from transformers import (
@@ -19,6 +18,14 @@ from src.utils.custom_classes import StopWordCriteria
 from src.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
+
+ONNX_MSG = "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or install [onnxruntime-genai, onnxruntime-genai-cuda] seperately"
+
+try:
+    import onnxruntime_genai as og
+except ImportError:
+    logger.warning(ONNX_MSG)
+    og = None
 
 
 def select_processor_type(model_id: str) -> Type["TextGenerationProcessor"]:
@@ -318,6 +325,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         system_prompt : str
             The system prompt to prepend to the input text.
         """
+        if og is None:
+            raise ImportError(ONNX_MSG)
+
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"Model not found at {model_id}")
 
