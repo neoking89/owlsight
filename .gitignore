@@ -10,5 +10,9 @@
 # Also ignore the __pycache__ directories where .pyc files are stored
 __pycache__/
 
+# custom
 tmp*.py
 /logo
+/dist
+deploy.ps1
+build.bat
