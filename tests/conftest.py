@@ -1,9 +1,9 @@
 import pytest
 from typing import List, Optional, Dict, Any, Union
 
-from src.processors.text_generation_processor import TextGenerationProcessor
-from src.processors.text_generation_manager import TextGenerationManager
-from src.configurations.config_manager import ConfigManager
+from processors.text_generation_processor import TextGenerationProcessor
+from processors.text_generation_manager import TextGenerationManager
+from configurations.config_manager import ConfigManager
 
 
 class MockTextGenerationProcessor(TextGenerationProcessor):

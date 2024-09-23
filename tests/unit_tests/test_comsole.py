@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.utils.console import get_user_choice, OptionType, Selector
+from utils.console import get_user_choice, OptionType, Selector
 
 
 @pytest.fixture

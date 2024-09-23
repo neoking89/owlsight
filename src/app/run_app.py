@@ -3,18 +3,18 @@ import traceback
 from typing import Dict, Union
 from enum import Enum, auto
 
-from src.processors.text_generation_manager import TextGenerationManager
-from src.main_logic.handlers import handle_interactive_code_execution
-from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
-from src.utils.helper_functions import (
+from processors.text_generation_manager import TextGenerationManager
+from app.handlers import handle_interactive_code_execution
+from utils.code_execution import CodeExecutor, execute_code_with_feedback
+from utils.helper_functions import (
     force_delete,
     remove_temp_directories,
     replace_bracket_placeholders,
 )
-from src.utils.venv_manager import get_lib_path, get_pip_path, get_venv_path
-from src.utils.console import get_user_choice, print_colored
-from src.utils.constants import PROMPT_COLOR
-from src.utils.logger_manager import LoggerManager
+from utils.venv_manager import get_lib_path, get_pip_path, get_venv_path
+from utils.console import get_user_choice, print_colored
+from utils.constants import PROMPT_COLOR
+from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 
@@ -141,7 +141,7 @@ def process_user_question(
     )
 
 
-def main(manager: TextGenerationManager) -> None:
+def run(manager: TextGenerationManager) -> None:
     """
     Main function to run the interactive loop for code generation and execution
 

@@ -4,7 +4,7 @@ import os
 
 import numpy as np
 
-from src.utils.logger_manager import LoggerManager
+from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 

@@ -5,8 +5,8 @@ import os
 
 sys.path.append(".")
 sys.path.append("tests")
-from src.utils.code_execution import CodeExecutor, execute_code_with_feedback
-from src.utils.venv_manager import get_venv_path, get_pip_path
+from utils.code_execution import CodeExecutor, execute_code_with_feedback
+from utils.venv_manager import get_venv_path, get_pip_path
 
 
 @pytest.fixture

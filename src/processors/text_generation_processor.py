@@ -12,10 +12,10 @@ from transformers import (
     PreTrainedTokenizer,
     pipeline,
 )
-from src.utils.threads import KillableThread
-from src.utils.custom_exceptions import QuantizationNotSupportedError
-from src.utils.custom_classes import StopWordCriteria
-from src.utils.logger_manager import LoggerManager
+from utils.threads import KillableThread
+from utils.custom_exceptions import QuantizationNotSupportedError
+from utils.custom_classes import StopWordCriteria
+from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 

@@ -1,15 +1,15 @@
 from typing import Any, Optional
 import traceback
 
-from src.processors.text_generation_processor import (
+from processors.text_generation_processor import (
     TextGenerationProcessor,
     select_processor_type,
 )
-from src.configurations.config_manager import ConfigManager
-from src.utils.helper_functions import convert_to_real_type
-from src.utils.deep_learning import free_memory
+from configurations.config_manager import ConfigManager
+from utils.helper_functions import convert_to_real_type
+from utils.deep_learning import free_memory
 
-from src.utils.logger_manager import LoggerManager
+from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 

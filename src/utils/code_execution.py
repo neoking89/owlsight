@@ -4,19 +4,19 @@ import re
 from typing import Dict, List
 import traceback
 
-from src.processors.text_generation_manager import TextGenerationManager
-from src.utils.custom_exceptions import ModuleNotFoundInVenvError
-from src.utils.subprocess_utils import execute_shell_command
-from src.utils.helper_functions import (
+from processors.text_generation_manager import TextGenerationManager
+from utils.custom_exceptions import ModuleNotFoundInVenvError
+from utils.subprocess_utils import execute_shell_command
+from utils.helper_functions import (
     extract_markdown,
     editable_input,
     format_error_message,
 )
-from src.utils.console import get_user_choice
-from src.utils.venv_manager import install_module, get_lib_path, get_python_executable
-from src.utils.constants import PROMPT_COLOR
+from utils.console import get_user_choice
+from utils.venv_manager import install_module, get_lib_path, get_python_executable
+from utils.constants import PROMPT_COLOR
 
-from src.utils.logger_manager import LoggerManager
+from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 
