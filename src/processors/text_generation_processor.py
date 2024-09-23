@@ -331,6 +331,11 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"Model not found at {model_id}")
 
+        if not tokenizer:
+            raise ValueError(
+                "No tokenizer found! A tokenizer from the transformers library is required for ONNX models, to standardize chat templates."
+            )
+
         super().__init__(model_id, save_history, system_prompt, **kwargs)
         self.verbose = verbose
         self.num_threads = num_threads
