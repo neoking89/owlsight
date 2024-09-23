@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "owlsight"
+dynamic = ["version"]
+description = "Owlsight is a commandline tool which combines opensource AI models with python functionality to create a powerful AI assistant."
+authors = [{name = "Vincent Ouwendijk"}]
+license = {text = "MIT"}
+dependencies = [
+    "onnxruntime-genai",
+    "onnxruntime-genai-cuda",
+    "transformers",
+    "numpy",
+    "torch",
+    "bitsandbytes",
+    "accelerate",
+    "gguf",
+    "sentencepiece",
+    "prompt_toolkit",
+    "keyboard",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "black",
+    "pytest"
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    "src",  # Add the src directory to the python path so that in src/tests, we can import it like: from lib_name import ...
+]
+
+[project.scripts]
+owlsight = "main_logic.main_loop:main"
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.black]
+line-length = 88
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
