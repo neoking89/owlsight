@@ -123,7 +123,8 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> No
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
     code_executor.globals_dict.clear()
-    manager.processor.history.clear()
+    if manager.processor is not None:
+        manager.processor.history.clear()
     logger.info("State and history cleared.")
 
 
