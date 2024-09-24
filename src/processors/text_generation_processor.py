@@ -81,7 +81,6 @@ class TextGenerationProcessor(ABC):
         self,
         input_text: str,
         tokenizer: PreTrainedTokenizer,
-        # exclude_eos_token: bool = False,
     ) -> str:
         """
         Apply chat template to the input text.
@@ -93,20 +92,10 @@ class TextGenerationProcessor(ABC):
             messages = self.history.copy()
 
         messages.append({"role": "user", "content": input_text})
-        messages.append({"role": "assistant", "content": ""})
-        if self.system_prompt is not None:
+        if self.system_prompt:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
 
-        # templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
-
-        try:
-            eos_token = tokenizer.eos_token
-            tokenizer.eos_token = None
-            templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
-            tokenizer.eos_token = eos_token
-        except Exception as e:
-            logger.warning(f"Error applying chat template:\n{e}")
-            templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
+        templated_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
         return templated_text
 
