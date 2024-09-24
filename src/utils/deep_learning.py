@@ -1,6 +1,5 @@
 import gc
 import subprocess
-
 import torch
 
 from utils.logger_manager import LoggerManager
@@ -21,7 +20,6 @@ def print_memory_stats(device: torch.device):
     print(
         f"Max memory allocated: {torch.cuda.max_memory_allocated(device) / 1e9:.2f} GB"
     )
-    # reserved (aka 'max memory cached') is the allocated memory plus pre-cached memory
     print(f"Max memory reserved: {torch.cuda.max_memory_reserved(device) / 1e9:.2f} GB")
 
 
@@ -44,6 +42,7 @@ def check_gpu_and_cuda():
         logger.info(
             "CUDA-capable GPU is available and PyTorch is built with CUDA support."
         )
+        return
     try:
         output_cuda = subprocess.check_output(["nvcc", "--version"]).decode("utf-8")
         cuda_version = output_cuda[
@@ -60,7 +59,6 @@ def check_gpu_and_cuda():
         logger.error("%s", e)
         raise e
 
-    # Check if a CUDA-capable GPU is available
     if torch.cuda.is_available():
         logger.info(
             "CUDA-capable GPU is available and PyTorch is built with CUDA support. You are all set!"
@@ -81,7 +79,6 @@ def log_reserved_memory():
     else:
         logger.info("CUDA not available. GPU memory stats cannot be logged.")
 
-    # Safely retrieving CPU memory stats
     try:
         cpu_stats = torch.cuda.memory_stats()
         cpu_reserved = cpu_stats.get("reserved_host_bytes.all.current", "Not available")
@@ -103,7 +100,6 @@ def check_bfloat16_support():
         return False
 
     try:
-        # Create a tensor with bfloat16 dtype
         _ = torch.tensor([1.0, 2.0], dtype=torch.bfloat16, device="cuda")
         print("bfloat16 is supported on your GPU.")
         return True
@@ -121,3 +117,38 @@ def calculate_memory_for_model(n_bilion_parameters: int, n_bit: int = 32) -> flo
     n_bit (int): The number of bits used to represent the model parameters. Default is 32. Quantized models use 16/8/4 bits.
     """
     return ((n_bilion_parameters * 4) / (32 / n_bit)) * 1.2
+
+
+def calculate_available_vram() -> float:
+    """
+    Calculate the available VRAM on the GPU in GB.
+    """
+    if torch.cuda.is_available():
+        available_memory = torch.cuda.get_device_properties(
+            0
+        ).total_memory - torch.cuda.memory_allocated(0)
+        available_memory_gb = available_memory / 1024**3
+        return available_memory_gb
+    else:
+        logger.warning("CUDA not available. Cannot calculate available VRAM.")
+        return 0.0
+
+
+def calculate_max_parameters_per_dtype():
+    """
+    Calculate the maximum number of parameters that can be run on the GPU
+    for different data types (32-bit, 16-bit, 8-bit, 4-bit).
+    """
+    available_vram = calculate_available_vram()
+    if available_vram > 0:
+        logger.info(f"Available VRAM: {available_vram:.2f} GB")
+
+        for bits in [32, 16, 8, 4]:
+            max_params = available_vram / calculate_memory_for_model(
+                1, bits
+            )  # for 1 billion parameters
+            logger.info(
+                f"Maximum number of billion parameters for {bits}-bit model: {max_params:.2f} billion"
+            )
+    else:
+        logger.warning("No available VRAM to calculate parameters.")
