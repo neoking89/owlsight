@@ -1,5 +1,5 @@
 from app.run_app import run
-from utils.deep_learning import check_gpu_and_cuda
+from utils.deep_learning import check_gpu_and_cuda, calculate_max_parameters_per_dtype
 from processors.text_generation_manager import TextGenerationManager
 from ui.logo import print_logo
 from configurations.config_manager import ConfigManager
@@ -11,6 +11,7 @@ logger = LoggerManager.get_logger(__name__)
 def main():
     print_logo()
     check_gpu_and_cuda()
+    calculate_max_parameters_per_dtype()
 
     config_manager = ConfigManager()
     text_generation_manager = TextGenerationManager(
