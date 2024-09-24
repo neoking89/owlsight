@@ -10,7 +10,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
 
 sys.path.append(".")
-from src.utils.constants import COLOR_CODES
+from utils.constants import COLOR_CODES
 
 
 class OptionType(Enum):

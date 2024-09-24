@@ -9,7 +9,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 
-from src.utils.logger_manager import LoggerManager
+from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 

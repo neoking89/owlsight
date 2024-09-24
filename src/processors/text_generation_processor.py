@@ -2,7 +2,6 @@ from abc import ABC
 from typing import Optional, List, Dict, Any, Type
 import os
 import time
-import onnxruntime_genai as og
 
 import torch
 from transformers import (
@@ -13,12 +12,20 @@ from transformers import (
     PreTrainedTokenizer,
     pipeline,
 )
-from src.utils.threads import KillableThread
-from src.utils.custom_exceptions import QuantizationNotSupportedError
-from src.utils.custom_classes import StopWordCriteria
-from src.utils.logger_manager import LoggerManager
+from utils.threads import KillableThread
+from utils.custom_exceptions import QuantizationNotSupportedError
+from utils.custom_classes import StopWordCriteria
+from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
+
+ONNX_MSG = "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or install [onnxruntime-genai, onnxruntime-genai-cuda] seperately"
+
+try:
+    import onnxruntime_genai as og
+except ImportError:
+    logger.warning(ONNX_MSG)
+    og = None
 
 
 def select_processor_type(model_id: str) -> Type["TextGenerationProcessor"]:
@@ -74,7 +81,6 @@ class TextGenerationProcessor(ABC):
         self,
         input_text: str,
         tokenizer: PreTrainedTokenizer,
-        # exclude_eos_token: bool = False,
     ) -> str:
         """
         Apply chat template to the input text.
@@ -86,20 +92,10 @@ class TextGenerationProcessor(ABC):
             messages = self.history.copy()
 
         messages.append({"role": "user", "content": input_text})
-        messages.append({"role": "assistant", "content": ""})
-        if self.system_prompt is not None:
+        if self.system_prompt:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
 
-        # templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
-
-        try:
-            eos_token = tokenizer.eos_token
-            tokenizer.eos_token = None
-            templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
-            tokenizer.eos_token = eos_token
-        except Exception as e:
-            logger.warning(f"Error applying chat template:\n{e}")
-            templated_text = tokenizer.apply_chat_template(messages, tokenize=False)
+        templated_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
         return templated_text
 
@@ -318,8 +314,16 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         system_prompt : str
             The system prompt to prepend to the input text.
         """
+        if og is None:
+            raise ImportError(ONNX_MSG)
+
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"Model not found at {model_id}")
+
+        if not tokenizer:
+            raise ValueError(
+                "No tokenizer found! A tokenizer from the transformers library is required for ONNX models, to standardize chat templates."
+            )
 
         super().__init__(model_id, save_history, system_prompt, **kwargs)
         self.verbose = verbose

@@ -6,11 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "owlsight"
 dynamic = ["version"]
 description = "Owlsight is a commandline tool which combines opensource AI models with python functionality to create a powerful AI assistant."
-authors = [{name = "Vincent Ouwendijk"}]
-license = {text = "MIT"}
+authors = [{ name = "Vincent Ouwendijk" }]
+license = { text = "MIT" }
 dependencies = [
-    "onnxruntime-genai",
-    "onnxruntime-genai-cuda",
     "transformers",
     "numpy",
     "torch",
@@ -26,7 +24,12 @@ dependencies = [
 dev = [
     "ruff",
     "black",
-    "pytest"
+    "pytest",
+]
+
+onnx = [
+    "onnxruntime-genai",
+    "onnxruntime-genai-cuda",
 ]
 
 [tool.pytest.ini_options]
@@ -36,16 +39,19 @@ testpaths = [
     "tests",
 ]
 pythonpath = [
-    "src",  # Add the src directory to the python path so that in src/tests, we can import it like: from lib_name import ...
+    ".",
 ]
 
 [project.scripts]
-owlsight = "main_logic.main_loop:main"
-
+owlsight = "main:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = { "" = "src" }
 include-package-data = true
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.black]
 line-length = 88

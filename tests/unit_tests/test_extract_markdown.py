@@ -3,7 +3,7 @@ import sys
 
 sys.path.append(".")
 
-from src.utils.helper_functions import extract_markdown
+from utils.helper_functions import extract_markdown
 
 
 def test_extract_markdown():
