@@ -14,6 +14,7 @@ from utils.helper_functions import (
 from utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
 from utils.console import get_user_choice, print_colored
 from utils.constants import PROMPT_COLOR
+from utils.deep_learning import free_memory
 from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -166,4 +167,5 @@ def run(manager: TextGenerationManager) -> None:
         run_code_generation_loop(code_executor, manager)
 
     logger.info(f"Removing temporary directory: {temp_dir}")
+    free_memory()
     force_delete(temp_dir)
