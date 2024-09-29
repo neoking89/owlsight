@@ -1,6 +1,5 @@
++ alter attributes passed in constructor when passing new config and model_id has been passed.
 + now only the last changed configruation is applied when pressing enter. all changes before are not applied. fix this
-+ add a "back" option to go back to the previous menu
-+ add gguf support to config
 + add type validation per configuration
 + keep the cursor in the same position at higest level
 + add autocorrect + history in python interpreter, to make "python" react like a real intepreter in shell. see the prompt_toolkit documentation.
