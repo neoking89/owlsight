@@ -95,7 +95,9 @@ class TextGenerationProcessor(ABC):
         if self.system_prompt:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
 
-        templated_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        templated_text = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
 
         return templated_text
 
@@ -117,10 +119,10 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
-        device: str = None,
-        quantization_bits: Optional[int] = None,
+        transformers__device: str = None,
+        transformers__quantization_bits: Optional[int] = None,
+        transformers__gguf_file: Optional[str] = None,
         bnb_kwargs: Optional[dict] = None,
-        gguf_file: Optional[str] = None,
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
         save_history: bool = False,
@@ -135,14 +137,14 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         model_id : str
             The model ID to use for generation.
             Usually the name of the model or the path to the model.
-        device : str, optional
+        transformers__device : str, optional
             The device to use for generation (default is "cuda" if available).
-        quantization_bits : int, optional
+        transformers__quantization_bits : int, optional
             Number of quantization bits to use for the model.
             Available options: 4, 8, None (default is None).
         bnb_kwargs : dict, optional
             Additional keyword arguments for BitsAndBytesConfig.
-        gguf_file : str, optional
+        transformers__gguf_file : str, optional
             Path to the GGUF file. Experimental feature.
 
             See: https://huggingface.co/docs/transformers/en/gguf
@@ -152,7 +154,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             >>> model_id = "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF"
             >>> gguf_file = "tinyllama-1.1b-chat-v1.0.Q6_K.gguf"
 
-            >>> TextGenerationProcessorTransformers(model_id, gguf_file=gguf_file)
+            >>> TextGenerationProcessorTransformers(model_id, transformers__gguf_file=gguf_file)
         tokenizer_kwargs : dict, optional
             Additional keyword arguments for the tokenizer.
         model_kwargs : dict, optional
@@ -161,15 +163,17 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             Set to True if you want model to generate responses based on previous inputs.
         """
         super().__init__(model_id, save_history, system_prompt, **kwargs)
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.transformers__device = transformers__device or (
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
         self._attention_implementation = (
             "flash" if flash_attention_is_available() else "eager"
         )
         self.history = []
 
         tokenizer, model = self._load_tokenizer_model(
-            quantization_bits,
-            gguf_file=gguf_file,
+            transformers__quantization_bits,
+            gguf_file=transformers__gguf_file,
             tokenizer_kwargs=tokenizer_kwargs or {},
             bnb_kwargs=bnb_kwargs or {},
             model_kwargs=model_kwargs or {},
@@ -178,7 +182,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             "text-generation",
             model=model,
             tokenizer=tokenizer,
-            device_map="auto" if self.device != "cpu" else {"": "cpu"},
+            device_map="auto" if self.transformers__device != "cpu" else {"": "cpu"},
         )
         self.streamer = TextIteratorStreamer(
             self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True
@@ -186,17 +190,17 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
     def _load_tokenizer_model(
         self,
-        quantization_bits: Optional[int],
+        transformers__quantization_bits: Optional[int],
         gguf_file: Optional[str],
         tokenizer_kwargs: Dict,
         bnb_kwargs: Dict,
         model_kwargs: Dict,
     ):
-        if quantization_bits and self.device == "cpu":
+        if transformers__quantization_bits and self.transformers__device == "cpu":
             raise QuantizationNotSupportedError("Quantization is not supported on CPU")
 
         quantization_config = None
-        if quantization_bits == 4:
+        if transformers__quantization_bits == 4:
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
@@ -204,14 +208,18 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
                 bnb_4bit_quant_type="nf4",
                 **bnb_kwargs,
             )
-        elif quantization_bits == 8:
+        elif transformers__quantization_bits == 8:
             quantization_config = BitsAndBytesConfig(load_in_8bit=True, **bnb_kwargs)
 
         model_kwargs.update(
             {
-                "device_map": "auto" if self.device != "cpu" else {"": "cpu"},
+                "device_map": (
+                    "auto" if self.transformers__device != "cpu" else {"": "cpu"}
+                ),
                 "trust_remote_code": True,
-                "torch_dtype": "auto" if self.device != "cpu" else torch.float32,
+                "torch_dtype": (
+                    "auto" if self.transformers__device != "cpu" else torch.float32
+                ),
                 "quantization_config": quantization_config,
                 "_attn_implementation": self._attention_implementation,
             }
@@ -285,9 +293,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
-        tokenizer: str | PreTrainedTokenizer,
-        verbose: bool = False,
-        num_threads: int = 1,
+        onnx__tokenizer: str | PreTrainedTokenizer,
+        onnx__verbose: bool = False,
+        onnx__num_threads: int = 1,
         save_history: bool = False,
         system_prompt: str = None,
         **kwargs,
@@ -300,14 +308,14 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         model_id : str
             The model ID to use for generation.
             Usually the name of the model or the path to the model.
-        tokenizer : str | PreTrainedTokenizer
+        onnx__tokenizer : str | PreTrainedTokenizer
             The tokenizer to use for generation.
             If str, it should be the model ID of the tokenizer.
             else, it should be a PreTrainedTokenizer object.
             This tokenizer allows universal use of chat templates.
-        verbose : bool
+        onnx__verbose : bool
             Whether to print verbose logs.
-        num_threads : int
+        onnx__num_threads : int
             Number of threads to use for generation.
         save_history : bool
             Set to True if you want model to generate responses based on previous inputs.
@@ -320,17 +328,17 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"Model not found at {model_id}")
 
-        if not tokenizer:
+        if not onnx__tokenizer:
             raise ValueError(
                 "No tokenizer found! A tokenizer from the transformers library is required for ONNX models, to standardize chat templates."
             )
 
         super().__init__(model_id, save_history, system_prompt, **kwargs)
-        self.verbose = verbose
-        self.num_threads = num_threads
+        self.onnx__verbose = onnx__verbose
+        self.onnx__num_threads = onnx__num_threads
         self.history = []
 
-        self._set_tokenizer(tokenizer)
+        self._set_tokenizer(onnx__tokenizer)
         self._set_environment_variables()
         self._initialize_model()
 
@@ -417,19 +425,19 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         return generated_text.strip()
 
-    def _set_tokenizer(self, tokenizer):
-        if isinstance(tokenizer, str):
-            self.hf_tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+    def _set_tokenizer(self, onnx__tokenizer):
+        if isinstance(onnx__tokenizer, str):
+            self.hf_tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
         else:
-            self.hf_tokenizer = tokenizer
+            self.hf_tokenizer = onnx__tokenizer
 
     def _set_environment_variables(self) -> None:
         os.environ.update(
             {
-                "OMP_NUM_THREADS": str(self.num_threads),
+                "OMP_NUM_THREADS": str(self.onnx__num_threads),
                 "OMP_WAIT_POLICY": "ACTIVE",
                 "OMP_SCHEDULE": "STATIC",
-                "ONNXRUNTIME_INTRA_OP_NUM_THREADS": str(self.num_threads),
+                "ONNXRUNTIME_INTRA_OP_NUM_THREADS": str(self.onnx__num_threads),
                 "ONNXRUNTIME_INTER_OP_NUM_THREADS": "1",
             }
         )
@@ -439,5 +447,5 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.model = og.Model(self.model_id)
         self.tokenizer = og.Tokenizer(self.model)
         self.tokenizer_stream = self.tokenizer.create_stream()
-        logger.info(f"Model loaded using {self.num_threads} threads")
+        logger.info(f"Model loaded using {self.onnx__num_threads} threads")
         logger.info("Tokenizer created")

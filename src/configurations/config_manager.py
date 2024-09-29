@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Iterable
+from typing import Any, Dict, List
 import json
 import os
 
@@ -39,7 +39,6 @@ class ConfigManager:
                 },
                 "model": {
                     "model_id": "",
-                    "tokenizer": "",
                     "save_history": False,
                     "system_prompt": """
 # ROLE:
@@ -56,11 +55,13 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                     """.strip(),
                     # specific parameters for the different processors
                     # transformers
-                    "device": None,
-                    "quantization_bits": None,
+                    "transformers__device": None,
+                    "transformers__quantization_bits": None,
+                    "transformers__gguf_file": "",
                     # onnx
-                    "verbose": False,
-                    "num_threads": 1,
+                    "onnx__tokenizer": "",
+                    "onnx__verbose": False,
+                    "onnx__num_threads": 1,
                 },
                 "generate": {
                     "stopwords": [],
@@ -117,24 +118,24 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
             },
             "model": {
                 "model_id": self._config["model"]["model_id"],
-                "tokenizer": self._config["model"]["tokenizer"],
                 "save_history": _prepare_toggle_choices(
                     self._config["model"]["save_history"], [False, True]
                 ),
                 "system_prompt": self._config["model"]["system_prompt"],
-                # specific parameters for the different processors
                 # transformers
-                "device": _prepare_toggle_choices(
-                    self._config["model"]["device"], [None, "cpu", "cuda"]
+                "transformers__device": _prepare_toggle_choices(
+                    self._config["model"]["transformers__device"], [None, "cpu", "cuda"]
                 ),
-                "quantization_bits": _prepare_toggle_choices(
-                    self._config["model"]["quantization_bits"], [None, 8, 4]
+                "transformers__quantization_bits": _prepare_toggle_choices(
+                    self._config["model"]["transformers__quantization_bits"], [None, 8, 4]
                 ),
+                "transformers__gguf_file": self._config["model"]["transformers__gguf_file"],
                 # onnx
-                "verbose": _prepare_toggle_choices(
-                    self._config["model"]["verbose"], [False, True]
+                "onnx__tokenizer": self._config["model"]["onnx__tokenizer"],
+                "onnx__verbose": _prepare_toggle_choices(
+                    self._config["model"]["onnx__verbose"], [False, True]
                 ),
-                "num_threads": self._config["model"]["num_threads"],
+                "onnx__num_threads": self._config["model"]["onnx__num_threads"],
             },
             "generate": {
                 "stopwords": str(self._config["generate"]["stopwords"]),
