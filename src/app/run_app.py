@@ -26,9 +26,7 @@ class CommandResult(Enum):
     PROCEED = auto()
 
 
-def run_code_generation_loop(
-    code_executor: CodeExecutor, manager: TextGenerationManager
-) -> None:
+def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
     """Runs the main loop for code generation and user interaction."""
     while True:
         try:
@@ -39,18 +37,14 @@ def run_code_generation_loop(
                 logger.error("User choice is empty. Please try again.")
                 continue
 
-            command_result = handle_special_commands(
-                choice_key, user_choice, code_executor, manager
-            )
+            command_result = handle_special_commands(choice_key, user_choice, code_executor, manager)
             if command_result == CommandResult.BREAK:
                 break
             elif command_result == CommandResult.CONTINUE:
                 continue
 
             if manager.processor is None:
-                logger.error(
-                    "Processor not set. Please load a model first by setting 'model.model_id' in the config!"
-                )
+                logger.error("Processor not set. Please load a model first by setting 'model.model_id' in the config!")
                 continue
             else:
                 process_user_question(user_choice, code_executor, manager)
@@ -115,11 +109,24 @@ def handle_special_commands(
 
 def handle_config_update(user_choice: str, manager: TextGenerationManager) -> None:
     logger.info(f"Chosen config: {user_choice}")
-    nested_config = manager.get_config_choices()[user_choice]
-    config_choice: Dict = get_user_choice(nested_config, return_value_only=False)
-    config_key = f"{user_choice}.{list(config_choice.keys())[0]}"
-    value = list(config_choice.values())[0]
-    manager.update_config(config_key, value)
+
+    # Retrieve nested configuration options
+    available_choices = manager.get_config_choices()
+    selected_config = available_choices[user_choice]
+
+    # Get user choice for the nested configuration
+    user_selected_choice = get_user_choice(selected_config, return_value_only=False)
+
+    if isinstance(user_selected_choice, dict):
+        nested_key = next(iter(user_selected_choice))  # Get the first key
+        config_value = user_selected_choice[nested_key]  # Get the corresponding value
+    else:
+        nested_key = user_selected_choice
+        config_value = None
+
+    # Construct the config key and update the configuration
+    config_key = f"{user_choice}.{nested_key}"
+    manager.update_config(config_key, config_value)
 
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
@@ -129,9 +136,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     logger.info("State and history cleared.")
 
 
-def process_user_question(
-    user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager
-) -> None:
+def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
     user_choice = replace_bracket_placeholders(user_choice, code_executor.globals_dict)
     response = manager.generate(user_choice)
     execute_code_with_feedback(
