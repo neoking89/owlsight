@@ -14,6 +14,8 @@ __pycache__/
 tmp*.py
 /logo
 /dist
+/build
 deploy.ps1
 build.bat
 .egg-info/*
+src/owlsight.egg-info/*

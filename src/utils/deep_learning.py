@@ -20,7 +20,7 @@ def print_memory_stats(device: torch.device):
     print(
         f"Max memory allocated: {torch.cuda.max_memory_allocated(device) / 1e9:.2f} GB"
     )
-    print(f"Max memory reserved: {torch.cuda.max_memory_reserved(device) / 1e9:.2f} GB")
+    print(f"Max memory reserved: { torch.cuda.max_memory_reserved(device) / 1e9:.2f} GB")
 
 
 def calculate_model_size(model) -> float:
@@ -42,7 +42,9 @@ def check_gpu_and_cuda():
         logger.info(
             "CUDA-capable GPU is available and PyTorch is built with CUDA support."
         )
-        return
+        
+        
+    cuda_version = None
     try:
         output_cuda = subprocess.check_output(["nvcc", "--version"]).decode("utf-8")
         cuda_version = output_cuda[
@@ -57,7 +59,6 @@ def check_gpu_and_cuda():
         )
     except Exception as e:
         logger.error("%s", e)
-        raise e
 
     if torch.cuda.is_available():
         logger.info(
