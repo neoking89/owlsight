@@ -88,9 +88,7 @@ class LoggerManager:
         )
 
         if cls._log_path and cls._log_filename:
-            file_handler = logging.FileHandler(
-                os.path.join(cls._log_path, cls._log_filename)
-            )
+            file_handler = logging.FileHandler(os.path.join(cls._log_path, cls._log_filename))
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
 
@@ -107,6 +105,4 @@ class LoggerManager:
         if log_filename is not None and not isinstance(log_filename, str):
             raise TypeError(f"Log filename must be a string, not {type(log_filename)}")
         if not isinstance(add_memory_logging, bool):
-            raise TypeError(
-                f"Add memory logging must be a boolean, not {type(add_memory_logging)}"
-            )
+            raise TypeError(f"Add memory logging must be a boolean, not {type(add_memory_logging)}")

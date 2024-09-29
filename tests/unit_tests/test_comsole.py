@@ -40,4 +40,4 @@ def test_get_user_choice(options_dict):
     """
     Test that the get_user_choice function correctly returns the selected option.
     """
-    #TODO: simulate cmd.exe to get user input?
+    # TODO: simulate cmd.exe to get user input?

@@ -20,9 +20,7 @@ def code_executor(text_generation_manager):
 
 
 def test_code_executor_execute_python_code_succesfully(code_executor: CodeExecutor):
-    result = code_executor.execute_and_retry(
-        "python", "print('Hello')", "original question"
-    )
+    result = code_executor.execute_and_retry("python", "print('Hello')", "original question")
     assert result
 
 

@@ -15,9 +15,7 @@ def test_mock_text_generator_single_custom(mock_text_generator):
 
 
 # Test with multiple custom responses
-@pytest.mark.parametrize(
-    "mock_text_generator", [["Response 1", "Response 2", "Response 3"]], indirect=True
-)
+@pytest.mark.parametrize("mock_text_generator", [["Response 1", "Response 2", "Response 3"]], indirect=True)
 def test_mock_text_generator_multiple_custom(mock_text_generator):
     assert mock_text_generator.generate("test") == "Response 1"
     assert mock_text_generator.generate("test") == "Response 2"
@@ -35,17 +33,13 @@ def test_mock_text_generator_multiple_custom(mock_text_generator):
     ],
     indirect=["mock_text_generator"],
 )
-def test_mock_text_generator_different_responses(
-    mock_text_generator, expected_response
-):
+def test_mock_text_generator_different_responses(mock_text_generator, expected_response):
     response = mock_text_generator.generate("test")
     assert response == expected_response
 
 
 # Test history saving
-@pytest.mark.parametrize(
-    "mock_text_generator", [["Response X", "Response Y"]], indirect=True
-)
+@pytest.mark.parametrize("mock_text_generator", [["Response X", "Response Y"]], indirect=True)
 def test_mock_text_generator_history(mock_text_generator):
     mock_text_generator.generate("Input X")
     mock_text_generator.generate("Input Y")

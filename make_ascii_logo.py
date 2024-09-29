@@ -89,11 +89,8 @@ from PIL import Image
 
 # Contrast on a scale -10 -> 10
 contrast = 10
-density = (
-    "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|"
-    "()1{}[]?-_+~<>i!lI;:,\"^`'.            "
-)
-density = density[:-11 + contrast]
+density = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|" "()1{}[]?-_+~<>i!lI;:,\"^`'.            "
+density = density[: -11 + contrast]
 n = len(density)
 
 img_name = sys.argv[1]
@@ -114,7 +111,7 @@ except IndexError:
 
 # Read in the image, convert to greyscale.
 img = Image.open(img_name)
-img = img.convert('L')
+img = img.convert("L")
 
 # Resize the image while maintaining aspect ratio.
 orig_width, orig_height = img.size
@@ -132,7 +129,7 @@ for i in range(height):
         p = arr[i, j]
         k = int(np.floor(p / 256 * n))
         row.append(density[n - 1 - k])
-    ascii_art.append(''.join(row))
+    ascii_art.append("".join(row))
 
 # Print the ASCII art
-print('\n'.join(ascii_art))
+print("\n".join(ascii_art))

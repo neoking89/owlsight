@@ -25,9 +25,7 @@ def run_subprocess(command: list) -> Tuple[str, str]:
     tuple of (str, str)
         The stdout and stderr outputs from the subprocess.
     """
-    process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     stdout, stderr = process.communicate()
     return stdout, stderr
 
@@ -132,9 +130,7 @@ def execute_shell_command(command: str, pyenv_path: str) -> subprocess.Completed
     result = None
     try:
         # Run the command with the appropriate shell
-        result = subprocess.run(
-            full_command, shell=True, capture_output=True, text=True, check=True
-        )
+        result = subprocess.run(full_command, shell=True, capture_output=True, text=True, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Command failed with exit code {e.returncode}: {e.stderr}")
         logger.error(f"Output: {e.output}")
@@ -165,9 +161,7 @@ def parse_globals_from_stdout(stdout: str) -> dict:
             parsed_value = literal_eval(value)
         except Exception as e:
             parsed_value = value.strip()
-            logger.error(
-                f"Failed to parse value '{value}' for key '{key}' because:\n{traceback.format_exc()}"
-            )
+            logger.error(f"Failed to parse value '{value}' for key '{key}' because:\n{traceback.format_exc()}")
 
         result[key] = parsed_value
 
