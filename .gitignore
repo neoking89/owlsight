@@ -17,5 +17,6 @@ tmp*.py
 /build
 deploy.ps1
 build.bat
+.vscode/*
 .egg-info/*
 src/owlsight.egg-info/*
