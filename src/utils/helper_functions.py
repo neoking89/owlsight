@@ -19,9 +19,7 @@ def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
     Extract language and code blocks from a markdown string.
     """
     pattern = r"```(\w+)([\s\S]*?)```"
-    return [
-        (match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)
-    ]
+    return [(match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)]
 
 
 def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
@@ -71,9 +69,7 @@ def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
     return text
 
 
-def editable_input(
-    prompt_text: str, default_value: str, color: str = "ansicyan"
-) -> str:
+def editable_input(prompt_text: str, default_value: str, color: str = "ansicyan") -> str:
     """
     Displays a prompt with a pre-filled editable string and custom color for the default value.
 
@@ -114,9 +110,7 @@ def force_delete(temp_dir: str) -> None:
         try:
             shutil.rmtree(temp_dir)
         except Exception:
-            logger.error(
-                f"Error deleting directory {temp_dir}:\n{traceback.format_exc()}"
-            )
+            logger.error(f"Error deleting directory {temp_dir}:\n{traceback.format_exc()}")
 
 
 def remove_temp_directories(lib_path: str) -> None:
@@ -156,6 +150,6 @@ def convert_to_real_type(value):
         if not isinstance(evaluated_value, str):
             return evaluated_value
     except (ValueError, SyntaxError):
-        pass # Return original string if evaluation fails
+        pass  # Return original string if evaluation fails
 
     return value  # Return the original string if it's not evaluable

@@ -14,9 +14,7 @@ class MockTextGenerationProcessor(TextGenerationProcessor):
         mock_responses: Union[str, List[str]] = "Default mock response",
     ):
         super().__init__(model_id, save_history, system_prompt=None)
-        self.mock_responses = (
-            [mock_responses] if isinstance(mock_responses, str) else mock_responses
-        )
+        self.mock_responses = [mock_responses] if isinstance(mock_responses, str) else mock_responses
         self.response_index = 0
 
     def generate(
@@ -40,9 +38,7 @@ def mock_text_generator(request):
     mock_responses = getattr(request, "param", "Default mock response")
     if isinstance(mock_responses, list) and len(mock_responses) == 1:
         mock_responses = mock_responses[0]
-    return MockTextGenerationProcessor(
-        "mock-model", save_history=True, mock_responses=mock_responses
-    )
+    return MockTextGenerationProcessor("mock-model", save_history=True, mock_responses=mock_responses)
 
 
 @pytest.fixture

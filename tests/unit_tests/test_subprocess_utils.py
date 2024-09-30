@@ -13,9 +13,7 @@ def test_parse_command_without_subprocess_run():
     expected = "5\n"
 
     # act
-    result = subprocess.run(
-        command, shell=True, capture_output=True, text=True, check=True
-    )
+    result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
 
     # assert
     assert result.stdout == expected
@@ -27,9 +25,7 @@ def test_parse_command_with_spaces_subprocess_run():
     expected = "5\n"
 
     # act
-    result = subprocess.run(
-        command, shell=True, capture_output=True, text=True, check=True
-    )
+    result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
 
     # assert
     assert result.stdout == expected

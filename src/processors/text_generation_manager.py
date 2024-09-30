@@ -33,9 +33,7 @@ class TextGenerationManager:
         """
         Generate text using the processor.
         """
-        generated_text = self.processor.generate(
-            input_text, **self.config_manager.get("generate", {})
-        )
+        generated_text = self.processor.generate(input_text, **self.config_manager.get("generate", {}))
         return generated_text
 
     def update_config(self, key: str, value: Any):
@@ -47,14 +45,23 @@ class TextGenerationManager:
             self.config_manager.set(key, value)
             logger.info(f"Configuration updated: {key} = {value}")
         except Exception:
-            logger.error(
-                f"Error updating configuration for key '{key}': {traceback.format_exc()}"
-            )
+            logger.error(f"Error updating configuration for key '{key}': {traceback.format_exc()}")
             return
 
         # If 'model_id' is updated, reload the processor
-        if key == "model.model_id":
-            self.load_model_processor(reload=self.processor is not None)
+        outer_key, inner_key = key.split(".", 1)
+        if outer_key == "model":
+            if inner_key == "model_id":
+                self.load_model_processor(reload=self.processor is not None)
+            else:
+                if self.processor is None:
+                    logger.error("Processor is not initialized yet. Assign a model_id first, to initialize a model for the processor.")
+                    return
+                if hasattr(self.processor, inner_key):
+                    setattr(self.processor, inner_key, value)
+                    logger.info(f"Processor updated: {inner_key} = {value}")
+                else:
+                    raise AttributeError(f"{inner_key} not found in self.processor")
 
     def save_config(self, path: str):
         """
@@ -81,9 +88,7 @@ class TextGenerationManager:
         """
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
-            logger.error(
-                "No model_id provided. Please set a model_id in the configuration."
-            )
+            logger.error("No model_id provided. Please set a model_id in the configuration.")
             return
 
         logger.info(f"Loading processor with new model_id: {model_id}")

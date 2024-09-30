@@ -1,12 +1,11 @@
 + now only the last changed configruation is applied when pressing enter. all changes before are not applied. fix this
-+ add a "back" option to go back to the previous menu
-+ add gguf support to config
 + add type validation per configuration
 + keep the cursor in the same position at higest level
 + add autocorrect + history in python interpreter, to make "python" react like a real intepreter in shell. see the prompt_toolkit documentation.
 + write README.md
 
 bugs:
++ increment of amount of code retries is wrong. ,max_retries_on_error = 5 -> 3/5 retries.
 + model keeps on generaring an answer of previous question after pressing ctrl+c
 + in toplevel menu, after quitting python interpreter using exit(), model generates response by itself
 + model keeps generating answer unwanted after ctrl+c

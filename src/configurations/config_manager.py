@@ -12,11 +12,12 @@ logger = LoggerManager.get_logger(__name__)
 class ConfigManager:
     """
     A singleton class which carries the configuration for the whole application.
-    
+
     Most important to know, is that there are 2 different configurations:
     - self._config: the true configuration that is used in the application backend.
     - config_choices: the configuration that presented in the UI, where the user can toggle between choices.
     """
+
     _instance = None
 
     def __new__(cls):
@@ -24,7 +25,6 @@ class ConfigManager:
             cls._instance = super(ConfigManager, cls).__new__(cls)
             cls._instance.config = {}
         return cls._instance
-
 
     def __init__(self):
         """
@@ -35,7 +35,7 @@ class ConfigManager:
                 "main": {
                     "max_retries_on_error": 3,
                     "prompt_code_execution": True,
-                    "extra_index_url": ""
+                    "extra_index_url": "",
                 },
                 "model": {
                     "model_id": "",
@@ -98,7 +98,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
         d[keys[-1]] = value  # Set the final key's value
 
     @property
-    def config_choices(self) -> Dict[str, Dict[str, str]]:
+    def config_choices(self) -> Dict[str, Dict[str, Any]]:
         """
         Get the configuration choices for the UI.
 
@@ -108,6 +108,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
         """
         config_choices = {
             "main": {
+                "back": None,
                 "max_retries_on_error": _prepare_toggle_choices(
                     self._config["main"]["max_retries_on_error"], list(range(0, 10))
                 ),
@@ -117,27 +118,25 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                 "extra_index_url": self._config["main"]["extra_index_url"],
             },
             "model": {
+                "back": None,
                 "model_id": self._config["model"]["model_id"],
-                "save_history": _prepare_toggle_choices(
-                    self._config["model"]["save_history"], [False, True]
-                ),
+                "save_history": _prepare_toggle_choices(self._config["model"]["save_history"], [False, True]),
                 "system_prompt": self._config["model"]["system_prompt"],
-                # transformers
                 "transformers__device": _prepare_toggle_choices(
-                    self._config["model"]["transformers__device"], [None, "cpu", "cuda"]
+                    self._config["model"]["transformers__device"],
+                    [None, "cpu", "cuda"],
                 ),
                 "transformers__quantization_bits": _prepare_toggle_choices(
-                    self._config["model"]["transformers__quantization_bits"], [None, 8, 4]
+                    self._config["model"]["transformers__quantization_bits"],
+                    [None, 8, 4],
                 ),
                 "transformers__gguf_file": self._config["model"]["transformers__gguf_file"],
-                # onnx
                 "onnx__tokenizer": self._config["model"]["onnx__tokenizer"],
-                "onnx__verbose": _prepare_toggle_choices(
-                    self._config["model"]["onnx__verbose"], [False, True]
-                ),
+                "onnx__verbose": _prepare_toggle_choices(self._config["model"]["onnx__verbose"], [False, True]),
                 "onnx__num_threads": self._config["model"]["onnx__num_threads"],
-            },
+                },
             "generate": {
+                "back": None,  # Back option for the generate menu
                 "stopwords": str(self._config["generate"]["stopwords"]),
                 "max_new_tokens": _prepare_toggle_choices(
                     self._config["generate"]["max_new_tokens"],
@@ -175,7 +174,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                     f,
                     indent=4,
                 )
-                logger.info(f"{err_msg} Configuration saved succesfully to '{path}'")
+                logger.info(f"{err_msg} Configuration saved successfully to '{path}'")
         except (IOError, OSError) as e:
             logger.error(f"{err_msg} Error writing to file '{path}': {e}")
         except TypeError as e:
@@ -206,7 +205,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
 
         try:
             self._config = DottedDict(data)
-            logger.info(f"Configuration loaded succesfully from '{path}'")
+            logger.info(f"Configuration loaded successfully from '{path}'")
         except Exception as e:
             logger.error(f"{err_msg} Error initializing configuration: {e}")
 

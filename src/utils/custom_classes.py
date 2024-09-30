@@ -34,23 +34,15 @@ class StopWordCriteria(StoppingCriteria):
         """
         super().__init__()
         self.tokenizer = tokenizer
-        self.input_sizes = [
-            self.tokenizer.encode(prompt, return_tensors="pt").size(-1)
-            for prompt in prompts
-        ]
+        self.input_sizes = [self.tokenizer.encode(prompt, return_tensors="pt").size(-1) for prompt in prompts]
         self.stop_words = stop_words
         self.max_stop_word_size = max(
-            (
-                self.tokenizer.encode(word, return_tensors="pt").size(-1)
-                for word in stop_words
-            ),
+            (self.tokenizer.encode(word, return_tensors="pt").size(-1) for word in stop_words),
             default=0,
         )
         self.check_every = check_every
 
-    def __call__(
-        self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs
-    ) -> bool:
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
         """
         Determines whether to stop generation based on the presence of stop words.
 
@@ -78,16 +70,13 @@ class StopWordCriteria(StoppingCriteria):
 
             # Check for stop words in the decoded text
             if not any(
-                word in self.tokenizer.decode(latest_tokens, skip_special_tokens=True)
-                for word in self.stop_words
+                word in self.tokenizer.decode(latest_tokens, skip_special_tokens=True) for word in self.stop_words
             ):
                 return False  # Continue generation if any batch item lacks stop words
 
         return True  # Stop generation if all conditions are met
 
-    def extract_answers(
-        self, input_ids: torch.LongTensor, strip_stopword: bool = True
-    ) -> List[str]:
+    def extract_answers(self, input_ids: torch.LongTensor, strip_stopword: bool = True) -> List[str]:
         """
         Extracts generated answers by removing prompts and optionally stopping at the first stop word.
 
