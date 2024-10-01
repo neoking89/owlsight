@@ -5,8 +5,6 @@
 + write README.md
 
 bugs:
-+ increment of amount of code retries is wrong. ,max_retries_on_error = 5 -> 3/5 retries.
-+ model keeps on generaring an answer of previous question after pressing ctrl+c
 + in toplevel menu, after quitting python interpreter using exit(), model generates response by itself
 + model keeps generating answer unwanted after ctrl+c
 
