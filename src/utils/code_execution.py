@@ -1,8 +1,12 @@
-import code
 import os
 import re
 from typing import Dict, List
 import traceback
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.completion import Completer, Completion
+import jedi
 
 from processors.text_generation_manager import TextGenerationManager
 from utils.custom_exceptions import ModuleNotFoundInVenvError
@@ -26,6 +30,28 @@ def extract_missing_module(stderr: str) -> str:
     return match.group(1) if match else None
 
 
+class PythonCompleter(Completer):
+    def __init__(self, namespace):
+        self.namespace = namespace
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+        try:
+            interpreter = jedi.Interpreter(
+                text,
+                [self.namespace],
+            )
+            completions = interpreter.complete()
+            for c in completions:
+                yield Completion(
+                    c.name_with_symbols,
+                    start_position=-c.complete_length,
+                    display=c.name_with_symbols,
+                )
+        except Exception:
+            pass
+
+
 class CodeExecutor:
     def __init__(
         self,
@@ -41,13 +67,17 @@ class CodeExecutor:
 
         self._init_python_properties(pyenv_path, pip_path)
 
-    def execute_and_retry(self, lang: str, code_block: str, original_question: str) -> bool:
+    def execute_and_retry(
+        self, lang: str, code_block: str, original_question: str
+    ) -> bool:
         """
         Execute code block in the specified language and retry if an error occurs.
         """
         self._attempts = 0
         while self.retries_left > 0:
-            logger.info(f"Executing {lang.capitalize()} code (Attempt {self._get_nth_attempt()}/{self.max_retries})...")
+            logger.info(
+                f"Executing {lang.capitalize()} code (Attempt {self._get_nth_attempt()}/{self.max_retries})..."
+            )
             try:
                 self.execute_code_block(lang, code_block)
                 logger.info(f"Code executed on attempt {self._get_nth_attempt()}.")
@@ -56,15 +86,21 @@ class CodeExecutor:
                 self._attempts += 1
                 if self.retries_left > 0:
                     logger.warning(f"Error on attempt {self._attempts}: {e}")
-                    logger.info(f"Retrying... ({self._get_nth_attempt()}/{self.max_retries})")
+                    logger.info(
+                        f"Retrying... ({self._get_nth_attempt()}/{self.max_retries})"
+                    )
                     response_with_fixed_code = self._generate_fixed_code_response(
                         original_question, code_block, format_error_message(e)
                     )
                     code_block = (
-                        extract_markdown(response_with_fixed_code)[0][1] if response_with_fixed_code else code_block
+                        extract_markdown(response_with_fixed_code)[0][1]
+                        if response_with_fixed_code
+                        else code_block
                     )
                 else:
-                    logger.error(f"Failed to execute {lang} code after {self.max_retries} attempts.")
+                    logger.error(
+                        f"Failed to execute {lang} code after {self.max_retries} attempts."
+                    )
 
         return False
 
@@ -101,19 +137,55 @@ class CodeExecutor:
                 logger.info(f"Retrying execution after installing {missing_module}")
                 self.execute_python_code(code_block)  # Retry execution
             else:
-                logger.error(f"Failed to install {missing_module}. Cannot execute the code.")
+                logger.error(
+                    f"Failed to install {missing_module}. Cannot execute the code."
+                )
         except Exception as e:
             logger.error(f"Error executing code: {traceback.format_exc()}")
             raise e
 
     def init_interactive_py_console(self) -> None:
-        """Initialize an interactive Python console."""
-        console = code.InteractiveConsole(self.globals_dict)
+        """Initialize an interactive Python console with enhanced capabilities."""
+        import traceback
 
-        try:
-            console.interact("Interactive Python interpreter activated. Type 'exit()' to quit the console.")
-        except SystemExit:
-            logger.info("Exiting interactive console and returning to the script.")
+        namespace = self.globals_dict
+
+        completer = PythonCompleter(namespace)
+
+        session = PromptSession(
+            history=FileHistory(self.python_interpreter_history_file),
+            auto_suggest=AutoSuggestFromHistory(),
+            completer=completer,
+            enable_history_search=True,
+            complete_while_typing=True,
+        )
+
+        # Start REPL loop
+        print(
+            "Interactive Python interpreter activated.\n"
+            "- Use up/down arrows to navigate command history\n"
+            "- Use right arrow for auto-completion\n"
+            "Type 'exit()' to quit the console."
+        )
+
+        while True:
+            try:
+                text = session.prompt(">>> ")
+                if text.strip() == 'exit()':
+                    break
+                else:
+                    try:
+                        code_obj = compile(text, '<stdin>', 'single')
+                        exec(code_obj, namespace)
+                    except Exception:
+                        print(traceback.format_exc())
+            except KeyboardInterrupt:
+                # Handle Ctrl+C
+                print("KeyboardInterrupt")
+            except EOFError:
+                # Handle Ctrl+D
+                break
+        print("Exiting interactive console and returning to the script.")
 
     def pip_install(self, module: str) -> bool:
         """Install a Python module using pip."""
@@ -139,11 +211,17 @@ class CodeExecutor:
     @property
     def retries_left(self) -> int:
         return max(0, self.max_retries - self._attempts)
+    
+    @property
+    def python_interpreter_history_file(self) -> str:
+        return os.path.join(os.path.expanduser("~"), ".python_history")
 
     def _get_nth_attempt(self) -> int:
         return self._attempts + 1
 
-    def _generate_fixed_code_response(self, original_question: str, code_block: str, error: str) -> str:
+    def _generate_fixed_code_response(
+        self, original_question: str, code_block: str, error: str
+    ) -> str:
         new_question = f"""\
 # ORIGINAL QUESTION:
 {original_question}
@@ -243,7 +321,9 @@ def execute_code_with_feedback(
 
         if not execute_code:
             continue  # Skip execution if skip code is selected
-        is_success = code_executor.execute_and_retry(lang, code_block, original_question)
+        is_success = code_executor.execute_and_retry(
+            lang, code_block, original_question
+        )
         result = {"success": is_success, "language": lang, "code": code_block}
         results.append(result)
 
@@ -276,13 +356,14 @@ def _handle_write_code_to_file_choice(code_block: str):
             file_name = input("Enter the filename: ")
             if file_name:  # If a filename is entered
                 try:
-                    with open(file_name, "w") as f:
+                    with open(file_name, "w", encoding="utf-8") as f:
                         f.write(code_block)
                         logger.info(f"Code block written to file: {file_name}")
                     # After writing, return to the main menu without breaking the loop
                     return
                 except Exception as e:
-                    logger.error(f"Error writing code block to file: {e}. Please try again.")
+                    logger.error(
+                        f"Error writing code block to file: {e}. Please try again."
+                    )
             else:
                 logger.info("No file name entered. Please try again.")
-                
