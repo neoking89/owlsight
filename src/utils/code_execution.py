@@ -285,3 +285,4 @@ def _handle_write_code_to_file_choice(code_block: str):
                     logger.error(f"Error writing code block to file: {e}. Please try again.")
             else:
                 logger.info("No file name entered. Please try again.")
+                
