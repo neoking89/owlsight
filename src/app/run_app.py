@@ -87,7 +87,9 @@ def handle_special_commands(
         code_executor.execute_code_block(lang=choice_key, code_block=user_choice)
         return CommandResult.CONTINUE
     elif choice_key == "config":
-        handle_config_update(user_choice, manager)
+        config_key = ""
+        while not config_key.endswith("back"):
+            config_key = handle_config_update(user_choice, manager)
         return CommandResult.CONTINUE
     elif choice_key == "save":
         manager.save_config(user_choice)
@@ -107,7 +109,7 @@ def handle_special_commands(
     return CommandResult.PROCEED
 
 
-def handle_config_update(user_choice: str, manager: TextGenerationManager) -> None:
+def handle_config_update(user_choice: str, manager: TextGenerationManager) -> str:
     logger.info(f"Chosen config: {user_choice}")
 
     # Retrieve nested configuration options
@@ -127,6 +129,8 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> No
     # Construct the config key and update the configuration
     config_key = f"{user_choice}.{nested_key}"
     manager.update_config(config_key, config_value)
+
+    return config_key
 
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
