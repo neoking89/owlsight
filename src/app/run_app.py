@@ -2,6 +2,7 @@ import tempfile
 import traceback
 from typing import Dict, Union
 from enum import Enum, auto
+import os
 
 from processors.text_generation_manager import TextGenerationManager
 from app.handlers import handle_interactive_code_execution
@@ -135,6 +136,10 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> st
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
     code_executor.globals_dict.clear()
+    py_history_file = code_executor.python_interpreter_history_file
+    if os.path.exists(py_history_file):
+        os.remove(py_history_file)
+        
     if manager.processor is not None:
         manager.processor.history.clear()
     logger.info("State and history cleared.")
