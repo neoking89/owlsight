@@ -37,14 +37,15 @@ class CodeExecutor:
         self.manager = manager
         self.temp_dir = temp_dir
         self.globals_dict = {}
+        self._attempts = 0
 
         self._init_python_properties(pyenv_path, pip_path)
-        self._reset_retries()
 
     def execute_and_retry(self, lang: str, code_block: str, original_question: str) -> bool:
         """
         Execute code block in the specified language and retry if an error occurs.
         """
+        self._attempts = 0
         while self.retries_left > 0:
             logger.info(f"Executing {lang.capitalize()} code (Attempt {self._get_nth_attempt()}/{self.max_retries})...")
             try:
@@ -52,9 +53,9 @@ class CodeExecutor:
                 logger.info(f"Code executed on attempt {self._get_nth_attempt()}.")
                 return True
             except Exception as e:
-                self.retries_left -= 1
+                self._attempts += 1
                 if self.retries_left > 0:
-                    logger.warning(f"Error on attempt {self._get_nth_attempt()}: {e}")
+                    logger.warning(f"Error on attempt {self._attempts}: {e}")
                     logger.info(f"Retrying... ({self._get_nth_attempt()}/{self.max_retries})")
                     response_with_fixed_code = self._generate_fixed_code_response(
                         original_question, code_block, format_error_message(e)
@@ -64,8 +65,6 @@ class CodeExecutor:
                     )
                 else:
                     logger.error(f"Failed to execute {lang} code after {self.max_retries} attempts.")
-
-        self._reset_retries()
 
         return False
 
@@ -137,11 +136,12 @@ class CodeExecutor:
     def max_retries(self) -> int:
         return self.manager.config_manager.get("main.max_retries_on_error")
 
-    def _reset_retries(self) -> None:
-        self.retries_left = self.max_retries
+    @property
+    def retries_left(self) -> int:
+        return max(0, self.max_retries - self._attempts)
 
     def _get_nth_attempt(self) -> int:
-        return self.max_retries - self.retries_left + 1
+        return self._attempts + 1
 
     def _generate_fixed_code_response(self, original_question: str, code_block: str, error: str) -> str:
         new_question = f"""\
