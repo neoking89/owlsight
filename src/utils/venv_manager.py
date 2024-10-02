@@ -5,7 +5,9 @@ import venv
 from contextlib import contextmanager
 import subprocess
 
+from utils.helper_functions import os_is_windows
 from utils.logger_manager import LoggerManager
+
 
 logger = LoggerManager.get_logger(__name__)
 
@@ -26,7 +28,7 @@ def create_venv(pyenv_path: str) -> str:
         Path to the pip executable within the created virtual environment.
     """
     venv.create(pyenv_path, with_pip=True)
-    pip_path = os.path.join(pyenv_path, "Scripts" if os.name == "nt" else "bin", "pip")
+    pip_path = os.path.join(pyenv_path, "Scripts" if os_is_windows() else "bin", "pip")
     yield pip_path
 
 
@@ -39,7 +41,9 @@ def in_venv() -> bool:
     bool
     True if the current process is running inside a virtual environment, False otherwise.
     """
-    return hasattr(sys, "real_prefix") or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
+    return hasattr(sys, "real_prefix") or (
+        hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
+    )
 
 
 def get_lib_path(pyenv_path: str) -> str:
@@ -73,7 +77,7 @@ def get_python_executable(pyenv_path: str) -> str:
     str
         The path to the Python executable.
     """
-    return os.path.join(pyenv_path, "Scripts" if os.name == "nt" else "bin", "python")
+    return os.path.join(pyenv_path, "Scripts" if os_is_windows() else "bin", "python")
 
 
 def get_pyenv_path() -> str:
@@ -104,10 +108,12 @@ def get_pip_path(pyenv_path: str) -> str:
     str
         The path to the pip executable.
     """
-    return os.path.join(pyenv_path, "Scripts" if os.name == "nt" else "bin", "pip")
+    return os.path.join(pyenv_path, "Scripts" if os_is_windows() else "bin", "pip")
 
 
-def install_module(module_name: str, pip_path: str, target_dir: str, *args: Any) -> bool:
+def install_module(
+    module_name: str, pip_path: str, target_dir: str, *args: Any
+) -> bool:
     """
     Install a Python module using pip into a temporary directory and add it to sys.path.
 
@@ -131,7 +137,9 @@ def install_module(module_name: str, pip_path: str, target_dir: str, *args: Any)
     --------
     >>> install_module("some-package", pip_path, temp_dir, "--extra-index-url", "https://private-repo.com/simple")
     """
-    pip_command = [pip_path, "install", "--target", target_dir, module_name] + list(args)
+    pip_command = [pip_path, "install", "--target", target_dir, module_name] + list(
+        args
+    )
     try:
         # Install the module to the specified temp_dir
         subprocess.check_call(pip_command)
