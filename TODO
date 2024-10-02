@@ -1,5 +1,6 @@
 + add type validation per configuration
 + keep the cursor in the same position at higest level
++ change tokenizer in onnx to chat_template_or_tokenizer for flexibility 
 + write README.md
 
 bugs:
