@@ -87,7 +87,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
 
     def set(self, key: str, value: Any) -> None:
         """
-        Set a configuration value using dotted notation for nested keys and notify observers.
+        Set a configuration value using dotted notation for nested keys.
         """
         keys = key.split(".")
         d = self._config
