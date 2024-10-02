@@ -92,11 +92,18 @@ class CodeExecutor:
                     response_with_fixed_code = self._generate_fixed_code_response(
                         original_question, code_block, format_error_message(e)
                     )
-                    code_block = (
-                        extract_markdown(response_with_fixed_code)[0][1]
-                        if response_with_fixed_code
-                        else code_block
-                    )
+                    extracted_code_block = extract_markdown(response_with_fixed_code)
+                    if extracted_code_block:
+                        code_block = (
+                            extract_markdown(response_with_fixed_code)[0][1]
+                            if response_with_fixed_code
+                            else code_block
+                        )
+                    else:
+                        logger.error(
+                            "No code block could be extracted from the response. Probably the response didnt insert the code block correctly in markdown format."
+                        )
+                        return False
                 else:
                     logger.error(
                         f"Failed to execute {lang} code after {self.max_retries} attempts."
@@ -171,11 +178,11 @@ class CodeExecutor:
         while True:
             try:
                 text = session.prompt(">>> ")
-                if text.strip() == 'exit()':
+                if text.strip() == "exit()":
                     break
                 else:
                     try:
-                        code_obj = compile(text, '<stdin>', 'single')
+                        code_obj = compile(text, "<stdin>", "single")
                         exec(code_obj, namespace)
                     except Exception:
                         print(traceback.format_exc())
@@ -211,7 +218,7 @@ class CodeExecutor:
     @property
     def retries_left(self) -> int:
         return max(0, self.max_retries - self._attempts)
-    
+
     @property
     def python_interpreter_history_file(self) -> str:
         return os.path.join(os.path.expanduser("~"), ".python_history")
