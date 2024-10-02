@@ -33,7 +33,10 @@ class TextGenerationManager:
         """
         Generate text using the processor.
         """
-        generated_text = self.processor.generate(input_text, **self.config_manager.get("generate", {}))
+        kwargs = self.config_manager.get("generate", {})
+        # remove keys with "back" in the name
+        kwargs = {k: v for k, v in kwargs.items() if "back" not in k}
+        generated_text = self.processor.generate(input_text, **kwargs)
         return generated_text
 
     def update_config(self, key: str, value: Any):
@@ -61,7 +64,7 @@ class TextGenerationManager:
                     setattr(self.processor, inner_key, value)
                     logger.info(f"Processor updated: {inner_key} = {value}")
                 else:
-                    raise AttributeError(f"{inner_key} not found in self.processor")
+                    logger.error(f"{inner_key} not found in self.processor")
 
     def save_config(self, path: str):
         """
