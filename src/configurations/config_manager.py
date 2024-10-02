@@ -192,6 +192,10 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
         if not os.path.exists(path):
             logger.error(f"{err_msg} Configuration file does not exist: '{path}'")
             return
+        
+        if not path.endswith(".json"):
+            logger.error(f"{err_msg} Configuration file must be a JSON file.")
+            return
 
         try:
             with open(path, "r") as f:
