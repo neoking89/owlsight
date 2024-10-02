@@ -11,11 +11,13 @@ from utils.helper_functions import (
     force_delete,
     remove_temp_directories,
     replace_bracket_placeholders,
+    os_is_windows,
 )
 from utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
 from utils.console import get_user_choice, print_colored
 from utils.constants import PROMPT_COLOR
 from utils.deep_learning import free_memory
+from ui.file_dialogs import save_file_dialog, open_file_dialog
 from utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -34,7 +36,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             print_colored("Make a choice:", color=PROMPT_COLOR)
             user_choice, choice_key = get_user_input(manager)
 
-            if not user_choice:
+            if not user_choice and choice_key not in ["config", "save", "load"]:
                 logger.error("User choice is empty. Please try again.")
                 continue
 
@@ -93,9 +95,21 @@ def handle_special_commands(
             config_key = handle_config_update(user_choice, manager)
         return CommandResult.CONTINUE
     elif choice_key == "save":
+        if not user_choice and os_is_windows():
+            file_path = save_file_dialog(initial_dir=os.getcwd(), default_filename="config.json")
+            if not file_path:
+                logger.error("No file selected. Please try again.")
+                return CommandResult.CONTINUE
+            user_choice = file_path
         manager.save_config(user_choice)
         return CommandResult.CONTINUE
     elif choice_key == "load":
+        if not user_choice and os_is_windows():
+            file_path = open_file_dialog(initial_dir=os.getcwd())
+            if not file_path:
+                logger.error("No file selected. Please try again.")
+                return CommandResult.CONTINUE
+            user_choice = file_path
         manager.load_config(user_choice)
         return CommandResult.CONTINUE
     elif user_choice == "python":
