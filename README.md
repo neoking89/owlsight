@@ -22,7 +22,7 @@ pip install owlsight
 After installation, launch Owlsight by running the following command:
 
 ```
-pip install owlsight
+owlsight
 ```
 
 This will present you with a menu like this:
