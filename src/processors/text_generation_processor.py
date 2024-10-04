@@ -307,10 +307,12 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"Model not found at {model_id}")
-
         if not onnx__tokenizer:
             raise ValueError(
-                "No tokenizer found! A tokenizer from the transformers library is required for ONNX models, to standardize chat templates."
+                "No tokenizer found! "
+                "A tokenizer from the transformers library is required "
+                "for ONNX models, to standardize chat templates."
+                "Look into HuggingFace (https://huggingface.co) and find the fitting model to use."
             )
 
         super().__init__(model_id, save_history, system_prompt, **kwargs)
@@ -351,7 +353,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             Additional keyword arguments for generation.
             Example: {"top_k": 50, "top_p": 0.95}
         """
-        templated_text = self.apply_chat_template(input_text, self.hf_tokenizer)
+        templated_text = self.apply_chat_template(input_text, self.tokenizer)
 
         search_options = {
             "do_sample": temperature > 0.0,
@@ -405,9 +407,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
     def _set_tokenizer(self, onnx__tokenizer):
         if isinstance(onnx__tokenizer, str):
-            self.hf_tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
+            self.tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
         else:
-            self.hf_tokenizer = onnx__tokenizer
+            self.tokenizer = onnx__tokenizer
 
     def _set_environment_variables(self) -> None:
         os.environ.update(
