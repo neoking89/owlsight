@@ -4,8 +4,7 @@
 + write README.md
 
 bugs:
-+ in toplevel menu, after quitting python interpreter using exit(), model generates response by itself
-+ model keeps generating answer unwanted after ctrl+c
++ "back" in configfile, should be avoided. fix in configmanager?
 
 NICE TO HAVE:
 + add rag for code libraries
