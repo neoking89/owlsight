@@ -1,6 +1,6 @@
 # Owlsight
 
-**Owlsight** is a command-line tool that combines Python programming with open-source language models. It offers an interactive interface that allows you to execute Python code, shell commands, and natural language tasks in one unified environment. This tool is ideal for developers who want to seamlessly integrate Python with language model capabilities.
+**Owlsight** is a command-line tool that combines Python programming with open-source language models. It offers an interactive interface that allows you to execute Python code, shell commands, and natural language tasks in one unified environment. This tool is ideal for those who want to seamlessly integrate Python with language model capabilities.
 
 ## Features
 
@@ -16,7 +16,6 @@ You can install Owlsight using pip:
 ```bash
 pip install owlsight
 ```
-
 
 ## Usage
 
@@ -50,7 +49,6 @@ quit
 * **clear history** : Clear the session history.
 * **quit** : Exit the application.
 
-
 ### Example Workflow
 
 You can combine Python variables with natural language processing models in Owlsight. For example:
@@ -64,10 +62,23 @@ How can I assist you? > How much is {{a}} * 5?
 answer -> 210
 ```
 
+Additionally, one can also ask a model to write pythoncode and access that in the python interpreter. All defined objects will be saved in the global namespace of the python interpreter for the remainder of the current active session. This is a powerful feature, which allows build-as-you-go for a wide range of tasks.
+
+Example:
+
+```
+How can I assist you? > Can you write a function which reads an excelfile?
+```
+
+-> *model writes a function called read_excel*
+
+```
+python > excel_data = read_excel("path/to/excel")
+```
 
 ## Configuration
 
-Owlsight uses a configuration file to adjust various parameters. Here is an example of what the configuration might look like:
+Owlsight uses a configuration file in JSON-format to adjust various parameters. Here is an example of what the configuration might look like:
 
 ```
 {
@@ -95,3 +106,15 @@ Owlsight uses a configuration file to adjust various parameters. Here is an exam
     }
 }
 ```
+
+    Configurationfiles can be saved and loaded through the mainmenu.
+
+## Temporary environment
+
+When activated, Owlsight will create a temporary file during the remainder of the active session in the "Lib/site-packages" directory of the current active (virtual) environment. This is meant as a temporary container for installed packages during the active session. The idea behind this, is that all installed packages will be removed when the session ends, not clogging up the available memory. If one wants to persist installed packages, they can be simple be installed inside the active virtual environment outside of owlsight. 
+
+
+
+## Fixing own code
+
+When encountering a ModuleNotFoundError after executing a piece of code, Owlsight will automaticly try to install the package and execute the code again. Also, Owlsight provides an option to let the model fix and  retry its own generated code if faulty. This functionality can be controlled through the "max_retries_on_error" parameter in the config file.
