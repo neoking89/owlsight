@@ -96,7 +96,7 @@ def handle_special_commands(
         return CommandResult.CONTINUE
     elif choice_key == "save":
         if not user_choice and os_is_windows():
-            file_path = save_file_dialog(initial_dir=os.getcwd(), default_filename="config.json")
+            file_path = save_file_dialog(initial_dir=os.getcwd(), default_filename="owlsight_config.json")
             if not file_path:
                 logger.error("No file selected. Please try again.")
                 return CommandResult.CONTINUE
