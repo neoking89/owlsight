@@ -78,35 +78,45 @@ class TextGenerationProcessor(ABC):
         self.system_prompt = system_prompt
 
     def apply_chat_template(
-        self,
-        input_text: str,
-        tokenizer: PreTrainedTokenizer,
-    ) -> str:
+            self,
+            input_text: str,
+            tokenizer: PreTrainedTokenizer,
+        ) -> str:
         """
         Apply chat template to the input text.
         This is used to format the input text before generating a response and should be universal across all models.
         """
-        messages = []
+        if tokenizer.chat_template is not None:
+            messages = []
+            # Include conversation history if save_history is enabled
+            if self.save_history:
+                messages = self.history.copy()
+            # Add the user input and optionally the system prompt to the message list
+            messages.append({"role": "user", "content": input_text})
+            if self.system_prompt:
+                messages.insert(0, {"role": "system", "content": self.system_prompt})
 
-        if self.save_history:
-            messages = self.history.copy()
-
-        messages.append({"role": "user", "content": input_text})
-        if self.system_prompt:
-            messages.insert(0, {"role": "system", "content": self.system_prompt})
-
-        templated_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
+            templated_text = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        else:
+            logger.warning("Chat template not found in tokenizer. Using input text as is.")
+            templated_text = input_text
+        
         return templated_text
 
     def update_history(self, input_text: str, generated_text: str):
         """Update the history with the input and generated text."""
         if self.save_history:
             self.history.append({"role": "user", "content": input_text})
-            self.history.append({"role": "assistant", "content": generated_text.strip()})
+            self.history.append(
+                {"role": "assistant", "content": generated_text.strip()}
+            )
 
     def generate(self) -> str:
-        raise NotImplementedError("Generate method must be implemented in the subclass.")
+        raise NotImplementedError(
+            "Generate method must be implemented in the subclass."
+        )
 
 
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
@@ -157,8 +167,12 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             Set to True if you want model to generate responses based on previous inputs.
         """
         super().__init__(model_id, save_history, system_prompt, **kwargs)
-        self.transformers__device = transformers__device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self._attention_implementation = "flash" if flash_attention_is_available() else "eager"
+        self.transformers__device = transformers__device or (
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+        self._attention_implementation = (
+            "flash" if flash_attention_is_available() else "eager"
+        )
         self.history = []
 
         tokenizer, model = self._load_tokenizer_model(
@@ -174,7 +188,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             tokenizer=tokenizer,
             device_map="auto" if self.transformers__device != "cpu" else {"": "cpu"},
         )
-        self.streamer = TextIteratorStreamer(self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True)
+        self.streamer = TextIteratorStreamer(
+            self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True
+        )
 
     def _load_tokenizer_model(
         self,
@@ -201,9 +217,13 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         model_kwargs.update(
             {
-                "device_map": ("auto" if self.transformers__device != "cpu" else {"": "cpu"}),
+                "device_map": (
+                    "auto" if self.transformers__device != "cpu" else {"": "cpu"}
+                ),
                 "trust_remote_code": True,
-                "torch_dtype": ("auto" if self.transformers__device != "cpu" else torch.float32),
+                "torch_dtype": (
+                    "auto" if self.transformers__device != "cpu" else torch.float32
+                ),
                 "quantization_config": quantization_config,
                 "_attn_implementation": self._attention_implementation,
             }
@@ -247,7 +267,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         if generation_kwargs is not None:
             _generation_kwargs.update(generation_kwargs)
 
-        generation_thread = KillableThread(target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs)
+        generation_thread = KillableThread(
+            target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs
+        )
         generation_thread.start()
         generated_text = ""
 
@@ -264,7 +286,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         if self.save_history:
             self.history.append({"role": "user", "content": input_text})
-            self.history.append({"role": "assistant", "content": generated_text.strip()})
+            self.history.append(
+                {"role": "assistant", "content": generated_text.strip()}
+            )
 
         return generated_text
 
@@ -353,7 +377,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             Additional keyword arguments for generation.
             Example: {"top_k": 50, "top_p": 0.95}
         """
-        templated_text = self.apply_chat_template(input_text, self.tokenizer)
+        templated_text = self.apply_chat_template(input_text, self.transfomers_tokenizer)
 
         search_options = {
             "do_sample": temperature > 0.0,
@@ -388,7 +412,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
                     generated_text += buffer
                     buffer = ""
 
-                    if stopwords and any(stop_word in generated_text for stop_word in stopwords):
+                    if stopwords and any(
+                        stop_word in generated_text for stop_word in stopwords
+                    ):
                         break
 
         except KeyboardInterrupt:
@@ -407,9 +433,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
     def _set_tokenizer(self, onnx__tokenizer):
         if isinstance(onnx__tokenizer, str):
-            self.tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
+            self.transfomers_tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
         else:
-            self.tokenizer = onnx__tokenizer
+            self.transfomers_tokenizer = onnx__tokenizer
 
     def _set_environment_variables(self) -> None:
         os.environ.update(
