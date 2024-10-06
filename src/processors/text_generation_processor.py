@@ -37,13 +37,10 @@ except ImportError:
     Llama = None
 
 
-import os
-from typing import Type
-
 def select_processor_type(model_id: str) -> Type["TextGenerationProcessor"]:
     """
     Select the appropriate text generation processor based on the model ID or directory.
-    
+
     If the model_id is a directory, the function will inspect the contents of the directory
     to decide the processor type. Otherwise, it will use the model_id string to make the decision.
     """
@@ -64,22 +61,6 @@ def select_processor_type(model_id: str) -> Type["TextGenerationProcessor"]:
             return TextGenerationProcessorOnnx
         else:
             return TextGenerationProcessorTransformers
-
-    # if os.path.exists(model_id):
-    #     if not os.path.isdir(model_id):
-    #         if model_id.lower().endswith(".gguf"):
-    #             return TextGenerationProcessorGGUF
-    #         else:
-    #             raise ValueError(f"Unsupported file format: {model_id}")
-    #     if any([f.endswith(".onnx") for f in os.listdir(model_id)]):
-    #         return TextGenerationProcessorOnnx
-    #     else:
-    #         return TextGenerationProcessorTransformers
-    # else:
-    #     if "onnx" in model_id:
-    #         return TextGenerationProcessorOnnx
-    #     else:
-    #         return TextGenerationProcessorTransformers
 
 
 def flash_attention_is_available() -> bool:
@@ -343,7 +324,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self,
         input_text: str,
         max_new_tokens: int = 512,
-        temperature: float = 0.1,
+        temperature: float = 0.0,
         stopwords: Optional[List[str]] = None,
         buffer_wordsize: int = 10,
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -456,6 +437,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         model_id: str,
         gguf__filename: str,
         gguf__verbose: bool = False,
+        gguf__n_ctx: int = 2048,
         save_history: bool = False,
         system_prompt: str = "",
         **kwargs,
@@ -471,6 +453,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             repo_id=model_id,
             filename=gguf__filename,
             verbose=gguf__verbose,
+            n_ctx=gguf__n_ctx,
         )
 
     def generate(
@@ -498,7 +481,9 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         generated_text = ""
 
         try:
-            output = self.llm.create_chat_completion(templated_text, **_generation_kwargs)
+            output = self.llm.create_chat_completion(
+                templated_text, **_generation_kwargs
+            )
             for item in output:
                 new_text = item["choices"][0]["delta"].get("content", "")
                 generated_text += new_text
@@ -521,6 +506,6 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             messages = self.history.copy()
         messages.append({"role": "user", "content": input_text})
         if self.system_prompt:
-          messages.insert(0, {"role": "system", "content": self.system_prompt})
-  
+            messages.insert(0, {"role": "system", "content": self.system_prompt})
+
         return messages
