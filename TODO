@@ -1,9 +1,9 @@
-+ add seperate gguf processor with llama-cpp-python. Add a [gguf] flag in pyproject.toml
 + add type validation per configuration
-+ write README.md
++ improve README.md
++ use default values in a "constants" file in configmanager
 
 bugs:
-+ "back" in configfile, should be avoided. fix in configmanager?
++ make it clearer that configs need to be updated by pressing enter.
 
 NICE TO HAVE:
 + add rag for code libraries
