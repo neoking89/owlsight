@@ -14,7 +14,6 @@ dependencies = [
     "torch",
     "bitsandbytes",
     "accelerate",
-    "gguf",
     "sentencepiece",
     "prompt_toolkit",
     "keyboard",
@@ -26,6 +25,11 @@ dev = [
     "ruff",
     "black",
     "pytest",
+]
+
+gguf = [
+    "gguf",
+    "llama-cpp-python",
 ]
 
 onnx = [
