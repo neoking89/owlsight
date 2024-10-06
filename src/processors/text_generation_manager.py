@@ -34,8 +34,6 @@ class TextGenerationManager:
         Generate text using the processor.
         """
         kwargs = self.config_manager.get("generate", {})
-        # remove keys with "back" in the name
-        kwargs = {k: v for k, v in kwargs.items() if "back" not in k}
         generated_text = self.processor.generate(input_text, **kwargs)
         return generated_text
 
@@ -43,6 +41,8 @@ class TextGenerationManager:
         """
         Update the configuration dynamically. If 'model_id' is updated, reload the processor.
         """
+        if key.endswith(".back"):
+            return  # Do not set the "back" key
         try:
             value = convert_to_real_type(value)
             self.config_manager.set(key, value)
@@ -64,7 +64,9 @@ class TextGenerationManager:
                     setattr(self.processor, inner_key, value)
                     logger.info(f"Processor updated: {inner_key} = {value}")
                 else:
-                    logger.error(f"{inner_key} not found in self.processor")
+                    logger.warning(f"'{inner_key}' not found in self.processor, meaning it was not updated")
+                    logger.warning("It is possible that this value is only set during initialization of self.processor.")
+                    logger.warning("Consider loading the model from a config file to update this value.")
 
     def save_config(self, path: str):
         """
