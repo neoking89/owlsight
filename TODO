@@ -1,10 +1,9 @@
 + add type validation per configuration
-+ keep the cursor in the same position at higest level
-+ change tokenizer in onnx to chat_template_or_tokenizer for flexibility 
-+ write README.md
++ improve README.md
++ use default values in a "constants" file in configmanager
 
 bugs:
-+ "back" in configfile, should be avoided. fix in configmanager?
++ make it clearer that configs need to be updated by pressing enter.
 
 NICE TO HAVE:
 + add rag for code libraries

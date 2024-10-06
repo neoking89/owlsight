@@ -53,11 +53,14 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
 - Acknowledge any limitations in your solutions.
 - Always aim to provide the best solution to the user's problem, whether it involves Python or not.
                     """.strip(),
-                    # specific parameters for the different processors
+                    # specific parameters for the different processors:
                     # transformers
                     "transformers__device": None,
                     "transformers__quantization_bits": None,
-                    "transformers__gguf_file": "",
+                    # gguf
+                    "gguf__filename": "",
+                    "gguf__verbose": False,
+                    "gguf__n_ctx": 2048,
                     # onnx
                     "onnx__tokenizer": "",
                     "onnx__verbose": False,
@@ -65,7 +68,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                 },
                 "generate": {
                     "stopwords": [],
-                    "max_new_tokens": 1024,
+                    "max_new_tokens": 512,
                     "temperature": 0.0,
                     "generation_kwargs": {},
                 },
@@ -130,17 +133,21 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                     self._config["model"]["transformers__quantization_bits"],
                     [None, 8, 4],
                 ),
-                "transformers__gguf_file": self._config["model"]["transformers__gguf_file"],
+                "gguf__filename": self._config["model"]["gguf__filename"],
+                "gguf__verbose": _prepare_toggle_choices(self._config["model"]["gguf__verbose"], [False, True]),
+                "gguf__n_ctx": _prepare_toggle_choices(
+                    self._config["model"]["gguf__n_ctx"],
+                    [32 * (2**n) for n in range(15)]),
                 "onnx__tokenizer": self._config["model"]["onnx__tokenizer"],
                 "onnx__verbose": _prepare_toggle_choices(self._config["model"]["onnx__verbose"], [False, True]),
                 "onnx__num_threads": self._config["model"]["onnx__num_threads"],
                 },
             "generate": {
-                "back": None,  # Back option for the generate menu
+                "back": None,
                 "stopwords": str(self._config["generate"]["stopwords"]),
                 "max_new_tokens": _prepare_toggle_choices(
                     self._config["generate"]["max_new_tokens"],
-                    [32 * (2**i) for i in range(15)],
+                    [32 * (2**n) for n in range(15)],
                 ),
                 "temperature": _prepare_toggle_choices(
                     self._config["generate"]["temperature"],

@@ -2,6 +2,7 @@ from abc import ABC
 from typing import Optional, List, Dict, Any, Type
 import os
 import time
+import traceback
 
 import torch
 from transformers import (
@@ -24,27 +25,42 @@ ONNX_MSG = "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or instal
 try:
     import onnxruntime_genai as og
 except ImportError:
-    logger.warning(ONNX_MSG)
+    logger.warning("Support for ONNX models is disabled.")
     og = None
+
+try:
+    from llama_cpp import Llama
+except ImportError:
+    logger.warning(
+        "llama-cpp not found. Install it using 'pip install llama-cpp-python'."
+    )
+    Llama = None
 
 
 def select_processor_type(model_id: str) -> Type["TextGenerationProcessor"]:
     """
-    Select the appropriate text generation processor based on the model ID.
+    Select the appropriate text generation processor based on the model ID or directory.
+
+    If the model_id is a directory, the function will inspect the contents of the directory
+    to decide the processor type. Otherwise, it will use the model_id string to make the decision.
     """
-    # first decide if model_id exists locally
-    if os.path.exists(model_id):
-        if not os.path.isdir(model_id):
-            raise NotADirectoryError(f"{model_id} is not a valid directory.")
-        if any([f.endswith(".onnx") for f in os.listdir(model_id)]):
+    # Check if the model_id is a directory
+    if os.path.isdir(model_id):
+        # Check if any file in the directory ends with .onnx
+        if any(f.endswith("onnx") for f in os.listdir(model_id)):
             return TextGenerationProcessorOnnx
+        elif any(f.endswith("gguf") for f in os.listdir(model_id)):
+            return TextGenerationProcessorGGUF
         else:
             return TextGenerationProcessorTransformers
     else:
-        if not "onnx" in model_id:
-            return TextGenerationProcessorTransformers
-        else:
+        # If model_id is not a directory, use the model_id string
+        if model_id.lower().endswith("gguf"):
+            return TextGenerationProcessorGGUF
+        elif "onnx" in model_id:
             return TextGenerationProcessorOnnx
+        else:
+            return TextGenerationProcessorTransformers
 
 
 def flash_attention_is_available() -> bool:
@@ -65,7 +81,7 @@ class TextGenerationProcessor(ABC):
         ----------
         model_id: str
             The model ID to use for generation.
-            Uusally the name of the model or the path to the model.
+            Usually the name of the model or the path to the model.
         save_history : bool
             Whether or not to save the history of inputs and outputs.
         """
@@ -86,16 +102,22 @@ class TextGenerationProcessor(ABC):
         Apply chat template to the input text.
         This is used to format the input text before generating a response and should be universal across all models.
         """
-        messages = []
+        if tokenizer.chat_template is not None:
+            messages = []
+            if self.save_history:
+                messages = self.history.copy()
+            messages.append({"role": "user", "content": input_text})
+            if self.system_prompt:
+                messages.insert(0, {"role": "system", "content": self.system_prompt})
 
-        if self.save_history:
-            messages = self.history.copy()
-
-        messages.append({"role": "user", "content": input_text})
-        if self.system_prompt:
-            messages.insert(0, {"role": "system", "content": self.system_prompt})
-
-        templated_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            templated_text = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        else:
+            logger.warning(
+                "Chat template not found in tokenizer. Using input text as is."
+            )
+            templated_text = input_text
 
         return templated_text
 
@@ -103,10 +125,14 @@ class TextGenerationProcessor(ABC):
         """Update the history with the input and generated text."""
         if self.save_history:
             self.history.append({"role": "user", "content": input_text})
-            self.history.append({"role": "assistant", "content": generated_text.strip()})
+            self.history.append(
+                {"role": "assistant", "content": generated_text.strip()}
+            )
 
     def generate(self) -> str:
-        raise NotImplementedError("Generate method must be implemented in the subclass.")
+        raise NotImplementedError(
+            "Generate method must be implemented in the subclass."
+        )
 
 
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
@@ -115,7 +141,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         model_id: str,
         transformers__device: str = None,
         transformers__quantization_bits: Optional[int] = None,
-        transformers__gguf_file: Optional[str] = None,
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
@@ -123,47 +148,17 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         system_prompt: str = "",
         **kwargs,
     ):
-        """
-        Text generation processor using Hugging Face Transformers library.
-
-        Parameters
-        ----------
-        model_id : str
-            The model ID to use for generation.
-            Usually the name of the model or the path to the model.
-        transformers__device : str, optional
-            The device to use for generation (default is "cuda" if available).
-        transformers__quantization_bits : int, optional
-            Number of quantization bits to use for the model.
-            Available options: 4, 8, None (default is None).
-        bnb_kwargs : dict, optional
-            Additional keyword arguments for BitsAndBytesConfig.
-        transformers__gguf_file : str, optional
-            Path to the GGUF file. Experimental feature.
-
-            See: https://huggingface.co/docs/transformers/en/gguf
-
-            Example Use:
-            >>> from transformers import AutoTokenizer, AutoModelForCausalLM
-            >>> model_id = "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF"
-            >>> gguf_file = "tinyllama-1.1b-chat-v1.0.Q6_K.gguf"
-
-            >>> TextGenerationProcessorTransformers(model_id, transformers__gguf_file=gguf_file)
-        tokenizer_kwargs : dict, optional
-            Additional keyword arguments for the tokenizer.
-        model_kwargs : dict, optional
-            Additional keyword arguments for the model.
-        save_history : bool
-            Set to True if you want model to generate responses based on previous inputs.
-        """
         super().__init__(model_id, save_history, system_prompt, **kwargs)
-        self.transformers__device = transformers__device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self._attention_implementation = "flash" if flash_attention_is_available() else "eager"
+        self.transformers__device = transformers__device or (
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+        self._attention_implementation = (
+            "flash" if flash_attention_is_available() else "eager"
+        )
         self.history = []
 
         tokenizer, model = self._load_tokenizer_model(
             transformers__quantization_bits,
-            gguf_file=transformers__gguf_file,
             tokenizer_kwargs=tokenizer_kwargs or {},
             bnb_kwargs=bnb_kwargs or {},
             model_kwargs=model_kwargs or {},
@@ -174,12 +169,13 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             tokenizer=tokenizer,
             device_map="auto" if self.transformers__device != "cpu" else {"": "cpu"},
         )
-        self.streamer = TextIteratorStreamer(self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True)
+        self.streamer = TextIteratorStreamer(
+            self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True
+        )
 
     def _load_tokenizer_model(
         self,
         transformers__quantization_bits: Optional[int],
-        gguf_file: Optional[str],
         tokenizer_kwargs: Dict,
         bnb_kwargs: Dict,
         model_kwargs: Dict,
@@ -201,17 +197,17 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         model_kwargs.update(
             {
-                "device_map": ("auto" if self.transformers__device != "cpu" else {"": "cpu"}),
+                "device_map": (
+                    "auto" if self.transformers__device != "cpu" else {"": "cpu"}
+                ),
                 "trust_remote_code": True,
-                "torch_dtype": ("auto" if self.transformers__device != "cpu" else torch.float32),
+                "torch_dtype": (
+                    "auto" if self.transformers__device != "cpu" else torch.float32
+                ),
                 "quantization_config": quantization_config,
                 "_attn_implementation": self._attention_implementation,
             }
         )
-
-        if gguf_file:
-            tokenizer_kwargs["gguf_file"] = gguf_file
-            model_kwargs["gguf_file"] = gguf_file
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_id, **tokenizer_kwargs)
         model = AutoModelForCausalLM.from_pretrained(self.model_id, **model_kwargs)
@@ -247,7 +243,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         if generation_kwargs is not None:
             _generation_kwargs.update(generation_kwargs)
 
-        generation_thread = KillableThread(target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs)
+        generation_thread = KillableThread(
+            target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs
+        )
         generation_thread.start()
         generated_text = ""
 
@@ -262,9 +260,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             generation_thread.kill()
             generation_thread.join()
 
-        if self.save_history:
-            self.history.append({"role": "user", "content": input_text})
-            self.history.append({"role": "assistant", "content": generated_text.strip()})
+        self.update_history(input_text, generated_text.strip())
 
         return generated_text
 
@@ -328,7 +324,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self,
         input_text: str,
         max_new_tokens: int = 512,
-        temperature: float = 0.1,
+        temperature: float = 0.0,
         stopwords: Optional[List[str]] = None,
         buffer_wordsize: int = 10,
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -353,7 +349,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             Additional keyword arguments for generation.
             Example: {"top_k": 50, "top_p": 0.95}
         """
-        templated_text = self.apply_chat_template(input_text, self.tokenizer)
+        templated_text = self.apply_chat_template(
+            input_text, self.transfomers_tokenizer
+        )
 
         search_options = {
             "do_sample": temperature > 0.0,
@@ -388,7 +386,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
                     generated_text += buffer
                     buffer = ""
 
-                    if stopwords and any(stop_word in generated_text for stop_word in stopwords):
+                    if stopwords and any(
+                        stop_word in generated_text for stop_word in stopwords
+                    ):
                         break
 
         except KeyboardInterrupt:
@@ -407,9 +407,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
     def _set_tokenizer(self, onnx__tokenizer):
         if isinstance(onnx__tokenizer, str):
-            self.tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
+            self.transfomers_tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
         else:
-            self.tokenizer = onnx__tokenizer
+            self.transfomers_tokenizer = onnx__tokenizer
 
     def _set_environment_variables(self) -> None:
         os.environ.update(
@@ -429,3 +429,83 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.tokenizer_stream = self.tokenizer.create_stream()
         logger.info(f"Model loaded using {self.onnx__num_threads} threads")
         logger.info("Tokenizer created")
+
+
+class TextGenerationProcessorGGUF(TextGenerationProcessor):
+    def __init__(
+        self,
+        model_id: str,
+        gguf__filename: str,
+        gguf__verbose: bool = False,
+        gguf__n_ctx: int = 2048,
+        save_history: bool = False,
+        system_prompt: str = "",
+        **kwargs,
+    ):
+        super().__init__(model_id, save_history, system_prompt, **kwargs)
+
+        if Llama is None:
+            raise ImportError(
+                "llama-cpp not found. Install it using 'pip install llama-cpp-python'."
+            )
+
+        self.llm = Llama.from_pretrained(
+            repo_id=model_id,
+            filename=gguf__filename,
+            verbose=gguf__verbose,
+            n_ctx=gguf__n_ctx,
+        )
+
+    def generate(
+        self,
+        input_text: str,
+        max_new_tokens: int = 512,
+        temperature: float = 0.1,
+        stopwords: Optional[List[str]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        templated_text = self.apply_chat_template(input_text)
+
+        _generation_kwargs = {
+            "max_tokens": max_new_tokens,
+            "temperature": temperature,
+            "stream": True,
+        }
+
+        if stopwords:
+            _generation_kwargs["stop"] = stopwords
+
+        if generation_kwargs:
+            _generation_kwargs.update(generation_kwargs)
+
+        generated_text = ""
+
+        try:
+            output = self.llm.create_chat_completion(
+                templated_text, **_generation_kwargs
+            )
+            for item in output:
+                new_text = item["choices"][0]["delta"].get("content", "")
+                generated_text += new_text
+                print(new_text, end="", flush=True)
+        except KeyboardInterrupt:
+            logger.warning("Control+C pressed, aborting generation")
+        except Exception:
+            logger.error(f"Error occured during generation: \n{traceback.format_exc()}")
+        finally:
+            print()  # Print newline after generation is done
+
+        self.update_history(input_text, generated_text.strip())
+
+        return generated_text.strip()
+
+    # override the original apply_chat_template method
+    def apply_chat_template(self, input_text) -> List[Dict[str, str]]:
+        messages = []
+        if self.save_history:
+            messages = self.history.copy()
+        messages.append({"role": "user", "content": input_text})
+        if self.system_prompt:
+            messages.insert(0, {"role": "system", "content": self.system_prompt})
+
+        return messages

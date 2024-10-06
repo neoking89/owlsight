@@ -29,7 +29,7 @@ This will present you with a menu like this:
 
 ```
 Make a choice:
->how can I assist you?
+> how can I assist you?
 shell
 python
 config: main
@@ -38,6 +38,8 @@ load
 clear history
 quit
 ```
+
+Go to **config >** **model** and set a model_id to load a model locally or from *[https://huggingface.co/]()*
 
 ### Available Commands
 
@@ -48,6 +50,8 @@ quit
 * **save/load** : Save or load a configurationfile.
 * **clear history** : Clear the session history.
 * **quit** : Exit the application.
+
+Go to **config >** **model** and set a model_id to load a model locally or from *[https://huggingface.co/]()*
 
 ### Example Workflow
 
@@ -111,9 +115,7 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 
 ## Temporary environment
 
-When activated, Owlsight will create a temporary file during the remainder of the active session in the "Lib/site-packages" directory of the current active (virtual) environment. This is meant as a temporary container for installed packages during the active session. The idea behind this, is that all installed packages will be removed when the session ends, not clogging up the available memory. If one wants to persist installed packages, they can be simple be installed inside the active virtual environment outside of owlsight. 
-
-
+When activated, Owlsight will create a temporary file during the remainder of the active session in the "Lib/site-packages" directory of the current active (virtual) environment. This is meant as a temporary container for installed packages during the active session. The idea behind this, is that all installed packages will be removed when the session ends, not clogging up the available memory. If one wants to persist installed packages, they can be simple be installed inside the active virtual environment outside of owlsight.
 
 ## Fixing own code
 
