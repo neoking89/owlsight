@@ -52,12 +52,11 @@ def check_gpu_and_cuda():
         logger.error("%s", e)
 
     if torch.cuda.is_available():
-        logger.info("CUDA-capable GPU is available and PyTorch is built with CUDA support. You are all set!")
+        logger.info("CUDA-capable GPU is available for PyTorch. You are all set!")
     else:
         logger.warning(
-            "PyTorch is built without CUDA support for CUDA version %s. Please visit 'https://pytorch.org/get-started/locally/' to install a compatible version.\nrun command 'pip uninstall torch torchvision torchaudio' and find run the right version of PyTorch for your CUDA version.",
-            cuda_version,
-        )
+            "Cuda is currently unavailable. This could be expected if no GPU is available. If not, please visit 'https://pytorch.org/get-started/locally/' to install a compatible version.\nrun command 'pip uninstall torch torchvision torchaudio' and find run the right version of PyTorch for your CUDA version.",
+         )
 
 
 def log_reserved_memory():
