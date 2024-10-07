@@ -181,7 +181,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                     f,
                     indent=4,
                 )
-                logger.info(f"{err_msg} Configuration saved successfully to '{path}'")
+                logger.info(f"Configuration saved successfully to '{path}'")
         except (IOError, OSError) as e:
             logger.error(f"{err_msg} Error writing to file '{path}': {e}")
         except TypeError as e:
