@@ -1,6 +1,6 @@
 # Owlsight
 
-**Owlsight** is a command-line tool that combines Python programming with open-source language models. It offers an interactive interface that allows you to execute Python code, shell commands, and natural language tasks in one unified environment. This tool is ideal for those who want to seamlessly integrate Python with language model capabilities.
+**Owlsight** is a command-line tool that combines Python programming with open-source language models. It offers an interactive interface that allows you to execute Python code, shell commands, and natural language tasks in one unified environment. This tool is ideal for those who want to integrate Python with language model capabilities.
 
 ## Features
 
@@ -17,15 +17,29 @@ You can install Owlsight using pip:
 pip install owlsight
 ```
 
+By default, only transformers library is installed.
+
+To add GGUF functionality:
+
+```
+pip install owlsight[gguf]
+```
+
+To add ONNX functionality:
+
+```
+pip install owlsight[onnx]
+```
+
 ## Usage
 
-After installation, launch Owlsight by running the following command:
+After installation, launch Owlsight in the terminal by running the following command:
 
 ```
 owlsight
 ```
 
-This will present you with a menu like this:
+This will present you with the mainmenu:
 
 ```
 Make a choice:
@@ -38,6 +52,8 @@ load
 clear history
 quit
 ```
+
+
 
 Go to **config >** **model** and set a model_id to load a model locally or from *[https://huggingface.co/]()*
 
@@ -87,19 +103,21 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 ```
 {
     "main": {
-        "max_retries_on_error": 3,
+        "max_retries_on_error": 5,
         "prompt_code_execution": true,
         "extra_index_url": ""
     },
     "model": {
-        "model_id": "path/to/microsoft-Phi3",
-        "save_history": false,
-        "system_prompt": "# ROLE:\nYou are an advanced problem-solving AI...",
+        "model_id": "Orenguteng/Llama-3.1-8B-Lexi-Uncensored-V2-GGUF",
+        "save_history": true,
+        "system_prompt": "# ROLE:\nYou are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.\n\n# TASK:\n- Prioritize Python solutions when appropriate.\n- Present code in markdown format.\n- Clearly state when non-Python solutions are necessary.\n- Break down complex problems into manageable steps and think through the solution step-by-step.\n- Adhere to best coding practices, including error handling and consideration of edge cases.\n- Acknowledge any limitations in your solutions.\n- Always aim to provide the best solution to the user's problem, whether it involves Python or not.",
         "transformers__device": null,
         "transformers__quantization_bits": null,
-        "transformers__gguf_file": "",
-        "onnx__tokenizer": "microsoft/Phi-3-mini-128k-instruct",
-        "onnx__verbose": false,
+        "gguf__filename": "Llama-3.1-8B-Lexi-Uncensored_V2_Q4.gguf",
+        "gguf__verbose": true,
+        "gguf__n_ctx": 16384,
+        "onnx__tokenizer": "",
+        "onnx__verbose": true,
         "onnx__num_threads": 1
     },
     "generate": {
