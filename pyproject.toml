@@ -8,6 +8,7 @@ dynamic = ["version"]
 description = "Owlsight is a commandline tool which combines opensource AI models with python functionality to create a powerful AI assistant."
 authors = [{ name = "Vincent Ouwendijk" }]
 license = { text = "MIT" }
+readme = "README.md"
 dependencies = [
     "transformers",
     "numpy",
