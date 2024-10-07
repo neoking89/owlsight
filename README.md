@@ -14,18 +14,32 @@
 You can install Owlsight using pip:
 
 ```bash
-pip install owlsight
+pip3 install owlsight
+```
+
+By default, only transformers library is installed.
+
+To add GGUF functionality:
+
+```
+pip3 install owlsight[gguf]
+```
+
+To add ONNX functionality:
+
+```
+pip3 install owlsight[onnx]
 ```
 
 ## Usage
 
-After installation, launch Owlsight by running the following command:
+After installation, launch Owlsight in the terminal by running the following command:
 
 ```
 owlsight
 ```
 
-This will present you with a menu like this:
+This will present you with the mainmenu:
 
 ```
 Make a choice:
@@ -38,6 +52,8 @@ load
 clear history
 quit
 ```
+
+
 
 Go to **config >** **model** and set a model_id to load a model locally or from *[https://huggingface.co/]()*
 
