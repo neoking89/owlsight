@@ -20,3 +20,4 @@ build.bat
 .vscode/*
 .egg-info/*
 src/owlsight.egg-info/*
+build_commands.txt
