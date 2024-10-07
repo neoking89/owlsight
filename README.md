@@ -14,7 +14,7 @@
 You can install Owlsight using pip:
 
 ```bash
-pip3 install owlsight
+pip install owlsight
 ```
 
 By default, only transformers library is installed.
@@ -22,13 +22,13 @@ By default, only transformers library is installed.
 To add GGUF functionality:
 
 ```
-pip3 install owlsight[gguf]
+pip install owlsight[gguf]
 ```
 
 To add ONNX functionality:
 
 ```
-pip3 install owlsight[onnx]
+pip install owlsight[onnx]
 ```
 
 ## Usage
