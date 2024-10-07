@@ -53,8 +53,6 @@ clear history
 quit
 ```
 
-
-
 Go to **config >** **model** and set a model_id to load a model locally or from *[https://huggingface.co/]()*
 
 ### Available Commands
@@ -66,9 +64,6 @@ Go to **config >** **model** and set a model_id to load a model locally or from 
 * **save/load** : Save or load a configurationfile.
 * **clear history** : Clear the session history.
 * **quit** : Exit the application.
-
-Go to **config >** **model** and set a model_id to load a model locally or from *[https://huggingface.co/]()*
-
 ### Example Workflow
 
 You can combine Python variables with natural language processing models in Owlsight. For example:
@@ -129,7 +124,8 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 }
 ```
 
-    Configurationfiles can be saved and loaded through the mainmenu.
+
+Configurationfiles can be saved and loaded through the mainmenu.
 
 ## Temporary environment
 
