@@ -32,7 +32,7 @@ try:
     from llama_cpp import Llama
 except ImportError:
     logger.warning(
-        "llama-cpp not found. Install it using 'pip install llama-cpp-python'."
+        "Support for GGUF models is disabled, because llama-cpp is not found. Install it using 'pip install llama-cpp-python'."
     )
     Llama = None
 
