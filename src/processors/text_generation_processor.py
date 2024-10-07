@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Optional, List, Dict, Any, Type
+from typing import Optional, List, Dict, Any, Type, Union
 import os
 import time
 import traceback
@@ -269,7 +269,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
-        onnx__tokenizer: str | PreTrainedTokenizer,
+        onnx__tokenizer: Union[str, PreTrainedTokenizer],
         onnx__verbose: bool = False,
         onnx__num_threads: int = 1,
         save_history: bool = False,
@@ -284,7 +284,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         model_id : str
             The model ID to use for generation.
             Usually the name of the model or the path to the model.
-        onnx__tokenizer : str | PreTrainedTokenizer
+        onnx__tokenizer : Union[str, PreTrainedTokenizer]
             The tokenizer to use for generation.
             If str, it should be the model ID of the tokenizer.
             else, it should be a PreTrainedTokenizer object.

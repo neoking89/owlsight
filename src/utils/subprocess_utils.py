@@ -1,5 +1,5 @@
 import subprocess
-from typing import Tuple
+from typing import Tuple, Union
 import os
 import platform
 import re
@@ -54,7 +54,7 @@ def _build_shell_command(activate_script: str, command: str) -> str:
         return f'bash -c "source {activate_script} && {command}"'
 
 
-def _log_shell_output(result: subprocess.CompletedProcess | None) -> None:
+def _log_shell_output(result: Union[subprocess.CompletedProcess, None]) -> None:
     """
     Log the output of a shell command.
 
