@@ -1,6 +1,6 @@
 import tempfile
 import traceback
-from typing import Dict, Union
+from typing import Dict, Union, Tuple
 from enum import Enum, auto
 import os
 
@@ -59,7 +59,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             raise
 
 
-def get_user_input(manager: TextGenerationManager) -> tuple[str, Union[str, None]]:
+def get_user_input(manager: TextGenerationManager) -> Tuple[str, Union[str, None]]:
     user_choice: Union[str, Dict] = get_user_choice(
         {
             "how can I assist you?": "",
