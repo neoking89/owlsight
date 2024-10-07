@@ -4,6 +4,7 @@ from typing import Any
 import venv
 from contextlib import contextmanager
 import subprocess
+import sysconfig
 
 from utils.helper_functions import os_is_windows
 from utils.logger_manager import LoggerManager
@@ -60,8 +61,9 @@ def get_lib_path(pyenv_path: str) -> str:
     str
         The path to the lib directory.
     """
-    return os.path.join(pyenv_path, "Lib", "site-packages")
-
+    # Get the name of the site-packages directory
+    site_packages = sysconfig.get_path("purelib", vars={"base": pyenv_path})
+    return site_packages
 
 def get_python_executable(pyenv_path: str) -> str:
     """
