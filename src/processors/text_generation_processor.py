@@ -17,6 +17,7 @@ from utils.threads import KillableThread
 from utils.custom_exceptions import QuantizationNotSupportedError
 from utils.custom_classes import StopWordCriteria
 from utils.logger_manager import LoggerManager
+from utils.deep_learning import get_best_device
 
 logger = LoggerManager.get_logger(__name__)
 
@@ -149,9 +150,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         **kwargs,
     ):
         super().__init__(model_id, save_history, system_prompt, **kwargs)
-        self.transformers__device = transformers__device or (
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
+        self.transformers__device = transformers__device or get_best_device()
         self._attention_implementation = (
             "flash" if flash_attention_is_available() else "eager"
         )
@@ -180,8 +179,13 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         bnb_kwargs: Dict,
         model_kwargs: Dict,
     ):
-        if transformers__quantization_bits and self.transformers__device == "cpu":
-            raise QuantizationNotSupportedError("Quantization is not supported on CPU")
+        if transformers__quantization_bits and self.transformers__device in [
+            "cpu",
+            "mps",
+        ]:
+            raise QuantizationNotSupportedError(
+                "Quantization is not supported on CPU or MPS."
+            )
 
         quantization_config = None
         if transformers__quantization_bits == 4:
