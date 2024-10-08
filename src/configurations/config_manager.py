@@ -127,7 +127,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                 "system_prompt": self._config["model"]["system_prompt"],
                 "transformers__device": _prepare_toggle_choices(
                     self._config["model"]["transformers__device"],
-                    [None, "cpu", "cuda"],
+                    [None, "cpu", "cuda", "mps"],
                 ),
                 "transformers__quantization_bits": _prepare_toggle_choices(
                     self._config["model"]["transformers__quantization_bits"],
