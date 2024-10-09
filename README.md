@@ -60,10 +60,11 @@ Go to **config >** **model** and set a model_id to load a model locally or from 
 * **How can I assist you**: Ask a question or give an instruction.
 * **shell** : Execute shell commands.
 * **python** : Enter a Python interpreter.
-* **config: main** : Modify the main configuration settings.
+* **config: main** : Modify the *main*, *model* or *generate* configuration settings.
 * **save/load** : Save or load a configurationfile.
-* **clear history** : Clear the session history.
+* **clear history** : Clear the chathistory and the python interpreter history.
 * **quit** : Exit the application.
+
 ### Example Workflow
 
 You can combine Python variables with natural language processing models in Owlsight. For example:
@@ -124,13 +125,20 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 }
 ```
 
-
 Configurationfiles can be saved and loaded through the mainmenu.
 
 ## Temporary environment
 
-When activated, Owlsight will create a temporary file during the remainder of the active session in the "Lib/site-packages" directory of the current active (virtual) environment. This is meant as a temporary container for installed packages during the active session. The idea behind this, is that all installed packages will be removed when the session ends, not clogging up the available memory. If one wants to persist installed packages, they can be simple be installed inside the active virtual environment outside of owlsight.
+During an Owlsight session, a temporary environment is created within the "site-packages" directory of the active (virtual) environment. Any packages installed during the session are removed when the session ends, ensuring your environment remains clean. If you want to persist installed packages, simply install them outside of Owlsight.
 
-## Fixing own code
+## Error Handling and Auto-Fix
 
-When encountering a ModuleNotFoundError after executing a piece of code, Owlsight will automaticly try to install the package and execute the code again. Also, Owlsight provides an option to let the model fix and  retry its own generated code if faulty. This functionality can be controlled through the "max_retries_on_error" parameter in the config file.
+Owlsight automatically tries to fix and retry any code that encounters a ModuleNotFoundError by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.
+
+## RELEASE NOTES
+
+**1.0.0**
+
+- Improved cross-platform functionality
+- Added *generate_stream* method to all TextGenerationProcessor classes
+- minor bugfixes
