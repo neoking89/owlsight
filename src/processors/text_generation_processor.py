@@ -353,26 +353,11 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             Additional keyword arguments for generation.
             Example: {"top_k": 50, "top_p": 0.95}
         """
-        templated_text = self.apply_chat_template(
-            input_text, self.transfomers_tokenizer
+        generator = self._prepare_generate(
+            input_text, max_new_tokens, temperature, generation_kwargs
         )
 
-        search_options = {
-            "do_sample": temperature > 0.0,
-            "max_length": max_new_tokens,
-            "temperature": temperature,
-            **(generation_kwargs or {}),
-        }
-
-        input_tokens = self.tokenizer.encode(templated_text)
-
-        params = og.GeneratorParams(self.model)
-        params.set_search_options(**search_options)
-        params.input_ids = input_tokens
-        generator = og.Generator(self.model, params)
-
         logger.info("Running generation loop ...")
-
         generated_text, buffer = "", ""
         token_counter = 0
         start = time.time()
@@ -408,6 +393,73 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.update_history(input_text, generated_text.strip())
 
         return generated_text.strip()
+
+    def generate_stream(
+        self,
+        input_text: str,
+        max_new_tokens: int = 512,
+        temperature: float = 0.0,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Generate text using the ONNX model.
+
+        Parameters
+        ----------
+        input_text : str
+            The input text to generate a response for.
+        max_new_tokens : int
+            The maximum number of tokens to generate.
+        temperature : float
+            The temperature for sampling.
+        generation_kwargs : Dict[str, Any], optional
+            Additional keyword arguments for generation.
+            Example: {"top_k": 50, "top_p": 0.95}
+        """
+        generator = self._prepare_generate(
+            input_text, max_new_tokens, temperature, generation_kwargs
+        )
+
+        logger.info("Running generation loop ...")
+        generated_text = ""
+
+        try:
+            while not generator.is_done():
+                generator.compute_logits()
+                generator.generate_next_token()
+                new_text = self.tokenizer_stream.decode(generator.get_next_tokens()[0])
+                generated_text += new_text
+                yield new_text
+
+        except KeyboardInterrupt:
+            logger.warning("Control+C pressed, aborting generation")
+
+        del generator
+
+        self.update_history(input_text, generated_text.strip())
+
+    def _prepare_generate(
+        self, input_text, max_new_tokens, temperature, generation_kwargs
+    ):
+        templated_text = self.apply_chat_template(
+            input_text, self.transfomers_tokenizer
+        )
+
+        search_options = {
+            "do_sample": temperature > 0.0,
+            "max_length": max_new_tokens,
+            "temperature": temperature,
+            **(generation_kwargs or {}),
+        }
+
+        input_tokens = self.tokenizer.encode(templated_text)
+
+        params = og.GeneratorParams(self.model)
+        params.set_search_options(**search_options)
+        params.input_ids = input_tokens
+        generator = og.Generator(self.model, params)
+
+        return generator
 
     def _set_tokenizer(self, onnx__tokenizer):
         if isinstance(onnx__tokenizer, str):
