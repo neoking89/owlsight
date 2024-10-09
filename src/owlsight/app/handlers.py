@@ -2,8 +2,8 @@ import subprocess
 import sys
 import traceback
 
-from utils.code_execution import CodeExecutor
-from utils.logger_manager import LoggerManager
+from owlsight.utils.code_execution import CodeExecutor
+from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 

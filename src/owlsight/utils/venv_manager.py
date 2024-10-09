@@ -6,8 +6,8 @@ from contextlib import contextmanager
 import subprocess
 import sysconfig
 
-from utils.helper_functions import os_is_windows
-from utils.logger_manager import LoggerManager
+from owlsight.utils.helper_functions import os_is_windows
+from owlsight.utils.logger_manager import LoggerManager
 
 
 logger = LoggerManager.get_logger(__name__)

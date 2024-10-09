@@ -1,6 +1,6 @@
 import pytest
-from unittest.mock import patch, MagicMock
-from utils.console import get_user_choice, OptionType, Selector
+from unittest.mock import patch
+from owlsight.utils.console import OptionType, Selector
 
 
 @pytest.fixture

@@ -1,9 +1,9 @@
 import pytest
 from typing import List, Optional, Dict, Any, Union
 
-from processors.text_generation_processor import TextGenerationProcessor
-from processors.text_generation_manager import TextGenerationManager
-from configurations.config_manager import ConfigManager
+from owlsight.processors.text_generation_processor import TextGenerationProcessor
+from owlsight.processors.text_generation_manager import TextGenerationManager
+from owlsight.configurations.config_manager import ConfigManager
 
 
 class MockTextGenerationProcessor(TextGenerationProcessor):

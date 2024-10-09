@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "owlsight"
 dynamic = ["version"]
-description = "Owlsight is a commandline tool which combines opensource AI models with python functionality to create a powerful AI assistant."
+description = "Owlsight is a commandline tool which combines open-source AI models with Python functionality to create a powerful AI assistant."
 authors = [{ name = "Vincent Ouwendijk" }]
 license = { text = "MIT" }
 readme = "README.md"
@@ -41,20 +41,14 @@ onnx = [
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q"
-testpaths = [
-    "tests",
-]
-pythonpath = [
-    ".",
-]
+testpaths = ["tests"]
 
-[project.scripts]
-owlsight = "main:main"
+[project.entry-points.console_scripts]
+owlsight = "owlsight.main:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 include-package-data = true
-py-modules = ["main"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

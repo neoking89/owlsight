@@ -8,19 +8,19 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import Completer, Completion
 import jedi
 
-from processors.text_generation_manager import TextGenerationManager
-from utils.custom_exceptions import ModuleNotFoundInVenvError
-from utils.subprocess_utils import execute_shell_command
-from utils.helper_functions import (
+from owlsight.processors.text_generation_manager import TextGenerationManager
+from owlsight.utils.custom_exceptions import ModuleNotFoundInVenvError
+from owlsight.utils.subprocess_utils import execute_shell_command
+from owlsight.utils.helper_functions import (
     extract_markdown,
     editable_input,
     format_error_message,
 )
-from utils.console import get_user_choice
-from utils.venv_manager import install_module, get_lib_path, get_python_executable
-from utils.constants import PROMPT_COLOR
+from owlsight.utils.console import get_user_choice
+from owlsight.utils.venv_manager import install_module, get_lib_path, get_python_executable
+from owlsight.utils.constants import PROMPT_COLOR
 
-from utils.logger_manager import LoggerManager
+from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 
