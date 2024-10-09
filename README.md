@@ -92,7 +92,7 @@ How can I assist you? > Can you write a function which reads an excelfile?
 python > excel_data = read_excel("path/to/excel")
 ```
 
-## Configuration
+## Configurations
 
 Owlsight uses a configuration file in JSON-format to adjust various parameters. Here is an example of what the configuration might look like:
 
@@ -125,7 +125,11 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 }
 ```
 
-Configurationfiles can be saved and loaded through the mainmenu.
+Configurationfiles can be saved and loaded through the mainmenu. 
+
+### Changing configurations
+
+To update a configuration, simply modify the desired value and press **ENTER** to confirm the change. Please note that only one configuration setting can be updated at a time, and the change will only take effect once **ENTER** has been pressed.
 
 ## Temporary environment
 
@@ -133,12 +137,14 @@ During an Owlsight session, a temporary environment is created within the "site-
 
 ## Error Handling and Auto-Fix
 
-Owlsight automatically tries to fix and retry any code that encounters a ModuleNotFoundError by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.
+Owlsight automatically tries to fix and retry any code that encounters a **ModuleNotFoundError** by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.
 
 ## RELEASE NOTES
 
-**1.0.4**
+**1.0.2**
 
-- Improved cross-platform functionality
-- Added *generate_stream* method to all TextGenerationProcessor classes
-- minor bugfixes
+- Enhanced cross-platform compatibility.
+
+* Introduced the `generate_stream` method to all `TextGenerationProcessor` classes.
+* Various minor bug fixes.
+* Enabled modular imports of individual components from the **owlsight** library, allowing direct usage of specific functionalities in Python scripts and applications.
