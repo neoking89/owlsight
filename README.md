@@ -137,7 +137,7 @@ Owlsight automatically tries to fix and retry any code that encounters a ModuleN
 
 ## RELEASE NOTES
 
-**1.0.3**
+**1.0.4**
 
 - Improved cross-platform functionality
 - Added *generate_stream* method to all TextGenerationProcessor classes
