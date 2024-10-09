@@ -1,6 +1,5 @@
 from enum import Enum, auto
 from typing import List, Dict, Tuple, Union, Any
-import sys
 
 from prompt_toolkit import Application
 from prompt_toolkit.layout import Layout, HSplit, VSplit, Window
@@ -9,7 +8,8 @@ from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
 
-sys.path.append(".")
+# import sys
+# sys.path.append("src")
 from utils.constants import COLOR_CODES
 
 
@@ -303,18 +303,18 @@ def print_colored(text: str, color: str) -> None:
     print(f"{color_code}{text}{reset_code}")
 
 
-if __name__ == "__main__":
-    print_colored("make a choice:", "cyan")
-    # Example options dictionary with default values for editable inputs
-    options = {
-        "You are a:": "Human",  # Editable input with default value
-        "apple": None,  # Static option, use None for single-select options
-        "pear": None,  # Static option
-        "banana": None,  # Static option
-        "Is it ripe?": [True, False],  # Toggleable option
-        "Days in sun": [1, 2, 3],  # Toggleable option
-        "Your name:": "",  # Editable input without default value
-    }
+# if __name__ == "__main__":
+#     print_colored("make a choice:", "cyan")
+#     # Example options dictionary with default values for editable inputs
+#     options = {
+#         "You are a:": "Human",  # Editable input with default value
+#         "apple": None,  # Static option, use None for single-select options
+#         "pear": None,  # Static option
+#         "banana": None,  # Static option
+#         "Is it ripe?": [True, False],  # Toggleable option
+#         "Days in sun": [1, 2, 3],  # Toggleable option
+#         "Your name:": "",  # Editable input without default value
+#     }
 
-    result = get_user_choice(options)
-    print("Result:", result)
+#     result = get_user_choice(options)
+#     print("Result:", result)
