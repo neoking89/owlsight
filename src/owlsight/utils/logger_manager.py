@@ -3,7 +3,7 @@ Logger module for the project. Use as follows:
 
 ```python
 
-from utils.logger_manager import LoggerManager
+from owlsight.utils.logger_manager import LoggerManager
 logger = LoggerManager.get_logger(__name__)
 ```
 

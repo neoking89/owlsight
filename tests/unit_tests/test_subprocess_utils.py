@@ -4,7 +4,7 @@ import sys
 import pytest
 
 sys.path.append(".")
-from utils.subprocess_utils import parse_globals_from_stdout
+from owlsight.utils.subprocess_utils import parse_globals_from_stdout
 
 
 def test_parse_command_without_subprocess_run():

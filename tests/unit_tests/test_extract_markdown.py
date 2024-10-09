@@ -3,7 +3,7 @@ import sys
 
 sys.path.append(".")
 
-from utils.helper_functions import extract_markdown
+from owlsight.utils.helper_functions import extract_markdown
 
 
 def test_extract_markdown():

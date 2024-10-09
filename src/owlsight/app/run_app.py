@@ -4,21 +4,21 @@ from typing import Dict, Union, Tuple
 from enum import Enum, auto
 import os
 
-from processors.text_generation_manager import TextGenerationManager
-from app.handlers import handle_interactive_code_execution
-from utils.code_execution import CodeExecutor, execute_code_with_feedback
-from utils.helper_functions import (
+from owlsight.processors.text_generation_manager import TextGenerationManager
+from owlsight.app.handlers import handle_interactive_code_execution
+from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
+from owlsight.utils.helper_functions import (
     force_delete,
     remove_temp_directories,
     replace_bracket_placeholders,
     os_is_windows,
 )
-from utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
-from utils.console import get_user_choice, print_colored
-from utils.constants import PROMPT_COLOR
-from utils.deep_learning import free_memory
-from ui.file_dialogs import save_file_dialog, open_file_dialog
-from utils.logger_manager import LoggerManager
+from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
+from owlsight.utils.console import get_user_choice, print_colored
+from owlsight.utils.constants import PROMPT_COLOR
+from owlsight.utils.deep_learning import free_memory
+from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
+from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 

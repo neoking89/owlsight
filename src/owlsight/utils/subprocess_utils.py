@@ -6,7 +6,7 @@ import re
 import traceback
 from ast import literal_eval
 
-from utils.logger_manager import LoggerManager
+from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 
@@ -159,7 +159,7 @@ def parse_globals_from_stdout(stdout: str) -> dict:
         # Try to evaluate the value, if it fails, keep it as a string
         try:
             parsed_value = literal_eval(value)
-        except Exception as e:
+        except Exception:
             parsed_value = value.strip()
             logger.error(f"Failed to parse value '{value}' for key '{key}' because:\n{traceback.format_exc()}")
 

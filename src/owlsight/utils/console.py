@@ -10,7 +10,7 @@ from prompt_toolkit.application.current import get_app
 
 # import sys
 # sys.path.append("src")
-from utils.constants import COLOR_CODES
+from owlsight.utils.constants import COLOR_CODES
 
 
 class OptionType(Enum):

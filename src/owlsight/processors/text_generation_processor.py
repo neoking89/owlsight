@@ -13,11 +13,11 @@ from transformers import (
     PreTrainedTokenizer,
     pipeline,
 )
-from utils.threads import KillableThread
-from utils.custom_exceptions import QuantizationNotSupportedError
-from utils.custom_classes import StopWordCriteria
-from utils.logger_manager import LoggerManager
-from utils.deep_learning import get_best_device
+from owlsight.utils.threads import KillableThread
+from owlsight.utils.custom_exceptions import QuantizationNotSupportedError
+from owlsight.utils.custom_classes import StopWordCriteria
+from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.deep_learning import get_best_device
 
 logger = LoggerManager.get_logger(__name__)
 
