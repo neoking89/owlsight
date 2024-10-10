@@ -17,7 +17,7 @@ You can install Owlsight using pip:
 pip install owlsight
 ```
 
-By default, only transformers library is installed.
+By default, only the transformers library is installed for working with language models.
 
 To add GGUF functionality:
 
@@ -67,7 +67,7 @@ Go to **config >** **model** and set a model_id to load a model locally or from 
 
 ### Example Workflow
 
-You can combine Python variables with natural language processing models in Owlsight. For example:
+You can combine Python variables with language models in Owlsight. For example:
 
 ```
 python > a = 42
@@ -125,7 +125,7 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 }
 ```
 
-Configurationfiles can be saved and loaded through the mainmenu. 
+Configurationfiles can be saved and loaded through the mainmenu.
 
 ### Changing configurations
 
