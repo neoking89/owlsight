@@ -1,4 +1,4 @@
-+ add rag for code libraries                
+             
 + add type validation per configuration
 + improve README.md
 + use default values in a "constants" file in configmanager
