@@ -26,7 +26,7 @@ def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
 
 def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
     """
-    Replaces placeholders in the form of `{{}}` in the given text with values from a dictionary.
+    Evaluates python expressions in the form of `{{}}` in the given text and replaces them with the result.
     Supports method calls and simple expressions.
 
     Parameters
