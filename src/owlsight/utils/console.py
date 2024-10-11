@@ -53,22 +53,32 @@ class Selector:
 
 
 class OptionSelectorApp:
-    def __init__(self, selector: Selector) -> None:
+    def __init__(self) -> None:
         """
         Initialize the OptionSelectorApp.
-
-        Parameters
-        ----------
-        selector : Selector
-            The Selector object containing the options and state.
         """
-        self.selector = selector
+        self.selector: Selector = None
         self.controls: List[Any] = []
         self.buffers: Dict[str, TextArea] = {}
         self.kb = KeyBindings()
-        self.build_controls()
-        self.layout = Layout(HSplit(self.controls))
+
+        # Do not set the layout immediately; set it dynamically when the selector is ready.
+        self.layout = None
+        self.application = None
+
         self.build_key_bindings()
+
+    def set_selector(self, selector: Selector) -> None:
+        """Set a new Selector and rebuild the controls dynamically."""
+        self.selector = selector
+        self.controls = []
+        self.buffers = {}
+        self.build_controls()
+
+        # Initialize the layout now that we have actual controls
+        self.layout = Layout(HSplit(self.controls))
+
+        # Only initialize the application when the layout is ready
         self.application = Application(
             layout=self.layout,
             key_bindings=self.kb,
@@ -76,7 +86,7 @@ class OptionSelectorApp:
         )
 
     def build_controls(self) -> None:
-        """Build the controls for each option."""
+        """Build the controls for each option in the selector."""
         for i, (label, opt_type) in enumerate(self.selector.options):
             if opt_type == OptionType.SINGLE:
                 control = self.create_single_option_control(i, label)
@@ -87,6 +97,9 @@ class OptionSelectorApp:
             elif opt_type == OptionType.EDITABLE:
                 control = self.create_editable_option_control(i, label)
                 self.controls.append(control)
+
+    # Rest of the code remains the same
+
 
     def get_arrow(self, i: int) -> str:
         """Get the arrow for the current selection."""
@@ -227,6 +240,7 @@ class OptionSelectorApp:
 
         self.application.run(pre_run=pre_run)
 
+app = OptionSelectorApp()
 
 def get_user_choice(
     options_dict: Dict[str, Union[None, str, List[Any]]],
@@ -247,8 +261,9 @@ def get_user_choice(
     Union[str, Dict[str, Any]]
         The selected or inputted option as a string or dictionary.
     """
+    global app
     selector = Selector(options_dict)
-    app = OptionSelectorApp(selector)
+    app.set_selector(selector)
     app.run()
 
     # Return the selected option based on its type
