@@ -1,13 +1,14 @@
+             
 + add type validation per configuration
 + improve README.md
 + use default values in a "constants" file in configmanager
 
 bugs:
+
 + change letter type to more elegant style
 + show history of prompts like code in python interpreter
 + make it clearer that configs need to be updated by pressing enter.
 
 NICE TO HAVE:
-+ add rag for code libraries
 + improve interface of model processor to prevent DRY -> pydantic? dataclasses?
 + add voicemodel to speak prompts instead of writing them for faster interaction

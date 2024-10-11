@@ -18,6 +18,7 @@ from owlsight.utils.console import get_user_choice, print_colored
 from owlsight.utils.constants import PROMPT_COLOR
 from owlsight.utils.deep_learning import free_memory
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
+from owlsight.rag.tfidf_search import get_context_for_library
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -149,7 +150,10 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> st
 
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
-    code_executor.globals_dict.clear()
+    # clear all variables except those starting with "owl_"
+    code_executor.globals_dict = {
+        k: v for k, v in code_executor.globals_dict.items() if k.startswith("owl_")
+    }
     py_history_file = code_executor.python_interpreter_history_file
     if os.path.exists(py_history_file):
         os.remove(py_history_file)
@@ -160,11 +164,25 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
-    user_choice = replace_bracket_placeholders(user_choice, code_executor.globals_dict)
-    response = manager.generate(user_choice)
+    user_question = replace_bracket_placeholders(user_choice, code_executor.globals_dict)
+    user_question = f"# QUESTION:\n{user_question}\n\n"
+    rag_is_active = manager.get_config_key("rag.active", False)
+    library_to_rag = manager.get_config_key("rag.library", "")
+    if rag_is_active and library_to_rag:
+        ctx_to_add = f"""
+# CONTEXT:
+The following context is documentation from the python library {library_to_rag}.
+Use this information to help generate a code snippet that answers the question.
+"""
+
+        context = get_context_for_library(library_to_rag, user_question, manager.get_config_key("top_k", 3))
+        ctx_to_add += context
+        user_question = f"{user_question}\n\n{ctx_to_add}".strip()
+
+    response = manager.generate(user_question)
     execute_code_with_feedback(
         response=response,
-        original_question=user_choice,
+        original_question=user_question,
         code_executor=code_executor,
         prompt_code_execution=manager.config_manager.get("main.prompt_code_execution"),
     )

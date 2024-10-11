@@ -1,5 +1,6 @@
 from typing import Any, Optional
 import traceback
+import pkgutil
 
 from owlsight.processors.text_generation_processor import (
     TextGenerationProcessor,
@@ -8,6 +9,7 @@ from owlsight.processors.text_generation_processor import (
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
+from owlsight.rag.tfidf_search import get_context_for_library
 
 from owlsight.utils.logger_manager import LoggerManager
 
@@ -48,7 +50,9 @@ class TextGenerationManager:
             self.config_manager.set(key, value)
             logger.info(f"Configuration updated: {key} = {value}")
         except Exception:
-            logger.error(f"Error updating configuration for key '{key}': {traceback.format_exc()}")
+            logger.error(
+                f"Error updating configuration for key '{key}': {traceback.format_exc()}"
+            )
             return
 
         # If 'model_id' is updated, reload the processor
@@ -58,15 +62,51 @@ class TextGenerationManager:
                 self.load_model_processor(reload=self.processor is not None)
             else:
                 if self.processor is None:
-                    logger.error("Processor is not initialized yet. Assign a model_id first, to initialize a model for the processor.")
+                    logger.error(
+                        "Processor is not initialized yet. Assign a model_id first, to initialize a model for the processor."
+                    )
                     return
                 if hasattr(self.processor, inner_key):
                     setattr(self.processor, inner_key, value)
                     logger.info(f"Processor updated: {inner_key} = {value}")
                 else:
-                    logger.warning(f"'{inner_key}' not found in self.processor, meaning it was not updated")
-                    logger.warning("It is possible that this value is only set during initialization of self.processor.")
-                    logger.warning("Consider loading the model from a config file to update this value.")
+                    logger.warning(
+                        f"'{inner_key}' not found in self.processor, meaning it was not updated"
+                    )
+                    logger.warning(
+                        "It is possible that this value is only set during initialization of self.processor."
+                    )
+                    logger.warning(
+                        "Consider loading the model from a config file to update this value."
+                    )
+        elif outer_key == "rag":
+            rag_is_active = self.config_manager.get("rag.active", False)
+            if rag_is_active:
+                library = self.config_manager.get("rag.library", "")
+                if not library:
+                    logger.error(
+                        "No library provided. Please set a library in the configuration."
+                    )
+                    return
+
+                available_libraries = [module.name for module in pkgutil.iter_modules()]
+                if library not in available_libraries:
+                    logger.error(
+                        f"Library '{library}' not found in the current Python session."
+                    )
+                    logger.error(f"available libraries: {available_libraries}")
+                    return
+                elif inner_key == "rag_prompt":
+                    rag_prompt = self.config_manager.get("rag.rag_prompt", "")
+                    if not rag_prompt:
+                        logger.error(
+                            "No example prompt provided. Please set an example prompt in the configuration."
+                        )
+                        return
+                    top_k = self.config_manager.get("rag.top_k", 3)
+                    context = get_context_for_library(library, rag_prompt, top_k)
+                    print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
+
 
     def save_config(self, path: str):
         """
@@ -93,7 +133,9 @@ class TextGenerationManager:
         """
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
-            logger.error("No model_id provided. Please set a model_id in the configuration.")
+            logger.error(
+                "No model_id provided. Please set a model_id in the configuration."
+            )
             return
 
         logger.info(f"Loading processor with new model_id: {model_id}")

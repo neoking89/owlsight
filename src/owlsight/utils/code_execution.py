@@ -2,6 +2,8 @@ import os
 import re
 from typing import Dict, List
 import traceback
+import inspect
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -17,7 +19,11 @@ from owlsight.utils.helper_functions import (
     format_error_message,
 )
 from owlsight.utils.console import get_user_choice
-from owlsight.utils.venv_manager import install_module, get_lib_path, get_python_executable
+from owlsight.utils.venv_manager import (
+    install_module,
+    get_lib_path,
+    get_python_executable,
+)
 from owlsight.utils.constants import PROMPT_COLOR
 
 from owlsight.utils.logger_manager import LoggerManager
@@ -66,6 +72,7 @@ class CodeExecutor:
         self._attempts = 0
 
         self._init_python_properties(pyenv_path, pip_path)
+        self._fill_globals_dict()
 
     def execute_and_retry(
         self, lang: str, code_block: str, original_question: str
@@ -251,6 +258,18 @@ class CodeExecutor:
         self.lib_path = get_lib_path(pyenv_path)
         self.python_executable = get_python_executable(pyenv_path)
         self.pip_path = pip_path
+
+    def _fill_globals_dict(self):
+        from owlsight.app.default_functions import OwlDefaultFunctions
+
+        owl_funcs = OwlDefaultFunctions(self.globals_dict)
+
+        # Get all the methods from the OwlDefaultFunctions instance
+        default_methods = inspect.getmembers(owl_funcs, predicate=inspect.ismethod)
+
+        # Populate the globals_dict with method names and their corresponding method objects
+        for name, method in default_methods:
+            self.globals_dict[name] = method
 
 
 def execute_code_with_feedback(

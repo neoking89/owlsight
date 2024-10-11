@@ -72,6 +72,12 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                     "temperature": 0.0,
                     "generation_kwargs": {},
                 },
+                "rag": {
+                    "active": False,
+                    "library": "",
+                    "top_k": 3,
+                    "rag_prompt": "",
+                },
             }
         )
 
@@ -123,7 +129,9 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
             "model": {
                 "back": None,
                 "model_id": self._config["model"]["model_id"],
-                "save_history": _prepare_toggle_choices(self._config["model"]["save_history"], [False, True]),
+                "save_history": _prepare_toggle_choices(
+                    self._config["model"]["save_history"], [False, True]
+                ),
                 "system_prompt": self._config["model"]["system_prompt"],
                 "transformers__device": _prepare_toggle_choices(
                     self._config["model"]["transformers__device"],
@@ -134,14 +142,19 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                     [None, 8, 4],
                 ),
                 "gguf__filename": self._config["model"]["gguf__filename"],
-                "gguf__verbose": _prepare_toggle_choices(self._config["model"]["gguf__verbose"], [False, True]),
+                "gguf__verbose": _prepare_toggle_choices(
+                    self._config["model"]["gguf__verbose"], [False, True]
+                ),
                 "gguf__n_ctx": _prepare_toggle_choices(
                     self._config["model"]["gguf__n_ctx"],
-                    [32 * (2**n) for n in range(15)]),
+                    [32 * (2**n) for n in range(15)],
+                ),
                 "onnx__tokenizer": self._config["model"]["onnx__tokenizer"],
-                "onnx__verbose": _prepare_toggle_choices(self._config["model"]["onnx__verbose"], [False, True]),
+                "onnx__verbose": _prepare_toggle_choices(
+                    self._config["model"]["onnx__verbose"], [False, True]
+                ),
                 "onnx__num_threads": self._config["model"]["onnx__num_threads"],
-                },
+            },
             "generate": {
                 "back": None,
                 "stopwords": str(self._config["generate"]["stopwords"]),
@@ -154,6 +167,18 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                     np.round(np.arange(0.0, 1.05, 0.05), 2).tolist(),
                 ),
                 "generation_kwargs": str(self._config["generate"]["generation_kwargs"]),
+            },
+            "rag": {
+                "back": None,
+                "active": _prepare_toggle_choices(
+                    self._config["rag"]["active"], [False, True]
+                ),
+                "library": self._config["rag"]["library"],
+                "top_k": _prepare_toggle_choices(
+                    self._config["rag"]["top_k"],
+                    list(range(1, 51)),
+                ),
+                "rag_prompt": self._config["rag"]["rag_prompt"],
             },
         }
 
@@ -199,7 +224,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
         if not os.path.exists(path):
             logger.error(f"{err_msg} Configuration file does not exist: '{path}'")
             return
-        
+
         if not path.endswith(".json"):
             logger.error(f"{err_msg} Configuration file must be a JSON file.")
             return
