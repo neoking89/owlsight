@@ -2,6 +2,16 @@
 
 **Owlsight** is a command-line tool that combines Python programming with open-source language models. It offers an interactive interface that allows you to execute Python code, shell commands, and natural language tasks in one unified environment. This tool is ideal for those who want to integrate Python with language model capabilities.
 
+
+## Why owlsight?
+
+Picture this: you're a developer, perhaps someone who dabbles in Python occasionally or a seasoned Pythonista. You frequently rely on Generative AI to accelerate your workflow, especially for generating code. But often, this involves a tedious process—copying and pasting code between ChatGPT and your IDE, repeatedly switching contexts.
+
+What if you could eliminate this friction?
+
+Owlsight brings Python development and Generative AI together, streamlining your workflow by integrating them into a single, unified platform. No more toggling between windows, no more manual code transfers. With Owlsight, you get the full power of Python and AI, all in one place—simplifying your process and boosting productivity.
+
+
 ## Features
 
 - **Interactive CLI**: Choose from multiple commands such as Python, shell, and AI model queries.
