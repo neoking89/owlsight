@@ -57,7 +57,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             logger.info("KeyboardInterrupt received. Restarting...")
         except Exception:
             logger.error(f"Unexpected error:\n{traceback.format_exc()}")
-            raise
+            # raise
 
 
 def get_user_input(manager: TextGenerationManager) -> Tuple[str, Union[str, None]]:
