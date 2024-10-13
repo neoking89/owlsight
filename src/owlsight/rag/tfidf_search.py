@@ -9,6 +9,7 @@ from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 
+
 def get_context_for_library(library_name: str, query: str, top_k: int = 3) -> str:
     """
     Searches for the top-k most relevant functions/classes in a library based on a query.
@@ -30,11 +31,11 @@ def get_context_for_library(library_name: str, query: str, top_k: int = 3) -> st
 
 class TfidfLibrarySearch:
     def __init__(self, library_name: str):
-        self.library_name = library_name
-        self.library = importlib.import_module(library_name)
+        self.target_library_name = library_name
+        self.target_library = importlib.import_module(library_name)
         self.tfidf_vectorizer = TfidfVectorizer(stop_words="english")
         self.tfidf_matrix = None
-        self.library_info = {}
+        self.target_library_info = {}
         self.corpus = []
 
     def extract_library_info(self) -> Generator[tuple, None, None]:
@@ -59,31 +60,23 @@ class TfidfLibrarySearch:
                     logger.error(f"Skipping {full_name}: {str(e)}")
 
         try:
-            yield from explore_module(self.library)
+            yield from explore_module(self.target_library)
         except Exception as e:
-            logger.error(f"Error exploring {self.library_name}: {str(e)}")
-
-    def _extract_info_from_module(
-        self, module, prefix=""
-    ) -> Generator[tuple, None, None]:
-        for name, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) or inspect.isfunction(obj) or inspect.ismethod(obj):
-                doc = inspect.getdoc(obj)
-                if doc:
-                    full_name = f"{prefix}.{name}" if prefix else name
-                    yield full_name, {"doc": doc, "obj": obj}
+            logger.error(f"Error exploring {self.target_library_name}: {str(e)}")
 
     def create_index(self):
-        logger.info(f"Extracting library information from {self.library_name}...")
+        logger.info(
+            f"Extracting library information from {self.target_library_name}..."
+        )
         for name, info in self.extract_library_info():
             try:
-                self.library_info[f"{self.library_name}.{name}"] = info
+                self.target_library_info[f"{self.target_library_name}.{name}"] = info
                 self.corpus.append(info["doc"])
             except Exception as e:
                 logger.error(f"Error extracting info from {name}: {str(e)}")
 
         if not self.corpus:
-            logger.warning(f"No documentation found for {self.library_name}")
+            logger.warning(f"No documentation found for {self.target_library_name}")
             return
 
         try:
@@ -101,8 +94,8 @@ class TfidfLibrarySearch:
 
         results = []
         for idx in top_indices:
-            name = list(self.library_info.keys())[idx]
-            info = self.library_info[name]
+            name = list(self.target_library_info.keys())[idx]
+            info = self.target_library_info[name]
             results.append(
                 {
                     "name": name,
@@ -130,6 +123,16 @@ class TfidfLibrarySearch:
             context += f"Documentation:\n{doc}\n\n"
 
         return context
+
+    def _extract_info_from_module(
+        self, module, prefix=""
+    ) -> Generator[tuple, None, None]:
+        for name, obj in inspect.getmembers(module):
+            if inspect.isclass(obj) or inspect.isfunction(obj) or inspect.ismethod(obj):
+                doc = inspect.getdoc(obj)
+                if doc:
+                    full_name = f"{prefix}.{name}" if prefix else name
+                    yield full_name, {"doc": doc, "obj": obj}
 
 
 # Example usage:
