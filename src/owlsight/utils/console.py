@@ -2,6 +2,9 @@ from enum import Enum, auto
 from typing import List, Dict, Tuple, Union, Any
 
 from prompt_toolkit import Application
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.layout import Layout, HSplit, VSplit, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.widgets import TextArea
@@ -10,7 +13,31 @@ from prompt_toolkit.application.current import get_app
 
 # import sys
 # sys.path.append("src")
-from owlsight.utils.constants import COLOR_CODES
+from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, get_prompt_history_path
+
+
+class HistoryCompleter(Completer):
+    """
+    A completer that provides suggestions based on the input history.
+    """
+
+    def __init__(self, history):
+        """
+        Initialize with the InMemoryHistory object.
+        """
+        self.history = history
+
+    def get_completions(self, document, complete_event):
+        """
+        Generate completions from the history.
+        """
+        text_so_far = document.text_before_cursor
+        # Get all unique entries in the history
+        unique_history_items = list(set(self.history.get_strings()))
+
+        for item in unique_history_items:
+            if item.startswith(text_so_far):
+                yield Completion(item, start_position=-len(text_so_far))
 
 
 class OptionType(Enum):
@@ -36,8 +63,12 @@ class Selector:
         self.current_index: int = 0
         self.selected: bool = False
         self.user_inputs: Dict[str, str] = {}  # To store user input for editable fields
-        self.toggle_values: Dict[str, Any] = {}  # To store current value for toggleable fields
-        self.toggle_choices: Dict[str, List[Any]] = {}  # To store possible toggle values
+        self.toggle_values: Dict[str, Any] = (
+            {}
+        )  # To store current value for toggleable fields
+        self.toggle_choices: Dict[str, List[Any]] = (
+            {}
+        )  # To store possible toggle values
 
         # Parse the options dictionary to categorize the options
         for key, value in options_dict.items():
@@ -49,13 +80,15 @@ class Selector:
                 self.toggle_values[key] = value[0]  # Set default to the first value
             elif isinstance(value, str):
                 self.options.append((key, OptionType.EDITABLE))
-                self.user_inputs[key] = value  # Use the provided string as default value
+                self.user_inputs[key] = (
+                    value  # Use the provided string as default value
+                )
 
 
 class OptionSelectorApp:
     def __init__(self) -> None:
         """
-        Initialize the OptionSelectorApp.
+        Initialize the OptionSelectorApp, which is the main class for managing the user interface.
         """
         self.selector: Selector = None
         self.controls: List[Any] = []
@@ -65,11 +98,15 @@ class OptionSelectorApp:
         # Do not set the layout immediately; set it dynamically when the selector is ready.
         self.layout = None
         self.application = None
+        self.history = {}
 
         self.build_key_bindings()
 
     def set_selector(self, selector: Selector) -> None:
-        """Set a new Selector and rebuild the controls dynamically."""
+        """
+        Set a new Selector and rebuild the controls dynamically.
+        This method is normally called every time the user makes a decision in a menu after pressing ENTER.
+        """
         self.selector = selector
         self.controls = []
         self.buffers = {}
@@ -97,9 +134,6 @@ class OptionSelectorApp:
             elif opt_type == OptionType.EDITABLE:
                 control = self.create_editable_option_control(i, label)
                 self.controls.append(control)
-
-    # Rest of the code remains the same
-
 
     def get_arrow(self, i: int) -> str:
         """Get the arrow for the current selection."""
@@ -137,12 +171,21 @@ class OptionSelectorApp:
     def create_editable_option_control(self, i: int, label: str) -> VSplit:
         """Create a control for an editable option."""
         # Create a TextArea for the editable field
+        if label not in self.history:
+            self.history[label] = FileHistory(get_prompt_history_path())
+
+        # Create the HistoryCompleter that fetches suggestions from the history
+        completer = HistoryCompleter(self.history[label])
+
         text_area = TextArea(
             text=self.selector.user_inputs[label],
             multiline=False,
             wrap_lines=False,
             focus_on_click=True,
             height=1,  # Limit the TextArea to one line
+            history=self.history[label],
+            auto_suggest=AutoSuggestFromHistory(),
+            completer=completer,  # Attach the completer for autocompletion from history
         )
         self.buffers[label] = text_area
 
@@ -177,24 +220,32 @@ class OptionSelectorApp:
 
         @self.kb.add("up")
         def move_up(event):
-            self.selector.current_index = (self.selector.current_index - 1) % len(self.selector.options)
+            self.selector.current_index = (self.selector.current_index - 1) % len(
+                self.selector.options
+            )
             self.update_focus(event.app)
             self.invalidate()
 
         @self.kb.add("down")
         def move_down(event):
-            self.selector.current_index = (self.selector.current_index + 1) % len(self.selector.options)
+            self.selector.current_index = (self.selector.current_index + 1) % len(
+                self.selector.options
+            )
             self.update_focus(event.app)
             self.invalidate()
 
         @self.kb.add("left")
         def left(event):
-            current_option, opt_type = self.selector.options[self.selector.current_index]
+            current_option, opt_type = self.selector.options[
+                self.selector.current_index
+            ]
             if opt_type == OptionType.TOGGLE:
                 choices = self.selector.toggle_choices[current_option]
                 current_value = self.selector.toggle_values[current_option]
                 current_index = choices.index(current_value)
-                self.selector.toggle_values[current_option] = choices[(current_index - 1) % len(choices)]
+                self.selector.toggle_values[current_option] = choices[
+                    (current_index - 1) % len(choices)
+                ]
             elif opt_type == OptionType.EDITABLE:
                 # Move cursor to the left in the TextArea buffer
                 buffer = self.buffers[current_option].buffer
@@ -204,12 +255,16 @@ class OptionSelectorApp:
 
         @self.kb.add("right")
         def right(event):
-            current_option, opt_type = self.selector.options[self.selector.current_index]
+            current_option, opt_type = self.selector.options[
+                self.selector.current_index
+            ]
             if opt_type == OptionType.TOGGLE:
                 choices = self.selector.toggle_choices[current_option]
                 current_value = self.selector.toggle_values[current_option]
                 current_index = choices.index(current_value)
-                self.selector.toggle_values[current_option] = choices[(current_index + 1) % len(choices)]
+                self.selector.toggle_values[current_option] = choices[
+                    (current_index + 1) % len(choices)
+                ]
             elif opt_type == OptionType.EDITABLE:
                 # Move cursor to the right in the TextArea buffer
                 buffer = self.buffers[current_option].buffer
@@ -220,10 +275,14 @@ class OptionSelectorApp:
         @self.kb.add("enter")
         def enter(event):
             self.selector.selected = True
-            current_option, opt_type = self.selector.options[self.selector.current_index]
+            current_option, opt_type = self.selector.options[
+                self.selector.current_index
+            ]
             if opt_type == OptionType.EDITABLE:
                 # Update the user input from the TextArea buffer
-                self.selector.user_inputs[current_option] = self.buffers[current_option].text
+                user_input = self.buffers[current_option].text
+                self._handle_editable_input(current_option, user_input)
+                self.selector.user_inputs[current_option] = user_input
             event.app.exit()
 
         @self.kb.add("c-c")
@@ -240,7 +299,14 @@ class OptionSelectorApp:
 
         self.application.run(pre_run=pre_run)
 
+    def _handle_editable_input(self, current_option, user_input) -> None:
+        """Handle the input for editable fields."""
+        if current_option == MENU_KEYS["assistant"]:
+            self.history[current_option].append_string(user_input)
+
+
 app = OptionSelectorApp()
+
 
 def get_user_choice(
     options_dict: Dict[str, Union[None, str, List[Any]]],
@@ -309,7 +375,9 @@ def print_colored(text: str, color: str) -> None:
         If the provided color is not valid.
     """
     if color not in COLOR_CODES:
-        raise ValueError(f"Invalid color '{color}'. Valid options are: {', '.join(COLOR_CODES.keys())}")
+        raise ValueError(
+            f"Invalid color '{color}'. Valid options are: {', '.join(COLOR_CODES.keys())}"
+        )
 
     color_code = COLOR_CODES[color]
     reset_code = COLOR_CODES["reset"]
