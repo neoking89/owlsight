@@ -7,8 +7,7 @@ import inspect
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.completion import Completer, Completion
-import jedi
+from prompt_toolkit.key_binding import KeyBindings
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.custom_exceptions import ModuleNotFoundInVenvError
@@ -34,28 +33,6 @@ logger = LoggerManager.get_logger(__name__)
 def extract_missing_module(stderr: str) -> str:
     match = re.search(r"No module named '(\w+)'", stderr)
     return match.group(1) if match else None
-
-
-class PythonCompleter(Completer):
-    def __init__(self, namespace):
-        self.namespace = namespace
-
-    def get_completions(self, document, complete_event):
-        text = document.text_before_cursor
-        try:
-            interpreter = jedi.Interpreter(
-                text,
-                [self.namespace],
-            )
-            completions = interpreter.complete()
-            for c in completions:
-                yield Completion(
-                    c.name_with_symbols,
-                    start_position=-c.complete_length,
-                    display=c.name_with_symbols,
-                )
-        except Exception:
-            pass
 
 
 class CodeExecutor:
@@ -160,31 +137,52 @@ class CodeExecutor:
 
     def init_interactive_py_console(self) -> None:
         """Initialize an interactive Python console with enhanced capabilities."""
-        import traceback
-
         namespace = self.globals_dict
 
-        completer = PythonCompleter(namespace)
+        # Create key bindings to use Tab for autocompletion
+        bindings = KeyBindings()
+
+        @bindings.add("tab")
+        def _(event):
+            """Provide autocompletion from history on Tab key press."""
+            buff = event.app.current_buffer
+
+            if buff.complete_state is not None:
+                # If there is an active completion, continue with the next suggestion
+                buff.complete_next()
+            else:
+                # Start cycling through history if no completion is active
+                if buff.history:
+                    history_strings = buff.history.get_strings()  # Get all commands from history
+                    current_input = buff.text
+
+                    # Find the next command from history that starts with the current input
+                    suggestions = [cmd for cmd in history_strings if cmd.startswith(current_input)]
+
+                    if suggestions:
+                        # If we have suggestions, set the buffer text to the last matching suggestion
+                        buff.text = suggestions[-1]
+                        buff.cursor_position = len(buff.text)
 
         session = PromptSession(
             history=FileHistory(self.python_interpreter_history_file),
             auto_suggest=AutoSuggestFromHistory(),
-            completer=completer,
             enable_history_search=True,
             complete_while_typing=True,
+            key_bindings=bindings,  # Add custom key bindings
         )
 
         # Start REPL loop
         print(
             "Interactive Python interpreter activated.\n"
             "- Use up/down arrows to navigate command history\n"
-            "- Use right arrow for auto-completion\n"
+            "- Use Tab for auto-completion\n"
             "Type 'exit()' to quit the console."
         )
 
         while True:
             try:
-                text = session.prompt(">>> ")
+                text = session.prompt(">>> ", key_bindings=bindings)
                 if text.strip() == "exit()":
                     break
                 else:
@@ -228,7 +226,7 @@ class CodeExecutor:
 
     @property
     def python_interpreter_history_file(self) -> str:
-        return os.path.join(os.path.expanduser("~"), ".python_history")
+        return os.path.join(os.path.expanduser("~"), "owlsight", ".python_history")
 
     def _get_nth_attempt(self) -> int:
         return self._attempts + 1
