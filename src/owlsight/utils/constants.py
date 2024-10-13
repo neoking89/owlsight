@@ -21,4 +21,4 @@ MENU_KEYS = {
 
 def get_prompt_history_path() -> str:
     """Returns the path where all prompt history is stored."""
-    return os.path.join(os.path.expanduser("~"), "owlsight" ".prompt_history")
+    return os.path.join(os.path.expanduser("~"), ".prompt_history")

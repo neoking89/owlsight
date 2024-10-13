@@ -226,7 +226,7 @@ class CodeExecutor:
 
     @property
     def python_interpreter_history_file(self) -> str:
-        return os.path.join(os.path.expanduser("~"), "owlsight", ".python_history")
+        return os.path.join(os.path.expanduser("~"), ".python_history")
 
     def _get_nth_attempt(self) -> int:
         return self._attempts + 1
