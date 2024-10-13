@@ -15,10 +15,11 @@ from owlsight.utils.helper_functions import (
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
 from owlsight.utils.console import get_user_choice, print_colored
-from owlsight.utils.constants import PROMPT_COLOR
+from owlsight.utils.constants import PROMPT_COLOR, MENU_KEYS
 from owlsight.utils.deep_learning import free_memory
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
 from owlsight.rag.tfidf_search import get_context_for_library
+from owlsight.utils.constants import get_prompt_history_path
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -63,7 +64,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
 def get_user_input(manager: TextGenerationManager) -> Tuple[str, Union[str, None]]:
     user_choice: Union[str, Dict] = get_user_choice(
         {
-            "how can I assist you?": "",
+            MENU_KEYS["assistant"]: "",
             "shell": "",
             "python": None,
             "config": list(manager.get_config().keys()),
@@ -150,6 +151,13 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> st
 
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
+    """Clears the following things:
+    
+    - All variables in the Python interpreter state, except those starting with "owl_"
+    - Python interpreter history file
+    - Prompt history file
+    - chat history in the processor
+    """
     # clear all variables except those starting with "owl_"
     code_executor.globals_dict = {
         k: v for k, v in code_executor.globals_dict.items() if k.startswith("owl_")
@@ -157,10 +165,14 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     py_history_file = code_executor.python_interpreter_history_file
     if os.path.exists(py_history_file):
         os.remove(py_history_file)
+
+    prompt_history_file = get_prompt_history_path()
+    if os.path.exists(prompt_history_file):
+        os.remove(prompt_history_file)
         
     if manager.processor is not None:
         manager.processor.history.clear()
-    logger.info("State and history cleared.")
+    logger.info("Cleared: Python interpreter history, prompt history, and model chat history.")
 
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
