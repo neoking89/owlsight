@@ -18,6 +18,9 @@ dependencies = [
     "sentencepiece",
     "prompt_toolkit",
     "keyboard",
+    "scikit-learn",
+    "beautifulsoup4"
+    "jinja2",
 ]
 
 [project.optional-dependencies]
