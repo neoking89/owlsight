@@ -132,10 +132,12 @@ class OwlDefaultFunctions:
         str
             The text content of the webpage.
         """
-        if url_or_terms.startswith("http"):
+        if is_url(url_or_terms):
             url = url_or_terms
         else:
-            urls = search_bing(url_or_terms, exclude_from_url=["microsoft"], **request_kwargs)
+            urls = search_bing(
+                url_or_terms, exclude_from_url=["microsoft"], **request_kwargs
+            )
             if not urls:
                 return ""
             url = urls[0]
@@ -179,3 +181,33 @@ def search_bing(
             if not any(exclude in url for exclude in exclude_from_url)
         ]
     return urls
+
+
+# Update get_url to use Django-style regex for better validation
+# source: https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not
+is_url_pattern = re.compile(
+    r"^(?:http|ftp)s?://"  # http:// or https://
+    r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|"  # domain...
+    r"localhost|"  # localhost...
+    r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"  # ...or ip
+    r"(?::\d+)?"  # optional port
+    r"(?:/?|[/?]\S+)$",
+    re.IGNORECASE,
+)
+
+
+def is_url(url: str) -> bool:
+    """
+    Check if a string is a valid URL.
+
+    Parameters
+    ----------
+    url : str
+        The string to check.
+
+    Returns
+    -------
+    bool
+        True if the string is a valid URL, False otherwise.
+    """
+    return bool(re.match(is_url_pattern, url))
