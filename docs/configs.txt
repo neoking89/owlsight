@@ -49,12 +49,12 @@ generation_kwargs: Additional keyword arguments to pass to the model when genera
 
 "rag": {
     "active": true,
-    "library": "pandas",
+    "target_library": "pandas",
     "top_k": 5,
-    "rag_prompt": "sqlite"
+    "search_query": "sqlite"
 }
 
 active: Add the rag search results to the model input. If set to false, the rag search results will not be added to the model input.
 library: Which python library documentation should we apply RAG to.
 top_k: The number of search results to return.
-rag_prompt: The search query to use for RAG. ENTER can be pressed to inmediately get back results from the query, given "active" is set to true.
+search_query: The search query to use for RAG. ENTER can be pressed to inmediately get back results from the query, given "active" is set to true.
