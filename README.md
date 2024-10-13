@@ -8,7 +8,7 @@ Picture this: you are someone who dabbles in Python occasionally or a seasoned P
 
 What if you could eliminate this friction?
 
-Owlsight brings Python development and Generative AI together, streamlining your workflow by integrating them into a single, unified platform. No more toggling between windows, no more manual code transfers. With Owlsight, you get the full power of Python and AI, all in one place—simplifying your process and boosting productivity. 
+Owlsight brings Python development and Generative AI together, streamlining your workflow by integrating them into a single, unified platform. No more toggling between windows, no more manual code transfers. With Owlsight, you get the full power of Python and AI, all in one place—simplifying your process and boosting productivity.
 
 Generate code directly from model prompts and access this code directly from the Python interpreter. Or augment model-prompts with Python expressions. With this functionality, open-source models do not only generate more accurate responses by executing Python code directly, but they can also solve way more complex problems.
 
@@ -18,7 +18,6 @@ Generate code directly from model prompts and access this code directly from the
 - **Python Integration**: Switch to a Python interpreter and use python expressions in language model queries.
 - **Model Flexibility**: Supports models in **pytorch**, **ONNX**, and **GGUF** formats.
 - **Customizable Configuration**: Easily modify model and generation settings.
-- **Owlsight API**: Rather not use the CLI? Use the Owlsight API to access its functionality in your own backend.
 
 ## Installation
 
