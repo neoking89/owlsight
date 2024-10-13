@@ -51,11 +51,15 @@ def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
     '1 + 1 = 2'
     """
 
+    # def evaluate_expression(expr: str) -> Any:
+    #     return eval(expr, {"__builtins__": None}, var_dict)
+
     def evaluate_expression(expr: str) -> Any:
         try:
             return eval(expr, {"__builtins__": None}, var_dict)
         except Exception as e:
-            return f"Error evaluating {expr}:\n{traceback.format_exc()}"
+            error_message = f"Error evaluating '{expr}': {str(e)}"
+            raise type(e)(error_message) from None
 
     # Pattern to match content inside {{ }}
     pattern = r"\{\{(.*?)\}\}"

@@ -3,7 +3,7 @@ import sys
 import tempfile
 import os
 
-sys.path.append(".")
+sys.path.append("src")
 sys.path.append("tests")
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
 from owlsight.utils.venv_manager import get_pyenv_path, get_pip_path

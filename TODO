@@ -1,12 +1,12 @@
-             
++ + show history of prompts like code in python interpreter
++ more proper confignames for rag.
 + add type validation per configuration
-+ improve README.md
++ add more docs to README.md, like default functions, config etc.
 + use default values in a "constants" file in configmanager
 
 bugs:
 
 + change letter type to more elegant style
-+ show history of prompts like code in python interpreter
 + make it clearer that configs need to be updated by pressing enter.
 
 NICE TO HAVE:

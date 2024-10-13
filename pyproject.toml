@@ -18,7 +18,6 @@ dependencies = [
     "sentencepiece",
     "prompt_toolkit",
     "keyboard",
-    "jedi",
 ]
 
 [project.optional-dependencies]

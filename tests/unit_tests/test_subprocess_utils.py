@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-sys.path.append(".")
+sys.path.append("src")
 from owlsight.utils.subprocess_utils import parse_globals_from_stdout
 
 

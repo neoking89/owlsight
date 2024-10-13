@@ -89,12 +89,13 @@ class TextGenerationManager:
                     )
                     return
 
-                available_libraries = [module.name for module in pkgutil.iter_modules()]
+                # get all libs without the _ prefix and in sorted order
+                available_libraries = [module.name for module in pkgutil.iter_modules() if not module.name.startswith("_")]
                 if library not in available_libraries:
                     logger.error(
                         f"Library '{library}' not found in the current Python session."
                     )
-                    logger.error(f"available libraries: {available_libraries}")
+                    logger.error(f"available libraries: {sorted(available_libraries)}")
                     return
                 elif inner_key == "rag_prompt":
                     rag_prompt = self.config_manager.get("rag.rag_prompt", "")
