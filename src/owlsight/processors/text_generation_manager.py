@@ -82,7 +82,7 @@ class TextGenerationManager:
         elif outer_key == "rag":
             rag_is_active = self.config_manager.get("rag.active", False)
             if rag_is_active:
-                library = self.config_manager.get("rag.library", "")
+                library = self.config_manager.get("rag.target_library", "")
                 if not library:
                     logger.error(
                         "No library provided. Please set a library in the configuration."
@@ -97,15 +97,15 @@ class TextGenerationManager:
                     )
                     logger.error(f"available libraries: {sorted(available_libraries)}")
                     return
-                elif inner_key == "rag_prompt":
-                    rag_prompt = self.config_manager.get("rag.rag_prompt", "")
-                    if not rag_prompt:
+                elif inner_key == "search_query":
+                    search_query = self.config_manager.get("rag.search_query", "")
+                    if not search_query:
                         logger.error(
                             "No example prompt provided. Please set an example prompt in the configuration."
                         )
                         return
                     top_k = self.config_manager.get("rag.top_k", 3)
-                    context = get_context_for_library(library, rag_prompt, top_k)
+                    context = get_context_for_library(library, search_query, top_k)
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
 
 

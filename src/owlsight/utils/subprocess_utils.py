@@ -68,11 +68,11 @@ def _log_shell_output(result: Union[subprocess.CompletedProcess, None]) -> None:
     None
     """
     if result is not None:
-        if result.stdout:
+        if hasattr(result, "stdout") and result.stdout:
             logger.info(result.stdout)
-        if result.stderr:
+        if hasattr(result, "stderr") and result.stderr:
             logger.warning(f"Command produced stderr output: {result.stderr}")
-        if result.output:
+        if hasattr(result, "output") and result.output:
             logger.warning(f"Command produced output: {result.output}")
 
 

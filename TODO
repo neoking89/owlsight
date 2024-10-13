@@ -1,5 +1,3 @@
-+ + show history of prompts like code in python interpreter
-+ more proper confignames for rag.
 + add type validation per configuration
 + add more docs to README.md, like default functions, config etc.
 + use default values in a "constants" file in configmanager

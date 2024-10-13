@@ -179,7 +179,7 @@ def process_user_question(user_choice: str, code_executor: CodeExecutor, manager
     user_question = replace_bracket_placeholders(user_choice, code_executor.globals_dict)
     user_question = f"# QUESTION:\n{user_question}\n\n"
     rag_is_active = manager.get_config_key("rag.active", False)
-    library_to_rag = manager.get_config_key("rag.library", "")
+    library_to_rag = manager.get_config_key("rag.target_library", "")
     if rag_is_active and library_to_rag:
         ctx_to_add = f"""
 # CONTEXT:
