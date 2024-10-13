@@ -74,9 +74,9 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                 },
                 "rag": {
                     "active": False,
-                    "library": "",
+                    "target_library": "",
                     "top_k": 3,
-                    "rag_prompt": "",
+                    "search_query": "",
                 },
             }
         )
@@ -173,12 +173,12 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                 "active": _prepare_toggle_choices(
                     self._config["rag"]["active"], [False, True]
                 ),
-                "library": self._config["rag"]["library"],
+                "target_library": self._config["rag"]["target_library"],
                 "top_k": _prepare_toggle_choices(
                     self._config["rag"]["top_k"],
                     list(range(1, 51)),
                 ),
-                "rag_prompt": self._config["rag"]["rag_prompt"],
+                "search_query": self._config["rag"]["search_query"],
             },
         }
 
