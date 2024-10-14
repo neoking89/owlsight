@@ -21,3 +21,4 @@ build.bat
 .egg-info/*
 src/owlsight.egg-info/*
 build_commands.txt
+speech_control.py
