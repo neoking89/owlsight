@@ -185,7 +185,7 @@ def search_bing(
 
 # Update get_url to use Django-style regex for better validation
 # source: https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not
-is_url_pattern = re.compile(
+IS_URL_PATTERN = re.compile(
     r"^(?:http|ftp)s?://"  # http:// or https://
     r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|"  # domain...
     r"localhost|"  # localhost...
@@ -210,4 +210,4 @@ def is_url(url: str) -> bool:
     bool
         True if the string is a valid URL, False otherwise.
     """
-    return bool(re.match(is_url_pattern, url))
+    return bool(re.match(IS_URL_PATTERN, url))
