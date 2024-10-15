@@ -2,19 +2,18 @@ import importlib
 import inspect
 import pkgutil
 from typing import List, Dict, Generator, Any, Union, Literal
-import time
 import re
+import pickle
+from pathlib import Path
 
 import torch
 from tqdm import tqdm
-import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-import sys
-
-sys.path.append("src")
+# import sys
+# sys.path.append("src")
 from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.logger_manager import LoggerManager
 
@@ -25,8 +24,9 @@ def get_context_for_library(
     library_name: str,
     query: str,
     top_k: int = 3,
-    method: Literal["cosine", "faiss", "sentence-transformer"] = "cosine",
+    method: Literal["cosine", "sentence-transformer"] = "cosine",
     get_results_only: bool = False,
+    cache_dir: str = None,
 ) -> Union[str, List[Dict]]:
     """
     Searches for the top-k most relevant functions/classes in library documentation based on a query.
@@ -35,13 +35,16 @@ def get_context_for_library(
         library_name (str): The name of the library to search in.
         query (str): The search query.
         top_k (int): The number of top results to return.
-        method (str): The search method to use ("cosine""faiss").
+        method (str): The search method to use ("cosine", "sentence-transformer").
         get_results_only (bool): If True, only the searchresults (dict) will be returned instead of the full context.
+        cache_dir (str): The directory to cache the search data. Useful if generating embeddings (Sentence Transformer) takes long.
 
     Returns:
         str: The context (documentation) of the top-k search results for the given library and query.
     """
-    search_engine: BaseLibrarySearch = _get_search_engine(method, library_name)
+    search_engine: BaseLibrarySearch = get_search_engine(
+        method, library_name, cache_dir=cache_dir
+    )
     search_engine.create_index()
     results = search_engine.search(query, top_k)
     if get_results_only:
@@ -51,26 +54,14 @@ def get_context_for_library(
     return context
 
 
-class BaseLibrarySearch:
-    def __init__(self, library_name: str, create_cache: bool = False):
-        """
-        Base class for searching in documentation of a Python library.
+class LibraryInfoExtractor:
+    """
+    Extracts information from a Python library.
+    """
 
-        Parameters:
-            library_name (str): The name of the library to search in.
-            create_cache (bool): Whether to create a cache for storing the index.
-            As default, has name
-        """
+    def __init__(self, library_name: str):
         self.target_library_name = library_name
         self.target_library = importlib.import_module(library_name)
-        self.tfidf_vectorizer = TfidfVectorizer(stop_words="english")
-
-        if create_cache:
-            cache_name = f"{library_name}__{self.__class__.__name__}.pkl"
-
-        self.tfidf_matrix = None
-        self.target_library_info = {}
-        self.corpus = []
 
     def extract_library_info(self) -> Generator[tuple, None, None]:
         def explore_module(module, prefix="") -> Generator[tuple, None, None]:
@@ -80,7 +71,6 @@ class BaseLibrarySearch:
             for _, name, is_pkg in pkgutil.iter_modules(module.__path__):
                 full_name = f"{prefix}.{name}" if prefix else name
 
-                # Skip test modules
                 if "test" in name.lower():
                     continue
 
@@ -98,11 +88,37 @@ class BaseLibrarySearch:
         except Exception as e:
             logger.error(f"Error exploring {self.target_library_name}: {str(e)}")
 
+    def _extract_info_from_module(
+        self, module, prefix=""
+    ) -> Generator[tuple, None, None]:
+        for name, obj in inspect.getmembers(module):
+            if inspect.isclass(obj) or inspect.isfunction(obj) or inspect.ismethod(obj):
+                doc = inspect.getdoc(obj)
+                if doc:
+                    full_name = f"{prefix}.{name}" if prefix else name
+                    yield full_name, {"doc": doc, "obj": obj}
+
+
+class BaseLibrarySearch:
+    """
+    Base class for searching in a Python library.
+    """
+
+    def __init__(self, library_name: str, cache_dir: str = None):
+        self.target_library_name = library_name
+        self.cache_dir = Path(cache_dir) if cache_dir else None
+        if self.cache_dir:
+            self.cache_dir.mkdir(exist_ok=True, parents=True)
+
+        self.target_library_info = {}
+        self.corpus = []
+        self.extractor = LibraryInfoExtractor(library_name)
+
     def create_index(self):
         logger.info(
             f"Extracting library information from {self.target_library_name}..."
         )
-        for name, info in self.extract_library_info():
+        for name, info in self.extractor.extract_library_info():
             try:
                 self.target_library_info[f"{self.target_library_name}.{name}"] = info
                 self.corpus.append(info["doc"])
@@ -130,37 +146,56 @@ class BaseLibrarySearch:
 
         return context
 
-    def _extract_info_from_module(
-        self, module, prefix=""
-    ) -> Generator[tuple, None, None]:
-        for name, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) or inspect.isfunction(obj) or inspect.ismethod(obj):
-                doc = inspect.getdoc(obj)
-                if doc:
-                    full_name = f"{prefix}.{name}" if prefix else name
-                    yield full_name, {"doc": doc, "obj": obj}
+    @property
+    def cache_filename(self) -> Path:
+        if hasattr(self, "model_name"):
+            return (
+                Path(self.cache_dir)
+                / f"{self.target_library_name}__{self.__class__.__name__}__{self.model_name}.pkl"
+            )
+        return (
+            Path(self.cache_dir)
+            / f"{self.target_library_name}__{self.__class__.__name__}.pkl"
+        )
 
-    def _create_tfidf_index(self):
-        try:
-            self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(self.corpus)
-        except Exception as e:
-            logger.error(f"Error creating TF-IDF index: {str(e)}")
+    def save_data(self, data):
+        if self.cache_dir:
+            with open(self.cache_filename, "wb") as f:
+                pickle.dump(data, f)
+
+    def load_data(self):
+        if self.cache_dir and self.cache_filename.exists():
+            with open(self.cache_filename, "rb") as f:
+                return pickle.load(f)
+        return None
 
     def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         raise NotImplementedError("Search method not implemented.")
 
-    def __str__(self):
-        return f"{self.__class__.__name__}(library={self.target_library_name})"
-
 
 class CosineSimilaritySearch(BaseLibrarySearch):
-    """
-    Search engine using cosine similarity for searching in a Python library.
-    """
+    def __init__(self, library_name: str, cache_dir: str = None):
+        """
+        Search engine using cosine similarity for searching in a Python library.
+
+        Parameters:
+        ----------
+            library_name (str): The name of the library to search in.
+            cache_dir (str): The directory to cache the search data.
+        """
+        super().__init__(library_name, cache_dir)
+        self.tfidf_vectorizer = TfidfVectorizer(stop_words="english")
+        self.tfidf_matrix = None
 
     def create_index(self):
         super().create_index()
-        self._create_tfidf_index()
+
+        cached_data = self.load_data()
+        if cached_data is not None:
+            self.tfidf_matrix, self.tfidf_vectorizer = cached_data
+        else:
+            self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(self.corpus)
+            self.save_data((self.tfidf_matrix, self.tfidf_vectorizer))
 
     def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         if self.tfidf_matrix is None:
@@ -186,54 +221,6 @@ class CosineSimilaritySearch(BaseLibrarySearch):
         return results
 
 
-class FaissSearch(BaseLibrarySearch):
-    def __init__(self, library_name: str):
-        """
-        Search engine using FAISS for searching in a Python library.
-        """
-        from faiss import IndexFlatL2
-
-        self.index_func = IndexFlatL2
-        super().__init__(library_name)
-        self.index = None  # FAISS index
-
-    def create_index(self):
-        super().create_index()
-        self._create_tfidf_index()
-
-        if self.tfidf_matrix is not None:
-            self.index = self.index_func(
-                self.tfidf_matrix.shape[1]
-            )  # L2 distance (Euclidean)
-            self.index.add(self.tfidf_matrix.toarray().astype(np.float32))
-
-    def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
-        if self.index is None:
-            return []
-
-        query_vec = (
-            self.tfidf_vectorizer.transform([query]).toarray().astype(np.float32)
-        )
-        _, top_indices = self.index.search(query_vec, top_k)
-
-        results = []
-        for idx in top_indices[0]:
-            name = list(self.target_library_info.keys())[idx]
-            info = self.target_library_info[name]
-            results.append(
-                {
-                    "name": name,
-                    "score": float(
-                        np.dot(query_vec, self.tfidf_matrix[idx].toarray().T)[0][0]
-                    ),  # Dot product score
-                    "doc": info["doc"],
-                    "obj": info["obj"],
-                }
-            )
-
-        return results
-
-
 class SentenceTransformerSearch(BaseLibrarySearch):
     def __init__(
         self,
@@ -245,6 +232,8 @@ class SentenceTransformerSearch(BaseLibrarySearch):
         Search engine using Sentence Transformer for searching in a Python library.
 
         Parameters:
+        ----------
+            library_name (str): The name of the library to search in.
             model_name (str): The name of the Sentence Transformer model to use.
             device (str): The device to run the model on (e.g. "cuda" or "cpu").
         """
@@ -253,7 +242,6 @@ class SentenceTransformerSearch(BaseLibrarySearch):
 
         self.SentenceTransformer = SentenceTransformer
         self.util = util
-        super().__init__(library_name)
         self.model_name = model_name
         self.device = get_best_device() if device is None else device
         self.model = None
@@ -261,41 +249,19 @@ class SentenceTransformerSearch(BaseLibrarySearch):
 
     def create_index(self):
         super().create_index()
-
-        # Initialize the model
         self.model = self.SentenceTransformer(self.model_name, device=self.device)
 
-        # Preprocess the corpus: split into sentences
-        self.corpus = [split_and_clean_text(text) for text in self.corpus]
-
-        # Create embeddings for the library documentation
-        self.embeddings = []
-
-        # Add tqdm to show the progress bar
-        for text in tqdm(
-            self.corpus,
-            desc="Generating embeddings",
-            unit="document ",
-            total=len(self.corpus),
-        ):
-            # Encode the sentences in the document and append to the embeddings list
-            sentence_embeddings = self.model.encode(text, convert_to_tensor=True)
-
-            # Average the sentence embeddings to get a document embedding
-            document_embedding = torch.mean(sentence_embeddings, dim=0)
-            self.embeddings.append(document_embedding)
-
-        # Convert list to tensor
-        self.embeddings = torch.stack(self.embeddings)
+        self.embeddings = self.load_data()
+        if self.embeddings is None:
+            self.corpus = [split_and_clean_text(text) for text in self.corpus]
+            self._create_embeddings()
+            self.save_data(self.embeddings)
 
     def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         if self.embeddings is None:
             return []
 
-        # Generate embedding for the query
         query_embedding = self.model.encode(query, convert_to_tensor=True)
-
-        # Compute cosine similarities
         similarities = self.util.pytorch_cos_sim(query_embedding, self.embeddings)[0]
         top_indices = similarities.topk(k=top_k).indices
 
@@ -314,58 +280,53 @@ class SentenceTransformerSearch(BaseLibrarySearch):
 
         return results
 
+    def _create_embeddings(self):
+        self.embeddings = []
+        for text in tqdm(
+            self.corpus, desc="Generating embeddings", total=len(self.corpus)
+        ):
+            sentence_embeddings = self.model.encode(text, convert_to_tensor=True)
+            document_embedding = torch.mean(sentence_embeddings, dim=0)
+            self.embeddings.append(document_embedding)
+        self.embeddings = torch.stack(self.embeddings)
 
-def _get_search_engine(method: str, library_name: str) -> BaseLibrarySearch:
-    """
-    Returns the search engine based on the method.
 
-    Available methods:
-        - "cosine": Cosine similarity search
-        - "faiss": FAISS search
-        - "sentence-transformer": Sentence Transformer search
-    """
+def split_and_clean_text(text: str) -> list:
+    cleaned_text = text.replace("\n", " ")
+    sentences = re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", cleaned_text)
+    return [sentence.strip() for sentence in sentences if sentence.strip()]
+
+
+def get_search_engine(method: str, library_name: str, **kwargs) -> BaseLibrarySearch:
     search_methods = {
         "cosine": CosineSimilaritySearch,
-        "faiss": FaissSearch,
         "sentence-transformer": SentenceTransformerSearch,
     }
 
     try:
         search_engine_class = search_methods[method]
-        return search_engine_class(library_name)
+        return search_engine_class(library_name, **kwargs)
     except KeyError:
         raise ValueError(
             f"Unknown search method: {method}. Available methods: {', '.join(search_methods.keys())}"
         )
     except ImportError as e:
         logger.warning(f"{e.name} not available, falling back to cosine similarity.")
-        return CosineSimilaritySearch(library_name)
+        return CosineSimilaritySearch(library_name, **kwargs)
 
 
-def split_and_clean_text(text: str) -> list:
-    # Step 1: Remove newlines
-    cleaned_text = text.replace("\n", " ")
-
-    # Step 2: Split into sentences based on common sentence end punctuation
-    sentences = re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", cleaned_text)
-
-    # Step 3: Strip leading and trailing spaces from sentences
-    sentences = [sentence.strip() for sentence in sentences if sentence.strip()]
-
-    return sentences
-
-
-if __name__ == "__main__":
-    for method in ["faiss", "cosine", "sentence-transformer"]:
-        print(f"Using search method: {method}")
-        start = time.time()
-        results = get_context_for_library(
-            "pandas",
-            "How to merge 2 dataframes?",
-            method=method,
-            get_results_only=True,
-            top_k=10,
-        )
-        print(results)
-        end = time.time()
-        print(f"Time taken: {end - start:.2f} seconds\n")
+# if __name__ == "__main__":
+#     for method in ["cosine", "sentence-transformer"]:
+#         print(f"Using search method: {method}")
+#         start = time.time()
+#         results = get_context_for_library(
+#             "shiny",
+#             "How to create a basic dashboard?",
+#             method=method,
+#             get_results_only=True,
+#             top_k=10,
+#             cache_dir="rag_cache",
+#         )
+#         print(results)
+#         end = time.time()
+#         print(f"Time taken: {end - start:.2f} seconds\n")
