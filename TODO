@@ -1,12 +1,12 @@
-+ add type validation per configuration
++ add "skip all code" option
++  add validation before retrying faulty code
 + add more docs to README.md, like default functions, config etc.
 + use default values in a "constants" file in configmanager
 
 bugs:
 
-+ change letter type to more elegant style
-+ make it clearer that configs need to be updated by pressing enter.
 
 NICE TO HAVE:
++ add type validation per configuration
 + improve interface of model processor to prevent DRY -> pydantic? dataclasses?
 + add voicemodel to speak prompts instead of writing them for faster interaction
