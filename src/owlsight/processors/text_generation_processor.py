@@ -483,7 +483,6 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         )
 
         search_options = {
-            "do_sample": temperature > 0.0,
             "max_length": max_new_tokens,
             "temperature": temperature,
             **(generation_kwargs or {}),
@@ -492,15 +491,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         input_tokens = self.tokenizer.encode(templated_text)
 
         params = og.GeneratorParams(self.model)
-        try:
-            params.set_search_options(**search_options)
-        except RuntimeError as e:
-            # handle specific runtime error which seems to occur sometimes with do_sample in search options
-            logger.error(f"{type(e).__name__} setting search options: {e}")
-            faulty_param = str(e).split(":")[-1].strip()
-            logger.error(f"Faulty parameter: '{faulty_param}'. Popping it from search options and retrying...")
-            search_options.pop(faulty_param)
-            params.set_search_options(**search_options)
+        params.set_search_options(**search_options)
         params.input_ids = input_tokens
         generator = og.Generator(self.model, params)
 
