@@ -18,7 +18,7 @@ from owlsight.utils.console import get_user_choice, print_colored
 from owlsight.utils.constants import PROMPT_COLOR, MENU_KEYS
 from owlsight.utils.deep_learning import free_memory
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
-from owlsight.rag.tfidf_search import get_context_for_library
+from owlsight.rag.search import get_context_for_library
 from owlsight.utils.constants import get_prompt_history_path
 from owlsight.utils.logger_manager import LoggerManager
 
@@ -181,6 +181,7 @@ def process_user_question(user_choice: str, code_executor: CodeExecutor, manager
     rag_is_active = manager.get_config_key("rag.active", False)
     library_to_rag = manager.get_config_key("rag.target_library", "")
     if rag_is_active and library_to_rag:
+        logger.info(f"RAG search enabled. Adding context of python library '{library_to_rag}' to the question.")
         ctx_to_add = f"""
 # CONTEXT:
 The following context is documentation from the python library {library_to_rag}.
@@ -190,6 +191,7 @@ Use this information to help generate a code snippet that answers the question.
         context = get_context_for_library(library_to_rag, user_question, manager.get_config_key("top_k", 3))
         ctx_to_add += context
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
+        logger.info(f"Context added to the question with approx amount of {len(context.split())} words")
 
     response = manager.generate(user_question)
     execute_code_with_feedback(
