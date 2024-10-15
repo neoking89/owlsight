@@ -40,7 +40,7 @@ except ImportError:
 
 def select_processor_type(model_id: str) -> Type["TextGenerationProcessor"]:
     """
-    Select the appropriate text generation processor based on the model ID or directory.
+    Utilityfunction which selects the appropriate TextGenerationProcessor class based on the model ID or directory.
 
     If the model_id is a directory, the function will inspect the contents of the directory
     to decide the processor type. Otherwise, it will use the model_id string to make the decision.
@@ -483,7 +483,6 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         )
 
         search_options = {
-            "do_sample": temperature > 0.0,
             "max_length": max_new_tokens,
             "temperature": temperature,
             **(generation_kwargs or {}),
