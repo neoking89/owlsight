@@ -2,10 +2,11 @@
 + add "skip all code" option
 + only offer model configs which are relevant for the loaded model. E.g. only offer "n_gpu_layers" when using gguf.
 Do not load any of these configs when no model is loaded.
-+ add more options for llama-cpp (n_gpu_layers)
-+  add validation before retrying faulty code
-+ add more docs to README.md, like default functions, config etc.
++ validate config choices through a unittest
 + use default values in a "constants" file in configmanager
++ add validation before retrying faulty code
++ add more docs to README.md, like default functions, config etc.
+
 
 bugs:
 
