@@ -60,7 +60,10 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                     # gguf
                     "gguf__filename": "",
                     "gguf__verbose": False,
-                    "gguf__n_ctx": 2048,
+                    "gguf__n_ctx": 512,
+                    "gguf__n_gpu_layers": 0,
+                    "gguf__n_batch" : 512,
+                    "gguf__n_cpu_threads": 1,
                     # onnx
                     "onnx__tokenizer": "",
                     "onnx__verbose": False,
@@ -148,6 +151,14 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                 "gguf__n_ctx": _prepare_toggle_choices(
                     self._config["model"]["gguf__n_ctx"],
                     [32 * (2**n) for n in range(15)],
+                ),
+                "gguf__n_gpu_layers": _prepare_toggle_choices(
+                    self._config["model"]["gguf__n_gpu_layers"], [-1, 0, 1] + [(2**n) for n in range(1, 9)]),
+                "gguf__n_batch": _prepare_toggle_choices(
+                    self._config["model"]["gguf__n_batch"], [32 * (2**n) for n in range(11)]
+                ),
+                "gguf__n_cpu_threads": _prepare_toggle_choices(
+                    self._config["model"]["gguf__n_cpu_threads"], list(range(1, os.cpu_count() + 1))
                 ),
                 "onnx__tokenizer": self._config["model"]["onnx__tokenizer"],
                 "onnx__verbose": _prepare_toggle_choices(

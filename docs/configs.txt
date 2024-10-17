@@ -9,29 +9,34 @@ max_retries_on_error: The maximum number of retries to attempt to fix an error w
 prompt_code_execution: Whether to prompt the user before executing code. If set to false, the code will be executed inmediately
 extra_index_url: An additional URL to use for package installation. This can be used to install packages from a custom index.
 
-"model": {
-    "model_id": "",
-    "save_history": false,
-    "system_prompt": "# ROLE:\nYou are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.\n\n# TASK:\n- Prioritize Python solutions when appropriate.\n- Present code in markdown format.\n- Clearly state when non-Python solutions are necessary.\n- Break down complex problems into manageable steps and think through the solution step-by-step.\n- Adhere to best coding practices, including error handling and consideration of edge cases.\n- Acknowledge any limitations in your solutions.\n- Always aim to provide the best solution to the user's problem, whether it involves Python or not.",
-    "transformers__device": null,
-    "transformers__quantization_bits": null,
-    "gguf__filename": "",
-    "gguf__verbose": false,
-    "gguf__n_ctx": 2048,
-    "onnx__tokenizer": "",
-    "onnx__verbose": false,
-    "onnx__num_threads": 1
-}
+    "model": {
+        "model_id": "",
+        "save_history": false,
+        "system_prompt": "# ROLE:\nYou are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.\n\n# TASK:\n- Prioritize Python solutions when appropriate.\n- Present code in markdown format.\n- Clearly state when non-Python solutions are necessary.\n- Break down complex problems into manageable steps and think through the solution step-by-step.\n- Adhere to best coding practices, including error handling and consideration of edge cases.\n- Acknowledge any limitations in your solutions.\n- Always aim to provide the best solution to the user's problem, whether it involves Python or not.",
+        "transformers__device": null,
+        "transformers__quantization_bits": null,
+        "gguf__filename": "",
+        "gguf__verbose": false,
+        "gguf__n_ctx": 512,
+        "gguf__n_gpu_layers": 0,
+        "gguf__n_batch": 512,
+        "gguf__n_cpu_threads": 1,
+        "onnx__tokenizer": "",
+        "onnx__verbose": false,
+        "onnx__num_threads": 1
+    },
 
 model_id: The ID of the model to use. Can be either locally stored or on the Hugging Face model hub.
 save_history: Whether to save the history of the conversation. If set to true, the conversation history will be saved and can make model act like a chatbot.
 system_prompt: The prompt to use when generating text. This can be used to define the behavior of the model, such as the role and task it should perform.
 transformers__device: The device to use for the transformers model.
 transformers__quantization_bits: The number of bits to use for quantization of the transformers model.
-gguf__filename: The filename of the GGUF model to use.
+gguf__filename: The filename of the GGUF model to use. Required when using a GGUF model.
 gguf__verbose: llama_cpp specific parameter. Whether to print verbose output for the GGUF model.
+gguf__n_batch: llama_cpp specific parameter. Increase the batch size for a faster inference, but it may require more memory.
+gguf__n_cpu_threads: llama_cpp specific parameter. Increase the number of CPU threads for a faster inference if multiple cpu cores are available.
 gguf__n_ctx: llama_cpp specific parameter. The total context length for the GGUF model.
-onnx__tokenizer: The tokenizer to use for the ONNX model.
+onnx__tokenizer: The tokenizer to use for the ONNX model. Required when using an ONNX model.
 onnx__verbose: Whether to print verbose output for the ONNX model.
 
 
@@ -48,10 +53,10 @@ temperature: The temperature to use when generating text. Higher values will res
 generation_kwargs: Additional keyword arguments to pass to the model when generating text. Examples: {"repetition_penalty": 1.2, "top_k": 50}
 
 "rag": {
-    "active": true,
+    "active": false,
     "target_library": "pandas",
     "top_k": 5,
-    "search_query": "sqlite"
+    "search_query": "how to merge two dataframes"
 }
 
 active: Add the rag search results to the model input. If set to false, the rag search results will not be added to the model input.
