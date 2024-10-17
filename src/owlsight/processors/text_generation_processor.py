@@ -529,7 +529,10 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         model_id: str,
         gguf__filename: str,
         gguf__verbose: bool = False,
-        gguf__n_ctx: int = 2048,
+        gguf__n_ctx: int = 512,
+        gguf__n_gpu_layers: int = 0,
+        gguf__n_batch: int = 512,
+        gguf__n_cpu_threads: int = 1,
         save_history: bool = False,
         system_prompt: str = "",
         **kwargs,
@@ -546,6 +549,9 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             filename=gguf__filename,
             verbose=gguf__verbose,
             n_ctx=gguf__n_ctx,
+            n_gpu_layers=gguf__n_gpu_layers,
+            n_batch=gguf__n_batch,
+            n_threads=gguf__n_cpu_threads,
         )
 
     def generate(
