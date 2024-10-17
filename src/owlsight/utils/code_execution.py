@@ -51,17 +51,13 @@ class CodeExecutor:
         self._init_python_properties(pyenv_path, pip_path)
         self._fill_globals_dict()
 
-    def execute_and_retry(
-        self, lang: str, code_block: str, original_question: str
-    ) -> bool:
+    def execute_and_retry(self, lang: str, code_block: str, original_question: str) -> bool:
         """
         Execute code block in the specified language and retry if an error occurs.
         """
         self._attempts = 0
         while self.retries_left > 0:
-            logger.info(
-                f"Executing {lang.capitalize()} code (Attempt {self._get_nth_attempt()}/{self.max_retries})..."
-            )
+            logger.info(f"Executing {lang.capitalize()} code (Attempt {self._get_nth_attempt()}/{self.max_retries})...")
             try:
                 self.execute_code_block(lang, code_block)
                 logger.info(f"Code executed on attempt {self._get_nth_attempt()}.")
@@ -70,18 +66,14 @@ class CodeExecutor:
                 self._attempts += 1
                 if self.retries_left > 0:
                     logger.warning(f"Error on attempt {self._attempts}: {e}")
-                    logger.info(
-                        f"Retrying... ({self._get_nth_attempt()}/{self.max_retries})"
-                    )
+                    logger.info(f"Retrying... ({self._get_nth_attempt()}/{self.max_retries})")
                     response_with_fixed_code = self._generate_fixed_code_response(
                         original_question, code_block, format_error_message(e)
                     )
                     extracted_code_block = extract_markdown(response_with_fixed_code)
                     if extracted_code_block:
                         code_block = (
-                            extract_markdown(response_with_fixed_code)[0][1]
-                            if response_with_fixed_code
-                            else code_block
+                            extract_markdown(response_with_fixed_code)[0][1] if response_with_fixed_code else code_block
                         )
                     else:
                         logger.error(
@@ -89,9 +81,7 @@ class CodeExecutor:
                         )
                         return False
                 else:
-                    logger.error(
-                        f"Failed to execute {lang} code after {self.max_retries} attempts."
-                    )
+                    logger.error(f"Failed to execute {lang} code after {self.max_retries} attempts.")
 
         return False
 
@@ -128,9 +118,7 @@ class CodeExecutor:
                 logger.info(f"Retrying execution after installing {missing_module}")
                 self.execute_python_code(code_block)  # Retry execution
             else:
-                logger.error(
-                    f"Failed to install {missing_module}. Cannot execute the code."
-                )
+                logger.error(f"Failed to install {missing_module}. Cannot execute the code.")
         except Exception as e:
             logger.error(f"Error executing code: {traceback.format_exc()}")
             raise e
@@ -231,9 +219,7 @@ class CodeExecutor:
     def _get_nth_attempt(self) -> int:
         return self._attempts + 1
 
-    def _generate_fixed_code_response(
-        self, original_question: str, code_block: str, error: str
-    ) -> str:
+    def _generate_fixed_code_response(self, original_question: str, code_block: str, error: str) -> str:
         new_question = f"""\
 # ORIGINAL QUESTION:
 {original_question}
@@ -304,11 +290,14 @@ def execute_code_with_feedback(
         logger.info("No code blocks found in the response.")
         return results
 
+    execute_all = False
+    skip_all = False
+
     # Iterate over extracted code blocks
     for lang, code_block in code_blocks:
         execute_code = True
         code_is_edited = False
-        if prompt_code_execution:
+        if prompt_code_execution and not execute_all and not skip_all:
             while True:
                 # Use the editable_input function to allow users to edit the code block
                 if not code_is_edited:
@@ -325,7 +314,9 @@ def execute_code_with_feedback(
                 user_choice = get_user_choice(
                     {
                         "Execute code": None,
+                        "Execute all code blocks": None,
                         "Skip code": None,
+                        "Skip all code blocks": None,
                         "Write code to file": None,
                     }
                 )
@@ -333,23 +324,32 @@ def execute_code_with_feedback(
                 if user_choice == "Execute code":
                     logger.info("Executing code block.")
                     break  # Exit the while loop and execute the code
+                elif user_choice == "Execute all code blocks":
+                    logger.info("Executing all code blocks.")
+                    execute_all = True
+                    break
                 elif user_choice == "Skip code":
                     logger.info("Skipping code block.")
                     execute_code = False
                     break  # Exit the while loop and skip execution
+                elif user_choice == "Skip all code blocks":
+                    logger.info("Skipping all code blocks.")
+                    skip_all = True
+                    execute_code = False
+                    break
                 elif user_choice == "Write code to file":
                     # Handle writing to a file or going back
                     _handle_write_code_to_file_choice(code_block)
                     # After handling file, stay in the menu for further selection
                     continue  # Stay in the while loop to allow more choices
 
-        if not execute_code:
-            continue  # Skip execution if skip code is selected
-        is_success = code_executor.execute_and_retry(
-            lang, code_block, original_question
-        )
-        result = {"success": is_success, "language": lang, "code": code_block}
-        results.append(result)
+        if skip_all:
+            continue
+
+        if execute_all or execute_code:
+            is_success = code_executor.execute_and_retry(lang, code_block, original_question)
+            result = {"success": is_success, "language": lang, "code": code_block}
+            results.append(result)
 
     return results
 
@@ -386,8 +386,6 @@ def _handle_write_code_to_file_choice(code_block: str):
                     # After writing, return to the main menu without breaking the loop
                     return
                 except Exception as e:
-                    logger.error(
-                        f"Error writing code block to file: {e}. Please try again."
-                    )
+                    logger.error(f"Error writing code block to file: {e}. Please try again.")
             else:
                 logger.info("No file name entered. Please try again.")
