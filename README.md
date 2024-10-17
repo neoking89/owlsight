@@ -4,7 +4,7 @@
 
 ## Why owlsight?
 
-Picture this: you are someone who dabbles in Python occasionally or a seasoned Pythonista. You frequently use Generative AI to accelerate your workflow, especially for generating code. But often, this involves a tedious process—copying and pasting code between ChatGPT and your IDE, repeatedly switching contexts.
+Picture this: you are someone who dabbles in Python occasionally. Or you are a seasoned Pythonista. You frequently use Generative AI to accelerate your workflow, especially for generating code. But often, this involves a tedious process—copying and pasting code between ChatGPT and your IDE, repeatedly switching contexts.
 
 What if you could eliminate this friction?
 
@@ -18,6 +18,7 @@ Generate code directly from model prompts and access this code directly from the
 - **Python Integration**: Switch to a Python interpreter and use python expressions in language model queries.
 - **Model Flexibility**: Supports models in **pytorch**, **ONNX**, and **GGUF** formats.
 - **Customizable Configuration**: Easily modify model and generation settings.
+- **Retrieval Augmented Generation (RAG)**: Enrich prompts with documentation from Python libraries.
 
 ## Installation
 
@@ -41,6 +42,12 @@ To add ONNX functionality:
 pip install owlsight[onnx]
 ```
 
+To install all packages:
+
+```
+pip install owlsight[all]
+```
+
 ## Usage
 
 After installation, launch Owlsight in the terminal by running the following command:
@@ -49,7 +56,7 @@ After installation, launch Owlsight in the terminal by running the following com
 owlsight
 ```
 
-This will present you with the mainmenu:
+This will present you (together with some giant ASCII-art of an owl) with the mainmenu:
 
 ```
 Make a choice:
@@ -63,16 +70,16 @@ clear history
 quit
 ```
 
-Go to **config >** **model** and set a model_id to load a model locally or from *[https://huggingface.co/]()*
+Start out by going to **config > model** and set a model_id to load a model locally or from *[https://huggingface.co/]()*
 
 ### Available Commands
 
 * **How can I assist you**: Ask a question or give an instruction.
 * **shell** : Execute shell commands.
 * **python** : Enter a Python interpreter.
-* **config: main** : Modify the *main*, *model* or *generate* configuration settings.
+* **config: main** : Modify the *main*, *model* , *generate* or *rag* configuration settings.
 * **save/load** : Save or load a configurationfile.
-* **clear history** : Clear the chathistory and the python interpreter history.
+* **clear history** : Clear the chathistory, python interpreter history and autocomplete history.
 * **quit** : Exit the application.
 
 ### Example Workflow
@@ -88,7 +95,7 @@ How can I assist you? > How much is {{a}} * 5?
 answer -> 210
 ```
 
-Additionally, one can also ask a model to write pythoncode and access that in the python interpreter. All defined objects will be saved in the global namespace of the python interpreter for the remainder of the current active session. This is a powerful feature, which allows build-as-you-go for a wide range of tasks.
+Additionally, you can also ask a model to write pythoncode and access that in the python interpreter. All defined objects will be saved in the global namespace of the python interpreter for the remainder of the current active session. This is a powerful feature, which allows build-as-you-go for a wide range of tasks.
 
 Example:
 
@@ -104,10 +111,83 @@ python > excel_data = read_excel("path/to/excel")
 
 ## Configurations
 
-Owlsight uses a configuration file in JSON-format to adjust various parameters. Here is an example of what the configuration might look like:
+Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into four main sections: `main`, `model`,  `generate` and `rag`. Here's an overview of the key configuration options:
 
-```
+### Main Configuration
+
+- `max_retries_on_error`: The maximum number of retries to attempt when an error occurs during code execution (default: 3).
+- `prompt_code_execution`: Whether to prompt the user before executing code (default: true).
+- `extra_index_url`: An additional URL to use for package installation, useful for custom package indexes.
+
+### Model Configuration
+
+- `model_id`: The ID of the model to use, either locally stored or from the Hugging Face model hub.
+- `save_history`: Whether to save the conversation history (default: false).
+- `system_prompt`: The prompt defining the model's behavior, role, and task.
+- `transformers__device`: The device to use for the transformers model.
+- `transformers__quantization_bits`: The number of bits for quantization of the transformers model.
+- `gguf__filename`: The filename of the GGUF model (required for GGUF models).
+- `gguf__verbose`: Whether to print verbose output for the GGUF model.
+- `gguf__n_batch`: Increase the batch size for a faster inference, but it may require more memory.
+  `gguf__n_cpu_threads`:  Increase the number of CPU threads for a faster inference if multiple cpu cores are available.
+- `gguf__n_ctx`: The total context length for the GGUF model.
+- `onnx__tokenizer`: The tokenizer to use for the ONNX model (required for ONNX models).
+- `onnx__verbose`: Whether to print verbose output for the ONNX model.
+
+### Generate Configuration
+
+- `stopwords`: A list of words where the model should stop generating text.
+- `max_new_tokens`: The maximum number of tokens to generate (default: 512).
+- `temperature`: The temperature for text generation. Higher values result in more random text (default: 0.0).
+- `generation_kwargs`: Additional keyword arguments for text generation.
+
+### RAG Configuration
+
+- `active`: Whether to add RAG search results to the model input (default: false). If true, the `search_query` results will be added as context to the modelprompt.
+- `target_library`: The Python library documentation to apply RAG to.
+- `top_k`: The number of search results to return.
+- `search_query`: The search query to use for RAG.
+
+Here's an example of what the deault configuration looks
+
+like:
+
+```json
 {
+    "main": {
+        "max_retries_on_error": 3,
+        "prompt_code_execution": true,
+        "extra_index_url": ""
+    },
+    "model": {
+        "model_id": "",
+        "save_history": false,
+        "system_prompt": "# ROLE:\nYou are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.\n\n# TASK:\n- Prioritize Python solutions when appropriate.\n- Present code in markdown format.\n- Clearly state when non-Python solutions are necessary.\n- Break down complex problems into manageable steps and think through the solution step-by-step.\n- Adhere to best coding practices, including error handling and consideration of edge cases.\n- Acknowledge any limitations in your solutions.\n- Always aim to provide the best solution to the user's problem, whether it involves Python or not.",
+        "transformers__device": null,
+        "transformers__quantization_bits": null,
+        "gguf__filename": "",
+        "gguf__verbose": false,
+        "gguf__n_ctx": 512,
+        "gguf__n_gpu_layers": 0,
+        "gguf__n_batch": 512,
+        "gguf__n_cpu_threads": 1,
+        "onnx__tokenizer": "",
+        "onnx__verbose": false,
+        "onnx__num_threads": 1
+    },
+    "generate": {
+        "stopwords": [],
+        "max_new_tokens": 512,
+        "temperature": 0.0,
+        "generation_kwargs": {}
+    },
+    "rag": {
+        "active": false,
+        "target_library": "",
+        "top_k": 3,
+        "search_query": ""
+    }
+}{
     "main": {
         "max_retries_on_error": 5,
         "prompt_code_execution": true,
@@ -117,25 +197,24 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
         "model_id": "Orenguteng/Llama-3.1-8B-Lexi-Uncensored-V2-GGUF",
         "save_history": true,
         "system_prompt": "# ROLE:\nYou are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.\n\n# TASK:\n- Prioritize Python solutions when appropriate.\n- Present code in markdown format.\n- Clearly state when non-Python solutions are necessary.\n- Break down complex problems into manageable steps and think through the solution step-by-step.\n- Adhere to best coding practices, including error handling and consideration of edge cases.\n- Acknowledge any limitations in your solutions.\n- Always aim to provide the best solution to the user's problem, whether it involves Python or not.",
-        "transformers__device": null,
-        "transformers__quantization_bits": null,
         "gguf__filename": "Llama-3.1-8B-Lexi-Uncensored_V2_Q4.gguf",
         "gguf__verbose": true,
-        "gguf__n_ctx": 16384,
-        "onnx__tokenizer": "",
-        "onnx__verbose": true,
-        "onnx__num_threads": 1
+        "gguf__n_ctx": 16384
     },
     "generate": {
-        "stopwords": [],
         "max_new_tokens": 1024,
-        "temperature": 0.0,
-        "generation_kwargs": {}
+        "temperature": 0.0
+    },
+    "rag": {
+        "active": false,
+        "target_library": "pandas",
+        "top_k": 5,
+        "search_query": "how to merge two dataframes"
     }
 }
 ```
 
-Configurationfiles can be saved and loaded through the mainmenu.
+Configuration files can be saved and loaded through the main menu.
 
 ### Changing configurations
 
@@ -154,12 +233,11 @@ Owlsight automatically tries to fix and retry any code that encounters a **Modul
 **1.0.2**
 
 - Enhanced cross-platform compatibility.
+- Introduced the `generate_stream` method to all `TextGenerationProcessor` classes.
+- Various minor bug fixes.
+- Enabled modular imports of individual components from the **owlsight** library, allowing direct usage of specific functionalities in Python scripts and applications.
 
-* Introduced the `generate_stream` method to all `TextGenerationProcessor` classes.
-* Various minor bug fixes.
-* Enabled modular imports of individual components from the **owlsight** library, allowing direct usage of specific functionalities in Python scripts and applications.
-
-1.1.0
+**1.1.0**
 
 - Added Retrieval Augmented Generation (RAG) for enriching prompts with documentation from python libraries. This option is also added to the configuration.
 - History with autocompletion is now also available when writing prompts. Prompts can be autocompleted with TAB.
