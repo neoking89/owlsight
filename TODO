@@ -1,17 +1,16 @@
-+ update README.md, config is outdated! See: https://stackoverflow.com/questions/76885758/only-update-readme-for-a-package-on-pypi
-+ add "skip all code" option
-+ only offer model configs which are relevant for the loaded model. E.g. only offer "n_gpu_layers" when using gguf.
-Do not load any of these configs when no model is loaded.
-+ validate config choices through a unittest
-+ use default values in a "constants" file in configmanager
-+ add validation before retrying faulty code
-+ add more docs to README.md, like default functions, config etc.
+    + update README.md, config is outdated! See: https://stackoverflow.com/questions/76885758/only-update-readme-for-a-package-on-pypi
+    + only offer model configs which are relevant for the loaded model. E.g. only offer "n_gpu_layers" when using gguf.
+    Do not load any of these configs when no model is loaded.
+    + validate config choices through a unittest
+    + use default values in a "constants" file in configmanager
+    + add validation before retrying faulty code
+    + add more docs to README.md, like default functions, config etc.
 
 
-bugs:
+    bugs:
 
 
-NICE TO HAVE:
-+ add type validation per configuration
-+ improve interface of model processor to prevent DRY -> pydantic? dataclasses?
-+ add voicemodel to speak prompts instead of writing them for faster interaction
+    NICE TO HAVE:
+    + add type validation per configuration
+    + improve interface of model processor to prevent DRY -> pydantic? dataclasses?
+    + add voicemodel to speak prompts instead of writing them for faster interaction
