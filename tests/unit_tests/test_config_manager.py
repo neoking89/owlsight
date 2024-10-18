@@ -1,7 +1,5 @@
 import pytest
 import sys
-import os
-import json
 from unittest.mock import patch, mock_open
 
 sys.path.append("src")
@@ -74,7 +72,7 @@ def test_load_non_existing_file(mock_logger, mock_exists, config_manager):
     mock_logger.error.assert_called_with(
         "Cannot load config. Configuration file does not exist: 'non_existent_config.json'"
     )
-    
+
 def test_dotted_dict():
     """Test DottedDict functionality."""
     dotted = DottedDict({"key": "value", "nested": {"inner_key": "inner_value"}})
