@@ -241,7 +241,7 @@ question = "What is the meaning of life?"
 
 for token in processor.generate_stream(question):
     print(token, end="", flush=True)
-
+```
 
 ## RELEASE NOTES
 
