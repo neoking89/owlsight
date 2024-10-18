@@ -170,9 +170,7 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 - `top_k`: The number of search results to return.
 - `search_query`: The search query to use for RAG. When ENTER is pressed and `active` is true, the search results can be seen directly in the console.
 
-Here's an example of what the deault configuration looks
-
-like:
+Here's an example of what the default configuration looks like:
 
 ```json
 
@@ -229,7 +227,7 @@ Owlsight automatically tries to fix and retry any code that encounters a **Modul
 
 ## API
 
-Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. Here is an example of how to use it:
+Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. Here's an example of how to use it:
 
 ```python
 from owlsight import TextGenerationProcessorGGUF
@@ -243,7 +241,7 @@ question = "What is the meaning of life?"
 
 for token in processor.generate_stream(question):
     print(token, end="", flush=True)
-```
+
 
 ## RELEASE NOTES
 
@@ -258,3 +256,4 @@ for token in processor.generate_stream(question):
 
 - Added Retrieval Augmented Generation (RAG) for enriching prompts with documentation from python libraries. This option is also added to the configuration.
 - History with autocompletion is now also available when writing prompts. Prompts can be autocompleted with TAB.
+```
