@@ -256,4 +256,9 @@ for token in processor.generate_stream(question):
 
 - Added Retrieval Augmented Generation (RAG) for enriching prompts with documentation from python libraries. This option is also added to the configuration.
 - History with autocompletion is now also available when writing prompts. Prompts can be autocompleted with TAB.
-```
+
+**1.2.0**
+
+- Access backend functionality through the API using "from owlsight import ..."
+- Added default functions to the Python interpreter, starting with the "owl_" suffix.
+- More features available when using GGUF models from the command line.
