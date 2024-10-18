@@ -4,7 +4,7 @@ import builtins
 import inspect
 import traceback
 import re
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 import requests
 from bs4 import BeautifulSoup
@@ -30,9 +30,7 @@ class OwlDefaultFunctions:
         methods = [method for method in methods if not method[0].startswith("_")]
         for name, _ in methods:
             if not name.startswith("owl_"):
-                raise ValueError(
-                    f"Method '{name}' does not follow the 'owl_' naming convention!"
-                )
+                raise ValueError(f"Method '{name}' does not follow the 'owl_' naming convention!")
 
     # Function to read a text file
     def owl_read(self, file_path: str) -> str:
@@ -74,11 +72,7 @@ class OwlDefaultFunctions:
         docs (bool): If True, also display the docstring of each object.
         """
         current_globals = self.globals_dict
-        active_objects = {
-            name: obj
-            for name, obj in current_globals.items()
-            if name not in dir(builtins)
-        }
+        active_objects = {name: obj for name, obj in current_globals.items() if name not in dir(builtins)}
 
         brackets = "#" * 50
         print(brackets)
@@ -110,34 +104,38 @@ class OwlDefaultFunctions:
         except Exception as e:
             print(f"Error writing to file: {e}")
 
+
     def owl_scrape(
-        self, url_or_terms: str, trim_newlines: Optional[int] = 2, **request_kwargs
+        self,
+        url_or_terms: str,
+        trim_newlines: Optional[int] = 2,
+        filter_by: Optional[Dict[str, str]] = None,
+        **request_kwargs,
     ) -> str:
         """
-        Scrape the text content of a webpage and return it as a string.
+        Scrape the text content of a webpage and return specific content based on the filter.
 
         Parameters
         ----------
         url : str
             The URL of the webpage to scrape OR the search term to search Bing for.
-            If searchterms are provided, the first search URL result from Bing will be used.
-            If an URL is provided, the content of the webpage will be scraped.
         trim_newlines : int, optional
             The maximum number of consecutive newlines to allow in the output, default is 2.
+        filter_by : dict, optional
+            Dictionary specifying HTML tag and/or attributes to filter specific content.
+            For example: {'tag': 'div', 'class': 'content'}
         **request_kwargs
             Additional keyword arguments to pass to the requests.get function.
 
         Returns
         -------
         str
-            The text content of the webpage.
+            The filtered text content of the webpage.
         """
         if is_url(url_or_terms):
             url = url_or_terms
         else:
-            urls = search_bing(
-                url_or_terms, exclude_from_url=["microsoft"], **request_kwargs
-            )
+            urls = search_bing(url_or_terms, exclude_from_url=["microsoft"], **request_kwargs)
             if not urls:
                 return ""
             url = urls[0]
@@ -147,39 +145,38 @@ class OwlDefaultFunctions:
 
         soup = BeautifulSoup(html_content, "html.parser")
 
+        # Remove script and style elements
         for script_or_style in soup(["script", "style"]):
             script_or_style.decompose()
 
-        # Haal de tekst op
-        text = soup.get_text()
+        # Filter specific content if filter_by is provided
+        if filter_by:
+            tag = filter_by.get("tag", None)
+            attrs = {key: value for key, value in filter_by.items() if key != "tag"}
+            filtered_elements = soup.find_all(tag, attrs=attrs)
 
+            # Join the filtered elements' text content
+            filtered_text = "\n".join(element.get_text() for element in filtered_elements)
+        else:
+            filtered_text = soup.get_text()
+
+        # Optionally trim consecutive newlines
         if trim_newlines:
             pattern = r"\n{" + str(trim_newlines + 1) + r",}"
-
-            # Replace matches with the maximum allowed number of newlines
             replacement = "\n" * trim_newlines
+            return re.sub(pattern, replacement, filtered_text)
 
-            return re.sub(pattern, replacement, text)
-
-        return text
+        return filtered_text
 
 
-def search_bing(
-    term: str, exclude_from_url: Optional[List] = None, **request_kwargs
-) -> list:
+def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> list:
     term = "+".join(term.split(" "))
     url = f"https://www.bing.com/search?q={term}"
     response = requests.get(url, **request_kwargs)
     soup = BeautifulSoup(response.text, "html.parser")
-    urls = [
-        a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("http")
-    ]
+    urls = [a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("http")]
     if exclude_from_url:
-        urls = [
-            url
-            for url in urls
-            if not any(exclude in url for exclude in exclude_from_url)
-        ]
+        urls = [url for url in urls if not any(exclude in url for exclude in exclude_from_url)]
     return urls
 
 
