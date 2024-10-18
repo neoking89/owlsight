@@ -1,6 +1,4 @@
     + update README.md, config is outdated! See: https://stackoverflow.com/questions/76885758/only-update-readme-for-a-package-on-pypi
-    + only offer model configs which are relevant for the loaded model. E.g. only offer "n_gpu_layers" when using gguf.
-    Do not load any of these configs when no model is loaded.
     + build tests for config_choices and select_processor_type
     + use default values in a "constants" file in configmanager
     + add validation before retrying faulty code
