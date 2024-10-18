@@ -125,6 +125,7 @@ These are:
   Scrape the text content of a webpage or search Bing and return the first result as a string.
   * `url_or_terms`: Webpage URL or search term.
   * `trim_newlines`: Max consecutive newlines (default 2).
+  * `filter_by`: Dictionary specifying HTML tag and/or attributes to filter specific content.
   * `**request_kwargs`: Additional options for `requests.get`.
 * **owl_show(docs: bool = False)**
   Display all imported objects (optional: include docstrings).
