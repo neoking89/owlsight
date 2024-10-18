@@ -4,6 +4,7 @@ import os
 import shutil
 import re
 import traceback
+import inspect
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
@@ -19,9 +20,7 @@ def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
     Extract language and code blocks from a markdown string.
     """
     pattern = r"```(\w+)([\s\S]*?)```"
-    return [
-        (match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)
-    ]
+    return [(match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)]
 
 
 def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
@@ -75,9 +74,7 @@ def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
     return text
 
 
-def editable_input(
-    prompt_text: str, default_value: str, color: str = "ansicyan"
-) -> str:
+def editable_input(prompt_text: str, default_value: str, color: str = "ansicyan") -> str:
     """
     Displays a prompt with a pre-filled editable string and custom color for the default value.
 
@@ -118,9 +115,7 @@ def force_delete(temp_dir: str) -> None:
         try:
             shutil.rmtree(temp_dir)
         except Exception:
-            logger.error(
-                f"Error deleting directory {temp_dir}:\n{traceback.format_exc()}"
-            )
+            logger.error(f"Error deleting directory {temp_dir}:\n{traceback.format_exc()}")
 
 
 def remove_temp_directories(lib_path: str) -> None:
@@ -149,7 +144,9 @@ def format_error_message(e: Exception) -> str:
 
 
 def convert_to_real_type(value):
-    # If it's not a string, return it as is
+    """
+    Convert a string to its real type if possible (e.g., 'True' -> True, '3.14' -> 3.14).
+    """
     if not isinstance(value, str):
         return value
 
@@ -167,3 +164,33 @@ def convert_to_real_type(value):
 
 def os_is_windows():
     return os.name == "nt"
+
+
+def check_invalid_input_parameters(func: callable, kwargs: dict):
+    """
+    Validate the keyword arguments passed to a class against the __init__ signature.
+
+    Parameters
+    ----------
+    func : callable
+        The callable of which arguments are being validated.
+    kwargs : dict
+        A dictionary of keyword arguments to validate.
+
+    Raises
+    ------
+    ValueError
+        If there are invalid parameters.
+    """
+    # Extract the parameters from the __init__ method of the class
+    sig = inspect.signature(func)
+    sig_params = sig.parameters
+
+    valid_params = [param_name for param_name in sig_params if param_name != "self"]
+
+    # Check for any extra parameters in kwargs that are not in the __init__ signature
+    for key in kwargs:
+        if key not in sig_params:
+            raise ValueError(
+                f"Invalid argument: '{key}' is not a valid parameter for '{func.__name__}'\nValid parameters: {valid_params}"
+            )
