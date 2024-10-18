@@ -59,7 +59,7 @@ def select_processor_type(model_id: str) -> Type["TextGenerationProcessor"]:
         # If model_id is not a directory, use the model_id string
         if model_id.lower().endswith("gguf"):
             return TextGenerationProcessorGGUF
-        elif "onnx" in model_id:
+        elif "onnx" in model_id.lower():
             return TextGenerationProcessorOnnx
         else:
             return TextGenerationProcessorTransformers
