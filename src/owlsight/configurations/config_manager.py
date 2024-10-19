@@ -65,20 +65,80 @@ class ConfigManager:
         If possible_values is a list, the key can be toggled between the values in the list.
         If possible_values is a string, the user is free to enter any string.
         """
-        config_choices = {}
-
-        for section, options in CHOICES.items():
-            config_choices[section] = {}
-            for option, possible_values in options.items():
-                # Check if the option exists in _config
-                if option in self._config[section]:
-                    current_value = self._config[section][option]
-                    if isinstance(possible_values, list):
-                        config_choices[section][option] = _prepare_toggle_choices(current_value, possible_values)
-                    else:
-                        config_choices[section][option] = current_value  # Use the current value directly if not a list
-                else:
-                    config_choices[section][option] = possible_values  # Fallback to possible values if key is missing
+        config_choices = {
+                "main": {
+                    "back": None,
+                    "max_retries_on_error": _prepare_toggle_choices(
+                        self._config["main"]["max_retries_on_error"], CHOICES["main"]["max_retries_on_error"]
+                    ),
+                    "prompt_code_execution": _prepare_toggle_choices(
+                        self._config["main"]["prompt_code_execution"], CHOICES["main"]["prompt_code_execution"]
+                    ),
+                    "extra_index_url": self._config["main"]["extra_index_url"],
+                },
+                "model": {
+                    "back": None,
+                    "model_id": self._config["model"]["model_id"],
+                    "save_history": _prepare_toggle_choices(
+                        self._config["model"]["save_history"], CHOICES["model"]["save_history"]
+                    ),
+                    "system_prompt": self._config["model"]["system_prompt"],
+                    "transformers__device": _prepare_toggle_choices(
+                        self._config["model"]["transformers__device"],
+                        CHOICES["model"]["transformers__device"],
+                    ),
+                    "transformers__quantization_bits": _prepare_toggle_choices(
+                        self._config["model"]["transformers__quantization_bits"],
+                        CHOICES["model"]["transformers__quantization_bits"],
+                    ),
+                    "gguf__filename": self._config["model"]["gguf__filename"],
+                    "gguf__verbose": _prepare_toggle_choices(
+                        self._config["model"]["gguf__verbose"], CHOICES["model"]["gguf__verbose"]
+                    ),
+                    "gguf__n_ctx": _prepare_toggle_choices(
+                        self._config["model"]["gguf__n_ctx"],
+                        CHOICES["model"]["gguf__n_ctx"],
+                    ),
+                    "gguf__n_gpu_layers": _prepare_toggle_choices(
+                        self._config["model"]["gguf__n_gpu_layers"], CHOICES["model"]["gguf__n_gpu_layers"]),
+                    "gguf__n_batch": _prepare_toggle_choices(
+                        self._config["model"]["gguf__n_batch"], CHOICES["model"]["gguf__n_batch"]
+                    ),
+                    "gguf__n_cpu_threads": _prepare_toggle_choices(
+                        self._config["model"]["gguf__n_cpu_threads"], CHOICES["model"]["gguf__n_cpu_threads"]
+                    ),
+                    "onnx__tokenizer": self._config["model"]["onnx__tokenizer"],
+                    "onnx__verbose": _prepare_toggle_choices(
+                        self._config["model"]["onnx__verbose"], CHOICES["model"]["onnx__verbose"]
+                    ),
+                    "onnx__num_threads": self._config["model"]["onnx__num_threads"],
+                },
+                "generate": {
+                    "back": None,
+                    "stopwords": str(self._config["generate"]["stopwords"]),
+                    "max_new_tokens": _prepare_toggle_choices(
+                        self._config["generate"]["max_new_tokens"],
+                        CHOICES["generate"]["max_new_tokens"],
+                    ),
+                    "temperature": _prepare_toggle_choices(
+                        self._config["generate"]["temperature"],
+                        CHOICES["generate"]["temperature"],
+                    ),
+                    "generation_kwargs": str(self._config["generate"]["generation_kwargs"]),
+                },
+                "rag": {
+                    "back": None,
+                    "active": _prepare_toggle_choices(
+                        self._config["rag"]["active"], CHOICES["rag"]["active"]
+                    ),
+                    "target_library": self._config["rag"]["target_library"],
+                    "top_k": _prepare_toggle_choices(
+                        self._config["rag"]["top_k"],
+                        CHOICES["rag"]["top_k"],
+                    ),
+                    "search_query": self._config["rag"]["search_query"],
+                },
+            }
 
         return config_choices
 
