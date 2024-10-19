@@ -2,9 +2,8 @@ from typing import Any, Dict, List
 import json
 import os
 
-import numpy as np
-
 from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.constants import DEFAULTS, CHOICES
 
 logger = LoggerManager.get_logger(__name__)
 
@@ -30,59 +29,7 @@ class ConfigManager:
         """
         Initialize the configuration manager with default values.
         """
-        self._config = DottedDict(
-            {
-                "main": {
-                    "max_retries_on_error": 3,
-                    "prompt_code_execution": True,
-                    "extra_index_url": "",
-                },
-                "model": {
-                    "model_id": "",
-                    "save_history": False,
-                    "system_prompt": """
-# ROLE:
-You are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.
-
-# TASK:
-- Prioritize Python solutions when appropriate.
-- Present code in markdown format.
-- Clearly state when non-Python solutions are necessary.
-- Break down complex problems into manageable steps and think through the solution step-by-step.
-- Adhere to best coding practices, including error handling and consideration of edge cases.
-- Acknowledge any limitations in your solutions.
-- Always aim to provide the best solution to the user's problem, whether it involves Python or not.
-                    """.strip(),
-                    # specific parameters for the different processors:
-                    # transformers
-                    "transformers__device": None,
-                    "transformers__quantization_bits": None,
-                    # gguf
-                    "gguf__filename": "",
-                    "gguf__verbose": False,
-                    "gguf__n_ctx": 512,
-                    "gguf__n_gpu_layers": 0,
-                    "gguf__n_batch" : 512,
-                    "gguf__n_cpu_threads": 1,
-                    # onnx
-                    "onnx__tokenizer": "",
-                    "onnx__verbose": False,
-                    "onnx__num_threads": 1,
-                },
-                "generate": {
-                    "stopwords": [],
-                    "max_new_tokens": 512,
-                    "temperature": 0.0,
-                    "generation_kwargs": {},
-                },
-                "rag": {
-                    "active": False,
-                    "target_library": "",
-                    "top_k": 3,
-                    "search_query": "",
-                },
-            }
-        )
+        self._config = DottedDict(DEFAULTS)  # Use DEFAULTS from constants.py
 
     def get(self, key: str, default=None) -> Any:
         """
@@ -118,82 +65,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
         If value is a list, the key can be toggled between the values in the list.
         If value is a string, the user is free to enter any string.
         """
-        config_choices = {
-            "main": {
-                "back": None,
-                "max_retries_on_error": _prepare_toggle_choices(
-                    self._config["main"]["max_retries_on_error"], list(range(0, 10))
-                ),
-                "prompt_code_execution": _prepare_toggle_choices(
-                    self._config["main"]["prompt_code_execution"], [False, True]
-                ),
-                "extra_index_url": self._config["main"]["extra_index_url"],
-            },
-            "model": {
-                "back": None,
-                "model_id": self._config["model"]["model_id"],
-                "save_history": _prepare_toggle_choices(
-                    self._config["model"]["save_history"], [False, True]
-                ),
-                "system_prompt": self._config["model"]["system_prompt"],
-                "transformers__device": _prepare_toggle_choices(
-                    self._config["model"]["transformers__device"],
-                    [None, "cpu", "cuda", "mps"],
-                ),
-                "transformers__quantization_bits": _prepare_toggle_choices(
-                    self._config["model"]["transformers__quantization_bits"],
-                    [None, 8, 4],
-                ),
-                "gguf__filename": self._config["model"]["gguf__filename"],
-                "gguf__verbose": _prepare_toggle_choices(
-                    self._config["model"]["gguf__verbose"], [False, True]
-                ),
-                "gguf__n_ctx": _prepare_toggle_choices(
-                    self._config["model"]["gguf__n_ctx"],
-                    [32 * (2**n) for n in range(15)],
-                ),
-                "gguf__n_gpu_layers": _prepare_toggle_choices(
-                    self._config["model"]["gguf__n_gpu_layers"], [-1, 0, 1] + [(2**n) for n in range(1, 9)]),
-                "gguf__n_batch": _prepare_toggle_choices(
-                    self._config["model"]["gguf__n_batch"], [32 * (2**n) for n in range(11)]
-                ),
-                "gguf__n_cpu_threads": _prepare_toggle_choices(
-                    self._config["model"]["gguf__n_cpu_threads"], list(range(1, os.cpu_count() + 1))
-                ),
-                "onnx__tokenizer": self._config["model"]["onnx__tokenizer"],
-                "onnx__verbose": _prepare_toggle_choices(
-                    self._config["model"]["onnx__verbose"], [False, True]
-                ),
-                "onnx__num_threads": self._config["model"]["onnx__num_threads"],
-            },
-            "generate": {
-                "back": None,
-                "stopwords": str(self._config["generate"]["stopwords"]),
-                "max_new_tokens": _prepare_toggle_choices(
-                    self._config["generate"]["max_new_tokens"],
-                    [32 * (2**n) for n in range(15)],
-                ),
-                "temperature": _prepare_toggle_choices(
-                    self._config["generate"]["temperature"],
-                    np.round(np.arange(0.0, 1.05, 0.05), 2).tolist(),
-                ),
-                "generation_kwargs": str(self._config["generate"]["generation_kwargs"]),
-            },
-            "rag": {
-                "back": None,
-                "active": _prepare_toggle_choices(
-                    self._config["rag"]["active"], [False, True]
-                ),
-                "target_library": self._config["rag"]["target_library"],
-                "top_k": _prepare_toggle_choices(
-                    self._config["rag"]["top_k"],
-                    list(range(1, 51)),
-                ),
-                "search_query": self._config["rag"]["search_query"],
-            },
-        }
-
-        return config_choices
+        return CHOICES  # Use CHOICES from constants.py
 
     def save(self, path: str) -> None:
         """
