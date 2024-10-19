@@ -8,6 +8,7 @@
     bugs:
 
 
+
     NICE TO HAVE:
     + add type validation per configuration
     + improve interface of model processor to prevent DRY -> pydantic? dataclasses?
