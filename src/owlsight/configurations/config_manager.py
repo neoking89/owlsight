@@ -61,11 +61,26 @@ class ConfigManager:
         """
         Get the configuration choices for the UI.
 
-        If value is None, the key can only be selected, similar to pushing a button which might trigger a predefined action, based on the key.
-        If value is a list, the key can be toggled between the values in the list.
-        If value is a string, the user is free to enter any string.
+        If possible_values is None, the key can only be selected, similar to pushing a button which might trigger a predefined action, based on the key.
+        If possible_values is a list, the key can be toggled between the values in the list.
+        If possible_values is a string, the user is free to enter any string.
         """
-        return CHOICES  # Use CHOICES from constants.py
+        config_choices = {}
+
+        for section, options in CHOICES.items():
+            config_choices[section] = {}
+            for option, possible_values in options.items():
+                # Check if the option exists in _config
+                if option in self._config[section]:
+                    current_value = self._config[section][option]
+                    if isinstance(possible_values, list):
+                        config_choices[section][option] = _prepare_toggle_choices(current_value, possible_values)
+                    else:
+                        config_choices[section][option] = current_value  # Use the current value directly if not a list
+                else:
+                    config_choices[section][option] = possible_values  # Fallback to possible values if key is missing
+
+        return config_choices
 
     def save(self, path: str) -> None:
         """
