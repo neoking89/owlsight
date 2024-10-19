@@ -11,6 +11,7 @@ from prompt_toolkit.key_binding import KeyBindings
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.custom_exceptions import ModuleNotFoundInVenvError
+from owlsight.utils.custom_classes import SingletonDict
 from owlsight.utils.subprocess_utils import execute_shell_command
 from owlsight.utils.helper_functions import (
     extract_markdown,
@@ -45,7 +46,7 @@ class CodeExecutor:
     ):
         self.manager = manager
         self.temp_dir = temp_dir
-        self.globals_dict = {}
+        self.globals_dict = SingletonDict()
         self._attempts = 0
 
         self._init_python_properties(pyenv_path, pip_path)
