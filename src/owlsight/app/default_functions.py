@@ -9,6 +9,8 @@ from typing import Optional, List, Dict
 import requests
 from bs4 import BeautifulSoup
 
+from owlsight.utils.custom_classes import SingletonDict
+
 
 class OwlDefaultFunctions:
     """
@@ -19,7 +21,7 @@ class OwlDefaultFunctions:
     This class is open for extension, as possibly more useful functions can be added in the future.
     """
 
-    def __init__(self, globals_dict):
+    def __init__(self, globals_dict: SingletonDict):
         # Add check to make sure every function starts with 'owl_'
         self.globals_dict = globals_dict
         self._check_method_naming_convention()

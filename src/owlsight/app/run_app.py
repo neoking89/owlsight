@@ -159,9 +159,10 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     - chat history in the processor
     """
     # clear all variables except those starting with "owl_"
-    code_executor.globals_dict = {
-        k: v for k, v in code_executor.globals_dict.items() if k.startswith("owl_")
-    }
+    temp_dict = {k: v for k, v in code_executor.globals_dict.items() if k.startswith("owl_")}
+    code_executor.globals_dict.clear()
+    code_executor.globals_dict.update(temp_dict)
+
     py_history_file = code_executor.python_interpreter_history_file
     if os.path.exists(py_history_file):
         os.remove(py_history_file)

@@ -27,6 +27,7 @@ class StopWordCriteria(StoppingCriteria):
         Initializes the StopWordCriteria with the necessary parameters for checking stop words during text generation.
 
         Parameters:
+        ----------
             tokenizer (AutoTokenizer): The tokenizer for encoding prompts and stop words.
             prompts (List[str]): Initial prompts used for generation, needed to determine where generated text begins.
             stop_words (List[str]): Words that trigger the stopping of generation when detected.
@@ -118,31 +119,15 @@ class StopWordCriteria(StoppingCriteria):
         yield self
 
 
-class StateManager:
+class SingletonDict(dict):
     """
-    A simple class to manage the state of variables across code executions.
+    A dictionary that only allows a single instance to be created.
+    Meant to be used as a singleton for storing global variables and to share state across different classes.
     """
 
-    def __init__(self):
-        self.state = {}
+    _instance = None
 
-    def get(self, key, default=None):
-        return self.state.get(key, default)
-
-    def set(self, key, value):
-        self.state[key] = value
-
-    def clear_state(self):
-        self.state.clear()
-
-    def get_state(self):
-        """
-        Returns all the stored variables in the state.
-        """
-        return self.state
-
-    def update_state(self, new_state: dict):
-        """
-        Updates the state with the provided dictionary.
-        """
-        self.state.update(new_state)
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(SingletonDict, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
