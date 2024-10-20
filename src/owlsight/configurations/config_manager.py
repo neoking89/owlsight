@@ -71,6 +71,7 @@ class ConfigManager:
         return {
             "back": None,
             "max_retries_on_error": self._get_toggle_choice("main", "max_retries_on_error"),
+            "prompt_code_retry": self._get_toggle_choice("main", "prompt_code_retry"),
             "prompt_code_execution": self._get_toggle_choice("main", "prompt_code_execution"),
             "extra_index_url": self._get_basic_choice("main", "extra_index_url"),
         }
