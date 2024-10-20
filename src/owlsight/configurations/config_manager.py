@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 import json
 import os
+import traceback
 
 from owlsight.utils.logger_manager import LoggerManager
 from owlsight.utils.constants import DEFAULTS, CHOICES
@@ -189,23 +190,37 @@ class ConfigManager:
             self._config = config
             logger.info(f"Configuration loaded successfully from '{path}'")
         except Exception as e:
-            logger.error(f"{err_msg} Error loading configuration from '{path}': {e}")
+            logger.error(f"{err_msg} Error loading configuration from '{path}': {traceback.format_exc()}")
 
     def validate_config(self, config: dict):
         """
-        Validate the configuration by checking if all keys are the same.
+        Validate the configuration.
         """
         flattened_defaults = flatten_dict(DEFAULTS)
-        flatten_condig = flatten_dict(config)
+        flattened_config = flatten_dict(config)
 
         # check differences in keys:
-        missing_keys = set(flattened_defaults.keys()) - set(flatten_condig.keys())
+        missing_keys = set(flattened_defaults.keys()) - set(flattened_config.keys())
         if missing_keys:
             raise KeyError(f"Config misses the following keys: {missing_keys}")
 
-        invalid_keys = set(flatten_condig.keys()) - set(flattened_defaults.keys())
+        invalid_keys = set(flattened_config.keys()) - set(flattened_defaults.keys())
         if invalid_keys:
             raise KeyError(f"Config has the following keys, which are not valid in owlsight: {invalid_keys}")
+        
+        # check if values are valid
+        flattened_choices = flatten_dict(CHOICES)
+        for key, value in flattened_config.items():
+            choices = flattened_choices[key]
+            if isinstance(choices, list) and choices!=[]:
+                # if the value is a list, it means that the value is a togglechoice. we check if the value is in the list
+                if value not in choices:
+                    raise ValueError(f"Invalid value {value} for key '{key}'. Possible values: {choices}")
+            else:
+                # if the value is not a list, it means that the value is a basic choice. we check if the type is correct
+                if not isinstance(value, type(choices)):
+                    raise TypeError(f"Invalid type {type(value).__name__} for key '{key}'. Expected type: {type(choices).__name__}")
+
 
     def __repr__(self):
         return repr(self._config)
