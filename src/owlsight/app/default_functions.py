@@ -119,7 +119,7 @@ class OwlDefaultFunctions:
 
         Parameters
         ----------
-        url : str
+        url_or_terms : str
             The URL of the webpage to scrape OR the search term to search Bing for.
         trim_newlines : int, optional
             The maximum number of consecutive newlines to allow in the output, default is 2.
