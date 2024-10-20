@@ -65,13 +65,11 @@ def test_load_config(mock_file, config_manager):
 @patch("owlsight.configurations.config_manager.logger")
 def test_load_non_existing_file(mock_logger, mock_exists, config_manager):
     """Test loading a non-existent config file."""
-    # Call the method that triggers the logging error
     config_manager.load("non_existent_config.json")
-
-    # Assert that logger.error was called with the correct message
     mock_logger.error.assert_called_with(
         "Cannot load config. Configuration file does not exist: 'non_existent_config.json'"
     )
+
 
 def test_dotted_dict():
     """Test DottedDict functionality."""
