@@ -255,7 +255,6 @@ for token in processor.generate_stream(question):
 - Enhanced cross-platform compatibility.
 - Introduced the `generate_stream` method to all `TextGenerationProcessor` classes.
 - Various minor bug fixes.
-- Enabled modular imports of individual components from the **owlsight** library, allowing direct usage of specific functionalities in Python scripts and applications.
 
 **1.1.0**
 
@@ -266,4 +265,10 @@ for token in processor.generate_stream(question):
 
 - Access backend functionality through the API using "from owlsight import ..."
 - Added default functions to the Python interpreter, starting with the "owl_" suffix.
-- More features available when using GGUF models from the command line.
+- More configurations available when using GGUF models from the command line.
+
+**1.3.x**
+
+- Add `owl_history` function to python interpeter for directly accessing model chathistory.
+- Improved validation when loading a configurationfile.
+- Added validation for retrying a codeblock from an error. This configuration is called `prompt_retry_on_error`
