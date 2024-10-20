@@ -22,7 +22,7 @@ MENU_KEYS = {
 DEFAULTS = {
     "main": {
         "max_retries_on_error": 3,
-        "prompt_code_retry": False,
+        "prompt_retry_on_error": False,
         "prompt_code_execution": True,
         "extra_index_url": "",
     },
@@ -76,7 +76,7 @@ CHOICES = {
     "main": {
         "back": None,
         "max_retries_on_error": list(range(0, 10)),
-        "prompt_code_retry": [False, True],
+        "prompt_retry_on_error": [False, True],
         "prompt_code_execution": [False, True],
         "extra_index_url": DEFAULTS["main"]["extra_index_url"],
     },
