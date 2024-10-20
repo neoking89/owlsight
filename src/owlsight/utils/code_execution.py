@@ -52,7 +52,9 @@ class CodeExecutor:
         self._init_python_properties(pyenv_path, pip_path)
         self._fill_globals_dict()
 
-    def execute_and_retry(self, lang: str, code_block: str, original_question: str) -> bool:
+    def execute_and_retry(
+        self, lang: str, code_block: str, original_question: str, prompt_retry_on_error: bool = False
+    ) -> bool:
         """
         Execute code block in the specified language and retry if an error occurs.
         """
@@ -71,11 +73,21 @@ class CodeExecutor:
                     response_with_fixed_code = self._generate_fixed_code_response(
                         original_question, code_block, format_error_message(e)
                     )
-                    extracted_code_block = extract_markdown(response_with_fixed_code)
-                    if extracted_code_block:
-                        code_block = (
-                            extract_markdown(response_with_fixed_code)[0][1] if response_with_fixed_code else code_block
-                        )
+                    extracted_code_blocks = extract_markdown(response_with_fixed_code)
+                    if extracted_code_blocks:
+                        code_block = extracted_code_blocks[-1][1]  # Use the LAST extracted block of code
+                        logger.info(f"Extracted last code block from response with a total of {len(extracted_code_blocks)} blocks.")
+                        if prompt_retry_on_error:
+                            code_block = prompt_code_edit(code_block)
+                            user_choice = get_user_choice(
+                                {
+                                    "Execute code": None,
+                                    "Skip code": None,
+                                }
+                            )
+                            if user_choice == "Skip code":
+                                return False # Exit early if the user chooses to skip the code
+                        continue # Retry execution with the updated code block
                     else:
                         logger.error(
                             "No code block could be extracted from the response. Probably the response didnt insert the code block correctly in markdown format."
@@ -234,7 +246,8 @@ class CodeExecutor:
 # TASK:
 1. Analyze the error message.
 2. Step-by-step, determine how to fix the error.
-3. Generate updated Python code that resolves the issue.
+3. Generate and return **only one single block** in markdown-format of updated Python code that resolves the issue.
+4. Do not include any additional code or explanations outside of that one block.
 """.strip()
         return self.manager.generate(new_question)
 
@@ -287,6 +300,7 @@ def execute_code_with_feedback(
     original_question: str,
     code_executor: CodeExecutor,
     prompt_code_execution: bool = True,
+    prompt_retry_on_error: bool = False,
 ) -> List[Dict]:
     """
     Extract code blocks from a response and execute them with feedback and retry logic.
@@ -302,6 +316,9 @@ def execute_code_with_feedback(
     prompt_code_execution : bool
         If True, prompts the user before executing each code block.
         Acts as a safety measure to prevent accidental execution.
+    prompt_retry_on_error : bool
+        If True, prompts the user before retrying execution after an error.
+        Allows the user to edit the code block before retry
 
     Returns
     -------
@@ -328,14 +345,8 @@ def execute_code_with_feedback(
                 # Use the editable_input function to allow users to edit the code block
                 if not code_is_edited:
                     logger.info(f"Code block in {lang.capitalize()}:\n{code_block}")
-                    code_block = editable_input(
-                        "Edit the code block (press ENTER to confirm):\n",
-                        code_block,
-                        color=PROMPT_COLOR,
-                    )
-                    logger.info(f"Edited Code Block:\n{code_block}")
+                    code_block = prompt_code_edit(code_block)
                     code_is_edited = True
-
                 # Provide a menu for the user to choose between "Execute", "Skip", or "Write code to file"
                 user_choice = get_user_choice(
                     {
@@ -373,11 +384,24 @@ def execute_code_with_feedback(
             continue
 
         if execute_all or execute_code:
-            is_success = code_executor.execute_and_retry(lang, code_block, original_question)
+            is_success = code_executor.execute_and_retry(lang, code_block, original_question, prompt_retry_on_error)
             result = {"success": is_success, "language": lang, "code": code_block}
             results.append(result)
 
     return results
+
+
+def prompt_code_edit(code_block: str) -> str:
+    """
+    Prompts the user to edit a code block interactively.
+    """
+    code_block = editable_input(
+        "Edit the code block (press ENTER to confirm):\n",
+        code_block,
+        color=PROMPT_COLOR,
+    )
+    logger.info(f"Edited Code Block:\n{code_block}")
+    return code_block
 
 
 def _handle_write_code_to_file_choice(code_block: str):

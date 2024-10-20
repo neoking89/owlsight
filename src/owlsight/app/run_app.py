@@ -199,7 +199,8 @@ Use this information to help generate a code snippet that answers the question.
         response=response,
         original_question=user_question,
         code_executor=code_executor,
-        prompt_code_execution=manager.config_manager.get("main.prompt_code_execution"),
+        prompt_code_execution=manager.config_manager.get("main.prompt_code_execution", True),
+        prompt_retry_on_error=manager.config_manager.get("main.prompt_retry_on_error", False),
     )
 
 

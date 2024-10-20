@@ -194,3 +194,15 @@ def check_invalid_input_parameters(func: callable, kwargs: dict):
             raise ValueError(
                 f"Invalid argument: '{key}' is not a valid parameter for '{func.__name__}'\nValid parameters: {valid_params}"
             )
+
+
+def flatten_dict(d, parent_key="", sep=".") -> dict:
+    """Flatten a nested dictionary."""
+    flattened = {}
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            flattened.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            flattened[new_key] = v
+    return flattened

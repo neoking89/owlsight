@@ -1,13 +1,7 @@
     + update README.md, config is outdated! See: https://stackoverflow.com/questions/76885758/only-update-readme-for-a-package-on-pypi
-    + build tests for config_choices and select_processor_type
-    + use default values in a "constants" file in configmanager
-    + add validation before retrying faulty code
-    + add more docs to README.md, like default functions, config etc.
-
+    + keysearch for hf models?
 
     bugs:
-
-
 
     NICE TO HAVE:
     + add type validation per configuration

@@ -4,6 +4,7 @@ import os
 
 from owlsight.utils.logger_manager import LoggerManager
 from owlsight.utils.constants import DEFAULTS, CHOICES
+from owlsight.utils.helper_functions import flatten_dict
 
 logger = LoggerManager.get_logger(__name__)
 
@@ -29,7 +30,7 @@ class ConfigManager:
         """
         Initialize the configuration manager with default values.
         """
-        self._config = DottedDict(DEFAULTS)  # Use DEFAULTS from constants.py
+        self._config = DottedDict(DEFAULTS)
 
     def get(self, key: str, default=None) -> Any:
         """
@@ -58,9 +59,7 @@ class ConfigManager:
 
     def _get_toggle_choice(self, section: str, key: str) -> Any:
         """Helper method to prepare toggle choices for a given section and key."""
-        return _prepare_toggle_choices(
-            self._config[section][key], CHOICES[section][key]
-        )
+        return _prepare_toggle_choices(self._config[section][key], CHOICES[section][key])
 
     def _get_basic_choice(self, section: str, key: str) -> Any:
         """Helper method to return a basic configuration choice."""
@@ -72,6 +71,7 @@ class ConfigManager:
             "back": None,
             "max_retries_on_error": self._get_toggle_choice("main", "max_retries_on_error"),
             "prompt_code_execution": self._get_toggle_choice("main", "prompt_code_execution"),
+            "prompt_retry_on_error": self._get_toggle_choice("main", "prompt_retry_on_error"),
             "extra_index_url": self._get_basic_choice("main", "extra_index_url"),
         }
 
@@ -158,6 +158,7 @@ class ConfigManager:
     def load(self, path: str):
         """
         Load the configuration from a file as JSON.
+        It gets stored in the _config attribute.
         """
         err_msg = "Cannot load config."
         if not isinstance(path, str) or not path:
@@ -183,10 +184,28 @@ class ConfigManager:
             return
 
         try:
-            self._config = DottedDict(data)
+            config = DottedDict(data)
+            self.validate_config(config)
+            self._config = config
             logger.info(f"Configuration loaded successfully from '{path}'")
         except Exception as e:
-            logger.error(f"{err_msg} Error initializing configuration: {e}")
+            logger.error(f"{err_msg} Error loading configuration from '{path}': {e}")
+
+    def validate_config(self, config: dict):
+        """
+        Validate the configuration by checking if all keys are the same.
+        """
+        flattened_defaults = flatten_dict(DEFAULTS)
+        flatten_condig = flatten_dict(config)
+
+        # check differences in keys:
+        missing_keys = set(flattened_defaults.keys()) - set(flatten_condig.keys())
+        if missing_keys:
+            raise KeyError(f"Config misses the following keys: {missing_keys}")
+
+        invalid_keys = set(flatten_condig.keys()) - set(flattened_defaults.keys())
+        if invalid_keys:
+            raise KeyError(f"Config has the following keys, which are not valid in owlsight: {invalid_keys}")
 
     def __repr__(self):
         return repr(self._config)
@@ -219,7 +238,7 @@ def _prepare_toggle_choices(current_val: Any, possible_vals: List[Any]) -> List[
     possible_vals : List[Any]
         The possible values for the configuration parameter.
         Allow user to toggle between the values.
-    """ 
+    """
     if current_val in possible_vals:
         index = possible_vals.index(current_val)
         possible_vals = possible_vals[index:] + possible_vals[:index]
