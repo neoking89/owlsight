@@ -1,9 +1,8 @@
-    + update README.md, config is outdated! See: https://stackoverflow.com/questions/76885758/only-update-readme-for-a-package-on-pypi
     + keysearch for hf models?
+    + add tests for config validation
 
     bugs:
 
     NICE TO HAVE:
-    + add type validation per configuration
     + improve interface of model processor to prevent DRY -> pydantic? dataclasses?
     + add voicemodel to speak prompts instead of writing them for faster interaction
