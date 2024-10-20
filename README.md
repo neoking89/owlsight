@@ -121,7 +121,7 @@ These are:
   Import a Python file and load its contents into the current namespace.
 * **owl_read(file_path: str)**
   Read the content of a text file.
-* **owl_scrape(url: str, trim_newlines: int = 2, request_kwargs: dict)**
+* **owl_scrape(url_or_terms: str, trim_newlines: int = 2, filter_by: Optional[dict], request_kwargs: dict)**
   Scrape the text content of a webpage or search Bing and return the first result as a string.
   * `url_or_terms`: Webpage URL or search term.
   * `trim_newlines`: Max consecutive newlines (default 2).
@@ -131,6 +131,8 @@ These are:
   Display all imported objects (optional: include docstrings).
 * **owl_write(file_path: str, content: str)**
   Write content to a text file.
+* **owl_history(to_string: bool = False)**
+  Get chathistory with current model.
 
 ## Configurations
 

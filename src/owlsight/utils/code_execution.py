@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Dict, List
+from typing import Dict, List, Union
 import traceback
 import inspect
 
@@ -256,6 +256,31 @@ class CodeExecutor:
         for name, method in default_methods:
             self.globals_dict[name] = method
 
+        # add owl_history function to globals_dict
+        def owl_history(to_string: bool = False) -> Union[List[dict], str]:
+            """
+            Get the chathistory of the current model.
+
+            Parameters
+            ----------
+            to_string : bool, optional
+                If True, returns the history as a formatted string, by default False
+
+            Returns
+            -------
+            Union[List[dict], str]
+                The history as a list of dictionaries or a formatted string.
+            """
+            processor = self.manager.get_processor()
+            if processor:
+                history = processor.get_history()
+                if to_string:
+                    return _format_history_as_string(history)
+                return history
+            return []
+
+        self.globals_dict["owl_history"] = owl_history
+
 
 def execute_code_with_feedback(
     response: str,
@@ -390,3 +415,11 @@ def _handle_write_code_to_file_choice(code_block: str):
                     logger.error(f"Error writing code block to file: {e}. Please try again.")
             else:
                 logger.info("No file name entered. Please try again.")
+
+
+def _format_history_as_string(history: List[dict]) -> str:
+    formatted = []
+    for item in history:
+        formatted.append(f"Role: {item['role']}")
+        formatted.append(f"Content: {item['content']}\n")
+    return "\n".join(formatted)
