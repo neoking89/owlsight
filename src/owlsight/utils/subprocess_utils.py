@@ -1,23 +1,23 @@
 import subprocess
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 import os
-import platform
 import re
 import traceback
 from ast import literal_eval
 
+from owlsight.utils.helper_functions import os_is_windows
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
 
 
-def run_subprocess(command: list) -> Tuple[str, str]:
+def run_subprocess(command: List[str]) -> Tuple[str, str]:
     """
     Run subprocess command and capture stdout and stderr.
 
     Parameters
     ----------
-    command : list
+    command : List[str]
         List of command arguments to be executed.
 
     Returns
@@ -30,28 +30,61 @@ def run_subprocess(command: list) -> Tuple[str, str]:
     return stdout, stderr
 
 
-def _build_shell_command(activate_script: str, command: str) -> str:
+def _get_activate_script(pyenv_path: str) -> str:
     """
-    Build the full shell command for different platforms.
+    Get the path to the virtual environment's activation script.
 
     Parameters
     ----------
-    activate_script : str
-        Path to the activation script.
-    command : str
-        The shell command to execute after activating the virtual environment.
+    pyenv_path : str
+        Path to the virtual environment.
 
     Returns
     -------
     str
-        The full shell command including virtual environment activation.
+        The path to the activation script for the virtual environment.
     """
-    if platform.system().lower() == "windows":
-        # For Windows, use `call` to activate and `&&` to run the Python command
-        return f'call "{activate_script}" && {command}'
+    return os.path.join(
+        pyenv_path,
+        "Scripts" if os_is_windows() else "bin",
+        "activate",
+    )
+
+
+def execute_shell_command(command: str, pyenv_path: str) -> subprocess.CompletedProcess:
+    """
+    Execute a shell command inside the (virtual) python environment.
+
+    Parameters
+    ----------
+    command : str
+        The shell command to execute.
+    pyenv_path : str
+        Path to the (virtual) python environment.
+
+    Returns
+    -------
+    subprocess.CompletedProcess
+        The result of the subprocess run or the exception if failed.
+    """
+    activate_venv = _get_activate_script(pyenv_path)
+
+    if os_is_windows():
+        command_list = ["cmd", "/c", f"call {activate_venv} && {command}"]
     else:
-        # For Unix-like systems, use `source` to activate and `&&` to run the Python command
-        return f'bash -c "source {activate_script} && {command}"'
+        command_list = ["bash", "-c", f"source {activate_venv} && {command}"]
+
+    result = None
+    try:
+        result = subprocess.run(command_list, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Command failed with exit code {e.returncode}: {e.stderr}")
+        logger.error(f"Output: {e.stdout}")
+        result = e
+    finally:
+        _log_shell_output(result)
+
+    return result
 
 
 def _log_shell_output(result: Union[subprocess.CompletedProcess, None]) -> None:
@@ -74,72 +107,6 @@ def _log_shell_output(result: Union[subprocess.CompletedProcess, None]) -> None:
             logger.warning(f"Command produced stderr output: {result.stderr}")
         if hasattr(result, "output") and result.output:
             logger.warning(f"Command produced output: {result.output}")
-
-
-def _get_activate_script(pyenv_path: str) -> str:
-    """
-    Get the path to the virtual environment's activation script.
-
-    Parameters
-    ----------
-    pyenv_path : str
-        Path to the virtual environment.
-
-    Returns
-    -------
-    str
-        The path to the activation script for the virtual environment.
-    """
-    return os.path.join(
-        pyenv_path,
-        "Scripts" if platform.system().lower() == "windows" else "bin",
-        "activate",
-    )
-
-
-def execute_shell_command(command: str, pyenv_path: str) -> subprocess.CompletedProcess:
-    """
-    Execute a shell command inside the (virtual) python environment.
-
-    Parameters
-    ----------
-    command : str
-        The shell command to execute.
-    pyenv_path : str
-        Path to the (virtual) python environment.
-
-    Returns
-    -------
-    subprocess.CompletedProcess
-        The result of the subprocess run or the exception if failed.
-    """
-    # Get the correct activate script based on the virtual environment
-    activate_venv = _get_activate_script(pyenv_path)
-
-    # Determine the OS and build the appropriate shell command
-    current_os = platform.system().lower()
-    if "windows" in current_os:
-        # For Windows, use cmd.exe and the '/c' option
-        full_command = f'cmd /c "{_build_shell_command(activate_venv, command)}"'
-    elif "linux" in current_os or "darwin" in current_os:
-        # For Linux or macOS, use bash and the '-c' option
-        full_command = f'bash -c "{_build_shell_command(activate_venv, command)}"'
-    else:
-        raise OSError(f"Unsupported operating system: {current_os}")
-
-    result = None
-    try:
-        # Run the command with the appropriate shell
-        result = subprocess.run(full_command, shell=True, capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed with exit code {e.returncode}: {e.stderr}")
-        logger.error(f"Output: {e.output}")
-        result = e
-    finally:
-        # Log the output of the command regardless of success or failure
-        _log_shell_output(result)
-
-    return result
 
 
 def parse_globals_from_stdout(stdout: str) -> dict:

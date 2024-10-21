@@ -1,5 +1,5 @@
 import pytest
-from src.owlsight import (
+from owlsight import (
     select_processor_type,
     TextGenerationProcessorTransformers,
     TextGenerationProcessorOnnx,
