@@ -1,8 +1,7 @@
-    + keysearch for hf models?
-    + add tests for config validation
++ keysearch for hf models?
 
-    bugs:
+bugs:
 
-    NICE TO HAVE:
-    + improve interface of model processor to prevent DRY -> pydantic? dataclasses?
-    + add voicemodel to speak prompts instead of writing them for faster interaction
+NICE TO HAVE:
++ improve interface of model processor to prevent DRY -> pydantic? dataclasses?
++ add voicemodel to speak prompts instead of writing them for faster interaction
