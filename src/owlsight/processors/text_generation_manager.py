@@ -119,8 +119,9 @@ class TextGenerationManager:
         """
         Load the configuration from a file.
         """
-        self.config_manager.load(path)
-        self.load_model_processor(reload=self.processor is not None)
+        loading_succesful = self.config_manager.load(path)
+        if loading_succesful:
+            self.load_model_processor(reload=self.processor is not None)
 
     def load_model_processor(self, reload=False):
         """

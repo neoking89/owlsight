@@ -128,20 +128,30 @@ class ConfigManager:
             "rag": self._create_rag_choices(),
         }
 
-    def save(self, path: str) -> None:
+    def save(self, path: str) -> bool:
         """
         Save the configuration to a file as JSON.
+
+        Parameters
+        ----------
+        path : str
+            The path to save the configuration file.
+
+        Returns
+        -------
+        bool
+            True if the configuration was saved successfully, False otherwise.
         """
         err_msg = "Cannot save config."
         if not isinstance(path, str) or not path:
             logger.error(f"{err_msg} Invalid file path provided.")
-            return
+            return False
 
         # Ensure that the directory exists
         directory = os.path.dirname(path)
         if directory and not os.path.exists(directory):
             logger.error(f"{err_msg} Directory does not exist: '{directory}'")
-            return
+            return False
 
         try:
             with open(path, "w") as f:
@@ -153,44 +163,59 @@ class ConfigManager:
                 logger.info(f"Configuration saved successfully to '{path}'")
         except (IOError, OSError) as e:
             logger.error(f"{err_msg} Error writing to file '{path}': {e}")
+            return False
         except TypeError as e:
             logger.error(f"{err_msg} Error serializing configuration to JSON: {e}")
+            return False
 
-    def load(self, path: str):
+
+    def load(self, path: str) -> bool:
         """
         Load the configuration from a file as JSON.
         It gets stored in the _config attribute.
+
+        Parameters
+        ----------
+        path : str
+            The path to the configuration file.
+
+        Returns
+        -------
+        bool
+            True if the configuration was loaded successfully, False otherwise.
         """
         err_msg = "Cannot load config."
         if not isinstance(path, str) or not path:
             logger.error("Invalid file path provided.")
-            return
+            return False
 
         if not os.path.exists(path):
             logger.error(f"{err_msg} Configuration file does not exist: '{path}'")
-            return
+            return False
 
         if not path.endswith(".json"):
             logger.error(f"{err_msg} Configuration file must be a JSON file.")
-            return
+            return False
 
         try:
             with open(path, "r") as f:
                 data = json.load(f)
         except (IOError, OSError) as e:
             logger.error(f"{err_msg} Error reading from file '{path}': {e}")
-            return
+            return False
         except json.JSONDecodeError as e:
             logger.error(f"{err_msg} Error parsing JSON in file '{path}': {e}")
-            return
+            return False
 
         try:
             config = DottedDict(data)
             self.validate_config(config)
             self._config = config
             logger.info(f"Configuration loaded successfully from '{path}'")
+            return True
         except Exception as e:
             logger.error(f"{err_msg} Error loading configuration from '{path}': {traceback.format_exc()}")
+            return False
 
     def validate_config(self, config: dict):
         """
