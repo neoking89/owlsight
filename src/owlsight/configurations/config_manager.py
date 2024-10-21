@@ -161,6 +161,7 @@ class ConfigManager:
                     indent=4,
                 )
                 logger.info(f"Configuration saved successfully to '{path}'")
+                return True
         except (IOError, OSError) as e:
             logger.error(f"{err_msg} Error writing to file '{path}': {e}")
             return False
@@ -224,6 +225,15 @@ class ConfigManager:
         flattened_defaults = flatten_dict(DEFAULTS)
         flattened_config = flatten_dict(config)
 
+        # check differences in sections:
+        missing_sections = set(DEFAULTS.keys()) - set(config.keys())
+        if missing_sections:
+            raise KeyError(f"Config misses the following sections: {missing_sections}")
+
+        invalid_sections = set(config.keys()) - set(DEFAULTS.keys())
+        if invalid_sections:
+            raise KeyError(f"Config has the following sections, which are not valid in owlsight: {invalid_sections}")
+        
         # check differences in keys:
         missing_keys = set(flattened_defaults.keys()) - set(flattened_config.keys())
         if missing_keys:

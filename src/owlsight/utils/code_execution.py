@@ -290,7 +290,7 @@ class CodeExecutor:
                 if to_string:
                     return _format_history_as_string(history)
                 return history
-            return []
+            return "" if to_string else []
 
         self.globals_dict["owl_history"] = owl_history
 
