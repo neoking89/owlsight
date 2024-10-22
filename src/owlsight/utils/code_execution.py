@@ -105,7 +105,7 @@ class CodeExecutor:
             if "pip install" in code_block:
                 modules_to_install = code_block.split("pip install")[1].strip()
                 logger.info(
-                    f"pip install found in command '{code_block}'. Installing module {module_to_install} to target directory {self.temp_dir}"
+                    f"pip install found in command '{code_block}'. Installing module {modules_to_install} to target directory {self.temp_dir}"
                 )
                 self.pip_install(modules_to_install)
             else:

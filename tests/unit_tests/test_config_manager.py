@@ -1,9 +1,8 @@
 import pytest
 import sys
 import re
-import os
 import json
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import patch, mock_open
 
 sys.path.append("src")
 from owlsight.configurations.config_manager import ConfigManager, DottedDict, _prepare_toggle_choices

@@ -214,7 +214,7 @@ class ConfigManager:
             self._config = config
             logger.info(f"Configuration loaded successfully from '{path}'")
             return True
-        except Exception as e:
+        except Exception:
             logger.error(f"{err_msg} Error loading configuration from '{path}': {traceback.format_exc()}")
             return False
 
