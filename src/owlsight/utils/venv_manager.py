@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any
+from typing import Any, List, Union
 import venv
 from contextlib import contextmanager
 import subprocess
@@ -42,9 +42,7 @@ def in_venv() -> bool:
     bool
     True if the current process is running inside a virtual environment, False otherwise.
     """
-    return hasattr(sys, "real_prefix") or (
-        hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
-    )
+    return hasattr(sys, "real_prefix") or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
 
 
 def get_lib_path(pyenv_path: str) -> str:
@@ -64,6 +62,7 @@ def get_lib_path(pyenv_path: str) -> str:
     # Get the name of the site-packages directory
     site_packages = sysconfig.get_path("purelib", vars={"base": pyenv_path})
     return site_packages
+
 
 def get_python_executable(pyenv_path: str) -> str:
     """
@@ -113,45 +112,51 @@ def get_pip_path(pyenv_path: str) -> str:
     return os.path.join(pyenv_path, "Scripts" if os_is_windows() else "bin", "pip")
 
 
-def install_module(
-    module_name: str, pip_path: str, target_dir: str, *args: Any
-) -> bool:
+def install_python_modules(module_names: Union[str, List[str]], pip_path: str, target_dir: str, *args: Any) -> bool:
     """
-    Install a Python module using pip into a temporary directory and add it to sys.path.
+    Install one or more Python modules using pip into a specified directory and add it to sys.path.
 
     Parameters
     ----------
-    module_name : str
-        The name of the module to install.
+    module_names : Union[str, List[str]]
+        The name of the module(s) to install. Can be a single module as a string or a list of modules.
     pip_path : str
         The path to the pip executable.
-    temp_dir : str
-        The temporary directory where the module should be installed.
+    target_dir : str
+        The directory where the module(s) should be installed.
     *args : Any
         Additional arguments to pass to the pip install command (e.g., --extra-index-url).
 
     Returns
     -------
     bool
-        True if the installation is successful, False otherwise.
+        True if all installations are successful, False otherwise.
 
     Examples
     --------
-    >>> install_module("some-package", pip_path, temp_dir, "--extra-index-url", "https://private-repo.com/simple")
+    >>> install_python_modules("some-package", pip_path, temp_dir, "--extra-index-url", "https://private-repo.com/simple")
+    >>> install_python_modules(["some-package", "another-package"], pip_path, temp_dir)
     """
-    pip_command = [pip_path, "install", "--target", target_dir, module_name] + list(
-        args
-    )
-    try:
-        # Install the module to the specified temp_dir
-        subprocess.check_call(pip_command)
-        logger.info(f"Successfully installed {module_name} into {target_dir}")
 
-        # Add target_dir to sys.path so that installed modules can be imported
-        if target_dir not in sys.path:
-            sys.path.insert(0, target_dir)
+    # Convert module_name to a list if it's a string (comma-separated or space-separated)
+    if isinstance(module_names, str):
+        module_names = [name.strip() for name in module_names.split(" ")]
 
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to install {module_name}. Error: {e}")
-        return False
+    success = True
+
+    for module in module_names:
+        pip_command = [pip_path, "install", "--target", target_dir, module] + list(args)
+        try:
+            # Install the module
+            subprocess.check_call(pip_command)
+            logger.info(f"Successfully installed {module} into {target_dir}")
+
+            # Add target_dir to sys.path so that installed modules can be imported
+            if target_dir not in sys.path:
+                sys.path.insert(0, target_dir)
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to install {module}. Error: {e}")
+            success = False
+
+    return success
