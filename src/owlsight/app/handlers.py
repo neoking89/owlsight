@@ -20,7 +20,7 @@ def handle_interactive_code_execution(code_executor: CodeExecutor) -> None:
     """Handles the interactive Python console execution."""
     try:
         code_executor.init_interactive_py_console()
-    except Exception as e:
+    except Exception:
         logger.error(f"Unexpected error in interactive console: {traceback.format_exc()}")
     # Reopen stdin if it's closed
     if sys.stdin.closed:

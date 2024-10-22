@@ -90,7 +90,7 @@ class OwlDefaultFunctions:
                     if docstring:
                         print(f"Doc: {docstring.strip()}")
                     else:
-                        print(f"Doc: No documentation available")
+                        print("Doc: No documentation available")
 
         print(brackets)
 

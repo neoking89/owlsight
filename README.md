@@ -270,5 +270,5 @@ for token in processor.generate_stream(question):
 **1.3.x**
 
 - Add `owl_history` function to python interpeter for directly accessing model chathistory.
-- Improved validation when loading a configurationfile.
+- Improved validation when  loading a configurationfile.
 - Added validation for retrying a codeblock from an error. This configuration is called `prompt_retry_on_error`

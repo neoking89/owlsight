@@ -20,7 +20,7 @@ from owlsight.utils.helper_functions import (
 )
 from owlsight.utils.console import get_user_choice
 from owlsight.utils.venv_manager import (
-    install_module,
+    install_python_modules,
     get_lib_path,
     get_python_executable,
 )
@@ -103,11 +103,11 @@ class CodeExecutor:
             self.execute_python_code(code_block)
         elif lang in ["cmd", "bash", "shell"]:
             if "pip install" in code_block:
-                module_to_install = code_block.split("pip install")[1].strip()
+                modules_to_install = code_block.split("pip install")[1].strip()
                 logger.info(
-                    f"pip install found in command '{code_block}'. Installing module {module_to_install} to target directory {self.temp_dir}"
+                    f"pip install found in command '{code_block}'. Installing module {modules_to_install} to target directory {self.temp_dir}"
                 )
-                self.pip_install(module_to_install)
+                self.pip_install(modules_to_install)
             else:
                 execute_shell_command(code_block, self.pyenv_path)
         else:
@@ -200,22 +200,22 @@ class CodeExecutor:
                 break
         print("Exiting interactive console and returning to the script.")
 
-    def pip_install(self, module: str) -> bool:
-        """Install a Python module using pip."""
-        logger.info(f"Attempting to install module: {module}")
+    def pip_install(self, modules: str) -> bool:
+        """Install Python modules using pip."""
+        logger.info(f"Attempting to install modules: {modules}")
         extra_index_url = self.manager.get_config_key("main.extra_index_url")
         if extra_index_url:
-            module_is_installed = install_module(
-                module,
+            modules_are_installed = install_python_modules(
+                modules,
                 self.pip_path,
                 self.temp_dir,
                 "--extra-index-url",
                 extra_index_url,
             )
         else:
-            module_is_installed = install_module(module, self.pip_path, self.temp_dir)
+            modules_are_installed = install_python_modules(modules, self.pip_path, self.temp_dir)
 
-        return module_is_installed
+        return modules_are_installed
 
     @property
     def max_retries(self) -> int:
