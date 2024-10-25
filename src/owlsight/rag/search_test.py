@@ -1,17 +1,16 @@
 import sys
 
 sys.path.append("src")
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Protocol, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple
 import pickle
 import importlib
 import inspect
 import pkgutil
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import numpy as np
 import pandas as pd
 import torch
@@ -34,17 +33,12 @@ class SearchMethod(str, Enum):
     HASHING = "hashing"
 
 
-class Document(BaseModel):
-    text: str
-    title: Optional[str] = None
-    source: Optional[str] = None
-
-
 class SearchResult(BaseModel):
     """Model to store search results with type validation."""
 
-    document: Document
+    document: str
     score: float
+    method: Optional[str] = None
     weighted_score: Optional[float] = None
     aggregated_score: Optional[float] = None
 
@@ -53,15 +47,15 @@ class DocumentProcessor:
     """Handles document preprocessing and validation."""
 
     @staticmethod
-    def process_documents(documents: List[Document]) -> List[Document]:
+    def process_documents(documents: List[str]) -> List[str]:
         """Process and validate input documents."""
         processed_docs = []
 
         for doc in documents:  # use set to remove duplicate str
-            if isinstance(doc.text, str):
+            if isinstance(doc, str):
                 processed_docs.append(doc)
-            elif hasattr(doc.text, "__doc__") and doc.text.__doc__:
-                processed_docs.append(doc.text.__doc__)
+            elif hasattr(doc, "__doc__") and doc.__doc__:
+                processed_docs.append(doc.__doc__)
 
         if not processed_docs:
             raise ValueError("No valid documents found after processing")
@@ -296,6 +290,23 @@ class LibraryInfoExtractor:
         except Exception as e:
             logger.error(f"Error exploring {self.library_name}: {str(e)}")
 
+    def extract_unique_library_info(self) -> Dict[str, str]:
+        """
+        Extract unique documentation from the library.
+
+        Returns:
+            Dictionary, where key is the full object name and value is the documentation
+        """
+        # first use the documentations as keys to get unique docs
+        unique_docs = {}
+        for full_name, doc_info in self.extract_library_info():
+            doc = doc_info["doc"]
+            if doc not in unique_docs:
+                unique_docs[doc] = full_name
+
+        # reverse the dictionary so key will be full name and value will be doc
+        return {value: key for key, value in unique_docs.items()}
+
     def _extract_info_from_module(
         self, module: Any, prefix: str = ""
     ) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
@@ -322,7 +333,7 @@ class EnsembleSearchEngine:
 
     def __init__(
         self,
-        documents: List[Any],
+        documents: List[str],
         methods_weights: Dict[SearchMethod, float],
         cache_dir: Optional[str] = None,
     ):
@@ -401,13 +412,16 @@ def main():
     # Extract pandas documentation
     extractor = LibraryInfoExtractor("pandas")
 
-    documents = [{doc_info["obj"]: doc_info["doc"]} for _, doc_info in extractor.extract_library_info()]
-    documents = list(set(documents))
+    # Use a dictionary to maintain unique docs based on content
+    unique_docs = extractor.extract_unique_library_info()
+
+    # Convert back to list of dictionaries
+    documents = list(unique_docs.values())
 
     # Configure search methods and weights
     methods_weights = {
         SearchMethod.TFIDF: 1.0,
-        # SearchMethod.SENTENCE_TRANSFORMER: 0.8,
+        SearchMethod.SENTENCE_TRANSFORMER: 0.8,
         SearchMethod.HASHING: 0.6,
     }
 
