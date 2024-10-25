@@ -65,22 +65,57 @@ class DocumentProcessor:
 class CacheMixin:
     """Mixin class for caching functionality."""
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None):
+        """
+        Initialize the cache mixin.
+
+        Parameters:
+        ----------
+        cache_dir: Optional[str]
+            Directory to store cache files.
+        cache_dir_suffix: Optional[str]
+            Suffix to append to cache files. Required if cache_dir is provided.
+            Acts as unique identifier, which tells the user information about what is being cached.
+
+        Raises:
+        -------
+        ValueError
+            If cache_dir is provided but cache_dir_suffix is None or empty.
+        """
+        # Validate cache_dir and cache_dir_suffix relationship
+        if cache_dir and not cache_dir_suffix:
+            raise ValueError("cache_dir_suffix must be provided when cache_dir is specified")
+
         self.cache_dir = Path(cache_dir) if cache_dir else None
+        self.cache_dir_suffix = cache_dir_suffix
+
         if self.cache_dir:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
+
+    def get_suffix_filename(self, filename: str) -> str:
+        """
+        Append suffix to filename if provided.
+        Acts as unique identifier, which tells the user information about what is being cached.
+        """
+        return filename if not self.cache_dir_suffix else f"{filename}_{self.cache_dir_suffix}"
+
+    def get_full_cache_path(self, filename: str) -> Path:
+        """Get full cache path."""
+        if not self.cache_dir:
+            raise ValueError("Cache directory not provided")
+        return self.cache_dir / self.get_suffix_filename(filename)
 
     def save_data(self, data: Any, filename: str):
         """Save data to cache."""
         if self.cache_dir:
-            cache_path = self.cache_dir / filename
+            cache_path = self.get_full_cache_path(filename)
             with open(cache_path, "wb") as f:
                 pickle.dump(data, f)
 
     def load_data(self, filename: str) -> Optional[Any]:
         """Load data from cache."""
         if self.cache_dir:
-            cache_path = self.cache_dir / filename
+            cache_path = self.get_full_cache_path(filename)
             if cache_path.exists():
                 with open(cache_path, "rb") as f:
                     return pickle.load(f)
@@ -104,11 +139,19 @@ class SearchEngine(ABC):
 class TfidfSearch(SearchEngine, CacheMixin):
     """TF-IDF based search implementation."""
 
-    def __init__(self, documents: List[str], cache_dir: Optional[str] = None, **tfidf_kwargs):
-        super().__init__()
-        CacheMixin.__init__(self, cache_dir)
-        self.documents = documents
+    def __init__(
+        self,
+        documents: List[str],
+        cache_dir: Optional[str] = None,
+        cache_dir_suffix: Optional[str] = None,
+        **tfidf_kwargs,
+    ):
+        # validation
         check_invalid_input_parameters(TfidfVectorizer.__init__, tfidf_kwargs)
+
+        super().__init__()
+        CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
+        self.documents = documents
         self.vectorizer = TfidfVectorizer(**tfidf_kwargs)
         self.matrix = None
 
@@ -134,11 +177,19 @@ class TfidfSearch(SearchEngine, CacheMixin):
 class HashingVectorizerSearch(SearchEngine, CacheMixin):
     """Hashing Vectorizer based search implementation."""
 
-    def __init__(self, documents: List[str], cache_dir: Optional[str] = None, **hashing_kwargs):
-        super().__init__()
-        CacheMixin.__init__(self, cache_dir)
-        self.documents = documents
+    def __init__(
+        self,
+        documents: List[str],
+        cache_dir: Optional[str] = None,
+        cache_dir_suffix: Optional[str] = None,
+        **hashing_kwargs,
+    ):
+        # validation
         check_invalid_input_parameters(HashingVectorizer.__init__, hashing_kwargs)
+
+        super().__init__()
+        CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
+        self.documents = documents
         self.vectorizer = HashingVectorizer(**hashing_kwargs)
         self.matrix = None
 
@@ -170,9 +221,13 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         model_name: str = "paraphrase-MiniLM-L6-v2",
         device: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        cache_dir_suffix: Optional[str] = None,
     ):
         super().__init__()
-        CacheMixin.__init__(self, cache_dir)
+        # add modelname to cache_dir_suffix, because modelname is a unique identifier
+        if cache_dir_suffix:
+            cache_dir_suffix = f"{cache_dir_suffix}_{model_name}"
+        CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
         from sentence_transformers import SentenceTransformer
 
         self.documents = documents
@@ -336,6 +391,7 @@ class EnsembleSearchEngine:
         documents: List[str],
         methods_weights: Dict[SearchMethod, float],
         cache_dir: Optional[str] = None,
+        cache_dir_suffix: Optional[str] = None,
     ):
         """
         Initialize the ensemble search engine.
@@ -348,6 +404,7 @@ class EnsembleSearchEngine:
         self.documents = DocumentProcessor.process_documents(documents)
         self.methods_weights = methods_weights
         self.cache_dir = cache_dir
+        self.cache_dir_suffix = cache_dir_suffix
         self.engines: Dict[SearchMethod, SearchEngine] = {}
         self._initialize_engines()
 
@@ -357,12 +414,18 @@ class EnsembleSearchEngine:
             if weight <= 0 or weight > 1:
                 continue
 
+            kwargs = {
+                "documents": self.documents,
+                "cache_dir": self.cache_dir,
+                "cache_dir_suffix": self.cache_dir_suffix + f"_{method.value}" if self.cache_dir_suffix else None,
+            }
+
             if method == SearchMethod.TFIDF:
-                engine = TfidfSearch(self.documents, cache_dir=self.cache_dir)
+                engine = TfidfSearch(**kwargs)
             elif method == SearchMethod.SENTENCE_TRANSFORMER:
-                engine = SentenceTransformerSearch(self.documents, cache_dir=self.cache_dir)
+                engine = SentenceTransformerSearch(**kwargs)
             elif method == SearchMethod.HASHING:
-                engine = HashingVectorizerSearch(self.documents, cache_dir=self.cache_dir)
+                engine = HashingVectorizerSearch(**kwargs)
             else:
                 raise ValueError(f"Unknown search method: {method}")
 
