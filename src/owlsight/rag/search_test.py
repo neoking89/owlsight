@@ -1,6 +1,4 @@
 import sys
-
-sys.path.append("src")
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Tuple
@@ -37,6 +35,7 @@ class SearchResult(BaseModel):
     """Model to store search results with type validation."""
 
     document: str
+    object_name: str
     score: float
     method: Optional[str] = None
     weighted_score: Optional[float] = None
@@ -47,15 +46,15 @@ class DocumentProcessor:
     """Handles document preprocessing and validation."""
 
     @staticmethod
-    def process_documents(documents: List[str]) -> List[str]:
+    def process_documents(documents: Dict[str, str]) -> Dict[str, str]:
         """Process and validate input documents."""
-        processed_docs = []
+        processed_docs = {}
 
-        for doc in documents:  # use set to remove duplicate str
+        for obj_name, doc in documents.items():
             if isinstance(doc, str):
-                processed_docs.append(doc)
+                processed_docs[obj_name] = doc
             elif hasattr(doc, "__doc__") and doc.__doc__:
-                processed_docs.append(doc.__doc__)
+                processed_docs[obj_name] = doc.__doc__
 
         if not processed_docs:
             raise ValueError("No valid documents found after processing")
@@ -66,23 +65,7 @@ class CacheMixin:
     """Mixin class for caching functionality."""
 
     def __init__(self, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None):
-        """
-        Initialize the cache mixin.
-
-        Parameters:
-        ----------
-        cache_dir: Optional[str]
-            Directory to store cache files.
-        cache_dir_suffix: Optional[str]
-            Suffix to append to cache files. Required if cache_dir is provided.
-            Acts as unique identifier, which tells the user information about what is being cached.
-
-        Raises:
-        -------
-        ValueError
-            If cache_dir is provided but cache_dir_suffix is None or empty.
-        """
-        # Validate cache_dir and cache_dir_suffix relationship
+        """Initialize the cache mixin."""
         if cache_dir and not cache_dir_suffix:
             raise ValueError("cache_dir_suffix must be provided when cache_dir is specified")
 
@@ -93,14 +76,11 @@ class CacheMixin:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
 
     def get_suffix_filename(self) -> str:
-        """
-        Append suffix to filename if provided.
-        Acts as unique identifier, which tells the user information about what is being cached.
-        """
+        """Get the suffix filename."""
         return self.cache_dir_suffix if self.cache_dir_suffix else ""
 
     def get_full_cache_path(self) -> Path:
-        """Get full cache path with .pkl extension."""
+        """Get full cache path."""
         if not self.cache_dir:
             raise ValueError("Cache directory not provided")
         return self.cache_dir / f"{self.get_suffix_filename()}.pkl"
@@ -146,19 +126,20 @@ class TfidfSearch(SearchEngine, CacheMixin):
 
     def __init__(
         self,
-        documents: List[str],
+        documents: Dict[str, str],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
         **tfidf_kwargs,
     ):
-        # validation
+        super().__init__()
         check_invalid_input_parameters(TfidfVectorizer.__init__, tfidf_kwargs)
         if cache_dir_suffix:
             cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}"
 
-        super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
         self.documents = documents
+        self.doc_list = list(documents.values())
+        self.obj_names = list(documents.keys())
         self.vectorizer = TfidfVectorizer(**tfidf_kwargs)
         self.matrix = None
 
@@ -167,7 +148,7 @@ class TfidfSearch(SearchEngine, CacheMixin):
         if cached_data is not None:
             self.matrix, self.vectorizer = cached_data
         else:
-            self.matrix = self.vectorizer.fit_transform(self.documents)
+            self.matrix = self.vectorizer.fit_transform(self.doc_list)
             self.save_data((self.matrix, self.vectorizer))
 
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
@@ -178,7 +159,10 @@ class TfidfSearch(SearchEngine, CacheMixin):
         similarities = cosine_similarity(query_vec, self.matrix)[0]
         top_indices = np.argsort(similarities)[-top_k:][::-1]
 
-        return [SearchResult(document=self.documents[idx], score=float(similarities[idx])) for idx in top_indices]
+        return [
+            SearchResult(document=self.doc_list[idx], object_name=self.obj_names[idx], score=float(similarities[idx]))
+            for idx in top_indices
+        ]
 
 
 class HashingVectorizerSearch(SearchEngine, CacheMixin):
@@ -186,19 +170,20 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
 
     def __init__(
         self,
-        documents: List[str],
+        documents: Dict[str, str],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
         **hashing_kwargs,
     ):
-        # validation
+        super().__init__()
         check_invalid_input_parameters(HashingVectorizer.__init__, hashing_kwargs)
         if cache_dir_suffix:
             cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}"
 
-        super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
         self.documents = documents
+        self.doc_list = list(documents.values())
+        self.obj_names = list(documents.keys())
         self.vectorizer = HashingVectorizer(**hashing_kwargs)
         self.matrix = None
 
@@ -207,7 +192,7 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
         if cached_data is not None:
             self.matrix, self.vectorizer = cached_data
         else:
-            self.matrix = self.vectorizer.transform(self.documents)
+            self.matrix = self.vectorizer.transform(self.doc_list)
             self.save_data((self.matrix, self.vectorizer))
 
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
@@ -218,7 +203,10 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
         similarities = cosine_similarity(query_vec, self.matrix)[0]
         top_indices = np.argsort(similarities)[-top_k:][::-1]
 
-        return [SearchResult(document=self.documents[idx], score=float(similarities[idx])) for idx in top_indices]
+        return [
+            SearchResult(document=self.doc_list[idx], object_name=self.obj_names[idx], score=float(similarities[idx]))
+            for idx in top_indices
+        ]
 
 
 class SentenceTransformerSearch(SearchEngine, CacheMixin):
@@ -226,30 +214,31 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
 
     def __init__(
         self,
-        documents: List[str],
-        model_name: str = "paraphrase-MiniLM-L6-v2",
+        documents: Dict[str, str],
+        model_name: str = "Alibaba-NLP/gte-base-en-v1.5",
         device: Optional[str] = None,
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ):
         super().__init__()
-        # add modelname to cache_dir_suffix, because modelname is a unique identifier
         if cache_dir_suffix:
-            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__{model_name}"
+            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__{model_name.replace('/', '_')}"
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
         from sentence_transformers import SentenceTransformer
 
         self.documents = documents
+        self.doc_list = list(documents.values())
+        self.obj_names = list(documents.keys())
         self.model_name = model_name
         self.device = device or get_best_device()
-        self.model = SentenceTransformer(model_name, device=self.device)
+        self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
         self.embeddings = None
 
     def create_index(self) -> None:
         self.embeddings = self.load_data()
         if self.embeddings is None:
             embeddings_list = []
-            for text in tqdm(self.documents, desc="Creating embeddings"):
+            for text in tqdm(self.doc_list, desc="Creating embeddings"):
                 if not text or not isinstance(text, str):
                     continue
                 try:
@@ -273,32 +262,20 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
             return []
 
         try:
-            # Encode query
             query_embedding = self.model.encode(query, convert_to_tensor=True)
             query_embedding = query_embedding.to(self.embeddings.device)
-
-            # Reshape embeddings
             query_embedding = query_embedding.view(1, -1)
             embeddings = self.embeddings.view(len(self.embeddings), -1)
-
-            # Calculate similarities
             similarities = torch.nn.functional.cosine_similarity(query_embedding, embeddings)
-
-            # Get top k results
-            k = min(top_k, len(self.documents))
+            k = min(top_k, len(self.doc_list))
             top_values, top_indices = torch.topk(similarities, k)
-
-            # Convert to numpy for easier handling
             top_values = top_values.cpu().numpy()
             top_indices = top_indices.cpu().numpy()
 
-            # Create results
-            results = [
-                SearchResult(document=self.documents[idx], score=float(score))
+            return [
+                SearchResult(document=self.doc_list[idx], object_name=self.obj_names[idx], score=float(score))
                 for idx, score in zip(top_indices, top_values)
             ]
-
-            return results
 
         except Exception as e:
             logger.error(f"Error in search: {str(e)}")
@@ -309,12 +286,7 @@ class LibraryInfoExtractor(CacheMixin):
     """Extracts documentation from Python libraries."""
 
     def __init__(self, library_name: str, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None):
-        """
-        Initialize the extractor.
-
-        Args:
-            library_name: Name of the Python library to extract info from
-        """
+        """Initialize the extractor."""
         super().__init__(cache_dir, cache_dir_suffix)
         self.library_name = library_name
         try:
@@ -323,38 +295,27 @@ class LibraryInfoExtractor(CacheMixin):
             raise ImportError(f"Could not import library {library_name}: {str(e)}")
 
     def extract_library_info(self) -> Dict[str, str]:
-        """
-        Extract (unique) documentation from the library.
-
-        Returns:
-            Dictionary, where key is the full object name and value is the documentation
-        """
-        # first use the documentations as keys to get unique docs
+        """Extract documentation from the library."""
         if self.cache_dir:
             cached_data = self.load_data()
             if cached_data is not None:
                 return cached_data
-        unique_docs = {}
-        for full_name, doc_info in self._extract_library_info_as_generator():
-            doc = doc_info["doc"]
-            if doc not in unique_docs:
-                unique_docs[doc] = full_name
 
-        # reverse the dictionary so key will be full name and value will be doc
-        unique_docs = {value: key for key, value in unique_docs.items()}
+        unique_docs = {}
+        # add documentation as key to keep it unique
+        for full_name, doc_info in self._extract_library_info_as_generator():
+            unique_docs[doc_info["doc"]] = full_name
+
+        # afterwards, reverse the key-value pairs to have the object name as key
+        unique_docs = {name: doc for doc, name in unique_docs.items() if doc}
+
         if self.cache_dir:
             self.save_data(unique_docs)
 
         return unique_docs
 
     def _extract_library_info_as_generator(self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
-        """
-        Extract documentation from the library.
-
-        Yields:
-            Tuples of (full_name, info_dict) where info_dict contains documentation
-            and object reference
-        """
+        """Extract documentation from the library."""
 
         def explore_module(module, prefix="") -> Generator[Tuple[str, Dict[str, Any]], None, None]:
             if not hasattr(module, "__path__"):
@@ -383,16 +344,7 @@ class LibraryInfoExtractor(CacheMixin):
     def _extract_info_from_module(
         self, module: Any, prefix: str = ""
     ) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
-        """
-        Extract documentation from a specific module.
-
-        Args:
-            module: Module to extract info from
-            prefix: Prefix for the full name
-
-        Yields:
-            Tuples of (full_name, info_dict) containing documentation and object reference
-        """
+        """Extract documentation from a specific module."""
         for name, obj in inspect.getmembers(module):
             if inspect.isclass(obj) or inspect.isfunction(obj) or inspect.ismethod(obj):
                 doc = inspect.getdoc(obj)
@@ -406,19 +358,12 @@ class EnsembleSearchEngine:
 
     def __init__(
         self,
-        documents: List[str],
+        documents: Dict[str, str],
         methods_weights: Dict[SearchMethod, float],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ):
-        """
-        Initialize the ensemble search engine.
-
-        Args:
-            documents: List of documents to search through
-            methods_weights: Dictionary mapping search methods to their weights
-            cache_dir: Directory for caching search indices
-        """
+        """Initialize the ensemble search engine."""
         self.documents = DocumentProcessor.process_documents(documents)
         self.methods_weights = methods_weights
         self.cache_dir = cache_dir
@@ -429,7 +374,7 @@ class EnsembleSearchEngine:
     def _initialize_engines(self) -> None:
         """Initialize search engines based on specified methods and weights."""
         for method, weight in self.methods_weights.items():
-            if weight <= 0 or weight > 1:
+            if weight <= 0:
                 continue
 
             kwargs = {
@@ -451,16 +396,7 @@ class EnsembleSearchEngine:
             engine.create_index()
 
     def search(self, query: str, top_k: int = 5) -> pd.DataFrame:
-        """
-        Perform ensemble search across all initialized engines.
-
-        Args:
-            query: Search query string
-            top_k: Number of top results to return
-
-        Returns:
-            DataFrame containing combined and ranked search results
-        """
+        """Perform ensemble search across all initialized engines."""
         all_results = []
 
         for method, engine in self.engines.items():
@@ -477,14 +413,15 @@ class EnsembleSearchEngine:
 
         # Convert results to DataFrame and aggregate scores
         df = pd.DataFrame([vars(r) for r in all_results])
-        df["aggregated_score"] = df.groupby("document")["weighted_score"].transform("sum")
+        df["aggregated_score"] = df.groupby("object_name")["weighted_score"].transform("sum")
 
-        # Return top-k unique results
+        # Return top-k unique results, using object_name as index
         return (
             df.sort_values("aggregated_score", ascending=False)
-            .drop_duplicates("document")
+            .drop_duplicates("object_name")
             .head(top_k)
-            .reset_index(drop=True)
+            .set_index("object_name")
+            .reset_index()
         )
 
 
@@ -495,22 +432,19 @@ def main():
     lib = "pandas"
     extractor = LibraryInfoExtractor(lib, cache_dir=cache_dir, cache_dir_suffix=lib)
 
-    # Use a dictionary to maintain unique docs based on content
-    unique_docs = extractor.extract_library_info()
-
-    # Convert back to list of dictionaries
-    documents = list(unique_docs.values())
+    # Get documentation with object names
+    docs_with_names = extractor.extract_library_info()
 
     # Configure search methods and weights
     methods_weights = {
         SearchMethod.TFIDF: 1.0,
-        SearchMethod.SENTENCE_TRANSFORMER: 3.8,
-        SearchMethod.HASHING: 0.6,
+        SearchMethod.SENTENCE_TRANSFORMER: 1.0,
+        SearchMethod.HASHING: 0,
     }
 
-    # Initialize and use ensemble search
+    # Initialize and use ensemble search with the dictionary
     engine = EnsembleSearchEngine(
-        documents=documents, methods_weights=methods_weights, cache_dir=cache_dir, cache_dir_suffix=lib
+        documents=docs_with_names, methods_weights=methods_weights, cache_dir=cache_dir, cache_dir_suffix=lib
     )
 
     # Example searches
@@ -523,7 +457,7 @@ def main():
     for query in queries:
         print(f"\nSearch Query: {query}")
         results = engine.search(query, top_k=10)
-        print(results[["document", "method", "aggregated_score"]])
+        print(results[["object_name", "document", "method", "aggregated_score"]])
 
 
 if __name__ == "__main__":
