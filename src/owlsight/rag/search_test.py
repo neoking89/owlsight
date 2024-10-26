@@ -92,30 +92,30 @@ class CacheMixin:
         if self.cache_dir:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
 
-    def get_suffix_filename(self, filename: str) -> str:
+    def get_suffix_filename(self) -> str:
         """
         Append suffix to filename if provided.
         Acts as unique identifier, which tells the user information about what is being cached.
         """
-        return filename if not self.cache_dir_suffix else f"{filename}_{self.cache_dir_suffix}"
+        return self.cache_dir_suffix if self.cache_dir_suffix else ""
 
-    def get_full_cache_path(self, filename: str) -> Path:
-        """Get full cache path."""
+    def get_full_cache_path(self) -> Path:
+        """Get full cache path with .pkl extension."""
         if not self.cache_dir:
             raise ValueError("Cache directory not provided")
-        return self.cache_dir / self.get_suffix_filename(filename)
+        return self.cache_dir / f"{self.get_suffix_filename()}.pkl"
 
-    def save_data(self, data: Any, filename: str):
+    def save_data(self, data: Any):
         """Save data to cache."""
         if self.cache_dir:
-            cache_path = self.get_full_cache_path(filename)
+            cache_path = self.get_full_cache_path()
             with open(cache_path, "wb") as f:
                 pickle.dump(data, f)
 
-    def load_data(self, filename: str) -> Optional[Any]:
+    def load_data(self) -> Optional[Any]:
         """Load data from cache."""
         if self.cache_dir:
-            cache_path = self.get_full_cache_path(filename)
+            cache_path = self.get_full_cache_path()
             if cache_path.exists():
                 with open(cache_path, "rb") as f:
                     return pickle.load(f)
@@ -124,6 +124,11 @@ class CacheMixin:
 
 class SearchEngine(ABC):
     """Abstract base class for search engines."""
+
+    @property
+    def cls_name(self) -> str:
+        """Get class name."""
+        return self.__class__.__name__
 
     @abstractmethod
     def create_index(self) -> None:
@@ -148,6 +153,8 @@ class TfidfSearch(SearchEngine, CacheMixin):
     ):
         # validation
         check_invalid_input_parameters(TfidfVectorizer.__init__, tfidf_kwargs)
+        if cache_dir_suffix:
+            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__"
 
         super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
@@ -156,12 +163,12 @@ class TfidfSearch(SearchEngine, CacheMixin):
         self.matrix = None
 
     def create_index(self) -> None:
-        cached_data = self.load_data("tfidf_index.pkl")
+        cached_data = self.load_data()
         if cached_data is not None:
             self.matrix, self.vectorizer = cached_data
         else:
             self.matrix = self.vectorizer.fit_transform(self.documents)
-            self.save_data((self.matrix, self.vectorizer), "tfidf_index.pkl")
+            self.save_data((self.matrix, self.vectorizer))
 
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
         if self.matrix is None:
@@ -186,6 +193,8 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
     ):
         # validation
         check_invalid_input_parameters(HashingVectorizer.__init__, hashing_kwargs)
+        if cache_dir_suffix:
+            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__"
 
         super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
@@ -194,12 +203,12 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
         self.matrix = None
 
     def create_index(self) -> None:
-        cached_data = self.load_data("hashing_index.pkl")
+        cached_data = self.load_data()
         if cached_data is not None:
             self.matrix, self.vectorizer = cached_data
         else:
             self.matrix = self.vectorizer.transform(self.documents)
-            self.save_data((self.matrix, self.vectorizer), "hashing_index.pkl")
+            self.save_data((self.matrix, self.vectorizer))
 
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
         if self.matrix is None:
@@ -226,7 +235,7 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         super().__init__()
         # add modelname to cache_dir_suffix, because modelname is a unique identifier
         if cache_dir_suffix:
-            cache_dir_suffix = f"{cache_dir_suffix}_{model_name}"
+            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__"
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
         from sentence_transformers import SentenceTransformer
 
@@ -237,7 +246,7 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         self.embeddings = None
 
     def create_index(self) -> None:
-        self.embeddings = self.load_data("transformer_embeddings.pkl")
+        self.embeddings = self.load_data()
         if self.embeddings is None:
             embeddings_list = []
             for text in tqdm(self.documents, desc="Creating embeddings"):
@@ -254,7 +263,7 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
                 raise ValueError("No valid embeddings created")
 
             self.embeddings = torch.stack(embeddings_list)
-            self.save_data(self.embeddings, "transformer_embeddings.pkl")
+            self.save_data(self.embeddings)
 
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
         if self.embeddings is None:
@@ -417,7 +426,7 @@ class EnsembleSearchEngine:
             kwargs = {
                 "documents": self.documents,
                 "cache_dir": self.cache_dir,
-                "cache_dir_suffix": self.cache_dir_suffix + f"_{method.value}" if self.cache_dir_suffix else None,
+                "cache_dir_suffix": self.cache_dir_suffix or "",
             }
 
             if method == SearchMethod.TFIDF:
@@ -473,7 +482,8 @@ class EnsembleSearchEngine:
 def main():
     """Example usage of the ensemble search engine."""
     # Extract pandas documentation
-    extractor = LibraryInfoExtractor("pandas")
+    lib = "pandas"
+    extractor = LibraryInfoExtractor(lib)
 
     # Use a dictionary to maintain unique docs based on content
     unique_docs = extractor.extract_unique_library_info()
@@ -489,7 +499,9 @@ def main():
     }
 
     # Initialize and use ensemble search
-    engine = EnsembleSearchEngine(documents=documents, methods_weights=methods_weights, cache_dir=None)
+    engine = EnsembleSearchEngine(
+        documents=documents, methods_weights=methods_weights, cache_dir=".rag_cache", cache_dir_suffix=lib
+    )
 
     # Example searches
     queries = [
