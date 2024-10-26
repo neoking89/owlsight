@@ -154,7 +154,7 @@ class TfidfSearch(SearchEngine, CacheMixin):
         # validation
         check_invalid_input_parameters(TfidfVectorizer.__init__, tfidf_kwargs)
         if cache_dir_suffix:
-            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__"
+            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}"
 
         super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
@@ -194,7 +194,7 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
         # validation
         check_invalid_input_parameters(HashingVectorizer.__init__, hashing_kwargs)
         if cache_dir_suffix:
-            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__"
+            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}"
 
         super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
@@ -235,7 +235,7 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         super().__init__()
         # add modelname to cache_dir_suffix, because modelname is a unique identifier
         if cache_dir_suffix:
-            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__"
+            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__{model_name}"
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
         from sentence_transformers import SentenceTransformer
 
@@ -305,23 +305,49 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
             return []
 
 
-class LibraryInfoExtractor:
+class LibraryInfoExtractor(CacheMixin):
     """Extracts documentation from Python libraries."""
 
-    def __init__(self, library_name: str):
+    def __init__(self, library_name: str, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None):
         """
         Initialize the extractor.
 
         Args:
             library_name: Name of the Python library to extract info from
         """
+        super().__init__(cache_dir, cache_dir_suffix)
         self.library_name = library_name
         try:
             self.library = importlib.import_module(library_name)
         except ImportError as e:
             raise ImportError(f"Could not import library {library_name}: {str(e)}")
 
-    def extract_library_info(self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
+    def extract_library_info(self) -> Dict[str, str]:
+        """
+        Extract (unique) documentation from the library.
+
+        Returns:
+            Dictionary, where key is the full object name and value is the documentation
+        """
+        # first use the documentations as keys to get unique docs
+        if self.cache_dir:
+            cached_data = self.load_data()
+            if cached_data is not None:
+                return cached_data
+        unique_docs = {}
+        for full_name, doc_info in self._extract_library_info_as_generator():
+            doc = doc_info["doc"]
+            if doc not in unique_docs:
+                unique_docs[doc] = full_name
+
+        # reverse the dictionary so key will be full name and value will be doc
+        unique_docs = {value: key for key, value in unique_docs.items()}
+        if self.cache_dir:
+            self.save_data(unique_docs)
+
+        return unique_docs
+
+    def _extract_library_info_as_generator(self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
         """
         Extract documentation from the library.
 
@@ -353,23 +379,6 @@ class LibraryInfoExtractor:
             yield from explore_module(self.library)
         except Exception as e:
             logger.error(f"Error exploring {self.library_name}: {str(e)}")
-
-    def extract_unique_library_info(self) -> Dict[str, str]:
-        """
-        Extract unique documentation from the library.
-
-        Returns:
-            Dictionary, where key is the full object name and value is the documentation
-        """
-        # first use the documentations as keys to get unique docs
-        unique_docs = {}
-        for full_name, doc_info in self.extract_library_info():
-            doc = doc_info["doc"]
-            if doc not in unique_docs:
-                unique_docs[doc] = full_name
-
-        # reverse the dictionary so key will be full name and value will be doc
-        return {value: key for key, value in unique_docs.items()}
 
     def _extract_info_from_module(
         self, module: Any, prefix: str = ""
@@ -482,11 +491,12 @@ class EnsembleSearchEngine:
 def main():
     """Example usage of the ensemble search engine."""
     # Extract pandas documentation
+    cache_dir = ".rag_cache"
     lib = "pandas"
-    extractor = LibraryInfoExtractor(lib)
+    extractor = LibraryInfoExtractor(lib, cache_dir=cache_dir, cache_dir_suffix=lib)
 
     # Use a dictionary to maintain unique docs based on content
-    unique_docs = extractor.extract_unique_library_info()
+    unique_docs = extractor.extract_library_info()
 
     # Convert back to list of dictionaries
     documents = list(unique_docs.values())
@@ -494,13 +504,13 @@ def main():
     # Configure search methods and weights
     methods_weights = {
         SearchMethod.TFIDF: 1.0,
-        SearchMethod.SENTENCE_TRANSFORMER: 0.8,
+        SearchMethod.SENTENCE_TRANSFORMER: 3.8,
         SearchMethod.HASHING: 0.6,
     }
 
     # Initialize and use ensemble search
     engine = EnsembleSearchEngine(
-        documents=documents, methods_weights=methods_weights, cache_dir=".rag_cache", cache_dir_suffix=lib
+        documents=documents, methods_weights=methods_weights, cache_dir=cache_dir, cache_dir_suffix=lib
     )
 
     # Example searches
