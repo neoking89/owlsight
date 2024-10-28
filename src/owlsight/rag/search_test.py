@@ -1,7 +1,8 @@
 import sys
+import re
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple, Literal
 import pickle
 import importlib
 import inspect
@@ -20,6 +21,7 @@ from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger_manager import LoggerManager
 
+LoggerManager.configure_logger(log_path="logs")
 logger = LoggerManager.get_logger(__name__)
 
 
@@ -42,7 +44,7 @@ class SearchResult(BaseModel):
     aggregated_score: Optional[float] = None
 
 
-class DocumentProcessor:
+class PythonDocumentationProcessor:
     """Handles document preprocessing and validation."""
 
     @staticmethod
@@ -59,6 +61,28 @@ class DocumentProcessor:
         if not processed_docs:
             raise ValueError("No valid documents found after processing")
         return processed_docs
+
+    @staticmethod
+    def get_documents(lib: str, cache_dir: Optional[str] = None) -> Dict[str, str]:
+        """
+        Get documentation for a Python library.
+
+        Parameters:
+        ----------
+        lib: str
+            The name of the library to extract documentation from.
+        cache_dir: Optional[str]
+            The cache directory to store the extracted documentation.
+
+        Returns:
+        -------
+        Dict[str, str]
+            A dictionary with object names as keys and documentation as values.
+        """
+        extractor = LibraryInfoExtractor(lib, cache_dir=cache_dir, cache_dir_suffix=lib)
+        docs_with_names = extractor.extract_library_info()
+        docs_with_names = PythonDocumentationProcessor.process_documents(docs_with_names)
+        return docs_with_names
 
 
 class CacheMixin:
@@ -175,6 +199,19 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
         cache_dir_suffix: Optional[str] = None,
         **hashing_kwargs,
     ):
+        """
+        Initialize the HashingVectorizer search engine.
+
+        Parameters:
+        ----------
+        documents: Dict[str, str]
+            A dictionary with name/documentinfo as keys and documents as values.
+        cache_dir: Optional[str]
+            The cache directory to store the embeddings.
+
+
+        """
+
         super().__init__()
         check_invalid_input_parameters(HashingVectorizer.__init__, hashing_kwargs)
         if cache_dir_suffix:
@@ -216,13 +253,48 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         self,
         documents: Dict[str, str],
         model_name: str = "Alibaba-NLP/gte-base-en-v1.5",
+        pooling_strategy: Literal["mean", "max", None] = "mean",
         device: Optional[str] = None,
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ):
-        super().__init__()
+        """
+        Initialize the Sentence Transformer search engine
+
+        Parameters:
+        ----------
+        documents: Dict[str, str]
+            A dictionary with name/documentinfo as keys and documents as values.
+        model_name: str
+            The name of the Sentence Transformer model to use.
+        pooling_strategy: Optional[Literal["mean", "max"]]
+            The pooling strategy to apply to the document embeddings.
+            Options: "mean", "max" or None.
+            If None, the document embeddings will be used as is.
+            If a pooling strategy is provided, the document will be split into sentences and the pooling strategy will be applied.
+        device: Optional[str]
+            The device to use for the Sentence Transformer model.
+        cache_dir: Optional[str]
+            The cache directory to store the embeddings.
+        cache_dir_suffix: Optional[str]
+            The cache directory suffix to store the embeddings.
+            Must be provided if cache_dir is specified.
+        """
+        self._check_pooling_strategy(pooling_strategy)
         if cache_dir_suffix:
-            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}__{model_name.replace('/', '_')}"
+            cache_dir_suffix = (
+                f"{self.cls_name}__{cache_dir_suffix}____{pooling_strategy}__{model_name.replace('/', '_')}"
+            )
+
+        _document_warning = f"""
+When using {self.cls_name}, ensure that documents are split into sentences.
+If not, use a pooling strategy, which will split a document into sentences and apply pooling to get one fixed-size embedding.
+Also, always check the documentation of the model to check if there is additional preprocessing required.
+Current pooling strategy: '{pooling_strategy}'
+        """.strip()
+        logger.warning(_document_warning)
+
+        super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
         from sentence_transformers import SentenceTransformer
 
@@ -242,7 +314,14 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
                 if not text or not isinstance(text, str):
                     continue
                 try:
+                    if self._pooling_strategy:
+                        text = self.split_and_clean_text(text)
                     embedding = self.model.encode(text, convert_to_tensor=True)
+                    # apply mean or max pooling to get one fixed-size embedding
+                    if self._pooling_strategy == "mean":
+                        embedding = torch.mean(embedding, dim=0)
+                    elif self._pooling_strategy == "max":
+                        embedding = torch.max(embedding, dim=0)[0]
                     embeddings_list.append(embedding)
                 except Exception as e:
                     logger.error(f"Error encoding text: {str(e)}")
@@ -280,6 +359,19 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         except Exception as e:
             logger.error(f"Error in search: {str(e)}")
             return []
+
+    @staticmethod
+    def split_and_clean_text(text: str) -> list:
+        """Split a longer text into sentences and clean them."""
+        cleaned_text = text.replace("\n", " ")
+        sentences = re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", cleaned_text)
+        return [sentence.strip() for sentence in sentences if sentence.strip()]
+
+    def _check_pooling_strategy(self, pooling_strategy: Optional[str]) -> None:
+        pooling_choices = [None, "mean", "max"]
+        if pooling_strategy not in pooling_choices:
+            raise ValueError(f"Invalid pooling strategy: {pooling_strategy}. Pooling choices:{pooling_choices}")
+        self._pooling_strategy = pooling_strategy
 
 
 class LibraryInfoExtractor(CacheMixin):
@@ -362,13 +454,15 @@ class EnsembleSearchEngine:
         methods_weights: Dict[SearchMethod, float],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
+        init_arguments: Optional[Dict[str, SearchMethod]] = None,
     ):
         """Initialize the ensemble search engine."""
-        self.documents = DocumentProcessor.process_documents(documents)
+        self.documents = documents
         self.methods_weights = methods_weights
         self.cache_dir = cache_dir
         self.cache_dir_suffix = cache_dir_suffix
         self.engines: Dict[SearchMethod, SearchEngine] = {}
+        self.engine_init_arguments = init_arguments or {}
         self._initialize_engines()
 
     def _initialize_engines(self) -> None:
@@ -384,11 +478,13 @@ class EnsembleSearchEngine:
             }
 
             if method == SearchMethod.TFIDF:
-                engine = TfidfSearch(**kwargs)
+                engine = TfidfSearch(**kwargs | self.engine_init_arguments.get(SearchMethod.TFIDF, {}))
             elif method == SearchMethod.SENTENCE_TRANSFORMER:
-                engine = SentenceTransformerSearch(**kwargs)
+                engine = SentenceTransformerSearch(
+                    **kwargs | self.engine_init_arguments.get(SearchMethod.SENTENCE_TRANSFORMER, {})
+                )
             elif method == SearchMethod.HASHING:
-                engine = HashingVectorizerSearch(**kwargs)
+                engine = HashingVectorizerSearch(**kwargs | self.engine_init_arguments.get(SearchMethod.HASHING, {}))
             else:
                 raise ValueError(f"Unknown search method: {method}")
 
@@ -425,39 +521,130 @@ class EnsembleSearchEngine:
         )
 
 
+def search_documents(
+    query: str,
+    documents: Dict[str, str],
+    top_k: int = 20,
+    tfidf_weight: float = 0.3,
+    sentence_transformer_weight: float = 0.7,
+    sentence_transformer_model: str = "multilingual-e5-large-instruct",
+    reranker_model: Optional[str] = None,
+    rerank_top_n_sentences: int = 10,
+    cache_dir: str = ".rag_cache",
+    cache_dir_suffix: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Search documents using an ensemble of TFIDF and Sentence Transformer methods.
+
+    Parameters
+    ----------
+    query : str
+        The search query
+    documents : Dict[str, str]
+        A dictionary with object names as keys and documentation as values
+    top_k : int, default 20
+        Number of top results to return
+    tfidf_weight : float, default 0.3
+        Weight for the TFIDF search method
+    sentence_transformer_weight : float, default 0.7
+        Weight for the Sentence Transformer search method
+    sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
+        Sentence Transformer model to use
+    reranker_model : str, default None
+        Path to the reranker model
+    rerank_top_n_sentences : int, default 10
+        Number of top sentences to consider for reranking. The mean of these scores is used to rank the documents.
+        The idea is that length of the document should not affect the ranking.
+    cache_dir : str, default ".rag_cache"
+        Directory for caching the embeddings and documentation
+    cache_dir_suffix : str, default None
+        Suffix to add to the cache directory
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the search results with columns:
+        - document info: Information about a given document, like title, name, etc.
+        - document: Documentation text
+        - method: Search method used
+        - score: Raw similarity score
+        - weighted_score: Score weighted by method
+        - aggregated_score: Combined score across methods
+    """
+    # Configure search methods weights
+    methods_weights = {
+        SearchMethod.TFIDF: tfidf_weight,
+        SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
+    }
+
+    # Initialize ensemble search engine
+    engine = EnsembleSearchEngine(
+        documents=documents,
+        methods_weights=methods_weights,
+        cache_dir=cache_dir,
+        cache_dir_suffix=cache_dir_suffix,
+        init_arguments={
+            SearchMethod.SENTENCE_TRANSFORMER: {
+                "pooling_strategy": "mean",
+                "model_name": sentence_transformer_model,
+            }
+        },
+    )
+
+    # Perform search
+    results = engine.search(query, top_k=top_k)
+    if reranker_model:
+        results = rerank_results(query, reranker_model, rerank_top_n_sentences, results)
+
+    return results
+
+
+def rerank_results(query, reranker_model, rerank_top_n_sentences, results):
+    from sentence_transformers import CrossEncoder
+
+    reranker = CrossEncoder(reranker_model, device=get_best_device())
+    texts = results["document"].tolist()
+    split_documents = [SentenceTransformerSearch.split_and_clean_text(text) for text in texts]
+    # documents are now split into sentences. Now we need to make query and sentence pairs per document
+    results["rerank_score"] = 0.0
+
+    for idx, document in enumerate(tqdm(split_documents, desc="Reranking documents")):
+        query_sentence_pairs = [[query, sentence] for sentence in document]
+        # encode the query and sentence pairs
+        pair_scores = reranker.predict(query_sentence_pairs)
+        # take the top n sentence scores so that document size matters less.
+        # Problem is document can be very relevant, but can have lots of low-scoring sentences
+        top_n_indices = np.argsort(pair_scores)[-rerank_top_n_sentences:][::-1]
+        rank_score = np.mean(pair_scores[top_n_indices])
+        results.loc[idx, "rerank_score"] = rank_score
+
+    return results.sort_values("rerank_score", ascending=False)
+
+
 def main():
     """Example usage of the ensemble search engine."""
     # Extract pandas documentation
     cache_dir = ".rag_cache"
+
     lib = "pandas"
-    extractor = LibraryInfoExtractor(lib, cache_dir=cache_dir, cache_dir_suffix=lib)
-
-    # Get documentation with object names
-    docs_with_names = extractor.extract_library_info()
-
-    # Configure search methods and weights
-    methods_weights = {
-        SearchMethod.TFIDF: 1.0,
-        SearchMethod.SENTENCE_TRANSFORMER: 1.0,
-        SearchMethod.HASHING: 0,
-    }
-
-    # Initialize and use ensemble search with the dictionary
-    engine = EnsembleSearchEngine(
-        documents=docs_with_names, methods_weights=methods_weights, cache_dir=cache_dir, cache_dir_suffix=lib
-    )
+    docs_with_names = PythonDocumentationProcessor.get_documents(lib, cache_dir=cache_dir)
 
     # Example searches
     queries = [
-        "How do I merge 2 dataframes?",
-        "How to handle missing values?",
-        "How to group data by column?",
+        "read csv file",
+        "plot data",
+        "group by column",
+        "merge dataframes",
+        "create new column",
+        "drop na values",
+        "pivot table",
+        "time series data",
     ]
 
     for query in queries:
-        print(f"\nSearch Query: {query}")
-        results = engine.search(query, top_k=10)
-        print(results[["object_name", "document", "method", "aggregated_score"]])
+        logger.info(f"\nSearch Query: {query}")
+        results = search_documents(query, docs_with_names, top_k=10, cache_dir=cache_dir, cache_dir_suffix=lib)
+        print(results)
 
 
 if __name__ == "__main__":
