@@ -37,6 +37,7 @@ def search_python_libs(
 ) -> Union[pd.DataFrame, str]:
     """
     Get search results for Python library documentation with optional formatted context.
+    This context can be added to the output of a chatbot or search interface.
 
     Parameters:
     -----------
