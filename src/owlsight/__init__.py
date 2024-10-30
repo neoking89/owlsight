@@ -15,8 +15,10 @@ from .processors.text_generation_processor import (
     TextGenerationProcessorGGUF,
 )
 from .rag.search import (
-    get_context_for_library,
-    CosineSimilaritySearch,
+    search_python_libs,
+    search_documents,
+    HashingVectorizerSearch,
+    TfidfSearch,
     SentenceTransformerSearch,
 )
 from .app.default_functions import OwlDefaultFunctions, search_bing, is_url
@@ -31,8 +33,10 @@ __all__ = [
     "TextGenerationProcessorOnnx",
     "TextGenerationProcessorTransformers",
     "TextGenerationProcessorGGUF",
-    "get_context_for_library",
-    "CosineSimilaritySearch",
+    "search_python_libs",
+    "search_documents",
+    "HashingVectorizerSearch",
+    "TfidfSearch",
     "SentenceTransformerSearch",
     "OwlDefaultFunctions",
     "search_bing",
