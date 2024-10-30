@@ -9,7 +9,7 @@ from owlsight.processors.text_generation_processor import (
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
-from owlsight.rag.search import get_context_for_library
+from owlsight.rag.search import search_python_libs
 
 from owlsight.utils.logger_manager import LoggerManager
 
@@ -105,7 +105,7 @@ class TextGenerationManager:
                         )
                         return
                     top_k = self.config_manager.get("rag.top_k", 3)
-                    context = get_context_for_library(library, search_query, top_k)
+                    context = search_python_libs(library, search_query, top_k)
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
 
 

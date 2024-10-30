@@ -18,7 +18,7 @@ from owlsight.utils.console import get_user_choice, print_colored
 from owlsight.utils.constants import PROMPT_COLOR, MENU_KEYS
 from owlsight.utils.deep_learning import free_memory
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
-from owlsight.rag.search import get_context_for_library
+from owlsight.rag.search import search_python_libs
 from owlsight.utils.constants import get_prompt_history_path
 from owlsight.utils.logger_manager import LoggerManager
 
@@ -152,7 +152,7 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> st
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
     """Clears the following things:
-    
+
     - All variables in the Python interpreter state, except those starting with "owl_"
     - Python interpreter history file
     - Prompt history file
@@ -170,7 +170,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     prompt_history_file = get_prompt_history_path()
     if os.path.exists(prompt_history_file):
         os.remove(prompt_history_file)
-        
+
     if manager.processor is not None:
         manager.processor.history.clear()
     logger.info("Cleared: Python interpreter history, prompt history, and model chat history.")
@@ -189,7 +189,7 @@ The following context is documentation from the python library {library_to_rag}.
 Use this information to help generate a code snippet that answers the question.
 """
 
-        context = get_context_for_library(library_to_rag, user_question, manager.get_config_key("top_k", 3))
+        context = search_python_libs(library_to_rag, user_question, manager.get_config_key("top_k", 3))
         ctx_to_add += context
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
         logger.info(f"Context added to the question with approx amount of {len(context.split())} words")
