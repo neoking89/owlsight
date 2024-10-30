@@ -1,4 +1,10 @@
-import sys
+"""
+Include RAG (Retrieval-Augmented Generation) search functionality for specific Python libraries
+(search_python_libs, LibraryInfoExtractor, PythonDocumentationProcessor).
+
+As well as for broader use (search_documents, HashingVectorizerSearch, TfidfSearch, SentenceTransformerSearch, EnsembleSearchEngine).
+"""
+
 import re
 from enum import Enum
 from pathlib import Path
@@ -26,38 +32,116 @@ logger = LoggerManager.get_logger(__name__)
 SENTENCETRANSFORMER_DEFAULT_MODEL = "Alibaba-NLP/gte-base-en-v1.5"
 
 
-def get_context_for_library(
-    library_name: str,
-    query: str,
-    top_k: int = 3,
-    method: Literal["hashing", "tfidf", "sentence-transformer"] = "tfidf",
-    get_results_only: bool = False,
-    cache_dir: str = None,
-) -> Union[str, List[Dict]]:
+def search_python_libs(
+    library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, return_context: bool = True
+) -> Union[pd.DataFrame, str]:
     """
-    Searches for the top-k most relevant functions/classes in library documentation based on a query.
+    Get search results for Python library documentation with optional formatted context.
 
     Parameters:
-        library_name (str): The name of the library to search in.
-        query (str): The search query.
-        top_k (int): The number of top results to return.
-        method (str): The search method to use ("cosine", "sentence-transformer").
-        get_results_only (bool): If True, only the searchresults (dict) will be returned instead of the full context.
-        cache_dir (str): The directory to cache the search data. Useful if generating embeddings (Sentence Transformer) takes long.
+    -----------
+    library : str
+        Name of the Python library to search
+    query : str
+        Search query string
+    top_k : int, default 5
+        Number of top results to return
+    cache_dir : Optional[str], default None
+        Directory for caching search results
+    return_context : bool, default True
+        If True, returns formatted context string instead of DataFrame
 
     Returns:
-        str: The context (documentation) of the top-k search results for the given library and query.
+    --------
+    Union[pd.DataFrame, str]
+        If return_context is True, returns formatted context string
+        Otherwise returns DataFrame with search results
     """
-    search_engine = EnsembleSearchEngine(
-        methods_weights={SearchMethod(method): 1.0},
-        documents=PythonDocumentationProcessor.get_documents(library_name, cache_dir=cache_dir),
-    )
-    results = search_engine.search(query, top_k)
-    if get_results_only:
-        return pd.DataFrame.from_dict(results)
+    documents = PythonDocumentationProcessor.get_documents(library, cache_dir=cache_dir)
 
-    context = search_engine.generate_context(results)
-    return context
+    engine = EnsembleSearchEngine(
+        documents=documents,
+        methods_weights={SearchMethod.TFIDF: 1.0},
+        cache_dir=cache_dir,
+        cache_dir_suffix=library,
+    )
+
+    results = engine.search(query, top_k=top_k)
+    results["document_name"] = results["document_name"].apply(lambda x: f"{library}.{x}")
+
+    if return_context:
+        return engine.generate_context(results)
+
+    return results
+
+
+def search_documents(
+    query: str,
+    documents: Dict[str, str],
+    top_k: int = 20,
+    tfidf_weight: float = 0.3,
+    sentence_transformer_weight: float = 0.7,
+    sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
+    cache_dir: str = ".rag_cache",
+    cache_dir_suffix: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Search documents using an ensemble of TFIDF and Sentence Transformer methods.
+
+    Parameters
+    ----------
+    query : str
+        The search query
+    documents : Dict[str, str]
+        A dictionary with object names as keys and documentation as values
+    top_k : int, default 20
+        Number of top results to return
+    tfidf_weight : float, default 0.3
+        Weight for the TFIDF search method
+    sentence_transformer_weight : float, default 0.7
+        Weight for the Sentence Transformer search method
+    sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
+        Sentence Transformer model to use
+    cache_dir : str, default ".rag_cache"
+        Directory for caching the embeddings and documentation
+    cache_dir_suffix : str, default None
+        Suffix to add to the cache directory
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the search results with columns:
+        - document info: Information about a given document, like title, name, etc.
+        - document: Documentation text
+        - method: Search method used
+        - score: Raw similarity score
+        - weighted_score: Score weighted by method
+        - aggregated_score: Combined score across methods
+    """
+    # Configure search methods weights
+    methods_weights = {
+        SearchMethod.TFIDF: tfidf_weight,
+        SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
+    }
+
+    # Initialize ensemble search engine
+    engine = EnsembleSearchEngine(
+        documents=documents,
+        methods_weights=methods_weights,
+        cache_dir=cache_dir,
+        cache_dir_suffix=cache_dir_suffix,
+        init_arguments={
+            SearchMethod.SENTENCE_TRANSFORMER: {
+                "pooling_strategy": "mean",
+                "model_name": sentence_transformer_model,
+            }
+        },
+    )
+
+    # Perform search
+    results = engine.search(query, top_k=top_k)
+
+    return results
 
 
 class SearchMethod(str, Enum):
@@ -469,7 +553,23 @@ class EnsembleSearchEngine:
         cache_dir_suffix: Optional[str] = None,
         init_arguments: Optional[Dict[str, Dict]] = None,
     ):
-        """Initialize the ensemble search engine."""
+        """
+        Initialize the ensemble search engine.
+
+        Parameters:
+        -----------
+        documents : Dict[str, str]
+            Dictionary containing document names and content
+        methods_weights : Dict[SearchMethod, float]
+            Dictionary containing search methods and their corresponding weights
+        cache_dir : Optional[str], default None
+            Directory for caching search results
+        cache_dir_suffix : Optional[str], default None
+            Suffix to append to cache directory. Required if cache_dir is specified
+        init_arguments : Optional[Dict[str, Dict]], default None
+            Dictionary containing initialization arguments for each search method
+            Example: {SearchMethod.TFIDF: {"ngram_range": (1, 2)}}
+        """
         self.documents = documents
         self.methods_weights = methods_weights
         self.cache_dir = cache_dir
@@ -592,49 +692,6 @@ def _get_signature(obj: Any) -> str:
         return ""
     except (ValueError, TypeError):
         return "(Unable to retrieve signature)"
-
-
-def get_python_lib_results(
-    library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, return_context: bool = True
-) -> Union[pd.DataFrame, str]:
-    """
-    Get search results for Python library documentation with optional formatted context.
-
-    Parameters:
-    -----------
-    library : str
-        Name of the Python library to search
-    query : str
-        Search query string
-    top_k : int, default 5
-        Number of top results to return
-    cache_dir : Optional[str], default None
-        Directory for caching search results
-    return_context : bool, default True
-        If True, returns formatted context string instead of DataFrame
-
-    Returns:
-    --------
-    Union[pd.DataFrame, str]
-        If return_context is True, returns formatted context string
-        Otherwise returns DataFrame with search results
-    """
-    documents = PythonDocumentationProcessor.get_documents(library, cache_dir=cache_dir)
-
-    engine = EnsembleSearchEngine(
-        documents=documents,
-        methods_weights={SearchMethod.TFIDF: 1.0},
-        cache_dir=cache_dir,
-        cache_dir_suffix=library,
-    )
-
-    results = engine.search(query, top_k=top_k)
-    results["document_name"] = results["document_name"].apply(lambda x: f"{library}.{x}")
-
-    if return_context:
-        return engine.generate_context(results)
-    
-    return results
 
 
 # if __name__ == "__main__":
