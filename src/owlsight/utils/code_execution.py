@@ -24,16 +24,10 @@ from owlsight.utils.venv_manager import (
     get_lib_path,
     get_python_executable,
 )
-from owlsight.utils.constants import PROMPT_COLOR
-
+from owlsight.utils.constants import PROMPT_COLOR, get_py_cache 
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
-
-
-def extract_missing_module(stderr: str) -> str:
-    match = re.search(r"No module named '(\w+)'", stderr)
-    return match.group(1) if match else None
 
 
 class CodeExecutor:
@@ -76,7 +70,9 @@ class CodeExecutor:
                     extracted_code_blocks = extract_markdown(response_with_fixed_code)
                     if extracted_code_blocks:
                         code_block = extracted_code_blocks[-1][1]  # Use the LAST extracted block of code
-                        logger.info(f"Extracted last code block from response with a total of {len(extracted_code_blocks)} blocks.")
+                        logger.info(
+                            f"Extracted last code block from response with a total of {len(extracted_code_blocks)} blocks."
+                        )
                         if prompt_retry_on_error:
                             code_block = prompt_code_edit(code_block)
                             user_choice = get_user_choice(
@@ -86,8 +82,8 @@ class CodeExecutor:
                                 }
                             )
                             if user_choice == "Skip code":
-                                return False # Exit early if the user chooses to skip the code
-                        continue # Retry execution with the updated code block
+                                return False  # Exit early if the user chooses to skip the code
+                        continue  # Retry execution with the updated code block
                     else:
                         logger.error(
                             "No code block could be extracted from the response. Probably the response didnt insert the code block correctly in markdown format."
@@ -227,7 +223,7 @@ class CodeExecutor:
 
     @property
     def python_interpreter_history_file(self) -> str:
-        return os.path.join(os.path.expanduser("~"), ".python_history")
+        return get_py_cache()
 
     def _get_nth_attempt(self) -> int:
         return self._attempts + 1
@@ -439,6 +435,12 @@ def _handle_write_code_to_file_choice(code_block: str):
                     logger.error(f"Error writing code block to file: {e}. Please try again.")
             else:
                 logger.info("No file name entered. Please try again.")
+
+
+def extract_missing_module(stderr: str) -> Union[str, None]:
+    """Extract a missing module from a ModuleNotFoundError exception"""
+    match = re.search(r"No module named '(\w+)'", stderr)
+    return match.group(1) if match else None
 
 
 def _format_history_as_string(history: List[dict]) -> str:
