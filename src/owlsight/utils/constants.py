@@ -1,9 +1,12 @@
 import os
+from functools import lru_cache
+
 import numpy as np
+
+from owlsight.utils.helper_functions import os_is_windows
 
 PROMPT_COLOR = "blue"
 CHOICE_COLOR = "green"
-
 
 COLOR_CODES = {
     "red": "\033[31m",
@@ -114,6 +117,23 @@ CHOICES = {
 }
 
 
-def get_prompt_history_path() -> str:
-    """Returns the path where all prompt history is stored."""
-    return os.path.join(os.path.expanduser("~"), ".prompt_history")
+@lru_cache(maxsize=1)
+def get_cache_dir() -> str:
+    """Returns the base directory for storing cached data."""
+    home_dir = os.path.expanduser("~")
+    data_dir = os.path.join(home_dir, ".owlsight")
+    os.makedirs(data_dir, exist_ok=True)
+    return data_dir
+
+
+@lru_cache(maxsize=16)
+def create_or_get_path(path: str, base=get_cache_dir()) -> str:
+    """Creates a directory if it does not exist and returns the path."""
+    full_path = os.path.join(base, path)
+    os.makedirs(full_path, exist_ok=True)
+    return path
+
+
+PROMPT_CACHE = create_or_get_path(".prompt_history")
+PY_CACHE = create_or_get_path(".python_history")
+PICKLE_CACHE = ".pickle"
