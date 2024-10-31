@@ -15,11 +15,10 @@ from owlsight.utils.helper_functions import (
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
 from owlsight.utils.console import get_user_choice, print_colored
-from owlsight.utils.constants import PROMPT_COLOR, MENU_KEYS
+from owlsight.utils.constants import PROMPT_COLOR, MENU_KEYS, get_cache_dir, get_pickle_cache, get_prompt_cache, get_py_cache
 from owlsight.utils.deep_learning import free_memory
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
 from owlsight.rag.search import search_python_libs
-from owlsight.utils.constants import get_cache_dir, PICKLE_CACHE
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -168,7 +167,13 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
     if manager.processor is not None:
         manager.processor.history.clear()
+
     logger.info(f"Cleared cachefolder {get_cache_dir()} and model chathistory.")
+
+    # rebuild empty cache files after clearing
+    get_pickle_cache()
+    get_prompt_cache()
+    get_py_cache()
 
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
@@ -183,7 +188,7 @@ def process_user_question(user_choice: str, code_executor: CodeExecutor, manager
 The following context is documentation from the python library {library_to_rag}.
 Use this information to help generate a code snippet that answers the question.
 """
-        context = search_python_libs(library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=PICKLE_CACHE)
+        context = search_python_libs(library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=get_pickle_cache())
         ctx_to_add += context
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
         logger.info(f"Context added to the question with approx amount of {len(context.split())} words")
