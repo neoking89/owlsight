@@ -1,14 +1,8 @@
-"""
-Include RAG (Retrieval-Augmented Generation) search functionality for specific Python libraries
-(search_python_libs, LibraryInfoExtractor, PythonDocumentationProcessor).
-
-As well as for broader use (search_documents, HashingVectorizerSearch, TfidfSearch, SentenceTransformerSearch, EnsembleSearchEngine).
-"""
-
+import sys
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple, Literal, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Literal
 import pickle
 import importlib
 import inspect
@@ -27,125 +21,11 @@ from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger_manager import LoggerManager
 
+LoggerManager.configure_logger(log_path="logs")
 logger = LoggerManager.get_logger(__name__)
 
+
 SENTENCETRANSFORMER_DEFAULT_MODEL = "Alibaba-NLP/gte-base-en-v1.5"
-
-
-def search_python_libs(
-    library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, return_context: bool = True
-) -> Union[pd.DataFrame, str]:
-    """
-    Get search results for Python library documentation with optional formatted context.
-    This context can be added to the output of a chatbot or search interface.
-
-    Parameters:
-    -----------
-    library : str
-        Name of the Python library to search
-    query : str
-        Search query string
-    top_k : int, default 5
-        Number of top results to return
-    cache_dir : Optional[str], default None
-        Directory for caching search results
-    return_context : bool, default True
-        If True, returns formatted context string instead of DataFrame
-
-    Returns:
-    --------
-    Union[pd.DataFrame, str]
-        If return_context is True, returns formatted context string
-        Otherwise returns DataFrame with search results
-    """
-    documents = PythonDocumentationProcessor.get_documents(library, cache_dir=cache_dir)
-
-    engine = EnsembleSearchEngine(
-        documents=documents,
-        methods_weights={SearchMethod.TFIDF: 1.0},
-        cache_dir=cache_dir,
-        cache_dir_suffix=library,
-    )
-
-    results = engine.search(query, top_k=top_k)
-    results["document_name"] = results["document_name"].apply(lambda x: f"{library}.{x}")
-
-    if return_context:
-        return engine.generate_context(results)
-
-    return results
-
-
-def search_documents(
-    query: str,
-    documents: Dict[str, str],
-    top_k: int = 20,
-    tfidf_weight: float = 0.3,
-    sentence_transformer_weight: float = 0.7,
-    sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
-    cache_dir: Optional[str] = None,
-    cache_dir_suffix: Optional[str] = None,
-) -> pd.DataFrame:
-    """
-    Search documents using an ensemble of TFIDF and Sentence Transformer methods.
-
-    Parameters
-    ----------
-    query : str
-        The search query
-    documents : Dict[str, str]
-        A dictionary with object names as keys and documentation as values
-    top_k : int, default 20
-        Number of top results to return
-    tfidf_weight : float, default 0.3
-        Weight for the TFIDF search method
-    sentence_transformer_weight : float, default 0.7
-        Weight for the Sentence Transformer search method
-    sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
-        Sentence Transformer model to use
-    cache_dir : Optional[str],
-        Directory for caching the embeddings and documentation
-    cache_dir_suffix : Optional[str],
-        Suffix to add to the cache directory.
-        This needs to be specified if cache_dir is provided.
-        If specified, the cache directory will be cache_dir/cache_dir_suffix
-
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the search results with columns:
-        - document info: Information about a given document, like title, name, etc.
-        - document: Documentation text
-        - method: Search method used
-        - score: Raw similarity score
-        - weighted_score: Score weighted by method
-        - aggregated_score: Combined score across methods
-    """
-    # Configure search methods weights
-    methods_weights = {
-        SearchMethod.TFIDF: tfidf_weight,
-        SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
-    }
-
-    # Initialize ensemble search engine
-    engine = EnsembleSearchEngine(
-        documents=documents,
-        methods_weights=methods_weights,
-        cache_dir=cache_dir,
-        cache_dir_suffix=cache_dir_suffix,
-        init_arguments={
-            SearchMethod.SENTENCE_TRANSFORMER: {
-                "pooling_strategy": "mean",
-                "model_name": sentence_transformer_model,
-            }
-        },
-    )
-
-    # Perform search
-    results = engine.search(query, top_k=top_k)
-
-    return results
 
 
 class SearchMethod(str, Enum):
@@ -239,21 +119,6 @@ class LibraryInfoExtractor(CacheMixin):
             self.save_data(unique_docs)
 
         return unique_docs
-
-    @staticmethod
-    def import_from_string(path: str) -> Any:
-        """
-        Import a class or function from a string path.
-
-        Parameters:
-        ----------
-        path: str
-            The path to the class or function to import.
-            Example: "pandas.DataFrame"
-        """
-        module_path, class_name = path.rsplit(".", 1)
-        module = importlib.import_module(module_path)
-        return getattr(module, class_name)
 
     def _extract_library_info_as_generator(self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
         """Extract documentation from the library."""
@@ -411,7 +276,19 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
         cache_dir_suffix: Optional[str] = None,
         **hashing_kwargs,
     ):
-        """Initialize the HashingVectorizer search engine."""
+        """
+        Initialize the HashingVectorizer search engine.
+
+        Parameters:
+        ----------
+        documents: Dict[str, str]
+            A dictionary with name/documentinfo as keys and documents as values.
+        cache_dir: Optional[str]
+            The cache directory to store the embeddings.
+
+
+        """
+
         super().__init__()
         check_invalid_input_parameters(HashingVectorizer.__init__, hashing_kwargs)
         if cache_dir_suffix:
@@ -458,12 +335,43 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ):
-        """Initialize the Sentence Transformer search engine."""
+        """
+        Initialize the Sentence Transformer search engine
+
+        Parameters:
+        ----------
+        documents: Dict[str, str]
+            A dictionary with name/documentinfo as keys and documents as values.
+        model_name: str
+            The name of the Sentence Transformer model to use.
+        pooling_strategy: Optional[Literal["mean", "max"]]
+            The pooling strategy to apply to the document embeddings.
+            Options: "mean", "max" or None.
+            If None, the document embeddings will be used as is.
+            If a pooling strategy is provided, the document will be split into sentences and the pooling strategy will be applied.
+        device: Optional[str]
+            The device to use for the Sentence Transformer model.
+        cache_dir: Optional[str]
+            The cache directory to store the embeddings.
+        cache_dir_suffix: Optional[str]
+            The cache directory suffix to store the embeddings.
+            Must be provided if cache_dir is specified.
+        """
         self._check_pooling_strategy(pooling_strategy)
         if cache_dir_suffix:
             cache_dir_suffix = (
                 f"{self.cls_name}__{cache_dir_suffix}____{pooling_strategy}__{model_name.replace('/', '_')}"
             )
+
+        _document_warning = f"""
+When using {self.cls_name}, ensure that documents are split into sentences.
+If not, use a pooling strategy, which will split a document into sentences and apply pooling to get one fixed-size embedding.
+Current pooling strategy: '{pooling_strategy}'
+
+Also, always check the documentation of the model to check if there is additional preprocessing required!
+This class is not designed to work with specific templates or formats, but assumes that the documents are prepared correctly as is.
+        """.strip()
+        logger.warning(_document_warning)
 
         super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
@@ -476,7 +384,6 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         self.device = device or get_best_device()
         self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
         self.embeddings = None
-        self._pooling_strategy = pooling_strategy
 
     def create_index(self) -> None:
         self.embeddings = self.load_data()
@@ -533,7 +440,7 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
             return []
 
     @staticmethod
-    def split_and_clean_text(text: str) -> List[str]:
+    def split_and_clean_text(text: str) -> list:
         """Split a longer text into sentences and clean them."""
         cleaned_text = text.replace("\n", " ")
         sentences = re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", cleaned_text)
@@ -542,7 +449,7 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
     def _check_pooling_strategy(self, pooling_strategy: Optional[str]) -> None:
         pooling_choices = [None, "mean", "max"]
         if pooling_strategy not in pooling_choices:
-            raise ValueError(f"Invalid pooling strategy: {pooling_strategy}. Pooling choices: {pooling_choices}")
+            raise ValueError(f"Invalid pooling strategy: {pooling_strategy}. Pooling choices:{pooling_choices}")
         self._pooling_strategy = pooling_strategy
 
 
@@ -555,25 +462,9 @@ class EnsembleSearchEngine:
         methods_weights: Dict[SearchMethod, float],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
-        init_arguments: Optional[Dict[str, Dict]] = None,
+        init_arguments: Optional[Dict[str, SearchMethod]] = None,
     ):
-        """
-        Initialize the ensemble search engine.
-
-        Parameters:
-        -----------
-        documents : Dict[str, str]
-            Dictionary containing document names and content
-        methods_weights : Dict[SearchMethod, float]
-            Dictionary containing search methods and their corresponding weights
-        cache_dir : Optional[str], default None
-            Directory for caching search results
-        cache_dir_suffix : Optional[str], default None
-            Suffix to append to cache directory. Required if cache_dir is specified
-        init_arguments : Optional[Dict[str, Dict]], default None
-            Dictionary containing initialization arguments for each search method
-            Example: {SearchMethod.TFIDF: {"ngram_range": (1, 2)}}
-        """
+        """Initialize the ensemble search engine."""
         self.documents = documents
         self.methods_weights = methods_weights
         self.cache_dir = cache_dir
@@ -609,7 +500,7 @@ class EnsembleSearchEngine:
             engine.create_index()
 
     def search(self, query: str, top_k: int = 5) -> pd.DataFrame:
-        """Perform ensemble search across all initialized engines and return detailed method scores."""
+        """Perform ensemble search across all initialized engines."""
         index_name = "document_name"
         all_results = []
 
@@ -629,111 +520,126 @@ class EnsembleSearchEngine:
         df = pd.DataFrame([vars(r) for r in all_results])
         df["aggregated_score"] = df.groupby(index_name)["weighted_score"].transform("sum")
 
-        # Get top-k unique documents based on aggregated score
-        top_documents = (
+        # Return top-k unique results, using document_name as index
+        return (
             df.sort_values("aggregated_score", ascending=False)
             .drop_duplicates(index_name)
-            .head(top_k)[index_name]
-            .tolist()
+            .head(top_k)
+            .set_index(index_name)
+            .reset_index()
         )
 
-        # Filter df to only include top documents
-        df_filtered = df[df[index_name].isin(top_documents)]
 
-        # Pivot the scores for each method
-        df_methods = df_filtered.pivot(index=index_name, columns="method", values="score").reset_index()
-
-        # Get the aggregated scores for the top documents
-        df_agg = df_filtered[["document_name", "document", "aggregated_score"]].drop_duplicates()
-
-        # Merge the method scores with aggregated score
-        final_df = df_methods.merge(df_agg, on=index_name).sort_values("aggregated_score", ascending=False)
-
-        # Reorder columns
-        # Get method columns (they'll be between document and aggregated_score)
-        method_columns = [
-            col for col in final_df.columns if col not in ["document_name", "document", "aggregated_score"]
-        ]
-
-        # Create final column order
-        column_order = ["document_name", "document"] + method_columns + ["aggregated_score"]
-
-        # Reorder columns
-        final_df = final_df[column_order]
-
-        return final_df
-
-    def generate_context(self, results: pd.DataFrame) -> str:
-        """
-        Generate formatted context from search results.
-
-        Parameters:
-        -----------
-        results : pd.DataFrame
-            Search results DataFrame containing document names and content
-
-        Returns:
-        --------
-        str
-            Formatted context string
-        """
-        context_parts = []
-
-        for _, row in results.iterrows():
-            # Get object from full path
-            try:
-                obj = LibraryInfoExtractor.import_from_string(row["document_name"])
-                signature = _get_signature(obj)
-            except Exception as e:
-                logger.warning(f"Error getting object info: {str(e)}")
-                signature = "(Unable to retrieve signature)"
-
-            # Format header with name, signature, and score
-            header = f"{row['document_name']}{signature}"
-            # score_info = f"(Relevance Score: {row['score']:.3f})"
-
-            # Build context entry
-            entry = ["=" * 80, header, "-" * 40, "Documentation:", row["document"].strip(), "\n"]
-
-            context_parts.append("\n".join(entry))
-
-        # Combine all entries
-        return "\n".join(context_parts)
-
-
-def _get_signature(obj: Any) -> str:
+def search_documents(
+    query: str,
+    documents: Dict[str, str],
+    top_k: int = 20,
+    tfidf_weight: float = 0.3,
+    sentence_transformer_weight: float = 0.7,
+    sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
+    cache_dir: str = ".rag_cache",
+    cache_dir_suffix: Optional[str] = None,
+) -> pd.DataFrame:
     """
-    Get the signature of a callable object.
+    Search documents using an ensemble of TFIDF and Sentence Transformer methods.
 
-    Parameters:
-    -----------
-    obj : Any
-        Object to get signature for
+    Parameters
+    ----------
+    query : str
+        The search query
+    documents : Dict[str, str]
+        A dictionary with object names as keys and documentation as values
+    top_k : int, default 20
+        Number of top results to return
+    tfidf_weight : float, default 0.3
+        Weight for the TFIDF search method
+    sentence_transformer_weight : float, default 0.7
+        Weight for the Sentence Transformer search method
+    sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
+        Sentence Transformer model to use
+    cache_dir : str, default ".rag_cache"
+        Directory for caching the embeddings and documentation
+    cache_dir_suffix : str, default None
+        Suffix to add to the cache directory
 
-    Returns:
-    --------
-    str
-        String representation of the object's signature
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the search results with columns:
+        - document info: Information about a given document, like title, name, etc.
+        - document: Documentation text
+        - method: Search method used
+        - score: Raw similarity score
+        - weighted_score: Score weighted by method
+        - aggregated_score: Combined score across methods
     """
-    try:
-        if callable(obj):
-            return str(inspect.signature(obj))
-        return ""
-    except (ValueError, TypeError):
-        return "(Unable to retrieve signature)"
+    # Configure search methods weights
+    methods_weights = {
+        SearchMethod.TFIDF: tfidf_weight,
+        SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
+    }
+
+    # Initialize ensemble search engine
+    engine = EnsembleSearchEngine(
+        documents=documents,
+        methods_weights=methods_weights,
+        cache_dir=cache_dir,
+        cache_dir_suffix=cache_dir_suffix,
+        init_arguments={
+            SearchMethod.SENTENCE_TRANSFORMER: {
+                "pooling_strategy": "mean",
+                "model_name": sentence_transformer_model,
+            }
+        },
+    )
+
+    # Perform search
+    results = engine.search(query, top_k=top_k)
+
+    return results
 
 
-# if __name__ == "__main__":
-#     import time
+def main():
+    """Example usage of the ensemble search engine."""
+    # Extract pandas documentation
+    cache_dir = ".rag_cache"
 
-#     start = time.time()
-#     documents = PythonDocumentationProcessor.get_documents("pandas", cache_dir=".rag_cache")
-#     results = search_documents(
-#         documents=documents,
-#         query="create DataFrame from list",
-#         top_k=700,
-#         cache_dir=".rag_cache",
-#         cache_dir_suffix="pandas",
-#     )
-#     print(results)
-#     print(f"Time taken: {time.time() - start:.2f} seconds")
+    documents = [
+        "Dit moet je met een fatbike doen.",
+        "Deze zin is een voorbeeld van een document.",
+        "Fatbikes moeten verboden worden op fietspaden.",
+        "Stoplichten zijn verplicht voor alle weggebruikers.",
+        "Dat gaat je niks aan!",
+        "Meerdere verkeersborden zijn omgevallen door de storm.",
+        "Deze zin is een voorbeeld van een document.",
+        "Fijn dat je wilt meedenken!",
+        "Albert Heijn is een supermarkt.",
+        "Amsterdam bestaat uit junks en toeristen.",
+        "Hou je bek, klootzak!",
+    ]
+
+    documents = {f"doc_{i}": doc for i, doc in enumerate(documents)}
+    # lib = "pandas"
+    # documents = PythonDocumentationProcessor.get_documents(lib, cache_dir=cache_dir)
+
+    queries = [
+        "Wat moet ik met een fatbike doen?",
+        "De mensen hebben zich ingezet voor de toekomst.",
+        "Er moet wat worden gedaan aan de verpaupering van de stad Eindhoven.",
+    ]
+
+    for query in queries:
+        logger.info(f"\nSearch Query: {query}")
+        results = search_documents(
+            query,
+            documents,
+            top_k=10,
+            cache_dir=cache_dir,
+            cache_dir_suffix="dutch_docs",
+            sentence_transformer_model="jegormeister/bert-base-dutch-cased-snli",
+        )
+        print(results)
+
+
+if __name__ == "__main__":
+    main()
