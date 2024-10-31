@@ -267,7 +267,7 @@ for token in processor.generate_stream(question):
 - Added default functions to the Python interpreter, starting with the "owl_" suffix.
 - More configurations available when using GGUF models from the command line.
 
-**1.3.x**
+**1.3.0**
 
 - Add `owl_history` function to python interpeter for directly accessing model chathistory.
 - Improved validation when  loading a configurationfile.
