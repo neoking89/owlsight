@@ -10,7 +10,7 @@ from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
 from owlsight.rag.search import search_python_libs
-
+from owlsight.utils.constants import get_pickle_cache
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -105,7 +105,7 @@ class TextGenerationManager:
                         )
                         return
                     top_k = self.config_manager.get("rag.top_k", 3)
-                    context = search_python_libs(library, search_query, top_k)
+                    context = search_python_libs(library, search_query, top_k, cache_dir=get_pickle_cache())
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
 
 
