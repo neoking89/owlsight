@@ -220,26 +220,6 @@ class LibraryInfoExtractor(CacheMixin):
         except ImportError as e:
             raise ImportError(f"Could not import library {library_name}: {str(e)}")
 
-    def extract_library_info(self) -> Dict[str, str]:
-        """Extract documentation from the library."""
-        if self.cache_dir:
-            cached_data = self.load_data()
-            if cached_data is not None:
-                return cached_data
-
-        unique_docs = {}
-        # add documentation as key to keep it unique
-        for full_name, doc_info in self._extract_library_info_as_generator():
-            unique_docs[doc_info["doc"]] = full_name
-
-        # afterwards, reverse the key-value pairs to have the object name as key
-        unique_docs = {name: doc for doc, name in unique_docs.items() if doc}
-
-        if self.cache_dir:
-            self.save_data(unique_docs)
-
-        return unique_docs
-
     @staticmethod
     def import_from_string(path: str) -> Any:
         """
@@ -255,26 +235,70 @@ class LibraryInfoExtractor(CacheMixin):
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
 
+    def extract_library_info(self) -> Dict[str, str]:
+        """Extract documentation from the library."""
+        if self.cache_dir:
+            cached_data = self.load_data()
+            if cached_data is not None:
+                return cached_data
+
+        unique_docs = {}
+        # add documentation as key to keep it unique
+        for full_name, doc_info in self._extract_library_info_as_generator():
+            if doc_info and "doc" in doc_info:
+                unique_docs[doc_info["doc"]] = full_name
+
+        # afterwards, reverse the key-value pairs to have the object name as key
+        unique_docs = {name: doc for doc, name in unique_docs.items() if doc}
+
+        if self.cache_dir:
+            self.save_data(unique_docs)
+
+        return unique_docs
+
     def _extract_library_info_as_generator(self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
         """Extract documentation from the library."""
 
-        def explore_module(module, prefix="") -> Generator[Tuple[str, Dict[str, Any]], None, None]:
-            if not hasattr(module, "__path__"):
+        def explore_module(module, prefix="", visited=None) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
+            if visited is None:
+                visited = set()
+
+            # Skip if module has no __path__ or has been visited
+            if not hasattr(module, "__path__") or module.__name__ in visited:
                 return
 
-            for _, name, is_pkg in pkgutil.iter_modules(module.__path__):
-                full_name = f"{prefix}.{name}" if prefix else name
-                if "test" in name.lower():
+            visited.add(module.__name__)
+
+            try:
+                module_iter = pkgutil.iter_modules(module.__path__)
+            except Exception:
+                return
+
+            for _, name, is_pkg in module_iter:
+                # Skip test modules and private modules
+                if name.startswith("_") or "test" in name.lower():
                     continue
 
-                try:
-                    sub_module = importlib.import_module(f"{module.__name__}.{name}")
-                    yield from self._extract_info_from_module(sub_module, full_name)
+                full_name = f"{prefix}.{name}" if prefix else name
 
+                try:
+                    # Try to import the module
+                    sub_module = importlib.import_module(f"{module.__name__}.{name}")
+
+                    # Extract info from current module
+                    for item in self._extract_info_from_module(sub_module, full_name):
+                        yield item
+
+                    # If it's a package, explore it recursively
                     if is_pkg:
-                        yield from explore_module(sub_module, full_name)
+                        yield from explore_module(sub_module, full_name, visited)
+
+                except (ImportError, AttributeError, ModuleNotFoundError):
+                    # Silently skip problematic imports
+                    continue
                 except Exception as e:
-                    logger.error(f"Error exploring {full_name}: {str(e)}")
+                    # Log other unexpected errors but continue processing
+                    logger.error(f"Unexpected error exploring {full_name}: {str(e)}")
                     continue
 
         try:
@@ -286,12 +310,22 @@ class LibraryInfoExtractor(CacheMixin):
         self, module: Any, prefix: str = ""
     ) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
         """Extract documentation from a specific module."""
-        for name, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) or inspect.isfunction(obj) or inspect.ismethod(obj):
-                doc = inspect.getdoc(obj)
-                if doc:
-                    full_name = f"{prefix}.{name}" if prefix else name
-                    yield full_name, {"doc": doc, "obj": obj}
+        try:
+            for name, obj in inspect.getmembers(module):
+                try:
+                    # Skip private members
+                    if name.startswith("_"):
+                        continue
+
+                    if inspect.isclass(obj) or inspect.isfunction(obj) or inspect.ismethod(obj):
+                        doc = inspect.getdoc(obj)
+                        if doc:
+                            full_name = f"{prefix}.{name}" if prefix else name
+                            yield full_name, {"doc": doc, "obj": obj}
+                except Exception:
+                    continue
+        except Exception:
+            return
 
 
 class PythonDocumentationProcessor:
