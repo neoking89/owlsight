@@ -19,7 +19,7 @@ from owlsight.utils.constants import PROMPT_COLOR, MENU_KEYS
 from owlsight.utils.deep_learning import free_memory
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
 from owlsight.rag.search import search_python_libs
-from owlsight.utils.constants import get_prompt_history_path
+from owlsight.utils.constants import get_cache_dir, PICKLE_CACHE
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -157,23 +157,18 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     - Python interpreter history file
     - Prompt history file
     - chat history in the processor
+    - pickled cache files
     """
     # clear all variables except those starting with "owl_"
     temp_dict = {k: v for k, v in code_executor.globals_dict.items() if k.startswith("owl_")}
     code_executor.globals_dict.clear()
     code_executor.globals_dict.update(temp_dict)
 
-    py_history_file = code_executor.python_interpreter_history_file
-    if os.path.exists(py_history_file):
-        os.remove(py_history_file)
-
-    prompt_history_file = get_prompt_history_path()
-    if os.path.exists(prompt_history_file):
-        os.remove(prompt_history_file)
+    force_delete(get_cache_dir())
 
     if manager.processor is not None:
         manager.processor.history.clear()
-    logger.info("Cleared: Python interpreter history, prompt history, and model chat history.")
+    logger.info(f"Cleared cachefolder {get_cache_dir()} and model chathistory.")
 
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
@@ -188,8 +183,7 @@ def process_user_question(user_choice: str, code_executor: CodeExecutor, manager
 The following context is documentation from the python library {library_to_rag}.
 Use this information to help generate a code snippet that answers the question.
 """
-
-        context = search_python_libs(library_to_rag, user_question, manager.get_config_key("top_k", 3))
+        context = search_python_libs(library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=PICKLE_CACHE)
         ctx_to_add += context
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
         logger.info(f"Context added to the question with approx amount of {len(context.split())} words")

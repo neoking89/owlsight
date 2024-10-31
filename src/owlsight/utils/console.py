@@ -13,7 +13,7 @@ from prompt_toolkit.application.current import get_app
 
 # import sys
 # sys.path.append("src")
-from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, get_prompt_history_path
+from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, PROMPT_CACHE
 
 
 class HistoryCompleter(Completer):
@@ -63,12 +63,8 @@ class Selector:
         self.current_index: int = 0
         self.selected: bool = False
         self.user_inputs: Dict[str, str] = {}  # To store user input for editable fields
-        self.toggle_values: Dict[str, Any] = (
-            {}
-        )  # To store current value for toggleable fields
-        self.toggle_choices: Dict[str, List[Any]] = (
-            {}
-        )  # To store possible toggle values
+        self.toggle_values: Dict[str, Any] = {}  # To store current value for toggleable fields
+        self.toggle_choices: Dict[str, List[Any]] = {}  # To store possible toggle values
 
         # Parse the options dictionary to categorize the options
         for key, value in options_dict.items():
@@ -80,9 +76,7 @@ class Selector:
                 self.toggle_values[key] = value[0]  # Set default to the first value
             elif isinstance(value, str):
                 self.options.append((key, OptionType.EDITABLE))
-                self.user_inputs[key] = (
-                    value  # Use the provided string as default value
-                )
+                self.user_inputs[key] = value  # Use the provided string as default value
 
 
 class OptionSelectorApp:
@@ -172,7 +166,7 @@ class OptionSelectorApp:
         """Create a control for an editable option."""
         # Create a TextArea for the editable field
         if label not in self.history:
-            self.history[label] = FileHistory(get_prompt_history_path())
+            self.history[label] = FileHistory(PROMPT_CACHE)
 
         # Create the HistoryCompleter that fetches suggestions from the history
         completer = HistoryCompleter(self.history[label])
@@ -220,32 +214,24 @@ class OptionSelectorApp:
 
         @self.kb.add("up")
         def move_up(event):
-            self.selector.current_index = (self.selector.current_index - 1) % len(
-                self.selector.options
-            )
+            self.selector.current_index = (self.selector.current_index - 1) % len(self.selector.options)
             self.update_focus(event.app)
             self.invalidate()
 
         @self.kb.add("down")
         def move_down(event):
-            self.selector.current_index = (self.selector.current_index + 1) % len(
-                self.selector.options
-            )
+            self.selector.current_index = (self.selector.current_index + 1) % len(self.selector.options)
             self.update_focus(event.app)
             self.invalidate()
 
         @self.kb.add("left")
         def left(event):
-            current_option, opt_type = self.selector.options[
-                self.selector.current_index
-            ]
+            current_option, opt_type = self.selector.options[self.selector.current_index]
             if opt_type == OptionType.TOGGLE:
                 choices = self.selector.toggle_choices[current_option]
                 current_value = self.selector.toggle_values[current_option]
                 current_index = choices.index(current_value)
-                self.selector.toggle_values[current_option] = choices[
-                    (current_index - 1) % len(choices)
-                ]
+                self.selector.toggle_values[current_option] = choices[(current_index - 1) % len(choices)]
             elif opt_type == OptionType.EDITABLE:
                 # Move cursor to the left in the TextArea buffer
                 buffer = self.buffers[current_option].buffer
@@ -255,16 +241,12 @@ class OptionSelectorApp:
 
         @self.kb.add("right")
         def right(event):
-            current_option, opt_type = self.selector.options[
-                self.selector.current_index
-            ]
+            current_option, opt_type = self.selector.options[self.selector.current_index]
             if opt_type == OptionType.TOGGLE:
                 choices = self.selector.toggle_choices[current_option]
                 current_value = self.selector.toggle_values[current_option]
                 current_index = choices.index(current_value)
-                self.selector.toggle_values[current_option] = choices[
-                    (current_index + 1) % len(choices)
-                ]
+                self.selector.toggle_values[current_option] = choices[(current_index + 1) % len(choices)]
             elif opt_type == OptionType.EDITABLE:
                 # Move cursor to the right in the TextArea buffer
                 buffer = self.buffers[current_option].buffer
@@ -275,9 +257,7 @@ class OptionSelectorApp:
         @self.kb.add("enter")
         def enter(event):
             self.selector.selected = True
-            current_option, opt_type = self.selector.options[
-                self.selector.current_index
-            ]
+            current_option, opt_type = self.selector.options[self.selector.current_index]
             if opt_type == OptionType.EDITABLE:
                 # Update the user input from the TextArea buffer
                 user_input = self.buffers[current_option].text
@@ -375,9 +355,7 @@ def print_colored(text: str, color: str) -> None:
         If the provided color is not valid.
     """
     if color not in COLOR_CODES:
-        raise ValueError(
-            f"Invalid color '{color}'. Valid options are: {', '.join(COLOR_CODES.keys())}"
-        )
+        raise ValueError(f"Invalid color '{color}'. Valid options are: {', '.join(COLOR_CODES.keys())}")
 
     color_code = COLOR_CODES[color]
     reset_code = COLOR_CODES["reset"]
