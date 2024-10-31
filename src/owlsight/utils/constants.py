@@ -136,4 +136,4 @@ def create_or_get_path(path: str, base=get_cache_dir()) -> str:
 
 PROMPT_CACHE = create_or_get_path(".prompt_history")
 PY_CACHE = create_or_get_path(".python_history")
-PICKLE_CACHE = ".pickle"
+PICKLE_CACHE = create_or_get_path(".pickle")
