@@ -83,7 +83,7 @@ def search_documents(
     tfidf_weight: float = 0.3,
     sentence_transformer_weight: float = 0.7,
     sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
-    cache_dir: str = ".rag_cache",
+    cache_dir: Optional[str] = None,
     cache_dir_suffix: Optional[str] = None,
 ) -> pd.DataFrame:
     """
@@ -103,10 +103,13 @@ def search_documents(
         Weight for the Sentence Transformer search method
     sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
         Sentence Transformer model to use
-    cache_dir : str, default ".rag_cache"
+    cache_dir : Optional[str],
         Directory for caching the embeddings and documentation
-    cache_dir_suffix : str, default None
-        Suffix to add to the cache directory
+    cache_dir_suffix : Optional[str],
+        Suffix to add to the cache directory.
+        This needs to be specified if cache_dir is provided.
+        If specified, the cache directory will be cache_dir/cache_dir_suffix
+
 
     Returns
     -------
@@ -530,7 +533,7 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
             return []
 
     @staticmethod
-    def split_and_clean_text(text: str) -> list:
+    def split_and_clean_text(text: str) -> List[str]:
         """Split a longer text into sentences and clean them."""
         cleaned_text = text.replace("\n", " ")
         sentences = re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", cleaned_text)
@@ -606,7 +609,7 @@ class EnsembleSearchEngine:
             engine.create_index()
 
     def search(self, query: str, top_k: int = 5) -> pd.DataFrame:
-        """Perform ensemble search across all initialized engines."""
+        """Perform ensemble search across all initialized engines and return detailed method scores."""
         index_name = "document_name"
         all_results = []
 
@@ -626,14 +629,39 @@ class EnsembleSearchEngine:
         df = pd.DataFrame([vars(r) for r in all_results])
         df["aggregated_score"] = df.groupby(index_name)["weighted_score"].transform("sum")
 
-        # Return top-k unique results, using document_name as index
-        return (
+        # Get top-k unique documents based on aggregated score
+        top_documents = (
             df.sort_values("aggregated_score", ascending=False)
             .drop_duplicates(index_name)
-            .head(top_k)
-            .set_index(index_name)
-            .reset_index()
+            .head(top_k)[index_name]
+            .tolist()
         )
+
+        # Filter df to only include top documents
+        df_filtered = df[df[index_name].isin(top_documents)]
+
+        # Pivot the scores for each method
+        df_methods = df_filtered.pivot(index=index_name, columns="method", values="score").reset_index()
+
+        # Get the aggregated scores for the top documents
+        df_agg = df_filtered[["document_name", "document", "aggregated_score"]].drop_duplicates()
+
+        # Merge the method scores with aggregated score
+        final_df = df_methods.merge(df_agg, on=index_name).sort_values("aggregated_score", ascending=False)
+
+        # Reorder columns
+        # Get method columns (they'll be between document and aggregated_score)
+        method_columns = [
+            col for col in final_df.columns if col not in ["document_name", "document", "aggregated_score"]
+        ]
+
+        # Create final column order
+        column_order = ["document_name", "document"] + method_columns + ["aggregated_score"]
+
+        # Reorder columns
+        final_df = final_df[column_order]
+
+        return final_df
 
     def generate_context(self, results: pd.DataFrame) -> str:
         """
@@ -699,8 +727,13 @@ def _get_signature(obj: Any) -> str:
 #     import time
 
 #     start = time.time()
-#     results = get_python_lib_results(
-#         library="pandas", query="create DataFrame from list", top_k=5, cache_dir=".rag_cache"
+#     documents = PythonDocumentationProcessor.get_documents("pandas", cache_dir=".rag_cache")
+#     results = search_documents(
+#         documents=documents,
+#         query="create DataFrame from list",
+#         top_k=700,
+#         cache_dir=".rag_cache",
+#         cache_dir_suffix="pandas",
 #     )
 #     print(results)
 #     print(f"Time taken: {time.time() - start:.2f} seconds")
