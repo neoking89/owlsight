@@ -1,13 +1,11 @@
 import os
-from functools import lru_cache
-
-import numpy as np
-
-from owlsight.utils.helper_functions import os_is_windows
+from pathlib import Path
+from typing import Union, Optional
 
 PROMPT_COLOR = "blue"
 CHOICE_COLOR = "green"
 
+# ANSI color codes for terminal output
 COLOR_CODES = {
     "red": "\033[31m",
     "green": "\033[32m",
@@ -104,7 +102,7 @@ CHOICES = {
         "back": None,
         "stopwords": DEFAULTS["generate"]["stopwords"],
         "max_new_tokens": [32 * (2**n) for n in range(15)],
-        "temperature": np.round(np.arange(0.0, 1.05, 0.05), 2).tolist(),
+        "temperature": [round(x * 0.05, 2) for x in range(21)],
         "generation_kwargs": DEFAULTS["generate"]["generation_kwargs"],
     },
     "rag": {
@@ -117,23 +115,66 @@ CHOICES = {
 }
 
 
-@lru_cache(maxsize=1)
-def get_cache_dir() -> str:
+def get_cache_dir() -> Path:
     """Returns the base directory for storing cached data."""
-    home_dir = os.path.expanduser("~")
-    data_dir = os.path.join(home_dir, ".owlsight")
-    os.makedirs(data_dir, exist_ok=True)
+    data_dir = Path.home() / ".owlsight"
+    data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 
 
-@lru_cache(maxsize=16)
-def create_or_get_path(path: str, base=get_cache_dir()) -> str:
-    """Creates a directory if it does not exist and returns the path."""
-    full_path = os.path.join(base, path)
-    os.makedirs(full_path, exist_ok=True)
-    return path
+def create_directory(path: Union[str, Path], base: Optional[Path] = None) -> Path:
+    """
+    Creates a directory if it does not exist and returns the path.
+
+    Parameters:
+    ----------
+    path : Union[str, Path]
+        The directory path to create.
+    base : Optional[Path]
+        The base directory for relative paths. Defaults to get_cache_dir().
+
+    Returns:
+    -------
+    Path
+        The created directory path.
+    """
+    full_path = Path(base or get_cache_dir()) / path
+    full_path.mkdir(parents=True, exist_ok=True)
+    return full_path
 
 
-PROMPT_CACHE = create_or_get_path(".prompt_history")
-PY_CACHE = create_or_get_path(".python_history")
-PICKLE_CACHE = create_or_get_path(".pickle")
+def create_file(path: Union[str, Path], base: Optional[Path] = None) -> Path:
+    """
+    Creates an empty file if it does not exist and returns the file path.
+
+    Parameters:
+    ----------
+    path : Union[str, Path]
+        The file path to create.
+    base : Optional[Path]
+        The base directory for relative paths. Defaults to get_cache_dir().
+
+    Returns:
+    -------
+    Path
+        The created file path.
+    """
+    full_path = Path(base or get_cache_dir()) / path
+    full_path.parent.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+    full_path.touch(exist_ok=True)  # Create file if it doesn't exist
+    return full_path
+
+
+def get_prompt_cache() -> Path:
+    """Returns the path to the prompt history cache file."""
+    return create_file(".prompt_history")
+
+
+def get_py_cache() -> Path:
+    """Returns the path to the python history cache file."""
+    return create_file(".python_history")
+
+
+def get_pickle_cache() -> Path:
+    """Returns the path to the pickle cache directory."""
+    return create_directory(".pickle")
