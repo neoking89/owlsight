@@ -11,9 +11,7 @@ from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
 
-# import sys
-# sys.path.append("src")
-from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, PROMPT_CACHE
+from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, get_prompt_cache
 
 
 class HistoryCompleter(Completer):
@@ -93,7 +91,6 @@ class OptionSelectorApp:
         self.layout = None
         self.application = None
         self.history = {}
-
         self.build_key_bindings()
 
     def set_selector(self, selector: Selector) -> None:
@@ -166,7 +163,7 @@ class OptionSelectorApp:
         """Create a control for an editable option."""
         # Create a TextArea for the editable field
         if label not in self.history:
-            self.history[label] = FileHistory(PROMPT_CACHE)
+            self.history[label] = FileHistory(get_prompt_cache())
 
         # Create the HistoryCompleter that fetches suggestions from the history
         completer = HistoryCompleter(self.history[label])
@@ -362,20 +359,3 @@ def print_colored(text: str, color: str) -> None:
 
     # Print the text with the selected color and reset the color afterward
     print(f"{color_code}{text}{reset_code}")
-
-
-# if __name__ == "__main__":
-#     print_colored("make a choice:", "cyan")
-#     # Example options dictionary with default values for editable inputs
-#     options = {
-#         "You are a:": "Human",  # Editable input with default value
-#         "apple": None,  # Static option, use None for single-select options
-#         "pear": None,  # Static option
-#         "banana": None,  # Static option
-#         "Is it ripe?": [True, False],  # Toggleable option
-#         "Days in sun": [1, 2, 3],  # Toggleable option
-#         "Your name:": "",  # Editable input without default value
-#     }
-
-#     result = get_user_choice(options)
-#     print("Result:", result)
