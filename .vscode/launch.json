@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File (.venv)",
+            "name": "Python: Current File (myenv)",
             "type": "python",
             "request": "launch",
             "program": "${file}",
@@ -12,8 +12,7 @@
                 "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "60",
                 "PYDEVD_WARN_SLOW_EVALUATION_TIMEOUT": "60"
             },
-            "justMyCode": false,
-            "python": "${workspaceFolder}/.venv/Scripts/python.exe"
+            "justMyCode": false
         }
     ]
 }
