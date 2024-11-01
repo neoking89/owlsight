@@ -9,7 +9,7 @@ from owlsight.processors.text_generation_processor import (
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
-from owlsight.rag.search import search_python_libs
+from owlsight.rag.python_lib_search import search_python_libs
 from owlsight.utils.constants import get_pickle_cache
 from owlsight.utils.logger_manager import LoggerManager
 
