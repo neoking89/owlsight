@@ -157,14 +157,11 @@ class SearchMethod(str, Enum):
 
 
 class SearchResult(BaseModel):
-    """Model to store search results with type validation."""
+    """Model to store essential search results with type validation."""
 
     document: str
     document_name: str
     score: float
-    method: Optional[str] = None
-    weighted_score: Optional[float] = None
-    aggregated_score: Optional[float] = None
 
 
 class CacheMixin:
