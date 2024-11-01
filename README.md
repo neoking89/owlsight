@@ -272,3 +272,9 @@ for token in processor.generate_stream(question):
 - Add `owl_history` function to python interpeter for directly accessing model chathistory.
 - Improved validation when  loading a configurationfile.
 - Added validation for retrying a codeblock from an error. This configuration is called `prompt_retry_on_error`
+
+1.4.0
+
+- improve RAG possibilities in the API, added **SentenceTransformerSearch**, **TFIDFSearch** and **HashingVectorizerSearch** as classes.
+- Added **search_documents** to offer a general RAG solution for documents.
+- Added caching possibility to all RAG solutions in the API, where documents, embeddings etc. get pickled. This can save a big amount of time if amount of documents is large.
