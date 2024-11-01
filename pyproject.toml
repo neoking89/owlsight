@@ -32,7 +32,10 @@ dev = [
     "ruff",
     "black",
     "pytest",
+    "pytest-asyncio",
     "pynput",
+    "twine",
+    "psutil",
 ]
 
 gguf = [
