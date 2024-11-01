@@ -489,7 +489,28 @@ class SentenceTransformerSearch(SearchEngine, CacheMixin):
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ):
-        """Initialize the Sentence Transformer search engine."""
+        """
+        Initialize the Sentence Transformer search engine.
+
+        Parameters:
+        -----------
+        documents : Dict[str, str]
+            Dictionary containing document names and content
+        model_name : str
+            Sentence Transformer model name
+        pooling_strategy : Literal["mean", "max", None], default "mean"
+            Pooling strategy to use for Sentence Transformer embeddings
+            Use "mean" or "max" for mean or max pooling, respectively.
+            This is useful when the input text has multiple sentences, but you want a single embedding which maintains the context.
+            Splitting of sentences is done automatically.
+            Choose None for no pooling. This is useful if each document is a single sentence.
+        device : Optional[str], default None
+            Device to use for Sentence Transformer model
+        cache_dir : Optional[str], default None
+            Directory for caching search results
+        cache_dir_suffix : Optional[str], default None
+            Suffix to append to cache directory. Required if cache_dir is specified
+        """
         self._check_pooling_strategy(pooling_strategy)
         if cache_dir_suffix:
             cache_dir_suffix = (
