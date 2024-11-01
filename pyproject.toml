@@ -32,7 +32,7 @@ dev = [
     "ruff",
     "black",
     "pytest",
-    "pytest-asyncio",
+    "pytest-asyncio<=0.24",
     "pynput",
     "twine",
     "psutil",
