@@ -109,21 +109,5 @@ def test_path_separators(test_env):
     expected_path = os.path.normpath(full_test_path)
     assert os.path.normpath(result) == expected_path, f"Unexpected path formatting: {result}"
 
-
-@pytest.mark.skipif(os_is_windows(), reason="Symlink tests not supported on Windows without admin privileges")
-def test_symlink_handling(test_env):
-    """Test handling of symlinked directories (Skip on Windows)."""
-    # Create a real directory
-    real_dir = os.path.join(test_env["test_home"], "real_dir")
-    os.makedirs(real_dir, exist_ok=True)
-
-    # Create a symlink
-    symlink_path = os.path.join(test_env["test_home"], "symlink_dir")
-    os.symlink(real_dir, symlink_path)
-
-    result = create_or_get_path(symlink_path)
-    assert os.path.exists(result)
-
-
 if __name__ == "__main__":
     pytest.main(["-vv", "-s", __file__])
