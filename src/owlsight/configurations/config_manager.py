@@ -6,6 +6,7 @@ import traceback
 from owlsight.utils.logger_manager import LoggerManager
 from owlsight.utils.constants import DEFAULTS, CHOICES
 from owlsight.utils.helper_functions import flatten_dict
+from owlsight.utils.validations import validate_key_is_nested_one_layer
 
 logger = LoggerManager.get_logger(__name__)
 
@@ -240,12 +241,16 @@ class ConfigManager:
             raise KeyError(f"Config misses the following keys: {missing_keys}")
 
         invalid_keys = set(flattened_config.keys()) - set(flattened_defaults.keys())
+        invalid_keys = {key for key in invalid_keys if validate_key_is_nested_one_layer(key)}  # only consider keys with nested keys
         if invalid_keys:
             raise KeyError(f"Config has the following keys, which are not valid in owlsight: {invalid_keys}")
         
         # check if values are valid
         flattened_choices = flatten_dict(CHOICES)
         for key, value in flattened_config.items():
+            if not validate_key_is_nested_one_layer(key):
+                logger.warning(f"Key '{key}' is not nested one layer deep. Skipping validation.")
+                continue
             choices = flattened_choices[key]
             if isinstance(choices, list) and choices!=[]:
                 # if the value is a list, it means that the value is a togglechoice. we check if the value is in the list
