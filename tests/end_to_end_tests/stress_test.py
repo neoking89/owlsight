@@ -32,7 +32,8 @@ class OwlsightStressTester:
             "config: main",
             "save",
             "load",
-            "clear history"
+            "clear history",
+            "quit"
         ]
         
         # Test commands for different modes
@@ -136,6 +137,7 @@ class OwlsightStressTester:
             
             # Two more downs to reach quit
             await self.press_key(Key.down)  # To clear history
+            await self.press_key(Key.enter)
             await asyncio.sleep(0.05)
             await self.press_key(Key.down)  # To quit
             await asyncio.sleep(0.05)
