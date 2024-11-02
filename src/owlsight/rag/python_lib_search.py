@@ -1,4 +1,7 @@
 from typing import Any, Dict, Generator, Tuple, Optional, Union
+import importlib
+import inspect
+import pkgutil
 
 import pandas as pd
 
@@ -100,14 +103,18 @@ def search_python_libs(
 class LibraryInfoExtractor(CacheMixin):
     """Extracts documentation from Python libraries."""
 
-    def __init__(self, library_name: str, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None):
+    def __init__(self,
+                 library_name: str,
+                 cache_dir: Optional[str] = None,
+                 cache_dir_suffix: Optional[str] = None):
         """Initialize the extractor."""
         super().__init__(cache_dir, cache_dir_suffix)
         self.library_name = library_name
         try:
             self.library = importlib.import_module(library_name)
         except ImportError as e:
-            raise ImportError(f"Could not import library {library_name}: {str(e)}")
+            raise ImportError(
+                f"Could not import library {library_name}: {str(e)}")
 
     @staticmethod
     def import_from_string(path: str) -> Any:
@@ -145,10 +152,15 @@ class LibraryInfoExtractor(CacheMixin):
 
         return unique_docs
 
-    def _extract_library_info_as_generator(self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
+    def _extract_library_info_as_generator(
+            self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
         """Extract documentation from the library."""
 
-        def explore_module(module, prefix="", visited=None) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
+        def explore_module(
+                module,
+                prefix="",
+                visited=None
+        ) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
             if visited is None:
                 visited = set()
 
@@ -172,22 +184,26 @@ class LibraryInfoExtractor(CacheMixin):
 
                 try:
                     # Try to import the module
-                    sub_module = importlib.import_module(f"{module.__name__}.{name}")
+                    sub_module = importlib.import_module(
+                        f"{module.__name__}.{name}")
 
                     # Extract info from current module
-                    for item in self._extract_info_from_module(sub_module, full_name):
+                    for item in self._extract_info_from_module(
+                            sub_module, full_name):
                         yield item
 
                     # If it's a package, explore it recursively
                     if is_pkg:
-                        yield from explore_module(sub_module, full_name, visited)
+                        yield from explore_module(sub_module, full_name,
+                                                  visited)
 
                 except (ImportError, AttributeError, ModuleNotFoundError):
                     # Silently skip problematic imports
                     continue
                 except Exception as e:
                     # Log other unexpected errors but continue processing
-                    logger.error(f"Unexpected error exploring {full_name}: {str(e)}")
+                    logger.error(
+                        f"Unexpected error exploring {full_name}: {str(e)}")
                     continue
 
         try:
@@ -196,7 +212,9 @@ class LibraryInfoExtractor(CacheMixin):
             logger.error(f"Error exploring {self.library_name}: {str(e)}")
 
     def _extract_info_from_module(
-        self, module: Any, prefix: str = ""
+            self,
+            module: Any,
+            prefix: str = ""
     ) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
         """Extract documentation from a specific module."""
         try:
@@ -206,7 +224,8 @@ class LibraryInfoExtractor(CacheMixin):
                     if name.startswith("_"):
                         continue
 
-                    if inspect.isclass(obj) or inspect.isfunction(obj) or inspect.ismethod(obj):
+                    if inspect.isclass(obj) or inspect.isfunction(
+                            obj) or inspect.ismethod(obj):
                         doc = inspect.getdoc(obj)
                         if doc:
                             full_name = f"{prefix}.{name}" if prefix else name
