@@ -29,12 +29,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "build",
-    "ruff",
-    "black",
+    "twine",
     "pytest",
     "pytest-asyncio<=0.24",
+    "ruff",
+    "black",
     "pynput",
-    "twine",
     "psutil",
 ]
 
