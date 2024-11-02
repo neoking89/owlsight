@@ -20,6 +20,8 @@ class SearchResult(BaseModel):
     document: str
     document_name: str
     score: float
+    method: Optional[str] = None
+    weighted_score: Optional[float] = None
 
 
 class CacheMixin:
