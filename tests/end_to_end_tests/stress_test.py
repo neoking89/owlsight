@@ -170,7 +170,7 @@ class OwlsightStressTester:
         else:
             subprocess.Popen(["gnome-terminal", "--working-directory", os.getcwd(), "--title=Owlsight-Terminal", "--"])
             await asyncio.sleep(0.5)
-            subprocess.run(f"xdotool search --name 'Owlsight-Terminal' windowactivate", shell=True)
+            subprocess.run("xdotool search --name 'Owlsight-Terminal' windowactivate", shell=True)
         
         await asyncio.sleep(0.1)
         
