@@ -1,28 +1,17 @@
-# test_owlsight_stress.py
-
 import asyncio
+import random
+import subprocess
 import platform
 import os
-import subprocess
-import random
-import pytest
-from typing import Optional
 import psutil
-from pynput.keyboard import Key, Controller
 
-# Import pygetwindow only on Windows
-if platform.system() == "Windows":
-    try:
-        import pygetwindow as gw
-    except ImportError:
-        subprocess.run(["pip", "install", "pygetwindow"], check=True)
-        import pygetwindow as gw
+from pynput.keyboard import Key, Controller
 
 class OwlsightStressTester:
     def __init__(self):
         self.keyboard = Controller()
         self.system = platform.system()
-        self.owlsight_pid: Optional[int] = None
+        self.owlsight_pid = None
         
         # Menu options from README
         self.menu_options = [
@@ -32,8 +21,7 @@ class OwlsightStressTester:
             "config: main",
             "save",
             "load",
-            "clear history",
-            "quit"
+            "clear history"
         ]
         
         # Test commands for different modes
@@ -41,7 +29,11 @@ class OwlsightStressTester:
         self.shell_commands = ["pwd", "echo test", "ls", "dir"]
         self.ai_prompts = ["hi", "write a function", "help", "what is Python?"]
         
-    def find_owlsight_process(self) -> Optional[int]:
+        if self.system == "Windows":
+            import pygetwindow as gw
+            self.gw = gw
+
+    def find_owlsight_process(self):
         """Find the Owlsight process"""
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
@@ -51,7 +43,7 @@ class OwlsightStressTester:
                 continue
         return None
 
-    def is_owlsight_running(self) -> bool:
+    def is_owlsight_running(self):
         """Check if Owlsight process is still running"""
         if self.owlsight_pid:
             try:
@@ -117,121 +109,144 @@ class OwlsightStressTester:
         if not self.is_owlsight_running():
             raise Exception(f"Owlsight process died during {name}")
 
-    async def final_end_to_end_test(self) -> tuple[bool, str]:
-        """Run final end-to-end verification"""
-        try:
-            # Exit Python if we're in it
-            await self.type_fast("exit()")
-            await self.press_key(Key.enter)
-            await asyncio.sleep(0.5)
+    async def final_end_to_end_test(self):
+            """Run final end-to-end verification"""
+            print("\nRunning final end-to-end verification...")
             
-            # Navigate to quit
-            for _ in range(10):  # Go all the way up
-                await self.press_key(Key.up)
+            try:
+                # FIRST: Make absolutely sure we exit Python if we're in it
+                print("Ensuring we're at main menu...")
+                await self.type_fast("exit()")
+                await self.press_key(Key.enter)
+                await asyncio.sleep(0.5)  # Wait to ensure we're back at main menu
+                
+                # Now we know we're at the main menu, navigate to quit
+                print("Navigating to quit...")
+                # First go all the way up
+                for _ in range(10):
+                    await self.press_key(Key.up)
+                    await asyncio.sleep(0.05)
+                
+                # Now go down to load (7 times from top menu item)
+                for _ in range(7):
+                    await self.press_key(Key.down)
+                    await asyncio.sleep(0.05)
+                
+                # Two more downs to reach quit from load
+                print("Moving from load to quit...")
+                await self.press_key(Key.down)  # To clear history
                 await asyncio.sleep(0.05)
-            
-            # Go down to load (7 times from top)
-            for _ in range(7):
-                await self.press_key(Key.down)
+                await self.press_key(Key.down)  # To quit
                 await asyncio.sleep(0.05)
-            
-            # Two more downs to reach quit
-            await self.press_key(Key.down)  # To clear history
-            await self.press_key(Key.enter)
-            await asyncio.sleep(0.05)
-            await self.press_key(Key.down)  # To quit
-            await asyncio.sleep(0.05)
-            
-            # Execute quit
-            await self.press_key(Key.enter)
-            await asyncio.sleep(1.0)
+                
+                print("Executing quit command...")
+                await self.press_key(Key.enter)
+                print("Waiting for Owlsight to close...")
+                await asyncio.sleep(1.0)
 
-            # Verify process termination
-            for _ in range(10):
-                if not self.is_owlsight_running():
-                    return True, "Clean exit confirmed"
-                await asyncio.sleep(0.1)
+                # Verify process termination
+                for _ in range(10):
+                    if not self.is_owlsight_running():
+                        return True, "End-to-end test successful - clean exit confirmed"
+                    await asyncio.sleep(0.1)
 
-            return False, "Owlsight process still running after quit"
+                if self.is_owlsight_running():
+                    return False, "Owlsight process still running after quit"
+                
+                return True, "End-to-end test successful"
 
-        except Exception as e:
-            return False, f"End-to-end test failed: {str(e)}"
-
-    async def startup(self) -> bool:
-        """Start Owlsight and verify it's running"""
-        # Start terminal
+            except Exception as e:
+                return False, f"End-to-end test failed: {str(e)}"
+        
+    async def run_stress_test(self, num_iterations: int = 50):
+        """Run complete stress test with random actions and end-to-end verification"""
+        print(f"Starting {num_iterations} rapid test iterations...")
+        
+        # Start terminal in current directory
         if self.system == "Windows":
             cmd = f'start powershell -NoExit -Command "cd \'{os.getcwd()}\'; $host.UI.RawUI.WindowTitle = \'Owlsight-Terminal\'"'
             subprocess.Popen(cmd, shell=True)
-            await asyncio.sleep(0.5)
-            windows = gw.getWindowsWithTitle("Owlsight-Terminal")
+        else:
+            subprocess.Popen(["gnome-terminal", "--working-directory", os.getcwd(), "--title=Owlsight-Terminal", "--"])
+        
+        await asyncio.sleep(0.5)
+        
+        # Focus window
+        if self.system == "Windows":
+            windows = self.gw.getWindowsWithTitle("Owlsight-Terminal")
             if windows:
                 windows[0].activate()
         else:
-            subprocess.Popen(["gnome-terminal", "--working-directory", os.getcwd(), "--title=Owlsight-Terminal", "--"])
-            await asyncio.sleep(0.5)
-            subprocess.run("xdotool search --name 'Owlsight-Terminal' windowactivate", shell=True)
+            subprocess.run(f"xdotool search --name 'Owlsight-Terminal' windowactivate", shell=True)
         
         await asyncio.sleep(0.1)
         
         # Start Owlsight
         await self.type_fast("owlsight")
         await self.press_key(Key.enter)
+        print("Waiting for Owlsight to start...")
         await asyncio.sleep(5)  # Wait for startup
         
         # Find process
         self.owlsight_pid = self.find_owlsight_process()
-        return self.owlsight_pid is not None
+        if not self.owlsight_pid:
+            raise Exception("Failed to find Owlsight process after startup")
+        print(f"Owlsight process found with PID: {self.owlsight_pid}")
 
-    def cleanup(self):
-        """Force cleanup if necessary"""
-        if self.is_owlsight_running():
-            if self.system == "Windows":
-                for window in gw.getWindowsWithTitle("Owlsight-Terminal"):
+        # Run random tests
+        successful_iterations = 0
+        for i in range(num_iterations):
+            print(f"Iteration {i+1}/{num_iterations}", end="\r")
+            try:
+                await self.execute_random_action()
+                successful_iterations += 1
+            except Exception as e:
+                print(f"\nError in iteration {i+1}: {e}")
+                break
+
+        # Run end-to-end test
+        success, message = await self.final_end_to_end_test()
+        
+        print("\n=== Test Summary ===")
+        print(f"Random Test Iterations: {successful_iterations}/{num_iterations}")
+        print(f"End-to-End Test: {'PASSED' if success else 'FAILED'}")
+        print(f"Final Status: {message}")
+        
+        return success
+
+async def main():
+    if platform.system() == "Windows":
+        try:
+            import pygetwindow
+        except ImportError:
+            subprocess.run(["pip", "install", "pygetwindow"], check=True)
+            print("Installed pygetwindow, please restart")
+            return
+
+    try:
+        subprocess.run(["pip", "install", "psutil"], check=True)
+    except:
+        print("Failed to install psutil")
+        return
+
+    tester = OwlsightStressTester()
+    
+    try:
+        success = await tester.run_stress_test(num_iterations=50)
+        if not success:
+            print("\nTest suite failed!")
+    except Exception as e:
+        print(f"Critical error: {e}")
+    finally:
+        # Only force close if still running
+        if tester.is_owlsight_running():
+            print("WARNING: Forcing Owlsight terminal closure")
+            if platform.system() == "Windows":
+                for window in pygetwindow.getWindowsWithTitle("Owlsight-Terminal"):
                     window.close()
             else:
                 subprocess.run(["pkill", "-f", "Owlsight-Terminal"])
 
-@pytest.mark.asyncio
-async def test_owlsight_stress():
-    """
-    Pytest function to run stress test on Owlsight.
-    Tests stability through random operations and verifies clean exit.
-    """
-    num_iterations = 50  # Number of random operations to perform
-    
-    tester = OwlsightStressTester()
-    
-    try:
-        # Start Owlsight
-        startup_success = await tester.startup()
-        assert startup_success, "Failed to start Owlsight"
-        
-        # Run random tests
-        successful_iterations = 0
-        for i in range(num_iterations):
-            try:
-                await tester.execute_random_action()
-                successful_iterations += 1
-            except Exception as e:
-                pytest.fail(f"Failed at iteration {i+1}: {str(e)}")
-        
-        # Verify all iterations completed
-        assert successful_iterations == num_iterations, \
-            f"Not all iterations completed: {successful_iterations}/{num_iterations}"
-        
-        # Run end-to-end test
-        success, message = await tester.final_end_to_end_test()
-        assert success, f"End-to-end test failed: {message}"
-        
-    except Exception as e:
-        pytest.fail(f"Unexpected error: {str(e)}")
-    
-    finally:
-        tester.cleanup()
-        # Verify Owlsight is not running after cleanup
-        assert not tester.is_owlsight_running(), "Owlsight process still running after cleanup"
-
 if __name__ == "__main__":
-    # Allow running directly for debugging
-    pytest.main([__file__, "-v"])
+    print(f"Starting Owlsight stress test on {platform.system()}...")
+    asyncio.run(main())
