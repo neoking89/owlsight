@@ -18,7 +18,7 @@ from owlsight.utils.helper_functions import (
     editable_input,
     format_error_message,
 )
-from owlsight.utils.console import get_user_choice
+from owlsight.ui.console import get_user_choice
 from owlsight.utils.venv_manager import (
     install_python_modules,
     get_lib_path,
