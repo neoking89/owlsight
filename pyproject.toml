@@ -29,10 +29,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "build",
+    "twine",
+    "pytest",
+    "pytest-asyncio<=0.24",
     "ruff",
     "black",
-    "pytest",
     "pynput",
+    "psutil",
 ]
 
 gguf = [

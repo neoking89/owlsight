@@ -18,7 +18,7 @@ from owlsight.utils.console import get_user_choice, print_colored
 from owlsight.utils.constants import PROMPT_COLOR, MENU_KEYS, get_cache_dir, get_pickle_cache, get_prompt_cache, get_py_cache
 from owlsight.utils.deep_learning import free_memory
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
-from owlsight.rag.search import search_python_libs
+from owlsight.rag.python_lib_search import search_python_libs
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)

@@ -1,6 +1,7 @@
 # __init__.py
 
 # Importing functions to make them accessible from the package's root
+from .rag.python_lib_search import search_python_libs
 from .utils.deep_learning import (
     get_best_device,
     check_gpu_and_cuda,
@@ -14,8 +15,7 @@ from .processors.text_generation_processor import (
     TextGenerationProcessorTransformers,
     TextGenerationProcessorGGUF,
 )
-from .rag.search import (
-    search_python_libs,
+from .rag.core import (
     search_documents,
     HashingVectorizerSearch,
     TfidfSearch,
