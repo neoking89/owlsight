@@ -7,6 +7,7 @@ from typing import Optional
 import logging
 import traceback
 import time
+import shutil
 
 import pytest
 import psutil
@@ -18,7 +19,7 @@ from owlsight.utils.constants import get_cache_dir
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-BUTTON_PRESS_TIME = 0.1
+BUTTON_PRESS_TIME = 0.2
 
 # Import pygetwindow only on Windows
 if platform.system() == "Windows":
@@ -224,7 +225,6 @@ class OwlsightStressTester:
         # go back to main menu
         self.press_key(Key.enter)
 
-
     @move_down_up(1)
     def test_shell(self):
         """Test shell command execution"""
@@ -357,6 +357,9 @@ class OwlsightStressTester:
     def cleanup(self):
         """Force cleanup if necessary"""
         logger.debug("Cleaning up")
+        cache_dir = get_cache_dir()
+        if os.path.exists(cache_dir):
+            shutil.rmtree(cache_dir)
         if self.is_owlsight_running():
             if self.system == "Windows":
                 for window in gw.getWindowsWithTitle("Owlsight-Terminal"):
