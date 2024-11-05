@@ -373,7 +373,7 @@ class OwlsightStressTester:
         raise RuntimeError(f"Wrong menu selected. Expected: {expected}, Actual: {actual}")
 
 
-# @pytest.mark.stress
+@pytest.mark.stress
 def test_owlsight_stress():
     """
     Pytest function to run stress test on Owlsight.
