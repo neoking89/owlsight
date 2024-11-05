@@ -1,5 +1,5 @@
 import pytest
-from owlsight.utils.console import OptionType, Selector
+from owlsight.ui.console import OptionType, Selector
 
 
 @pytest.fixture

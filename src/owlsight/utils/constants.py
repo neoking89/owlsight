@@ -16,9 +16,6 @@ COLOR_CODES = {
     "reset": "\033[0m",  # Resets to default color
 }
 
-MENU_KEYS = {
-    "assistant": "how can I assist you?",
-}
 
 DEFAULTS = {
     "main": {
@@ -112,6 +109,20 @@ CHOICES = {
         "top_k": list(range(1, 51)),
         "search_query": DEFAULTS["rag"]["search_query"],
     },
+}
+
+MENU_KEYS = {
+    "assistant": "how can I assist you?",
+}
+MAIN_MENU = {
+    MENU_KEYS["assistant"]: "",
+    "shell": "",
+    "python": None,
+    "config": list(DEFAULTS.keys()),
+    "save": "",
+    "load": "",
+    "clear history": None,
+    "quit": None,
 }
 
 

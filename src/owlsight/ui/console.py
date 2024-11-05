@@ -45,7 +45,7 @@ class OptionType(Enum):
 
 
 class Selector:
-    def __init__(self, options_dict: Dict[str, Union[None, str, List[Any]]]) -> None:
+    def __init__(self, options_dict: Dict[str, Union[None, str, List[Any]]], start_index: int = 0) -> None:
         """
         Initialize the Selector with the given options.
 
@@ -56,9 +56,11 @@ class Selector:
             the type of option. None is for static options, a string for editable input
             (empty string or default value), and a list (e.g., [True, False], [1, 2, 3])
             for toggleable options.
+        start_index : int, optional
+            The index of the option to start with in the menu, default is 0.
         """
+        self.current_index: int = start_index
         self.options: List[Tuple[str, OptionType]] = []
-        self.current_index: int = 0
         self.selected: bool = False
         self.user_inputs: Dict[str, str] = {}  # To store user input for editable fields
         self.toggle_values: Dict[str, Any] = {}  # To store current value for toggleable fields
@@ -288,6 +290,7 @@ app = OptionSelectorApp()
 def get_user_choice(
     options_dict: Dict[str, Union[None, str, List[Any]]],
     return_value_only: bool = True,
+    start_index: int = 0,
 ) -> Union[str, Dict[str, Any]]:
     """
     Runs the command-line interface that allows the user to select or input options.
@@ -298,6 +301,8 @@ def get_user_choice(
         The options to display to the user.
     return_value_only : bool, optional
         If True, return only the value; if False, return a dictionary with the key.
+    start_index : int, optional
+        The index of the option to start with in the menu, default is 0.
 
     Returns
     -------
@@ -305,7 +310,7 @@ def get_user_choice(
         The selected or inputted option as a string or dictionary.
     """
     global app
-    selector = Selector(options_dict)
+    selector = Selector(options_dict, start_index)
     app.set_selector(selector)
     app.run()
 
