@@ -4,6 +4,8 @@ from typing import Dict, Union, Tuple
 from enum import Enum, auto
 import os
 
+from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
+from owlsight.ui.console import get_user_choice, print_colored
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.app.handlers import handle_interactive_code_execution
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
@@ -14,10 +16,15 @@ from owlsight.utils.helper_functions import (
     os_is_windows,
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
-from owlsight.utils.console import get_user_choice, print_colored
-from owlsight.utils.constants import PROMPT_COLOR, MENU_KEYS, get_cache_dir, get_pickle_cache, get_prompt_cache, get_py_cache
+from owlsight.utils.constants import (
+    PROMPT_COLOR,
+    MAIN_MENU,
+    get_cache_dir,
+    get_pickle_cache,
+    get_prompt_cache,
+    get_py_cache,
+)
 from owlsight.utils.deep_learning import free_memory
-from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
 from owlsight.rag.python_lib_search import search_python_libs
 from owlsight.utils.logger_manager import LoggerManager
 
@@ -32,16 +39,25 @@ class CommandResult(Enum):
 
 def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
     """Runs the main loop for code generation and user interaction."""
+    option = None
+    user_choice = None
     while True:
         try:
             print_colored("Make a choice:", color=PROMPT_COLOR)
-            user_choice, choice_key = get_user_input(manager)
+            
+            # define startindex of arrow in mainmenu
+            _option_or_userchoice: bool = option or user_choice
+            if _option_or_userchoice:
+                start_index = list(MAIN_MENU.keys()).index(_option_or_userchoice)
+            else:
+                start_index = 0
+            user_choice, option = get_user_input(start_index=start_index)
 
-            if not user_choice and choice_key not in ["config", "save", "load"]:
+            if not user_choice and option not in ["config", "save", "load"]:
                 logger.error("User choice is empty. Please try again.")
                 continue
 
-            command_result = handle_special_commands(choice_key, user_choice, code_executor, manager)
+            command_result = handle_special_commands(option, user_choice, code_executor, manager)
             if command_result == CommandResult.BREAK:
                 break
             elif command_result == CommandResult.CONTINUE:
@@ -60,24 +76,30 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             # raise
 
 
-def get_user_input(manager: TextGenerationManager) -> Tuple[str, Union[str, None]]:
+def get_user_input(start_index: int = 0) -> Tuple[str, Union[str, None]]:
+    """
+    Gets the user input and returns the user choice and the corresponding key from the menu.
+
+    Parameters
+    ----------
+    start_index:  int
+        The starting index for the menu options
+
+    Returns
+    -------
+    Tuple[str, Union[str, None]]
+        The user choice and the corresponding option from the menu
+    """
+
     user_choice: Union[str, Dict] = get_user_choice(
-        {
-            MENU_KEYS["assistant"]: "",
-            "shell": "",
-            "python": None,
-            "config": list(manager.get_config().keys()),
-            "save": "",
-            "load": "",
-            "clear history": None,
-            "quit": None,
-        },
+        MAIN_MENU,
         return_value_only=False,
+        start_index=start_index,
     )
 
     if isinstance(user_choice, dict):
-        choice_key = list(user_choice.keys())[0]
-        return user_choice[choice_key], choice_key
+        option = list(user_choice.keys())[0]
+        return user_choice[option], option
     return user_choice, None
 
 
@@ -87,6 +109,7 @@ def handle_special_commands(
     code_executor: CodeExecutor,
     manager: TextGenerationManager,
 ) -> CommandResult:
+    """Handles special commands such as shell, config, save, load, python, clear history, and quit."""
     if choice_key == "shell":
         code_executor.execute_code_block(lang=choice_key, code_block=user_choice)
         return CommandResult.CONTINUE
@@ -126,6 +149,7 @@ def handle_special_commands(
 
 
 def handle_config_update(user_choice: str, manager: TextGenerationManager) -> str:
+    """Handles updating the configuration based on the user's choice."""
     logger.info(f"Chosen config: {user_choice}")
 
     # Retrieve nested configuration options
@@ -188,7 +212,9 @@ def process_user_question(user_choice: str, code_executor: CodeExecutor, manager
 The following context is documentation from the python library {library_to_rag}.
 Use this information to help generate a code snippet that answers the question.
 """
-        context = search_python_libs(library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=get_pickle_cache())
+        context = search_python_libs(
+            library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=get_pickle_cache()
+        )
         ctx_to_add += context
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
         logger.info(f"Context added to the question with approx amount of {len(context.split())} words")
