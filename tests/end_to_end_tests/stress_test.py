@@ -12,6 +12,8 @@ import pytest
 import psutil
 from pynput.keyboard import Key, Controller
 
+from owlsight.utils.constants import get_cache_dir
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -196,14 +198,31 @@ class OwlsightStressTester:
     @move_down_up(3)
     def test_rag(self):
         """Test RAG config"""
-        logger.debug("Starting test_rage")
+        logger.debug("Starting test_rag")
         if self.main_menu_index != 3:
             self._raise_wrong_mode_error("Config")
-        for _ in range(3):
-            self.press_key(Key.right)
+        self.press_key(Key.right, 3)
         self.press_key(Key.enter)
         # should be in rag menu now
-        raise NotImplementedError("RAG test not implemented")
+        # activate rag
+        self.press_key(Key.down)
+        self.press_key(Key.right)
+        self.press_key(Key.enter)
+        self.press_key(Key.down, 2)
+        self.type_fast("pandas")
+        self.press_key(Key.enter)
+        self.press_key(Key.down, 4)
+        self.type_fast("How do I merge two dataframes?")
+        # execute rag
+        self.press_key(Key.enter)
+
+        # deactivate rag
+        self.press_key(Key.down)
+        self.press_key(Key.right)
+        self.press_key(Key.enter)
+
+        # go back to main menu
+        self.press_key(Key.enter)
 
 
     @move_down_up(1)
@@ -239,7 +258,12 @@ class OwlsightStressTester:
         if not self.ensure_terminal_focused():
             raise RuntimeError("Could not focus terminal window")
 
-        actions = [(self.test_python, "python test"), (self.test_shell, "shell test"), (self.test_ai, "AI test"), (self.test_rag, "RAG test")]
+        actions = [
+            (self.test_python, "python test"),
+            (self.test_shell, "shell test"),
+            (self.test_ai, "AI test"),
+            (self.test_rag, "RAG test"),
+        ]
         action, name = random.choice(actions)
         logger.debug(f"Selected action: {name}")
 
@@ -346,6 +370,7 @@ class OwlsightStressTester:
         raise RuntimeError(f"Wrong menu selected. Expected: {expected}, Actual: {actual}")
 
 
+# @pytest.mark.stress
 def test_owlsight_stress():
     """
     Pytest function to run stress test on Owlsight.
