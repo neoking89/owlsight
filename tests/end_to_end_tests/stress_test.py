@@ -19,7 +19,7 @@ from owlsight.utils.constants import get_cache_dir
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-BUTTON_PRESS_TIME = 0.2
+BUTTON_PRESS_TIME = 0.12
 
 # Import pygetwindow only on Windows
 if platform.system() == "Windows":
