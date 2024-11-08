@@ -1,8 +1,16 @@
 import subprocess
 import os
+from typing import Optional
 
+def open_file_dialog(initial_dir: Optional[str]=None):
+    """
+    Opens a file dialog and returns the selected file path.
 
-def open_file_dialog(initial_dir=None):
+    Parameters
+    ----------
+    initial_dir: str
+        The initial directory to open the dialog
+    """
     try:
         if initial_dir and os.path.isdir(initial_dir):
             initial_directory = os.path.normpath(initial_dir)
@@ -32,7 +40,17 @@ def open_file_dialog(initial_dir=None):
         return None
 
 
-def save_file_dialog(initial_dir=None, default_filename=None):
+def save_file_dialog(initial_dir: Optional[str]=None, default_filename: Optional[str]=None) -> Optional[str]:
+    """
+    Opens a save file dialog and returns the selected file path.
+    
+    Parameters
+    ----------
+    initial_dir: str
+        The initial directory to open the dialog
+    default_filename: str
+        The default filename to display in the dialog
+    """
     try:
         if initial_dir and os.path.isdir(initial_dir):
             initial_directory = os.path.normpath(initial_dir)
