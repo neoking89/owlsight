@@ -10,7 +10,8 @@ from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
 from owlsight.rag.python_lib_search import search_python_libs
-from owlsight.utils.constants import get_pickle_cache
+from owlsight.utils.constants import get_pickle_cache, DEFAULTS
+from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -50,11 +51,10 @@ class TextGenerationManager:
             self.config_manager.set(key, value)
             logger.info(f"Configuration updated: {key} = {value}")
         except Exception:
-            logger.error(
-                f"Error updating configuration for key '{key}': {traceback.format_exc()}"
-            )
+            logger.error(f"Error updating configuration for key '{key}': {traceback.format_exc()}")
             return
 
+        # TODO: refactor this part
         # If 'model_id' is updated, reload the processor
         outer_key, inner_key = key.split(".", 1)
         if outer_key == "model":
@@ -70,44 +70,53 @@ class TextGenerationManager:
                     setattr(self.processor, inner_key, value)
                     logger.info(f"Processor updated: {inner_key} = {value}")
                 else:
-                    logger.warning(
-                        f"'{inner_key}' not found in self.processor, meaning it was not updated"
-                    )
+                    logger.warning(f"'{inner_key}' not found in self.processor, meaning it was not updated")
                     logger.warning(
                         "It is possible that this value is only set during initialization of self.processor."
                     )
-                    logger.warning(
-                        "Consider loading the model from a config file to update this value."
-                    )
+                    logger.warning("Consider loading the model from a config file to update this value.")
         elif outer_key == "rag":
             rag_is_active = self.config_manager.get("rag.active", False)
             if rag_is_active:
                 library = self.config_manager.get("rag.target_library", "")
                 if not library:
-                    logger.error(
-                        "No library provided. Please set a library in the configuration."
-                    )
+                    logger.error("No library provided. Please set a library in the configuration.")
                     return
 
                 # get all libs without the _ prefix and in sorted order
-                available_libraries = [module.name for module in pkgutil.iter_modules() if not module.name.startswith("_")]
+                available_libraries = [
+                    module.name for module in pkgutil.iter_modules() if not module.name.startswith("_")
+                ]
                 if library not in available_libraries:
-                    logger.error(
-                        f"Library '{library}' not found in the current Python session."
-                    )
+                    logger.error(f"Library '{library}' not found in the current Python session.")
                     logger.error(f"available libraries: {sorted(available_libraries)}")
                     return
                 elif inner_key == "search_query":
                     search_query = self.config_manager.get("rag.search_query", "")
                     if not search_query:
-                        logger.error(
-                            "No example prompt provided. Please set an example prompt in the configuration."
-                        )
+                        logger.error("No example prompt provided. Please set an example prompt in the configuration.")
                         return
-                    top_k = self.config_manager.get("rag.top_k", 3)
+                    top_k = self.config_manager.get("rag.top_k", DEFAULTS[outer_key]["top_k"])
                     context = search_python_libs(library, search_query, top_k, cache_dir=get_pickle_cache())
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
-
+        elif outer_key == "huggingface":
+            if inner_key == "search":
+                model_search = self.config_manager.get("huggingface.search", DEFAULTS[outer_key]["search"])
+                top_k = self.config_manager.get("huggingface.top_k", DEFAULTS[outer_key]["top_k"])
+                model_dict = show_and_return_model_data(model_search, top_n_models=top_k)
+                # set list of models from model_dict to select_model
+                self.config_manager.set("huggingface.select_model", list(model_dict.keys()))
+            elif inner_key == "select_model":
+                select_model = self.config_manager.get("huggingface.select_model", DEFAULTS[outer_key]["select_model"])
+                if not select_model:
+                    logger.error("No model provided. Please set a model in the configuration.")
+                    return
+                if not isinstance(select_model, str):
+                    logger.error("Model must be a string. Please set a model in the configuration.")
+                    return
+                # select and load a model from huggingface
+                self.config_manager.set("model.model_id", select_model)
+                self.load_model_processor(reload=self.processor is not None)
 
     def save_config(self, path: str):
         """
@@ -135,9 +144,7 @@ class TextGenerationManager:
         """
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
-            logger.error(
-                "No model_id provided. Please set a model_id in the configuration."
-            )
+            logger.error("No model_id provided. Please set a model_id in the configuration.")
             return
 
         logger.info(f"Loading processor with new model_id: {model_id}")
