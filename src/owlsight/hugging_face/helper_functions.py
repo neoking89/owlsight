@@ -3,7 +3,7 @@
 """helper functions for huggingface models"""
 
 import os
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional, Union, Dict
 import requests
 import subprocess
 
@@ -15,6 +15,8 @@ from tqdm import tqdm
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
+
+MODELHUB_PREFIX = "https://huggingface.co/"
 
 
 def get_model_gen(
@@ -62,9 +64,7 @@ def get_model_gen(
     return model_gen
 
 
-def download_huggingface_model(
-    model_name: str, save_path: str, chunk_size: int = 1024
-) -> None:
+def download_huggingface_model(model_name: str, save_path: str, chunk_size: int = 1024) -> None:
     """
     Construct the URL to download the model
 
@@ -149,3 +149,21 @@ def show_model_memory(model_name: str) -> Optional[str]:
     except UnicodeDecodeError as e:
         print(f"A Unicode decoding error occurred: {e}")
         return None
+
+
+def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
+    if model_info.lastModified is None:
+        last_modified = "N/A"
+    else:
+        last_modified = (
+            model_info.lastModified.split("T")[0]
+            if isinstance(model_info.lastModified, str)
+            else str(model_info.lastModified.date())
+        )
+    model_data = {
+        "last modified": last_modified,
+        "downloads": model_info.downloads,
+        "likes": model_info.likes,
+        "url": os.path.join(MODELHUB_PREFIX, model_info.modelId),
+    }
+    return model_data
