@@ -1,7 +1,8 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 import json
 import os
 import traceback
+from copy import deepcopy
 
 from owlsight.utils.logger_manager import LoggerManager
 from owlsight.utils.constants import DEFAULTS, CHOICES
@@ -32,7 +33,9 @@ class ConfigManager:
         """
         Initialize the configuration manager with default values.
         """
-        self._config = DottedDict(DEFAULTS)
+        self._defaults = deepcopy(DEFAULTS)
+        self._choices = deepcopy(CHOICES)
+        self._config = DottedDict(self._defaults)
 
     def get(self, key: str, default=None) -> Any:
         """
@@ -61,7 +64,7 @@ class ConfigManager:
 
     def _get_toggle_choice(self, section: str, key: str) -> Any:
         """Helper method to prepare toggle choices for a given section and key."""
-        return _prepare_toggle_choices(self._config[section][key], CHOICES[section][key])
+        return _prepare_toggle_choices(self._config[section][key], self._choices[section][key])
 
     def _get_basic_choice(self, section: str, key: str) -> Any:
         """Helper method to return a basic configuration choice."""
@@ -117,6 +120,14 @@ class ConfigManager:
             "search_query": self._get_basic_choice("rag", "search_query"),
         }
 
+    def _create_huggingface_choices(self):
+        return {
+            "back": None,
+            "search": self._get_basic_choice("huggingface", "search"),
+            "top_k": self._get_toggle_choice("huggingface", "top_k"),
+            "select_model": self._get_toggle_choice("huggingface", "select_model"),
+        }
+
     @property
     def config_choices(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -127,6 +138,7 @@ class ConfigManager:
             "model": self._create_model_choices(),
             "generate": self._create_generate_choices(),
             "rag": self._create_rag_choices(),
+            "huggingface": self._create_huggingface_choices(),
         }
 
     def save(self, path: str) -> bool:
@@ -169,7 +181,6 @@ class ConfigManager:
         except TypeError as e:
             logger.error(f"{err_msg} Error serializing configuration to JSON: {e}")
             return False
-
 
     def load(self, path: str) -> bool:
         """
@@ -223,44 +234,47 @@ class ConfigManager:
         """
         Validate the configuration.
         """
-        flattened_defaults = flatten_dict(DEFAULTS)
+        flattened_defaults = flatten_dict(self._defaults)
         flattened_config = flatten_dict(config)
 
         # check differences in sections:
-        missing_sections = set(DEFAULTS.keys()) - set(config.keys())
+        missing_sections = set(self._defaults.keys()) - set(config.keys())
         if missing_sections:
             raise KeyError(f"Config misses the following sections: {missing_sections}")
 
-        invalid_sections = set(config.keys()) - set(DEFAULTS.keys())
+        invalid_sections = set(config.keys()) - set(self._defaults.keys())
         if invalid_sections:
             raise KeyError(f"Config has the following sections, which are not valid in owlsight: {invalid_sections}")
-        
+
         # check differences in keys:
         missing_keys = set(flattened_defaults.keys()) - set(flattened_config.keys())
         if missing_keys:
             raise KeyError(f"Config misses the following keys: {missing_keys}")
 
         invalid_keys = set(flattened_config.keys()) - set(flattened_defaults.keys())
-        invalid_keys = {key for key in invalid_keys if validate_key_is_nested_one_layer(key)}  # only consider keys with nested keys
+        invalid_keys = {
+            key for key in invalid_keys if validate_key_is_nested_one_layer(key)
+        }  # only consider keys with nested keys
         if invalid_keys:
             raise KeyError(f"Config has the following keys, which are not valid in owlsight: {invalid_keys}")
-        
+
         # check if values are valid
-        flattened_choices = flatten_dict(CHOICES)
+        flattened_choices = flatten_dict(self._choices)
         for key, value in flattened_config.items():
             if not validate_key_is_nested_one_layer(key):
                 logger.warning(f"Key '{key}' is not nested one layer deep. Skipping validation.")
                 continue
             choices = flattened_choices[key]
-            if isinstance(choices, list) and choices!=[]:
+            if isinstance(choices, list) and choices != []:
                 # if the value is a list, it means that the value is a togglechoice. we check if the value is in the list
                 if value not in choices:
                     raise ValueError(f"Invalid value {value} for key '{key}'. Possible values: {choices}")
             else:
                 # if the value is not a list, it means that the value is a basic choice. we check if the type is correct
                 if not isinstance(value, type(choices)):
-                    raise TypeError(f"Invalid type {type(value).__name__} for key '{key}'. Expected type: {type(choices).__name__}")
-
+                    raise TypeError(
+                        f"Invalid type {type(value).__name__} for key '{key}'. Expected type: {type(choices).__name__}"
+                    )
 
     def __repr__(self):
         return repr(self._config)
@@ -283,6 +297,19 @@ class DottedDict(dict):
         del self[attr.lower()]
 
 
+def _dynamicly_initialize_toggle_choices(current_val: List[str], possible_vals: List[Any]) -> Tuple[str, List[Any]]:
+    """
+    In some cases, the possible values are not provided yet.
+    This is if the possible values depend on some action which needs to be undertaken first, before the possible values can be determined.
+    In this case, we dynamically initialize the possible values based on the current value.
+    """
+    first_item = current_val[0] if current_val else ""
+    possible_vals = current_val
+    current_val: str = first_item
+
+    return current_val, possible_vals
+
+
 def _prepare_toggle_choices(current_val: Any, possible_vals: List[Any]) -> List[Any]:
     """
     Prepare the config_choices to be used in the UI for toggling between choices.
@@ -294,7 +321,12 @@ def _prepare_toggle_choices(current_val: Any, possible_vals: List[Any]) -> List[
         The possible values for the configuration parameter.
         Allow user to toggle between the values.
     """
+    # If the possible values are not provided, we assume that the current value is a list of possible values
+    if not possible_vals and isinstance(current_val, list):
+        current_val, possible_vals = _dynamicly_initialize_toggle_choices(current_val, possible_vals)
+
     if current_val in possible_vals:
         index = possible_vals.index(current_val)
         possible_vals = possible_vals[index:] + possible_vals[:index]
+
     return possible_vals
