@@ -15,7 +15,7 @@ from owlsight.utils.helper_functions import (
     replace_bracket_placeholders,
     os_is_windows,
 )
-from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
+from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
 from owlsight.utils.constants import (
     PROMPT_COLOR,
     MAIN_MENU,
@@ -218,8 +218,10 @@ def run(manager: TextGenerationManager) -> None:
     # Remove lingering temporary directories
     remove_temp_directories(lib_path)
 
+    temp_dir_location = lib_path if os_is_windows() else get_temp_dir(".owlsight_packages")
+
     # Create temporary directory in venv to install packages, until end of execution lifecycle
-    with tempfile.TemporaryDirectory(dir=lib_path) as temp_dir:
+    with tempfile.TemporaryDirectory(dir=temp_dir_location) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
 
         code_executor = CodeExecutor(manager, pyenv_path, pip_path, temp_dir)
