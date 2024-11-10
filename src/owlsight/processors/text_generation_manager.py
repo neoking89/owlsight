@@ -14,9 +14,9 @@ from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
 from owlsight.utils.constants import get_pickle_cache, DEFAULTS
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
-logger = LoggerManager.get_logger(__name__)
+
 
 
 class TextGenerationManager:

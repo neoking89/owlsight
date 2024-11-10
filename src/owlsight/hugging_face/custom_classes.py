@@ -4,9 +4,9 @@ import traceback
 from typing import Dict, List, Optional
 from types import MethodType
 
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
-logger = LoggerManager.get_logger(__name__)
+
 
 
 class TransformersArgumentInferer:

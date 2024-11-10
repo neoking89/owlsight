@@ -12,9 +12,9 @@ from huggingface_hub.hf_api import ModelInfo
 from tqdm import tqdm
 
 
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
-logger = LoggerManager.get_logger(__name__)
+
 
 MODELHUB_PREFIX = "https://huggingface.co/"
 

@@ -13,9 +13,9 @@ from owlsight.rag.custom_classes import CacheMixin, SearchMethod, SearchResult
 from owlsight.rag.helper_functions import _get_signature
 from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.helper_functions import check_invalid_input_parameters
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
-logger = LoggerManager.get_logger(__name__)
+
 
 SENTENCETRANSFORMER_DEFAULT_MODEL = "Alibaba-NLP/gte-base-en-v1.5"
 

@@ -1,9 +1,6 @@
 from functools import lru_cache
 from typing import Dict, List
 from .helper_functions import get_model_gen, _get_hf_model_data
-from ..utils.logger_manager import LoggerManager
-
-logger = LoggerManager.get_logger(__name__)
 
 
 def create_separator(width: int = 80, char: str = "=") -> str:

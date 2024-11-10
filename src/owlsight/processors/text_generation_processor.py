@@ -17,11 +17,11 @@ from transformers import (
 from owlsight.utils.threads import KillableThread
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError
 from owlsight.utils.custom_classes import StopWordCriteria
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 
-logger = LoggerManager.get_logger(__name__)
+
 
 ONNX_MSG = "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or install [onnxruntime-genai, onnxruntime-genai-cuda] seperately"
 

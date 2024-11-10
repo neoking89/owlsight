@@ -26,9 +26,7 @@ from owlsight.utils.constants import (
 )
 from owlsight.utils.deep_learning import free_memory
 from owlsight.rag.python_lib_search import search_python_libs
-from owlsight.utils.logger_manager import LoggerManager
-
-logger = LoggerManager.get_logger(__name__)
+from owlsight.utils.logger import logger
 
 
 class CommandResult(Enum):

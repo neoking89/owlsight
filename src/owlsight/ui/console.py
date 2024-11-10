@@ -15,9 +15,9 @@ from prompt_toolkit.application.current import get_app
 from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
 
 from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, MAIN_MENU, get_prompt_cache
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
-logger = LoggerManager.get_logger(__name__)
+
 
 
 class HistoryCompleter(Completer):

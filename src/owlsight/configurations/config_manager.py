@@ -4,12 +4,12 @@ import os
 import traceback
 from copy import deepcopy
 
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 from owlsight.utils.constants import DEFAULTS, CHOICES
 from owlsight.utils.helper_functions import flatten_dict
 from owlsight.utils.validations import validate_key_is_nested_one_layer
 
-logger = LoggerManager.get_logger(__name__)
+
 
 
 class ConfigManager:
