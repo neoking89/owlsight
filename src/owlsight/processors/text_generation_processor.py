@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any, Type, Union
 import os
 import time
 import traceback
+from ast import literal_eval
 
 import torch
 from transformers import (
@@ -589,11 +590,29 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                 **_model_kwargs,
             )
         else:
-            self.llm = Llama.from_pretrained(
-                repo_id=model_id,
-                filename=gguf__filename,
-                **_model_kwargs,
-            )
+            # if not gguf__filename:
+            #     raise ValueError("gguf__filename is required when loading a model from HuggingFace.")
+            try:
+                self.llm = Llama.from_pretrained(
+                    repo_id=model_id,
+                    filename=gguf__filename,
+                    **_model_kwargs,
+                )
+            except ValueError as e:
+                error_msg = str(e)
+                if "Available Files:" in error_msg:
+                    files_str = error_msg.split("Available Files:")[1].strip()
+                    try:
+                        files_list = literal_eval(files_str)
+                        gguf_files = sorted([f for f in files_list if f.endswith('.gguf')])
+                        
+                        print("Specify gguf__filename in config:model from the following list:")
+                        print("Available .gguf files:")
+                        for file in gguf_files:
+                            print(f"- {file}")
+                    except (ValueError, SyntaxError):
+                        logger.error("Could not parse available files list")
+                raise  # Re-raise the original error in all cases
 
     def generate(
         self,

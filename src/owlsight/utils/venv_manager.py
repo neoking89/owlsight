@@ -5,6 +5,8 @@ import venv
 from contextlib import contextmanager
 import subprocess
 import sysconfig
+import tempfile
+from pathlib import Path
 
 from owlsight.utils.helper_functions import os_is_windows
 from owlsight.utils.logger_manager import LoggerManager
@@ -111,6 +113,29 @@ def get_pip_path(pyenv_path: str) -> str:
     """
     return os.path.join(pyenv_path, "Scripts" if os_is_windows() else "bin", "pip")
 
+def get_temp_dir(suffix: str) -> str:
+    """
+    Get an appropriate temporary directory path that the user has write permissions for.
+    
+    Parameters
+    ----------
+    suffix : str
+        The suffix to be appended to the temporary directory path.
+        e.g., ".owlsight_temp"
+
+    Returns
+    -------
+    str
+        The path to a writable temporary directory
+    """
+    # Try user's home directory first
+    user_temp = Path.home() / suffix
+    try:
+        os.makedirs(user_temp, exist_ok=True)
+        return user_temp
+    except Exception:
+        # Fall back to system temp directory
+        return tempfile.gettempdir()
 
 def install_python_modules(module_names: Union[str, List[str]], pip_path: str, target_dir: str, *args: Any) -> bool:
     """

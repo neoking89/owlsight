@@ -1,9 +1,6 @@
 import os
 from pathlib import Path
-from typing import Union, Optional
-
-PROMPT_COLOR = "blue"
-CHOICE_COLOR = "green"
+from typing import Union, Optional, Any, Dict, List, TypeVar, Callable
 
 # ANSI color codes for terminal output
 COLOR_CODES = {
@@ -16,18 +13,47 @@ COLOR_CODES = {
     "reset": "\033[0m",  # Resets to default color
 }
 
+PROMPT_COLOR = "blue"
+CHOICE_COLOR = "green"
 
-DEFAULTS = {
-    "main": {
-        "max_retries_on_error": 3,
-        "prompt_retry_on_error": False,
-        "prompt_code_execution": True,
-        "extra_index_url": "",
-    },
-    "model": {
-        "model_id": "",
-        "save_history": False,
-        "system_prompt": """
+T = TypeVar("T")
+
+
+class ConfigSchema:
+    """Configuration schema definition and validation."""
+
+    SCHEMA = {
+        "main": {
+            "max_retries_on_error": {
+                "default": 3,
+                "choices": list(range(0, 10)),
+                "description": "Maximum number of retries for error recovery",
+            },
+            "prompt_retry_on_error": {
+                "default": False,
+                "choices": [False, True],
+                "description": "Whether to prompt before retrying on error",
+            },
+            "prompt_code_execution": {
+                "default": True,
+                "choices": [False, True],
+                "description": "Whether to prompt before executing code",
+            },
+            "extra_index_url": {
+                "default": "",
+                "choices": None,
+                "description": "Additional URL for package installation",
+            },
+        },
+        "model": {
+            "model_id": {"default": "", "choices": None, "description": "Model identifier or path"},
+            "save_history": {
+                "default": False,
+                "choices": [False, True],
+                "description": "Whether to save conversation history",
+            },
+            "system_prompt": {
+                "default": """
 # ROLE:
 You are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.
 
@@ -39,81 +65,168 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
 - Adhere to best coding practices, including error handling and consideration of edge cases.
 - Acknowledge any limitations in your solutions.
 - Always aim to provide the best solution to the user's problem, whether it involves Python or not.
-                    """.strip(),
-        # specific parameters for the different processors:
-        # transformers
-        "transformers__device": None,
-        "transformers__quantization_bits": None,
-        # gguf
-        "gguf__filename": "",
-        "gguf__verbose": False,
-        "gguf__n_ctx": 512,
-        "gguf__n_gpu_layers": 0,
-        "gguf__n_batch": 512,
-        "gguf__n_cpu_threads": 1,
-        # onnx
-        "onnx__tokenizer": "",
-        "onnx__verbose": False,
-        "onnx__num_threads": 1,
-    },
-    "generate": {
-        "stopwords": [],
-        "max_new_tokens": 512,
-        "temperature": 0.0,
-        "generation_kwargs": {},
-    },
-    "rag": {
-        "active": False,
-        "target_library": "",
-        "top_k": 3,
-        "search_query": "",
-    },
-}
+                """.strip(),
+                "choices": None,
+                "description": "System prompt defining model behavior",
+            },
+            # Transformers specific
+            "transformers__device": {
+                "default": None,
+                "choices": [None, "cpu", "cuda", "mps"],
+                "description": "Device for transformers model",
+            },
+            "transformers__quantization_bits": {
+                "default": None,
+                "choices": [None, 8, 4],
+                "description": "Quantization bits for transformers model",
+            },
+            # GGUF specific
+            "gguf__filename": {"default": "", "choices": None, "description": "GGUF model filename"},
+            "gguf__verbose": {
+                "default": False,
+                "choices": [False, True],
+                "description": "Verbose output for GGUF model",
+            },
+            "gguf__n_ctx": {
+                "default": 512,
+                "choices": [32 * (2**n) for n in range(15)],
+                "description": "Context length for GGUF model",
+            },
+            "gguf__n_gpu_layers": {
+                "default": 0,
+                "choices": [-1, 0, 1] + [(2**n) for n in range(1, 9)],
+                "description": "Number of GPU layers for GGUF model",
+            },
+            "gguf__n_batch": {
+                "default": 512,
+                "choices": [32 * (2**n) for n in range(11)],
+                "description": "Batch size for GGUF model",
+            },
+            "gguf__n_cpu_threads": {
+                "default": 1,
+                "choices": list(range(1, os.cpu_count() + 1)),
+                "description": "Number of CPU threads for GGUF model",
+            },
+            # ONNX specific
+            "onnx__tokenizer": {"default": "", "choices": None, "description": "Tokenizer for ONNX model"},
+            "onnx__verbose": {
+                "default": False,
+                "choices": [False, True],
+                "description": "Verbose output for ONNX model",
+            },
+            "onnx__num_threads": {
+                "default": 1,
+                "choices": list(range(1, os.cpu_count() + 1)),
+                "description": "Number of threads for ONNX model",
+            },
+        },
+        "generate": {
+            "stopwords": {"default": [], "choices": None, "description": "Words that stop text generation"},
+            "max_new_tokens": {
+                "default": 512,
+                "choices": [32 * (2**n) for n in range(15)],
+                "description": "Maximum tokens to generate",
+            },
+            "temperature": {
+                "default": 0.0,
+                "choices": [round(x * 0.05, 2) for x in range(21)],
+                "description": "Temperature for text generation",
+            },
+            "generation_kwargs": {"default": {}, "choices": None, "description": "Additional generation parameters"},
+        },
+        "rag": {
+            "active": {"default": False, "choices": [False, True], "description": "Whether RAG is active"},
+            "target_library": {"default": "", "choices": None, "description": "Target python library for RAG"},
+            "top_k": {"default": 3, "choices": list(range(1, 51)), "description": "Number of RAG results to return"},
+            "search_query": {"default": "", "choices": None, "description": "RAG search query"},
+        },
+        "huggingface": {
+            "search": {"default": "", "choices": None, "description": "search for a model on huggingface"},
+            "top_k": {"default": 5, "choices": list(range(1, 51)), "description": "Number of huggingface results to return"},
+            "select_model": {"default": "", "choices": None, "description": "select a model from huggingface"},
+        },
+    }
 
-CHOICES = {
-    "main": {
-        "back": None,
-        "max_retries_on_error": list(range(0, 10)),
-        "prompt_retry_on_error": [False, True],
-        "prompt_code_execution": [False, True],
-        "extra_index_url": DEFAULTS["main"]["extra_index_url"],
-    },
-    "model": {
-        "back": None,
-        "model_id": DEFAULTS["model"]["model_id"],
-        "save_history": [False, True],
-        "system_prompt": DEFAULTS["model"]["system_prompt"],
-        "transformers__device": [None, "cpu", "cuda", "mps"],
-        "transformers__quantization_bits": [None, 8, 4],
-        "gguf__filename": DEFAULTS["model"]["gguf__filename"],
-        "gguf__verbose": [False, True],
-        "gguf__n_ctx": [32 * (2**n) for n in range(15)],
-        "gguf__n_gpu_layers": [-1, 0, 1] + [(2**n) for n in range(1, 9)],
-        "gguf__n_batch": [32 * (2**n) for n in range(11)],
-        "gguf__n_cpu_threads": list(range(1, os.cpu_count() + 1)),
-        "onnx__tokenizer": DEFAULTS["model"]["onnx__tokenizer"],
-        "onnx__verbose": [False, True],
-        "onnx__num_threads": DEFAULTS["model"]["onnx__num_threads"],
-    },
-    "generate": {
-        "back": None,
-        "stopwords": DEFAULTS["generate"]["stopwords"],
-        "max_new_tokens": [32 * (2**n) for n in range(15)],
-        "temperature": [round(x * 0.05, 2) for x in range(21)],
-        "generation_kwargs": DEFAULTS["generate"]["generation_kwargs"],
-    },
-    "rag": {
-        "back": None,
-        "active": [False, True],
-        "target_library": DEFAULTS["rag"]["target_library"],
-        "top_k": list(range(1, 51)),
-        "search_query": DEFAULTS["rag"]["search_query"],
-    },
-}
+    @classmethod
+    def get_defaults(cls) -> Dict[str, Dict[str, Any]]:
+        """Extract default values from schema."""
+        return {
+            section: {key: value["default"] for key, value in options.items()}
+            for section, options in cls.SCHEMA.items()
+        }
 
+    @classmethod
+    def get_choices(cls) -> Dict[str, Dict[str, Any]]:
+        """Extract choices from schema, adding 'back' option to each section."""
+        return {
+            section: {
+                "back": None,
+                **{
+                    key: value["choices"] if value["choices"] is not None else value["default"]
+                    for key, value in options.items()
+                },
+            }
+            for section, options in cls.SCHEMA.items()
+        }
+
+    @classmethod
+    def get_descriptions(cls) -> Dict[str, Dict[str, str]]:
+        """Extract descriptions from schema."""
+        return {
+            section: {key: value["description"] for key, value in options.items()}
+            for section, options in cls.SCHEMA.items()
+        }
+
+    # @classmethod
+    # def validate_value(cls, section: str, key: str, value: Any) -> bool:
+    #     """Validate a configuration value against the schema."""
+    #     if section not in cls.SCHEMA or key not in cls.SCHEMA[section]:
+    #         return False
+
+    #     choices = cls.SCHEMA[section][key]["choices"]
+    #     if choices is None:
+    #         return isinstance(value, type(cls.SCHEMA[section][key]["default"]))
+    #     return value in choices
+
+    # @classmethod
+    # def get_next_value(cls, section: str, key: str, current_value: T) -> T:
+    #     """Get next value from choices, cycling back to first if at end."""
+    #     choices = cls.SCHEMA[section][key]["choices"]
+    #     if choices is None or not choices:
+    #         return current_value
+
+    #     try:
+    #         current_idx = choices.index(current_value)
+    #         next_idx = (current_idx + 1) % len(choices)
+    #         return choices[next_idx]
+    #     except ValueError:
+    #         return choices[0] if choices else current_value
+
+    # @classmethod
+    # def get_prev_value(cls, section: str, key: str, current_value: T) -> T:
+    #     """Get previous value from choices, cycling to last if at start."""
+    #     choices = cls.SCHEMA[section][key]["choices"]
+    #     if choices is None or not choices:
+    #         return current_value
+
+    #     try:
+    #         current_idx = choices.index(current_value)
+    #         prev_idx = (current_idx - 1) % len(choices)
+    #         return choices[prev_idx]
+    #     except ValueError:
+    #         return choices[-1] if choices else current_value
+
+
+# Create global constants from schema
+DEFAULTS = ConfigSchema.get_defaults()
+CHOICES = ConfigSchema.get_choices()
+DESCRIPTIONS = ConfigSchema.get_descriptions()
+
+# Menu configuration
 MENU_KEYS = {
     "assistant": "how can I assist you?",
 }
+
 MAIN_MENU = {
     MENU_KEYS["assistant"]: "",
     "shell": "",
@@ -126,6 +239,7 @@ MAIN_MENU = {
 }
 
 
+# Directory and file handling functions
 def get_cache_dir() -> Path:
     """Returns the base directory for storing cached data."""
     data_dir = Path.home() / ".owlsight"
@@ -134,45 +248,17 @@ def get_cache_dir() -> Path:
 
 
 def create_directory(path: Union[str, Path], base: Optional[Path] = None) -> Path:
-    """
-    Creates a directory if it does not exist and returns the path.
-
-    Parameters:
-    ----------
-    path : Union[str, Path]
-        The directory path to create.
-    base : Optional[Path]
-        The base directory for relative paths. Defaults to get_cache_dir().
-
-    Returns:
-    -------
-    Path
-        The created directory path.
-    """
+    """Creates a directory if it does not exist and returns the path."""
     full_path = Path(base or get_cache_dir()) / path
     full_path.mkdir(parents=True, exist_ok=True)
     return full_path
 
 
 def create_file(path: Union[str, Path], base: Optional[Path] = None) -> Path:
-    """
-    Creates an empty file if it does not exist and returns the file path.
-
-    Parameters:
-    ----------
-    path : Union[str, Path]
-        The file path to create.
-    base : Optional[Path]
-        The base directory for relative paths. Defaults to get_cache_dir().
-
-    Returns:
-    -------
-    Path
-        The created file path.
-    """
+    """Creates an empty file if it does not exist and returns the file path."""
     full_path = Path(base or get_cache_dir()) / path
-    full_path.parent.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
-    full_path.touch(exist_ok=True)  # Create file if it doesn't exist
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    full_path.touch(exist_ok=True)
     return full_path
 
 

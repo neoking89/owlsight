@@ -1,5 +1,7 @@
 from enum import Enum, auto
-from typing import List, Dict, Tuple, Union, Any
+from typing import List, Dict, Tuple, Union, Any, Optional
+import traceback
+import sys
 
 from prompt_toolkit import Application
 from prompt_toolkit.completion import Completer, Completion
@@ -10,8 +12,12 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
+from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
 
-from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, get_prompt_cache
+from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, MAIN_MENU, get_prompt_cache
+from owlsight.utils.logger_manager import LoggerManager
+
+logger = LoggerManager.get_logger(__name__)
 
 
 class HistoryCompleter(Completer):
@@ -108,12 +114,11 @@ class OptionSelectorApp:
         # Initialize the layout now that we have actual controls
         self.layout = Layout(HSplit(self.controls))
 
-        # Only initialize the application when the layout is ready
-        self.application = Application(
-            layout=self.layout,
-            key_bindings=self.kb,
-            full_screen=False,
-        )
+        try:
+            self._initialize_application()
+        except NoConsoleScreenBufferError:
+            logger.error(f"Error initializing the application: {traceback.format_exc()}")
+            sys.exit(1)
 
     def build_controls(self) -> None:
         """Build the controls for each option in the selector."""
@@ -283,6 +288,14 @@ class OptionSelectorApp:
         if current_option == MENU_KEYS["assistant"]:
             self.history[current_option].append_string(user_input)
 
+    def _initialize_application(self) -> None:
+        """Initialize the application with the layout and key bindings."""
+        self.application = Application(
+            layout=self.layout,
+            key_bindings=self.kb,
+            full_screen=False,
+        )
+
 
 app = OptionSelectorApp()
 
@@ -338,6 +351,41 @@ def get_user_choice(
             return selected_option
 
     return ""
+
+
+# TODO: refactor this part to handle mainmenu OR other menus in a more structured way
+def get_user_input(
+    menu: Optional[Dict[str, Union[None, str, List[Any]]]] = None, start_index: int = 0
+) -> Tuple[str, Union[str, None]]:
+    """
+    Gets the user input from menu and returns the user choice and the corresponding key from the menu.
+
+    Parameters
+    ----------
+    menu:  Optional[dict]
+        The menu options to display
+        if None, the main menu is displayed
+    start_index:  int
+        The starting index for the menu options
+
+    Returns
+    -------
+    Tuple[str, Union[str, None]]
+        The user choice and the corresponding option from the menu
+    """
+    if menu is None:
+        menu = MAIN_MENU
+
+    user_choice: Union[str, Dict] = get_user_choice(
+        menu,
+        return_value_only=False,
+        start_index=start_index,
+    )
+
+    if isinstance(user_choice, dict):
+        option = list(user_choice.keys())[0]
+        return user_choice[option], option
+    return user_choice, None
 
 
 def print_colored(text: str, color: str) -> None:

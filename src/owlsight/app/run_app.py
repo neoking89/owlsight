@@ -1,11 +1,11 @@
 import tempfile
 import traceback
-from typing import Dict, Union, Tuple
+from typing import Union
 from enum import Enum, auto
 import os
 
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
-from owlsight.ui.console import get_user_choice, print_colored
+from owlsight.ui.console import get_user_choice, print_colored, get_user_input
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.app.handlers import handle_interactive_code_execution
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
@@ -15,7 +15,7 @@ from owlsight.utils.helper_functions import (
     replace_bracket_placeholders,
     os_is_windows,
 )
-from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path
+from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
 from owlsight.utils.constants import (
     PROMPT_COLOR,
     MAIN_MENU,
@@ -44,7 +44,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
     while True:
         try:
             print_colored("Make a choice:", color=PROMPT_COLOR)
-            
+
             # define startindex of arrow in mainmenu
             _option_or_userchoice: bool = option or user_choice
             if _option_or_userchoice:
@@ -74,33 +74,6 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
         except Exception:
             logger.error(f"Unexpected error:\n{traceback.format_exc()}")
             # raise
-
-
-def get_user_input(start_index: int = 0) -> Tuple[str, Union[str, None]]:
-    """
-    Gets the user input and returns the user choice and the corresponding key from the menu.
-
-    Parameters
-    ----------
-    start_index:  int
-        The starting index for the menu options
-
-    Returns
-    -------
-    Tuple[str, Union[str, None]]
-        The user choice and the corresponding option from the menu
-    """
-
-    user_choice: Union[str, Dict] = get_user_choice(
-        MAIN_MENU,
-        return_value_only=False,
-        start_index=start_index,
-    )
-
-    if isinstance(user_choice, dict):
-        option = list(user_choice.keys())[0]
-        return user_choice[option], option
-    return user_choice, None
 
 
 def handle_special_commands(
@@ -245,8 +218,10 @@ def run(manager: TextGenerationManager) -> None:
     # Remove lingering temporary directories
     remove_temp_directories(lib_path)
 
+    temp_dir_location = lib_path if os_is_windows() else get_temp_dir(".owlsight_packages")
+
     # Create temporary directory in venv to install packages, until end of execution lifecycle
-    with tempfile.TemporaryDirectory(dir=lib_path) as temp_dir:
+    with tempfile.TemporaryDirectory(dir=temp_dir_location) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
 
         code_executor = CodeExecutor(manager, pyenv_path, pip_path, temp_dir)
