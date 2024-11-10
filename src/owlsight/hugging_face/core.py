@@ -37,23 +37,25 @@ def calculate_column_widths(model_dict: Dict[str, Dict[str, str]]) -> tuple:
     """Calculate optimal column widths based on content."""
     max_model_id = max(len(model_id) for model_id in model_dict.keys())
     max_detail = max(
-        len(f"{key}: {str(value)}")
-        for model_data in model_dict.values()
-        for key, value in model_data.items()
+        len(f"{key}: {str(value)}") for model_data in model_dict.values() for key, value in model_data.items()
     )
-    
+
     RANK_WIDTH = 4
     MODEL_ID_WIDTH = max(max_model_id + 2, 30)  # minimum 30 chars
     DETAIL_WIDTH = max(max_detail + 2, 40)  # minimum 40 chars
     TOTAL_WIDTH = RANK_WIDTH + MODEL_ID_WIDTH + DETAIL_WIDTH + 10  # padding and separators
-    
+
     return RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH, TOTAL_WIDTH
 
 
 def show_and_return_model_data(model_search: str, top_n_models: int = 10) -> Dict[str, Dict[str, str]]:
     """Display model data in a formatted table with dynamic sizing."""
     model_dict = get_model_data(model_search, top_n_models)
-    
+
+    # Return early if no models found
+    if not model_dict:
+        return model_dict
+
     # Calculate optimal widths based on content
     RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH, WIDTH = calculate_column_widths(model_dict)
 
@@ -64,28 +66,19 @@ def show_and_return_model_data(model_search: str, top_n_models: int = 10) -> Dic
     print(create_separator(WIDTH, "="))
 
     # Print column headers
-    print(format_table_row(
-        ["Rank", "Model ID", "Details"],
-        [RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH]
-    ))
+    print(format_table_row(["Rank", "Model ID", "Details"], [RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH]))
     print(create_separator(WIDTH, "-"))
 
     # Print each model's information
     for idx, (model_id, model_data) in enumerate(model_dict.items(), 1):
         # Print first row with rank and model ID
-        print(format_table_row(
-            [str(idx), model_id, "Details:"],
-            [RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH]
-        ))
+        print(format_table_row([str(idx), model_id, "Details:"], [RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH]))
 
         # Print model details
         for key, value in model_data.items():
             formatted_value = str(value).replace("\n", " ").strip()
             detail_text = f"{key}: {formatted_value}"
-            print(format_table_row(
-                ["", "", detail_text],
-                [RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH]
-            ))
+            print(format_table_row(["", "", detail_text], [RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH]))
 
         # Add separator between models
         if idx < len(model_dict):
