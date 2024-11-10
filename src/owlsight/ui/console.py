@@ -12,11 +12,13 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
+from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
 
 from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, MAIN_MENU, get_prompt_cache
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
+
 
 class HistoryCompleter(Completer):
     """
@@ -113,13 +115,8 @@ class OptionSelectorApp:
         self.layout = Layout(HSplit(self.controls))
 
         try:
-            # Only initialize the application when the layout is ready
-            self.application = Application(
-                layout=self.layout,
-                key_bindings=self.kb,
-                full_screen=False,
-            )
-        except Exception:
+            self._initialize_application()
+        except NoConsoleScreenBufferError:
             logger.error(f"Error initializing the application: {traceback.format_exc()}")
             sys.exit(1)
 
@@ -290,6 +287,14 @@ class OptionSelectorApp:
         """Handle the input for editable fields."""
         if current_option == MENU_KEYS["assistant"]:
             self.history[current_option].append_string(user_input)
+
+    def _initialize_application(self) -> None:
+        """Initialize the application with the layout and key bindings."""
+        self.application = Application(
+            layout=self.layout,
+            key_bindings=self.kb,
+            full_screen=False,
+        )
 
 
 app = OptionSelectorApp()
