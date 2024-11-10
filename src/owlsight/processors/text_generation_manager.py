@@ -1,17 +1,19 @@
 from typing import Any, Optional
 import traceback
 import pkgutil
+import ast
 
 from owlsight.processors.text_generation_processor import (
     TextGenerationProcessor,
     select_processor_type,
 )
+from owlsight.ui.console import get_user_choice
 from owlsight.configurations.config_manager import ConfigManager
+from owlsight.rag.python_lib_search import search_python_libs
+from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
-from owlsight.rag.python_lib_search import search_python_libs
 from owlsight.utils.constants import get_pickle_cache, DEFAULTS
-from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.utils.logger_manager import LoggerManager
 
 logger = LoggerManager.get_logger(__name__)
@@ -104,6 +106,9 @@ class TextGenerationManager:
                 model_search = self.config_manager.get("huggingface.search", DEFAULTS[outer_key]["search"])
                 top_k = self.config_manager.get("huggingface.top_k", DEFAULTS[outer_key]["top_k"])
                 model_dict = show_and_return_model_data(model_search, top_n_models=top_k)
+                if not model_dict:
+                    logger.error("No models found. Please try a different search query.")
+                    return
                 # set list of models from model_dict to select_model
                 self.config_manager.set("huggingface.select_model", list(model_dict.keys()))
             elif inner_key == "select_model":
@@ -116,7 +121,19 @@ class TextGenerationManager:
                     return
                 # select and load a model from huggingface
                 self.config_manager.set("model.model_id", select_model)
-                self.load_model_processor(reload=self.processor is not None)
+                exc = self.load_model_processor(reload=self.processor is not None)
+                if exc:
+                    if select_model.lower().endswith("gguf"):
+                        gguf_list = str(exc).split("Available Files:")[1].strip()
+                        gguf_list = [file for file in ast.literal_eval(gguf_list) if file.endswith("gguf")]
+                        gguf_menu = {
+                            "back": None,
+                            "Choose a GGUF model": gguf_list,
+                        }
+                        gguf__filename = get_user_choice(gguf_menu)
+                        if gguf__filename:
+                            self.config_manager.set("model.gguf__filename", gguf__filename)
+                            self.load_model_processor(reload=self.processor is not None)
 
     def save_config(self, path: str):
         """
@@ -132,7 +149,7 @@ class TextGenerationManager:
         if loading_succesful:
             self.load_model_processor(reload=self.processor is not None)
 
-    def load_model_processor(self, reload=False):
+    def load_model_processor(self, reload=False) -> None | Exception:
         """
         Load the model processor with a 'model_id', to load the correct model and tokenizer.
 
@@ -141,6 +158,11 @@ class TextGenerationManager:
         reload : bool, optional
             If True, reload the processor with the same model_id, by default False.
             Assumes that the processor is already initialized with another model.
+
+        Returns
+        -------
+        None | Exception
+            None if successful, otherwise an exception is returned.
         """
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
@@ -166,9 +188,9 @@ class TextGenerationManager:
             else:
                 processor_type = select_processor_type(model_id)
                 self.processor = processor_type(**self.config_manager.get("model", {}))
-        except Exception:
-            logger.error(f"Error loading  model_processor: {traceback.format_exc()}")
-            return
+        except Exception as e:
+            logger.error(f"Error loading model_processor: {traceback.format_exc()}")
+            return e
 
         logger.info(f"Processor reloaded with model_id: {model_id}")
 
