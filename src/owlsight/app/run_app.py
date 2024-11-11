@@ -30,6 +30,7 @@ from owlsight.utils.logger import logger
 
 
 class CommandResult(Enum):
+    """Enum to represent the result of a command from the mainmenu."""
     CONTINUE = auto()
     BREAK = auto()
     PROCEED = auto()
@@ -216,7 +217,7 @@ def run(manager: TextGenerationManager) -> None:
     # Remove lingering temporary directories
     remove_temp_directories(lib_path)
 
-    temp_dir_location = lib_path if os_is_windows() else get_temp_dir(".owlsight_packages")
+    temp_dir_location = get_temp_dir(".owlsight_packages")
 
     # Create temporary directory in venv to install packages, until end of execution lifecycle
     with tempfile.TemporaryDirectory(dir=temp_dir_location) as temp_dir:
