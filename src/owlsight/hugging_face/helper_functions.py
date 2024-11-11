@@ -17,12 +17,14 @@ from owlsight.utils.logger import logger
 
 MODELHUB_PREFIX = "https://huggingface.co/"
 
+
 def calculate_days_ago_created(time_created: datetime) -> int:
     now_utc = datetime.now(timezone.utc)
     time_difference = now_utc - time_created
     days_difference = time_difference.days
 
     return days_difference
+
 
 def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float:
     """
@@ -76,6 +78,7 @@ def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float
 
     return score
 
+
 def _make_hashable(value):
     """Convert potentially unhashable types to hashable ones for caching."""
     if isinstance(value, (list, set)):
@@ -84,19 +87,17 @@ def _make_hashable(value):
         return tuple(sorted((k, _make_hashable(v)) for k, v in value.items()))
     return value
 
+
 @lru_cache(maxsize=128)
 def _cached_get_model_list(
-    filter_by: Optional[tuple] = None,
-    search: Optional[str] = None,
-    include_metadata: bool = False,
-    **kwargs
+    filter_by: Optional[tuple] = None, search: Optional[str] = None, include_metadata: bool = False, **kwargs
 ) -> tuple:
     """Cached inner function that returns all models without top_n slicing."""
     hf_api = HfApi()
-    
+
     # Convert filter_by back to list if it's not None
     filter_by_list = list(filter_by) if filter_by is not None else None
-    
+
     check_invalid_input_parameters(hf_api.list_models, kwargs)
     model_gen = hf_api.list_models(
         filter=filter_by_list,
@@ -114,9 +115,10 @@ def _cached_get_model_list(
         model_info_list.append(model_info)
 
     model_info_list.sort(key=lambda x: x.engagement_score, reverse=True)
-    
+
     # Convert to tuple for caching
     return tuple(model_info_list)
+
 
 def get_model_list(
     filter_by: Union[str, Iterable[str], None] = None,
@@ -148,24 +150,22 @@ def get_model_list(
     """
     # Convert filter_by to hashable type (tuple) for caching
     hashable_filter_by = _make_hashable(filter_by) if filter_by is not None else None
-    
+
     # Convert kwargs to hashable format
     hashable_kwargs = _make_hashable(kwargs)
-    
+
     # Get full cached result
     cached_results = _cached_get_model_list(
-        filter_by=hashable_filter_by,
-        search=search,
-        include_metadata=include_metadata,
-        **dict(hashable_kwargs)
+        filter_by=hashable_filter_by, search=search, include_metadata=include_metadata, **dict(hashable_kwargs)
     )
-    
+
     # Convert back to list and apply top_n if specified
     model_info_list = list(cached_results)
     if top_n:
         model_info_list = model_info_list[:top_n]
-        
+
     return model_info_list
+
 
 def download_huggingface_model(model_name: str, save_path: str, chunk_size: int = 1024) -> None:
     """
@@ -214,6 +214,7 @@ def download_huggingface_model(model_name: str, save_path: str, chunk_size: int 
         else:
             logger.error("Failed to download %s due to %s", url, response.status_code)
 
+
 def show_model_memory(model_name: str) -> Optional[str]:
     """
     Executes a shell command to estimate the memory usage of a given model.
@@ -250,6 +251,7 @@ def show_model_memory(model_name: str) -> Optional[str]:
     except UnicodeDecodeError as e:
         print(f"A Unicode decoding error occurred: {e}")
         return None
+
 
 def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
     now_utc = datetime.now(timezone.utc)
