@@ -1,4 +1,3 @@
-from functools import lru_cache
 from typing import Dict, List
 from .helper_functions import get_model_list, _get_hf_model_data
 
@@ -13,7 +12,6 @@ def format_table_row(columns: List[str], widths: List[int]) -> str:
     return "│ " + " │ ".join(col.ljust(width) for col, width in zip(columns, widths)) + " │"
 
 
-@lru_cache(maxsize=128)
 def get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[str, Dict[str, str]]:
     """
     Get and display the model data from the HuggingFace Hub in a visually appealing format.
