@@ -2,9 +2,9 @@ import gc
 import subprocess
 import torch
 
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
-logger = LoggerManager.get_logger(__name__)
+
 
 
 def free_memory():

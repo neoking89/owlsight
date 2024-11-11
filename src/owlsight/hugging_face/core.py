@@ -1,9 +1,5 @@
-from functools import lru_cache
 from typing import Dict, List
-from .helper_functions import get_model_gen, _get_hf_model_data
-from ..utils.logger_manager import LoggerManager
-
-logger = LoggerManager.get_logger(__name__)
+from .helper_functions import get_model_list, _get_hf_model_data
 
 
 def create_separator(width: int = 80, char: str = "=") -> str:
@@ -16,20 +12,19 @@ def format_table_row(columns: List[str], widths: List[int]) -> str:
     return "│ " + " │ ".join(col.ljust(width) for col, width in zip(columns, widths)) + " │"
 
 
-@lru_cache(maxsize=128)
-def get_model_data(model_search: str, top_n_models: int = 10) -> Dict[str, Dict[str, str]]:
+def get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[str, Dict[str, str]]:
     """
     Get and display the model data from the HuggingFace Hub in a visually appealing format.
 
-    Args:
+    Parameters:
         model_search: Search term for filtering models
         top_n_models: Number of top models to display
 
     Returns:
         Dictionary containing model information
     """
-    model_gen = get_model_gen(top_n=top_n_models, search=model_search)
-    model_dict = {model_info.modelId: _get_hf_model_data(model_info) for model_info in model_gen}
+    model_list = get_model_list(top_n=top_n_models, search=model_search, **kwargs)
+    model_dict = {model_info.modelId: _get_hf_model_data(model_info) for model_info in model_list}
     return model_dict
 
 

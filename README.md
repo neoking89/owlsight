@@ -252,7 +252,7 @@ To update a configuration, simply modify the desired value and press **ENTER** t
 
 ## Temporary environment
 
-During an Owlsight session, a temporary environment is created within the "site-packages" directory of the active (virtual) environment. Any packages installed during the session are removed when the session ends, ensuring your environment remains clean. If you want to persist installed packages, simply install them outside of Owlsight.
+During an Owlsight session, a temporary environment is created within the homedirectory, called ".owlsight_packages". Newly installed python packages will be installed here. This folder will be removed if the session ends. If you want to persist installed packages, simply install them outside of Owlsight.
 
 ## Error Handling and Auto-Fix
 

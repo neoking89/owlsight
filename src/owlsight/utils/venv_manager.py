@@ -9,10 +9,10 @@ import tempfile
 from pathlib import Path
 
 from owlsight.utils.helper_functions import os_is_windows
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
 
-logger = LoggerManager.get_logger(__name__)
+
 
 
 @contextmanager

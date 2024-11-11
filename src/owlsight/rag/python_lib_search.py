@@ -7,9 +7,9 @@ import pandas as pd
 
 from owlsight.rag.core import EnsembleSearchEngine
 from owlsight.rag.custom_classes import CacheMixin, SearchMethod
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
-logger = LoggerManager.get_logger(__name__)
+
 
 
 class PythonDocumentationProcessor:

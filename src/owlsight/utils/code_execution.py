@@ -25,9 +25,9 @@ from owlsight.utils.venv_manager import (
     get_python_executable,
 )
 from owlsight.utils.constants import PROMPT_COLOR, get_py_cache 
-from owlsight.utils.logger_manager import LoggerManager
+from owlsight.utils.logger import logger
 
-logger = LoggerManager.get_logger(__name__)
+
 
 
 class CodeExecutor:

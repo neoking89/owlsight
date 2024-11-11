@@ -3,9 +3,7 @@ import sys
 import traceback
 
 from owlsight.utils.code_execution import CodeExecutor
-from owlsight.utils.logger_manager import LoggerManager
-
-logger = LoggerManager.get_logger(__name__)
+from owlsight.utils.logger import logger
 
 
 def handle_interactive_shell(question: str) -> None:
