@@ -258,7 +258,7 @@ def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
     time_difference = now_utc - model_info.created_at
     days_difference = time_difference.days
     model_data = {
-        "engagement score": model_info.engagement_score,
+        "engagement score": np.round(model_info.engagement_score, 4),
         "days ago created": days_difference,
         "downloads": model_info.downloads,
         "likes": model_info.likes,
