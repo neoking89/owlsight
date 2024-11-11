@@ -17,8 +17,6 @@ from owlsight.utils.constants import get_pickle_cache, DEFAULTS
 from owlsight.utils.logger import logger
 
 
-
-
 class TextGenerationManager:
     def __init__(self, config_manager: ConfigManager):
         """
@@ -103,9 +101,11 @@ class TextGenerationManager:
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
         elif outer_key == "huggingface":
             if inner_key == "search":
+                # search models from huggingface
                 model_search = self.config_manager.get("huggingface.search", DEFAULTS[outer_key]["search"])
                 top_k = self.config_manager.get("huggingface.top_k", DEFAULTS[outer_key]["top_k"])
-                model_dict = show_and_return_model_data(model_search, top_n_models=top_k)
+                task = self.config_manager.get("huggingface.task", DEFAULTS[outer_key]["task"])
+                model_dict = show_and_return_model_data(model_search, top_n_models=top_k, task=task)
                 if not model_dict:
                     logger.error("No models found. Please try a different search query.")
                     return
@@ -134,6 +134,10 @@ class TextGenerationManager:
                         if gguf__filename:
                             self.config_manager.set("model.gguf__filename", gguf__filename)
                             self.load_model_processor(reload=self.processor is not None)
+            elif inner_key == "task":
+                task = self.config_manager.get("huggingface.task", DEFAULTS[outer_key]["task"])
+                # set task to pipeline
+                self.config_manager.set("huggingface.task", task)
 
     def save_config(self, path: str):
         """

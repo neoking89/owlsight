@@ -123,6 +123,7 @@ class ConfigManager:
             "back": None,
             "search": self._get_basic_choice("huggingface", "search"),
             "top_k": self._get_toggle_choice("huggingface", "top_k"),
+            "task": self._get_toggle_choice("huggingface", "task"),
             "select_model": self._get_toggle_choice("huggingface", "select_model"),
         }
 

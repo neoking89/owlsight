@@ -22,6 +22,7 @@ from .rag.core import (
     SentenceTransformerSearch,
 )
 from .app.default_functions import OwlDefaultFunctions, search_bing, is_url
+from .hugging_face.core import get_model_data
 
 __all__ = [
     "get_best_device",
@@ -41,4 +42,5 @@ __all__ = [
     "OwlDefaultFunctions",
     "search_bing",
     "is_url",
+    "get_model_data",
 ]

@@ -1,5 +1,23 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from .helper_functions import get_model_list, _get_hf_model_data
+
+
+def get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[str, Dict[str, str]]:
+    """
+    Get and display the model data from the HuggingFace Hub in a visually appealing format.
+
+    Parameters:
+        model_search: Search term for filtering models
+        top_n_models: Number of top models to display
+        **kwargs: Additional keyword arguments to pass to get_model_list. E.g., task, framework, etc.
+        See `HfApi().list_models()` from `huggingface_hub` package for more details.
+
+    Returns:
+        Dictionary containing model information
+    """
+    model_list = get_model_list(top_n=top_n_models, search=model_search, **kwargs)
+    model_dict = {model_info.modelId: _get_hf_model_data(model_info) for model_info in model_list}
+    return model_dict
 
 
 def create_separator(width: int = 80, char: str = "=") -> str:
@@ -10,22 +28,6 @@ def create_separator(width: int = 80, char: str = "=") -> str:
 def format_table_row(columns: List[str], widths: List[int]) -> str:
     """Format a row with proper spacing and alignment."""
     return "│ " + " │ ".join(col.ljust(width) for col, width in zip(columns, widths)) + " │"
-
-
-def get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[str, Dict[str, str]]:
-    """
-    Get and display the model data from the HuggingFace Hub in a visually appealing format.
-
-    Parameters:
-        model_search: Search term for filtering models
-        top_n_models: Number of top models to display
-
-    Returns:
-        Dictionary containing model information
-    """
-    model_list = get_model_list(top_n=top_n_models, search=model_search, **kwargs)
-    model_dict = {model_info.modelId: _get_hf_model_data(model_info) for model_info in model_list}
-    return model_dict
 
 
 def calculate_column_widths(model_dict: Dict[str, Dict[str, str]]) -> tuple:
@@ -43,9 +45,11 @@ def calculate_column_widths(model_dict: Dict[str, Dict[str, str]]) -> tuple:
     return RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH, TOTAL_WIDTH
 
 
-def show_and_return_model_data(model_search: str, top_n_models: int = 10) -> Dict[str, Dict[str, str]]:
+def show_and_return_model_data(
+    model_search: str, top_n_models: int = 10, task: Optional[str] = None
+) -> Dict[str, Dict[str, str]]:
     """Display model data in a formatted table with dynamic sizing."""
-    model_dict = get_model_data(model_search, top_n_models)
+    model_dict = get_model_data(model_search, top_n_models, task=task)
 
     # Return early if no models found
     if not model_dict:
