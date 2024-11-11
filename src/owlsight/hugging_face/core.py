@@ -1,6 +1,6 @@
 from functools import lru_cache
 from typing import Dict, List
-from .helper_functions import get_model_gen, _get_hf_model_data
+from .helper_functions import get_model_list, _get_hf_model_data
 
 
 def create_separator(width: int = 80, char: str = "=") -> str:
@@ -25,7 +25,7 @@ def get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[
     Returns:
         Dictionary containing model information
     """
-    model_gen = get_model_gen(top_n=top_n_models, search=model_search, **kwargs)
+    model_gen = get_model_list(top_n=top_n_models, search=model_search, **kwargs)
     model_dict = {model_info.modelId: _get_hf_model_data(model_info) for model_info in model_gen}
     return model_dict
 
