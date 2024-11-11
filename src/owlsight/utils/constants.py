@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
-from typing import Union, Optional, Any, Dict, List, TypeVar, Callable
+from typing import Union, Optional, Any, Dict, TypeVar
+
+from owlsight.hugging_face.constants import HUGGINGFACE_TASKS
 
 # ANSI color codes for terminal output
 COLOR_CODES = {
@@ -142,8 +144,17 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
         },
         "huggingface": {
             "search": {"default": "", "choices": None, "description": "search for a model on huggingface"},
-            "top_k": {"default": 5, "choices": list(range(1, 51)), "description": "Number of huggingface results to return"},
+            "top_k": {
+                "default": 5,
+                "choices": list(range(1, 51)),
+                "description": "Number of huggingface results to return",
+            },
             "select_model": {"default": "", "choices": None, "description": "select a model from huggingface"},
+            "task": {
+                "default": None,
+                "choices": HUGGINGFACE_TASKS,
+                "description": "task for huggingface",
+            },
         },
     }
 
