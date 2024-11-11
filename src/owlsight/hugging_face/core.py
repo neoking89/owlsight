@@ -19,6 +19,8 @@ def get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[
     Parameters:
         model_search: Search term for filtering models
         top_n_models: Number of top models to display
+        **kwargs: Additional keyword arguments to pass to get_model_list. E.g., task, framework, etc.
+        See `HfApi().list_models()` from `huggingface_hub` package for more details.
 
     Returns:
         Dictionary containing model information
