@@ -8,7 +8,7 @@ import sysconfig
 import tempfile
 from pathlib import Path
 
-from owlsight.utils.helper_functions import os_is_windows
+from owlsight.utils.helper_functions import os_is_windows, force_delete
 from owlsight.utils.logger import logger
 
 
@@ -130,6 +130,12 @@ def get_temp_dir(suffix: str) -> str:
     """
     # Try user's home directory first
     user_temp = Path.home() / suffix
+    if user_temp.exists():
+        # remove the directory forcefully
+        try:
+            os.rmdir(user_temp)
+        except Exception:
+            force_delete(user_temp)
     try:
         os.makedirs(user_temp, exist_ok=True)
         return user_temp
