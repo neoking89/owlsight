@@ -10,8 +10,6 @@ from owlsight.utils.helper_functions import flatten_dict
 from owlsight.utils.validations import validate_key_is_nested_one_layer
 
 
-
-
 class ConfigManager:
     """
     A singleton class which carries the configuration for the whole application.
