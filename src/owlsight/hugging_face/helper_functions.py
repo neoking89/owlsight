@@ -1,5 +1,3 @@
-# src/models/hugging_face/helper_functions.py
-
 """helper functions for huggingface models"""
 
 import os
@@ -8,6 +6,7 @@ from typing import Iterable, Optional, Union, Dict, List
 import requests
 import subprocess
 from datetime import datetime, timezone
+from functools import lru_cache
 
 from huggingface_hub import HfApi
 from huggingface_hub.hf_api import ModelInfo
@@ -16,9 +15,7 @@ from tqdm import tqdm
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
 
-
 MODELHUB_PREFIX = "https://huggingface.co/"
-
 
 def calculate_days_ago_created(time_created: datetime) -> int:
     now_utc = datetime.now(timezone.utc)
@@ -26,10 +23,6 @@ def calculate_days_ago_created(time_created: datetime) -> int:
     days_difference = time_difference.days
 
     return days_difference
-
-
-import numpy as np
-
 
 def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float:
     """
@@ -83,50 +76,32 @@ def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float
 
     return score
 
+def _make_hashable(value):
+    """Convert potentially unhashable types to hashable ones for caching."""
+    if isinstance(value, (list, set)):
+        return tuple(sorted(_make_hashable(x) for x in value))
+    if isinstance(value, dict):
+        return tuple(sorted((k, _make_hashable(v)) for k, v in value.items()))
+    return value
 
-def get_model_list(
-    filter_by: Union[str, Iterable[str], None] = None,
-    # sort_by: str = "downloads",
-    top_n: Optional[int] = None,
-    include_metadata: bool = False,
+@lru_cache(maxsize=128)
+def _cached_get_model_list(
+    filter_by: Optional[tuple] = None,
     search: Optional[str] = None,
-    hf_api: Optional[HfApi] = None,
-    **kwargs,
-) -> List[ModelInfo]:
-    """
-    Get a generator of models that match the given criteria.
-
-    Parameters
-    ----------
-    filter_by : Union[str, Iterable[str], None], optional
-        A string or list of strings to filter the models by. Defaults to None.
-    sort_by : str, Literal["downlads, "likes"]
-        The attribute to sort by. Defaults to "downloads".
-    top_n : int, optional
-        The number of models to return. Defaults to 10.
-    include_metadata : bool, optional
-        Whether to add extra metadata to the model. Defaults to False.
-    search : str, optional
-        A string to filter the models by during searching. Defaults to None.
-    hf_api : HfApi, optional
-        An instance of HuggingFace API to use. If None, a new instance will be created. Defaults to None.
-
-    Returns
-    -------
-    Iterable[ModelInfo]
-        A generator of models that match the given criteria.
-    """
-    if hf_api is None:
-        hf_api = HfApi()
-
+    include_metadata: bool = False,
+    **kwargs
+) -> tuple:
+    """Cached inner function that returns all models without top_n slicing."""
+    hf_api = HfApi()
+    
+    # Convert filter_by back to list if it's not None
+    filter_by_list = list(filter_by) if filter_by is not None else None
+    
     check_invalid_input_parameters(hf_api.list_models, kwargs)
     model_gen = hf_api.list_models(
-        filter=filter_by,
+        filter=filter_by_list,
         search=search,
-        # limit=top_n,
         cardData=include_metadata,
-        # sort=sort_by,
-        # direction=-1,
         **kwargs,
     )
 
@@ -139,12 +114,58 @@ def get_model_list(
         model_info_list.append(model_info)
 
     model_info_list.sort(key=lambda x: x.engagement_score, reverse=True)
+    
+    # Convert to tuple for caching
+    return tuple(model_info_list)
 
+def get_model_list(
+    filter_by: Union[str, Iterable[str], None] = None,
+    top_n: Optional[int] = None,
+    include_metadata: bool = False,
+    search: Optional[str] = None,
+    **kwargs,
+) -> List[ModelInfo]:
+    """
+    Get a list of models that match the given criteria, with caching support.
+
+    Parameters
+    ----------
+    filter_by : Union[str, Iterable[str], None], optional
+        A string or list of strings to filter the models by. Defaults to None.
+    top_n : int, optional
+        The number of models to return. Defaults to None.
+    include_metadata : bool, optional
+        Whether to add extra metadata to the model. Defaults to False.
+    search : str, optional
+        A string to filter the models by during searching. Defaults to None.
+    hf_api : HfApi, optional
+        An instance of HuggingFace API to use. If None, a new instance will be created. Defaults to None.
+
+    Returns
+    -------
+    List[ModelInfo]
+        A list of models that match the given criteria.
+    """
+    # Convert filter_by to hashable type (tuple) for caching
+    hashable_filter_by = _make_hashable(filter_by) if filter_by is not None else None
+    
+    # Convert kwargs to hashable format
+    hashable_kwargs = _make_hashable(kwargs)
+    
+    # Get full cached result
+    cached_results = _cached_get_model_list(
+        filter_by=hashable_filter_by,
+        search=search,
+        include_metadata=include_metadata,
+        **dict(hashable_kwargs)
+    )
+    
+    # Convert back to list and apply top_n if specified
+    model_info_list = list(cached_results)
     if top_n:
         model_info_list = model_info_list[:top_n]
-
+        
     return model_info_list
-
 
 def download_huggingface_model(model_name: str, save_path: str, chunk_size: int = 1024) -> None:
     """
@@ -163,7 +184,6 @@ def download_huggingface_model(model_name: str, save_path: str, chunk_size: int 
     -------
     None
     """
-
     base_url = f"https://huggingface.co/{model_name}/resolve/main/"
     file_names = [
         "config.json",
@@ -193,7 +213,6 @@ def download_huggingface_model(model_name: str, save_path: str, chunk_size: int 
             progress_bar.close()
         else:
             logger.error("Failed to download %s due to %s", url, response.status_code)
-
 
 def show_model_memory(model_name: str) -> Optional[str]:
     """
@@ -231,7 +250,6 @@ def show_model_memory(model_name: str) -> Optional[str]:
     except UnicodeDecodeError as e:
         print(f"A Unicode decoding error occurred: {e}")
         return None
-
 
 def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
     now_utc = datetime.now(timezone.utc)
