@@ -2,16 +2,6 @@ from typing import Dict, List, Optional
 from .helper_functions import get_model_list, _get_hf_model_data
 
 
-def create_separator(width: int = 80, char: str = "=") -> str:
-    """Create a separator line with given width and character."""
-    return char * width
-
-
-def format_table_row(columns: List[str], widths: List[int]) -> str:
-    """Format a row with proper spacing and alignment."""
-    return "│ " + " │ ".join(col.ljust(width) for col, width in zip(columns, widths)) + " │"
-
-
 def get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[str, Dict[str, str]]:
     """
     Get and display the model data from the HuggingFace Hub in a visually appealing format.
@@ -30,6 +20,16 @@ def get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[
     return model_dict
 
 
+def create_separator(width: int = 80, char: str = "=") -> str:
+    """Create a separator line with given width and character."""
+    return char * width
+
+
+def format_table_row(columns: List[str], widths: List[int]) -> str:
+    """Format a row with proper spacing and alignment."""
+    return "│ " + " │ ".join(col.ljust(width) for col, width in zip(columns, widths)) + " │"
+
+
 def calculate_column_widths(model_dict: Dict[str, Dict[str, str]]) -> tuple:
     """Calculate optimal column widths based on content."""
     max_model_id = max(len(model_id) for model_id in model_dict.keys())
@@ -45,7 +45,9 @@ def calculate_column_widths(model_dict: Dict[str, Dict[str, str]]) -> tuple:
     return RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH, TOTAL_WIDTH
 
 
-def show_and_return_model_data(model_search: str, top_n_models: int = 10, task: Optional[str] = None) -> Dict[str, Dict[str, str]]:
+def show_and_return_model_data(
+    model_search: str, top_n_models: int = 10, task: Optional[str] = None
+) -> Dict[str, Dict[str, str]]:
     """Display model data in a formatted table with dynamic sizing."""
     model_dict = get_model_data(model_search, top_n_models, task=task)
 
