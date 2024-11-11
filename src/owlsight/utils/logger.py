@@ -200,5 +200,4 @@ class ColoredLogger(logging.Logger):
             self.disabled = True
             self.handlers.clear()
 
-
 logger = ColoredLogger(verbose=3)
