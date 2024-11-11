@@ -6,17 +6,78 @@ import os
 from typing import Iterable, Optional, Union, Dict
 import requests
 import subprocess
+import math
 
 from huggingface_hub import HfApi
 from huggingface_hub.hf_api import ModelInfo
 from tqdm import tqdm
 
-
+from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
 
 
-
 MODELHUB_PREFIX = "https://huggingface.co/"
+
+import math
+from typing import Union
+
+
+def engagement_score(likes: int, downloads: int) -> float:
+    """
+    Calculate an engagement score based on likes and downloads.
+
+    This function computes an engagement score that takes into account
+    the number of likes and downloads for a model. It adjusts for low
+    download counts, penalizes zero likes, and uses logarithmic scaling
+    to handle disparities between likes and downloads.
+
+    Parameters
+    ----------
+    likes : int
+        The number of likes for the model.
+    downloads : int
+        The number of downloads for the model.
+
+    Returns
+    -------
+    float
+        The calculated engagement score.
+
+    Notes
+    -----
+    The score is calculated using the following components:
+    - Base score: likes / (downloads + C)
+    - Download factor: log(downloads + C) / log(1000), clamped between 0.1 and 1
+    - Zero likes penalty: 1 / log(downloads + C) if likes are zero, else 1
+
+    The final score is the product of these components.
+
+    Examples
+    --------
+    >>> engagement_score(100, 1000)
+    0.082427
+    >>> engagement_score(0, 1000)
+    0.0
+    >>> engagement_score(5, 5)
+    0.276490
+    """
+    # Constant to avoid division by zero and handle low download counts
+    C: int = 10
+
+    # Base score calculation
+    base_score: float = likes / (downloads + C)
+
+    # Adjustment factor for download count
+    download_factor: float = math.log(downloads + C) / math.log(1000)
+    download_factor = min(max(download_factor, 0.1), 1)  # Clamp between 0.1 and 1
+
+    # Adjustment for zero likes
+    zero_likes_penalty: float = 1 / math.log(downloads + C) if likes == 0 else 1
+
+    # Final score calculation
+    score: float = base_score * download_factor * zero_likes_penalty
+
+    return score
 
 
 def get_model_gen(
@@ -26,6 +87,7 @@ def get_model_gen(
     include_metadata: bool = False,
     search: Optional[str] = None,
     hf_api: Optional[HfApi] = None,
+    **kwargs,
 ) -> Iterable[ModelInfo]:
     """
     Get a generator of models that match the given criteria.
@@ -52,6 +114,8 @@ def get_model_gen(
     """
     if hf_api is None:
         hf_api = HfApi()
+
+    check_invalid_input_parameters(hf_api.list_models, kwargs)
     model_gen = hf_api.list_models(
         filter=filter_by,
         search=search,
@@ -59,6 +123,7 @@ def get_model_gen(
         cardData=include_metadata,
         sort=sort_by,
         direction=-1,
+        **kwargs,
     )
 
     return model_gen
