@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from .helper_functions import get_model_list, _get_hf_model_data
 
 
@@ -43,9 +43,9 @@ def calculate_column_widths(model_dict: Dict[str, Dict[str, str]]) -> tuple:
     return RANK_WIDTH, MODEL_ID_WIDTH, DETAIL_WIDTH, TOTAL_WIDTH
 
 
-def show_and_return_model_data(model_search: str, top_n_models: int = 10) -> Dict[str, Dict[str, str]]:
+def show_and_return_model_data(model_search: str, top_n_models: int = 10, task: Optional[str] = None) -> Dict[str, Dict[str, str]]:
     """Display model data in a formatted table with dynamic sizing."""
-    model_dict = get_model_data(model_search, top_n_models)
+    model_dict = get_model_data(model_search, top_n_models, task=task)
 
     # Return early if no models found
     if not model_dict:
