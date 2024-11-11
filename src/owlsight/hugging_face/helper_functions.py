@@ -18,7 +18,11 @@ from owlsight.utils.logger import logger
 MODELHUB_PREFIX = "https://huggingface.co/"
 
 
+@lru_cache(maxsize=128)
 def calculate_days_ago_created(time_created: datetime) -> int:
+    """
+    Calculate the number of days since a given time.
+    """
     now_utc = datetime.now(timezone.utc)
     time_difference = now_utc - time_created
     days_difference = time_difference.days
@@ -254,9 +258,7 @@ def show_model_memory(model_name: str) -> Optional[str]:
 
 
 def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
-    now_utc = datetime.now(timezone.utc)
-    time_difference = now_utc - model_info.created_at
-    days_difference = time_difference.days
+    days_difference = calculate_days_ago_created(model_info.created_at)
     model_data = {
         "engagement score": np.round(model_info.engagement_score, 4),
         "days ago created": days_difference,
