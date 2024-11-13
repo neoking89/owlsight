@@ -7,8 +7,6 @@ from types import MethodType
 from owlsight.utils.logger import logger
 
 
-
-
 class TransformersArgumentInferer:
     """
     Infer arguments of a method/function from its docstring or signature.
