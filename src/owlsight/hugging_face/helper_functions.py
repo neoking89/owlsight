@@ -271,17 +271,22 @@ def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
 
     return model_data
 
-def calculate_days_ago_score(created_days_ago):
-    """Calculate the days ago score with overflow protection."""
-    if created_days_ago:
-        exp_value = _safe_exp(1 + created_days_ago)
-        days_ago_score = 1 / exp_value
-    else:
-        days_ago_score = 0
-    return days_ago_score
 
-def _safe_exp(x, max_value=709):  # 709 is close to the limit for np.exp to avoid overflow
-    """Compute exp(x) with overflow protection by capping the input value."""
-    return np.exp(min(x, max_value))
+def calculate_days_ago_score(created_days_ago, weight=0.01, N=0.3):
+    """
+    Optimized version with better score distribution:
+    Reduced weight to prevent scores from decaying too quickly
 
+    Parameters
+    ----------
+    created_days_ago : int
+        The number of days since the model was created.
+    weight : float, optional
+        The weight factor for the exponential decay. Defaults to 0.01.
+    N : float, optional
+        Increase this value to boost the score. Defaults to 0.25.
+    """
+    if not created_days_ago:
+        return 0.0
 
+    return np.exp(-(weight * (1 + created_days_ago))) * N
