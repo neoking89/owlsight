@@ -18,7 +18,8 @@ from owlsight.utils.threads import KillableThread
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.logger import logger
-from owlsight.utils.deep_learning import get_best_device
+from owlsight.utils.deep_learning import get_best_device, bfloat16_is_supported
+from owlsight.hugging_face.constants import TASK_TO_AUTO_MODEL
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 
 
@@ -97,8 +98,8 @@ class TextGenerationProcessor(ABC):
 
         self.model_id = model_id
         self.save_history = save_history
-        self.history = []
         self.system_prompt = system_prompt
+        self.history = []
 
     def apply_chat_template(
         self,
@@ -172,6 +173,8 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             Additional keyword arguments for the tokenizer. Default is None.
         model_kwargs : Optional[dict]
             Additional keyword arguments for the model. Default is None.
+        task : Optional[str]
+            The task to use for the pipeline. Default is None, where the task is set to "text-generation".
         save_history : bool
             Set to True if you want model to generate responses based on previous inputs.
         system_prompt : str
@@ -179,23 +182,25 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         """
         super().__init__(model_id, save_history, system_prompt)
         self.transformers__device = transformers__device or get_best_device()
-        self._attention_implementation = "flash" if flash_attention_is_available() else "eager"
-        self.history = []
+        self._auto_model_cls = TASK_TO_AUTO_MODEL.get(task, "text-generation")
 
-        self._load_tokenizer_model(
+        tokenizer, model = self._load_tokenizer_model(
             transformers__quantization_bits,
-            task=task,
             tokenizer_kwargs=tokenizer_kwargs or {},
             bnb_kwargs=bnb_kwargs or {},
             model_kwargs=model_kwargs or {},
         )
-
+        self.pipe = pipeline(
+            task=task or "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            device_map="auto" if self.transformers__device != "cpu" else {"": "cpu"},
+        )
         self.streamer = TextIteratorStreamer(self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True)
 
     def _load_tokenizer_model(
         self,
         transformers__quantization_bits: Optional[int],
-        task: Optional[str],
         tokenizer_kwargs: Dict,
         bnb_kwargs: Dict,
         model_kwargs: Dict,
@@ -210,7 +215,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         if transformers__quantization_bits == 4:
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_compute_dtype=torch.bfloat16 if bfloat16_is_supported() else torch.float16,
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
                 **bnb_kwargs,
@@ -220,21 +225,19 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         model_kwargs.update(
             {
+                "device_map": ("auto" if self.transformers__device != "cpu" else {"": "cpu"}),
+                "trust_remote_code": True,
                 "torch_dtype": ("auto" if self.transformers__device != "cpu" else torch.float32),
+                "num_beams": 1, # Set to 1 for streaming generation
                 "quantization_config": quantization_config,
-                "_attn_implementation": self._attention_implementation,
+                "_attn_implementation": "flash" if flash_attention_is_available() else "eager",
             }
         )
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_id, **tokenizer_kwargs)
-        self.pipe = pipeline(
-            task=task,
-            model=self.model_id,
-            tokenizer=tokenizer,
-            trust_remote_code=True,
-            device_map="auto" if self.transformers__device != "cpu" else {"": "cpu"},
-            model_kwargs=model_kwargs,
-        )
+        model = self._auto_model_cls.from_pretrained(self.model_id, **model_kwargs)
+
+        return tokenizer, model
 
     @torch.inference_mode()
     def generate(
@@ -368,7 +371,6 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         super().__init__(model_id, save_history, system_prompt)
         self.onnx__verbose = onnx__verbose
         self.onnx__num_threads = onnx__num_threads
-        self.history = []
 
         self._set_tokenizer(onnx__tokenizer)
         self._set_environment_variables()
@@ -604,7 +606,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                     files_str = error_msg.split("Available Files:")[1].strip()
                     try:
                         files_list = literal_eval(files_str)
-                        gguf_files = sorted([f for f in files_list if f.endswith(".gguf")])
+                        gguf_files = sorted(f for f in files_list if f.endswith(".gguf"))
 
                         print("Specify gguf__filename in config:model from the following list:")
                         print("Available .gguf files:")
@@ -690,7 +692,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         return templated_text, _generation_kwargs
 
     # override the original apply_chat_template method
-    def apply_chat_template(self, input_text) -> List[Dict[str, str]]:
+    def apply_chat_template(self, input_text: str) -> List[Dict[str, str]]:
         messages = []
         if self.save_history:
             messages = self.history.copy()
