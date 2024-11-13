@@ -74,8 +74,10 @@ def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float
     # Adjustment for zero likes
     zero_likes_penalty: float = 0.5 if likes == 0 else 1
 
+    days_ago_score = calculate_days_ago_score(created_days_ago)
+
     # Time-based decay factor
-    days_ago_score = (1 / np.exp(1 + created_days_ago)) if created_days_ago else 0
+    # days_ago_score = (1 / np.exp(1 + created_days_ago)) if created_days_ago else 0
 
     # Final score calculation
     score: float = (base_score * download_factor * zero_likes_penalty * low_download_penalty) + days_ago_score
@@ -268,3 +270,18 @@ def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
     }
 
     return model_data
+
+def calculate_days_ago_score(created_days_ago):
+    """Calculate the days ago score with overflow protection."""
+    if created_days_ago:
+        exp_value = _safe_exp(1 + created_days_ago)
+        days_ago_score = 1 / exp_value
+    else:
+        days_ago_score = 0
+    return days_ago_score
+
+def _safe_exp(x, max_value=709):  # 709 is close to the limit for np.exp to avoid overflow
+    """Compute exp(x) with overflow protection by capping the input value."""
+    return np.exp(min(x, max_value))
+
+
