@@ -121,6 +121,7 @@ class TextGenerationManager:
                     return
                 # select and load a model from huggingface
                 self.config_manager.set("model.model_id", select_model)
+                task = self.config_manager.get("huggingface.task", DEFAULTS[outer_key]["task"])
                 exc = self.load_model_processor(reload=self.processor is not None)
                 if exc:
                     if select_model.lower().endswith("gguf"):
@@ -136,7 +137,6 @@ class TextGenerationManager:
                             self.load_model_processor(reload=self.processor is not None)
             elif inner_key == "task":
                 task = self.config_manager.get("huggingface.task", DEFAULTS[outer_key]["task"])
-                # set task to pipeline
                 self.config_manager.set("huggingface.task", task)
 
     def save_config(self, path: str):
@@ -168,6 +168,10 @@ class TextGenerationManager:
         None | Exception
             None if successful, otherwise an exception is returned.
         """
+        _processor_kwargs = self.config_manager.get("model", {})
+        task = self.config_manager.get("huggingface.task", DEFAULTS["huggingface"]["task"])
+        _processor_kwargs["task"] = task
+
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
             logger.error("No model_id provided. Please set a model_id in the configuration.")
@@ -187,11 +191,11 @@ class TextGenerationManager:
                 self.processor = None
                 free_memory()
 
-                self.processor = processor_type(**self.config_manager.get("model", {}))
+                self.processor = processor_type(**_processor_kwargs)
                 self.processor.history = old_history
             else:
                 processor_type = select_processor_type(model_id)
-                self.processor = processor_type(**self.config_manager.get("model", {}))
+                self.processor = processor_type(**_processor_kwargs)
         except Exception as e:
             logger.error(f"Error loading model_processor: {traceback.format_exc()}")
             return e
