@@ -22,7 +22,6 @@ from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 
 
-
 ONNX_MSG = "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or install [onnxruntime-genai, onnxruntime-genai-cuda] seperately"
 
 try:
@@ -150,6 +149,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
+        task: Optional[str] = None,
         save_history: bool = False,
         system_prompt: str = "",
         **kwargs,
@@ -182,23 +182,20 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         self._attention_implementation = "flash" if flash_attention_is_available() else "eager"
         self.history = []
 
-        tokenizer, model = self._load_tokenizer_model(
+        self._load_tokenizer_model(
             transformers__quantization_bits,
+            task=task,
             tokenizer_kwargs=tokenizer_kwargs or {},
             bnb_kwargs=bnb_kwargs or {},
             model_kwargs=model_kwargs or {},
         )
-        self.pipe = pipeline(
-            "text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            device_map="auto" if self.transformers__device != "cpu" else {"": "cpu"},
-        )
+
         self.streamer = TextIteratorStreamer(self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True)
 
     def _load_tokenizer_model(
         self,
         transformers__quantization_bits: Optional[int],
+        task: Optional[str],
         tokenizer_kwargs: Dict,
         bnb_kwargs: Dict,
         model_kwargs: Dict,
@@ -223,8 +220,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         model_kwargs.update(
             {
-                "device_map": ("auto" if self.transformers__device != "cpu" else {"": "cpu"}),
-                "trust_remote_code": True,
                 "torch_dtype": ("auto" if self.transformers__device != "cpu" else torch.float32),
                 "quantization_config": quantization_config,
                 "_attn_implementation": self._attention_implementation,
@@ -232,9 +227,14 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         )
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_id, **tokenizer_kwargs)
-        model = AutoModelForCausalLM.from_pretrained(self.model_id, **model_kwargs)
-
-        return tokenizer, model
+        self.pipe = pipeline(
+            task=task,
+            model=self.model_id,
+            tokenizer=tokenizer,
+            trust_remote_code=True,
+            device_map="auto" if self.transformers__device != "cpu" else {"": "cpu"},
+            model_kwargs=model_kwargs,
+        )
 
     @torch.inference_mode()
     def generate(
@@ -604,8 +604,8 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                     files_str = error_msg.split("Available Files:")[1].strip()
                     try:
                         files_list = literal_eval(files_str)
-                        gguf_files = sorted([f for f in files_list if f.endswith('.gguf')])
-                        
+                        gguf_files = sorted([f for f in files_list if f.endswith(".gguf")])
+
                         print("Specify gguf__filename in config:model from the following list:")
                         print("Available .gguf files:")
                         for file in gguf_files:
