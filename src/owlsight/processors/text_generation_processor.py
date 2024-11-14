@@ -228,7 +228,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
                 "device_map": ("auto" if self.transformers__device != "cpu" else {"": "cpu"}),
                 "trust_remote_code": True,
                 "torch_dtype": ("auto" if self.transformers__device != "cpu" else torch.float32),
-                "num_beams": 1, # Set to 1 for streaming generation
                 "quantization_config": quantization_config,
                 "_attn_implementation": "flash" if flash_attention_is_available() else "eager",
             }
