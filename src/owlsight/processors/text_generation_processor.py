@@ -14,7 +14,7 @@ from transformers import (
     PreTrainedTokenizer,
     pipeline,
 )
-from owlsight.utils.threads import KillableThread
+from owlsight.utils.threads import KillableThread, TIMEOUT_TIME, ThreadNotKilledError
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.logger import logger
@@ -265,7 +265,10 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         finally:
             print()  # Print newline after generation is done
             generation_thread.kill()
-            generation_thread.join()
+            generation_thread.join(timeout=TIMEOUT_TIME)
+
+            if generation_thread.is_alive():
+                raise ThreadNotKilledError("Generation thread was not killed in time.")
 
         self.update_history(input_text, generated_text.strip())
 
@@ -295,7 +298,10 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             logger.warning("Control+C pressed, aborting generation")
         finally:
             generation_thread.kill()
-            generation_thread.join()
+            generation_thread.join(timeout=TIMEOUT_TIME)
+
+            if generation_thread.is_alive():
+                raise ThreadNotKilledError("Generation thread was not killed in time.")
 
         self.update_history(input_text, generated_text.strip())
 

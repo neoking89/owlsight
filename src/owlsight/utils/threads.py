@@ -4,7 +4,7 @@ import sys
 TIMEOUT_TIME = 2.0
 
 
-class ThreadNotKilledErrror(Exception):
+class ThreadNotKilledError(Exception):
     pass
 
 
