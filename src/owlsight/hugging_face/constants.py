@@ -6,6 +6,7 @@ TASK_TO_AUTO_MODEL = {
 
 HUGGINGFACE_TASKS = [None] + [
     "text-generation",
+    "text2text-generation",
     "translation",
     "summarization",
 ]
