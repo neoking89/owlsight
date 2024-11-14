@@ -168,9 +168,10 @@ class TextGenerationManager:
         None | Exception
             None if successful, otherwise an exception is returned.
         """
-        _processor_kwargs = self.config_manager.get("model", {})
+        model_kwargs = self.config_manager.get("model", {})
         task = self.config_manager.get("huggingface.task", DEFAULTS["huggingface"]["task"])
-        _processor_kwargs["task"] = task
+        processor_kwargs = {"task": task, **model_kwargs}
+
 
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
@@ -191,11 +192,11 @@ class TextGenerationManager:
                 self.processor = None
                 free_memory()
 
-                self.processor = processor_type(**_processor_kwargs)
+                self.processor = processor_type(**processor_kwargs)
                 self.processor.history = old_history
             else:
                 processor_type = select_processor_type(model_id)
-                self.processor = processor_type(**_processor_kwargs)
+                self.processor = processor_type(**processor_kwargs)
         except Exception as e:
             logger.error(f"Error loading model_processor: {traceback.format_exc()}")
             return e
