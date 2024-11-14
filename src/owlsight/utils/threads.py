@@ -1,6 +1,12 @@
 from threading import Thread
 import sys
 
+TIMEOUT_TIME = 2.0
+
+
+class ThreadNotKilledErrror(Exception):
+    pass
+
 
 class KillableThread(Thread):
     def __init__(self, *args, **keywords):
