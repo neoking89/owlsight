@@ -7,10 +7,10 @@ from ast import literal_eval
 
 import torch
 from transformers import (
-    AutoModelForCausalLM,
     BitsAndBytesConfig,
     TextIteratorStreamer,
     AutoTokenizer,
+    AutoModel,
     PreTrainedTokenizer,
     pipeline,
 )
@@ -182,7 +182,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         """
         super().__init__(model_id, save_history, system_prompt)
         self.transformers__device = transformers__device or get_best_device()
-        self._auto_model_cls = TASK_TO_AUTO_MODEL.get(task, "text-generation")
+        self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(task, "text-generation")
 
         tokenizer, model = self._load_tokenizer_model(
             transformers__quantization_bits,
@@ -227,6 +227,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             {
                 "device_map": ("auto" if self.transformers__device != "cpu" else {"": "cpu"}),
                 "trust_remote_code": True,
+                "num_beams": 1,
                 "torch_dtype": ("auto" if self.transformers__device != "cpu" else torch.float32),
                 "quantization_config": quantization_config,
                 "_attn_implementation": "flash" if flash_attention_is_available() else "eager",
