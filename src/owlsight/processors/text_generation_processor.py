@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any, Type, Union
 import os
 import time
 import traceback
+import threading
 from ast import literal_eval
 
 import torch
@@ -227,7 +228,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             {
                 "device_map": ("auto" if self.transformers__device != "cpu" else {"": "cpu"}),
                 "trust_remote_code": True,
-                "num_beams": 1,
                 "torch_dtype": ("auto" if self.transformers__device != "cpu" else torch.float32),
                 "quantization_config": quantization_config,
                 "_attn_implementation": "flash" if flash_attention_is_available() else "eager",
@@ -252,27 +252,50 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             input_text, max_new_tokens, temperature, stopwords, generation_kwargs
         )
 
-        generation_thread = KillableThread(target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs)
+        generation_thread = KillableThread(target=self._generate_text, args=(templated_text, _generation_kwargs))
         generation_thread.start()
+
         generated_text = ""
+        error = None
+        stop_event = threading.Event()
 
         try:
-            for new_text in self.streamer:
+            for new_text in self._stream_with_timeout(stop_event):
                 generated_text += new_text
                 print(new_text, end="", flush=True)
         except KeyboardInterrupt:
             logger.warning("Control+C pressed, aborting generation")
+        except Exception as e:
+            error = e
         finally:
             print()  # Print newline after generation is done
+            stop_event.set()
             generation_thread.kill()
             generation_thread.join(timeout=TIMEOUT_TIME)
 
             if generation_thread.is_alive():
                 raise ThreadNotKilledError("Generation thread was not killed in time.")
 
-        self.update_history(input_text, generated_text.strip())
+        if error:
+            logger.error(f"An error occurred during generation: {traceback.format_exc()}")
+            raise error
 
+        self.update_history(input_text, generated_text.strip())
         return generated_text
+
+    def _generate_text(self, templated_text, generation_kwargs):
+        try:
+            self.pipe(templated_text, **generation_kwargs)
+        except Exception as e:
+            logger.error(f"Error in generation thread: {traceback.format_exc()}")
+            self.streamer.end()
+
+    def _stream_with_timeout(self, stop_event):
+        while not stop_event.is_set():
+            try:
+                yield next(self.streamer)
+            except StopIteration:
+                break
 
     @torch.inference_mode()
     def generate_stream(
@@ -281,27 +304,37 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         max_new_tokens: int = 512,
         temperature: float = 0.0,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
+    ):
         templated_text, _generation_kwargs = self._prepare_generate(
             input_text, max_new_tokens, temperature, None, generation_kwargs
         )
 
-        generated_text = ""
-        generation_thread = KillableThread(target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs)
+        generation_thread = KillableThread(target=self._generate_text, args=(templated_text, _generation_kwargs))
         generation_thread.start()
 
+        generated_text = ""
+        error = None
+        stop_event = threading.Event()
+
         try:
-            for new_text in self.streamer:
+            for new_text in self._stream_with_timeout(stop_event):
                 generated_text += new_text
                 yield new_text
         except KeyboardInterrupt:
             logger.warning("Control+C pressed, aborting generation")
+        except Exception as e:
+            error = e
         finally:
+            stop_event.set()
             generation_thread.kill()
             generation_thread.join(timeout=TIMEOUT_TIME)
 
             if generation_thread.is_alive():
                 raise ThreadNotKilledError("Generation thread was not killed in time.")
+
+        if error:
+            logger.error(f"An error occurred during generation: {traceback.format_exc()}")
+            raise error
 
         self.update_history(input_text, generated_text.strip())
 
@@ -314,6 +347,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             "eos_token_id": self.pipe.tokenizer.eos_token_id,
             "temperature": temperature if temperature > 0.0 else None,
             "do_sample": temperature > 0.0,
+            "num_beams": 1,  # set to 1 by limitations of streamer
         }
 
         if stopwords is not None:
@@ -607,7 +641,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                     **_model_kwargs,
                 )
             except ValueError as e:
-                error_msg = str(e)
+                error_msg = traceback.format_exc()
                 if "Available Files:" in error_msg:
                     files_str = error_msg.split("Available Files:")[1].strip()
                     try:
