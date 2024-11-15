@@ -32,10 +32,10 @@ def calculate_days_ago_created(time_created: datetime) -> int:
 
 def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float:
     """
-    Calculate an engagement score based on likes and downloads.
+    Calculate an engagement score based on likes, downloads and days since creation.
 
     This function computes an engagement score that takes into account
-    the number of likes, downloads for a model, and the number of days ago a model was created.
+    the number of likes, downloads and days since creation for a model, and the number of days ago a model was created.
     It applies stronger penalties for very low engagement (low likes and downloads),
     and uses logarithmic scaling to balance disparities between likes and downloads.
 
@@ -75,9 +75,6 @@ def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float
     zero_likes_penalty: float = 0.5 if likes == 0 else 1
 
     days_ago_score = calculate_days_ago_score(created_days_ago)
-
-    # Time-based decay factor
-    # days_ago_score = (1 / np.exp(1 + created_days_ago)) if created_days_ago else 0
 
     # Final score calculation
     score: float = (base_score * download_factor * zero_likes_penalty * low_download_penalty) + days_ago_score
