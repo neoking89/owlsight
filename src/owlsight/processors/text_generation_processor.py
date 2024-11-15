@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Optional, List, Dict, Any, Type, Union
+from typing import Optional, List, Dict, Any, Type, Union, Generator
 import os
 import time
 import traceback
@@ -135,10 +135,19 @@ class TextGenerationProcessor(ABC):
 
         return messages
 
-    def generate(self) -> str:
+    def generate(
+        self,
+        input_text: str,
+        max_new_tokens: int,
+        temperature: float,
+        stopwords: Optional[List[str]],
+        generation_kwargs: Optional[Dict[str, Any]],
+    ) -> str:
         raise NotImplementedError("generate method must be implemented in the subclass.")
 
-    def generate_stream(self) -> str:
+    def generate_stream(
+        self, input_text: str, max_new_tokens: int, temperature: float, generation_kwargs: Optional[Dict[str, Any]]
+    ) -> Generator[str, None, None]:
         raise NotImplementedError("generate_stream method must be implemented in the subclass.")
 
 
@@ -248,6 +257,21 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
+        generated_text = self._generate_common(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
+        print(generated_text)  # Print the entire generated text
+        return generated_text
+
+    @torch.inference_mode()
+    def generate_stream(
+        self,
+        input_text: str,
+        max_new_tokens: int = 512,
+        temperature: float = 0.0,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        yield from self._generate_common(input_text, max_new_tokens, temperature, None, generation_kwargs, stream=True)
+
+    def _generate_common(self, input_text, max_new_tokens, temperature, stopwords, generation_kwargs, stream=False):
         templated_text, _generation_kwargs = self._prepare_generate(
             input_text, max_new_tokens, temperature, stopwords, generation_kwargs
         )
@@ -262,13 +286,17 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         try:
             for new_text in self._stream_with_timeout(stop_event):
                 generated_text += new_text
-                print(new_text, end="", flush=True)
+                if stream:
+                    yield new_text
+                else:
+                    print(new_text, end="", flush=True)
         except KeyboardInterrupt:
             logger.warning("Control+C pressed, aborting generation")
         except Exception as e:
             error = e
         finally:
-            print()  # Print newline after generation is done
+            if not stream:
+                print()  # Print newline after generation is done
             stop_event.set()
             generation_thread.kill()
             generation_thread.join(timeout=TIMEOUT_TIME)
@@ -281,12 +309,13 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             raise error
 
         self.update_history(input_text, generated_text.strip())
-        return generated_text
+        if not stream:
+            return generated_text
 
     def _generate_text(self, templated_text, generation_kwargs):
         try:
             self.pipe(templated_text, **generation_kwargs)
-        except Exception as e:
+        except Exception:
             logger.error(f"Error in generation thread: {traceback.format_exc()}")
             self.streamer.end()
 
@@ -296,47 +325,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
                 yield next(self.streamer)
             except StopIteration:
                 break
-
-    @torch.inference_mode()
-    def generate_stream(
-        self,
-        input_text: str,
-        max_new_tokens: int = 512,
-        temperature: float = 0.0,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        templated_text, _generation_kwargs = self._prepare_generate(
-            input_text, max_new_tokens, temperature, None, generation_kwargs
-        )
-
-        generation_thread = KillableThread(target=self._generate_text, args=(templated_text, _generation_kwargs))
-        generation_thread.start()
-
-        generated_text = ""
-        error = None
-        stop_event = threading.Event()
-
-        try:
-            for new_text in self._stream_with_timeout(stop_event):
-                generated_text += new_text
-                yield new_text
-        except KeyboardInterrupt:
-            logger.warning("Control+C pressed, aborting generation")
-        except Exception as e:
-            error = e
-        finally:
-            stop_event.set()
-            generation_thread.kill()
-            generation_thread.join(timeout=TIMEOUT_TIME)
-
-            if generation_thread.is_alive():
-                raise ThreadNotKilledError("Generation thread was not killed in time.")
-
-        if error:
-            logger.error(f"An error occurred during generation: {traceback.format_exc()}")
-            raise error
-
-        self.update_history(input_text, generated_text.strip())
 
     def _prepare_generate(self, input_text, max_new_tokens, temperature, stopwords, generation_kwargs):
         templated_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
@@ -488,7 +476,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         max_new_tokens: int = 512,
         temperature: float = 0.0,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
+    ):
         """
         Generate text using the ONNX model.
 
@@ -632,15 +620,13 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                 **_model_kwargs,
             )
         else:
-            # if not gguf__filename:
-            #     raise ValueError("gguf__filename is required when loading a model from HuggingFace.")
             try:
                 self.llm = Llama.from_pretrained(
                     repo_id=model_id,
                     filename=gguf__filename,
                     **_model_kwargs,
                 )
-            except ValueError as e:
+            except ValueError:
                 error_msg = traceback.format_exc()
                 if "Available Files:" in error_msg:
                     files_str = error_msg.split("Available Files:")[1].strip()
@@ -693,7 +679,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         max_new_tokens: int = 512,
         temperature: float = 0.1,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
+    ):
         templated_text, _generation_kwargs = self._prepare_generate(
             input_text, max_new_tokens, temperature, None, generation_kwargs
         )
