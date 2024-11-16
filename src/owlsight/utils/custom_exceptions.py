@@ -14,3 +14,7 @@ class ModuleNotFoundInVenvError(Exception):
 
 class QuantizationNotSupportedError(Exception):
     """Exception raised when quantization is not supported for a given model."""
+
+
+class InvalidGGUFFileError(Exception):
+    """Exception raised when the GGUF file is invalid."""
