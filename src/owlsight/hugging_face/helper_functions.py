@@ -32,10 +32,10 @@ def calculate_days_ago_created(time_created: datetime) -> int:
 
 def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float:
     """
-    Calculate an engagement score based on likes and downloads.
+    Calculate an engagement score based on likes, downloads and days since creation.
 
     This function computes an engagement score that takes into account
-    the number of likes, downloads for a model, and the number of days ago a model was created.
+    the number of likes, downloads and days since creation for a model, and the number of days ago a model was created.
     It applies stronger penalties for very low engagement (low likes and downloads),
     and uses logarithmic scaling to balance disparities between likes and downloads.
 
@@ -74,8 +74,7 @@ def engagement_score(likes: int, downloads: int, created_days_ago: int) -> float
     # Adjustment for zero likes
     zero_likes_penalty: float = 0.5 if likes == 0 else 1
 
-    # Time-based decay factor
-    days_ago_score = (1 / np.exp(1 + created_days_ago)) if created_days_ago else 0
+    days_ago_score = calculate_days_ago_score(created_days_ago)
 
     # Final score calculation
     score: float = (base_score * download_factor * zero_likes_penalty * low_download_penalty) + days_ago_score
@@ -268,3 +267,23 @@ def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
     }
 
     return model_data
+
+
+def calculate_days_ago_score(created_days_ago, weight=0.01, N=0.3):
+    """
+    Optimized version with better score distribution:
+    Reduced weight to prevent scores from decaying too quickly
+
+    Parameters
+    ----------
+    created_days_ago : int
+        The number of days since the model was created.
+    weight : float, optional
+        The weight factor for the exponential decay. Defaults to 0.01.
+    N : float, optional
+        Increase this value to boost the score. Defaults to 0.25.
+    """
+    if not created_days_ago:
+        return 0.0
+
+    return np.exp(-(weight * (1 + created_days_ago))) * N

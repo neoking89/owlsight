@@ -87,7 +87,7 @@ def log_reserved_memory():
     logger.info("CPU Memory - Reserved: %s", cpu_reserved)
 
 
-def check_bfloat16_support():
+def bfloat16_is_supported():
     """
     Check if the current GPU supports bfloat16 data type using PyTorch.
 
@@ -95,15 +95,12 @@ def check_bfloat16_support():
         bool: True if bfloat16 is supported, False otherwise.
     """
     if not torch.cuda.is_available():
-        print("No GPU found.")
         return False
 
     try:
         _ = torch.tensor([1.0, 2.0], dtype=torch.bfloat16, device="cuda")
-        print("bfloat16 is supported on your GPU.")
         return True
     except Exception as e:
-        print(f"bfloat16 is not supported on your GPU: {e}")
         return False
 
 

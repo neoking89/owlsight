@@ -1,13 +1,12 @@
 from transformers.pipelines import SUPPORTED_TASKS
 
-EXCLUDED_TASKS = [
-    "feature-extraction",
-    "table-question-answering",
-    "zero-shot-classification",
-    "zero-shot-image-classification",
-    "zero-shot-audio-classification",
-    "conversational",
-    "zero-shot-object-detection",
-]
+TASK_TO_AUTO_MODEL = {
+    k:v["pt"][0] for k,v in SUPPORTED_TASKS.items()
+}
 
-HUGGINGFACE_TASKS = [None] + [task for task in SUPPORTED_TASKS if task not in EXCLUDED_TASKS]
+HUGGINGFACE_TASKS = [None] + [
+    "text-generation",
+    "text2text-generation",
+    "translation",
+    "summarization",
+]
