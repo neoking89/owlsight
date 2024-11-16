@@ -626,7 +626,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                     filename=gguf__filename,
                     **_model_kwargs,
                 )
-            except ValueError:
+            except ValueError as exc:
                 error_msg = traceback.format_exc()
                 if "Available Files:" in error_msg:
                     files_str = error_msg.split("Available Files:")[1].strip()
@@ -640,7 +640,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                             logger.error(file)
                     except (ValueError, SyntaxError):
                         logger.error("Could not parse available files list")
-                raise InvalidGGUFFileError()
+                raise InvalidGGUFFileError() from exc
 
     def generate(
         self,
