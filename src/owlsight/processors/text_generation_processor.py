@@ -16,7 +16,7 @@ from transformers import (
     pipeline,
 )
 from owlsight.utils.threads import KillableThread, TIMEOUT_TIME, ThreadNotKilledError
-from owlsight.utils.custom_exceptions import QuantizationNotSupportedError
+from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.logger import logger
 from owlsight.utils.deep_learning import get_best_device, bfloat16_is_supported
@@ -634,13 +634,13 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                         files_list = literal_eval(files_str)
                         gguf_files = sorted(f for f in files_list if f.endswith(".gguf"))
 
-                        print("Specify gguf__filename in config:model from the following list:")
-                        print("Available .gguf files:")
+                        logger.error("Specify a valid GGUF file in the 'gguf__filename' parameter")
+                        logger.error("Available .gguf files:")
                         for file in gguf_files:
-                            print(f"- {file}")
+                            logger.error(file)
                     except (ValueError, SyntaxError):
                         logger.error("Could not parse available files list")
-                raise  # Re-raise the original error in all cases
+                raise InvalidGGUFFileError()
 
     def generate(
         self,
