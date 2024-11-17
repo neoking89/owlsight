@@ -1,4 +1,6 @@
+import time
 import sys
+
 sys.path.append("src")
 
 import pytest
@@ -64,6 +66,32 @@ def test_prompt_tokens_exclusion(setup_processor):
     prompt_tokens = tokenizer.tokenize(prompt)
 
     assert len(response_tokens) > len(prompt_tokens), "Response tokens should exceed prompt tokens."
+
+
+def test_invalid_generation_kwargs(setup_processor):
+    """Test that the processor handles invalid kwargs without freezing."""
+    processor, _ = setup_processor
+    prompt = "test prompt"
+    max_new_tokens = 128
+    generation_kwargs = {"non_existing_kwarg": "value"}
+
+    # Record start time
+    start_time = time.time()
+
+    try:
+        # Call generate method and ensure it returns within a reasonable time
+        response = processor.generate(prompt, max_new_tokens=max_new_tokens, generation_kwargs=generation_kwargs)
+    except Exception as exc:
+        # If an exception is raised, ensure it's not due to a freeze
+        duration = time.time() - start_time
+        assert duration < 5, "The generate method froze."
+        assert "non_existing_kwarg" in str(exc), "Error message should contain the invalid keyword."
+        return  # Test passes as the exception was correctly raised
+
+    # If no exception is raised, ensure the response is as expected
+    duration = time.time() - start_time
+    assert duration < 5, "The generate method froze."
+    assert response == "", "Response should be empty for invalid generation kwargs."
 
 
 if __name__ == "__main__":
