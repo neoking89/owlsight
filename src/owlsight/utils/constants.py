@@ -82,6 +82,11 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                 "choices": [None, 8, 4],
                 "description": "Quantization bits for transformers model",
             },
+            "transformers__stream": {
+                "default": True,
+                "choices": [False, True],
+                "description": "Whether to stream input to transformers model",
+            },
             # GGUF specific
             "gguf__filename": {"default": "", "choices": None, "description": "GGUF model filename"},
             "gguf__verbose": {

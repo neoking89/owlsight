@@ -160,12 +160,12 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         model_id: str,
         transformers__device: str = None,
         transformers__quantization_bits: Optional[int] = None,
+        transformers__stream: bool = True,
         use_fp16: bool = False,
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
         task: Optional[str] = None,
-        use_streaming: bool = True,
         save_history: bool = False,
         system_prompt: str = "",
         **kwargs,
@@ -182,6 +182,8 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             The device to use for generation. Default is None, where the best available device is checked out of the possible devices.
         transformers__quantization_bits : Optional[int]
             The number of quantization bits to use for the model. Default is None.
+        transformers__stream : bool
+            Whether to use streaming generation. Default is True.
         use_fp16 : bool
             Whether to use FP16 for the model. This will not work for cpu, as FP16 is not supported on CPU.
             Checks if bfloat16 is supported and will use this if available, else uses torch.float16.
@@ -193,8 +195,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             Additional keyword arguments for the model. Default is None.
         task : Optional[str]
             The task to use for the pipeline. Default is None, where the task is set to "text-generation".
-        use_streaming : bool
-            Whether to use streaming generation. Default is True.
         save_history : bool
             Set to True if you want model to generate responses based on previous inputs.
         system_prompt : str
@@ -204,7 +204,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         self.transformers__device = transformers__device or get_best_device()
         self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(task, AutoModelForCausalLM)
-        self.use_streaming = use_streaming
+        self.transformers__stream = transformers__stream
 
         # we need to do 3 checks for dtype:
         # if cpu, must be torch.float32
@@ -229,7 +229,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         )
         self.streamer = (
             TextIteratorStreamer(self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True)
-            if use_streaming
+            if self.transformers__stream
             else None
         )
 
@@ -281,7 +281,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate text response."""
-        if self.use_streaming:
+        if self.transformers__stream:
             return self._generate_thread(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
         else:
             return self._generate_no_stream(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
@@ -295,8 +295,8 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Generate text response as a stream."""
-        if not self.use_streaming:
-            raise ValueError("Streaming is disabled. Set use_streaming=True during initialization to enable streaming.")
+        if not self.transformers__stream:
+            raise ValueError("Streaming is disabled. Set transformers__stream=True during initialization to enable streaming.")
         yield from self._generate_stream_thread(input_text, max_new_tokens, temperature, generation_kwargs)
 
     def _generate_no_stream(
