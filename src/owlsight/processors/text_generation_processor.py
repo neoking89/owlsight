@@ -5,6 +5,8 @@ import time
 import traceback
 import threading
 from ast import literal_eval
+from functools import lru_cache
+from threading import Thread
 
 import torch
 from transformers import (
@@ -16,7 +18,7 @@ from transformers import (
     PreTrainedTokenizer,
     pipeline,
 )
-from owlsight.utils.threads import KillableThread, TIMEOUT_TIME, ThreadNotKilledError
+from owlsight.utils.threads import TIMEOUT_TIME, ThreadNotKilledError
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.logger import logger
@@ -158,6 +160,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         model_id: str,
         transformers__device: str = None,
         transformers__quantization_bits: Optional[int] = None,
+        use_fp16: bool = False,
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
@@ -178,6 +181,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             The device to use for generation. Default is None, where the best available device is checked out of the possible devices.
         transformers__quantization_bits : Optional[int]
             The number of quantization bits to use for the model. Default is None.
+        use_fp16 : bool
+            Whether to use FP16 for the model. This will not work for cpu, as FP16 is not supported on CPU.
+            Checks if bfloat16 is supported and will use this if available, else uses torch.float16.
         bnb_kwargs : Optional[dict]
             Additional keyword arguments for BitsAndBytesConfig. Default is None.
         tokenizer_kwargs : Optional[dict]
@@ -192,8 +198,18 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             The system prompt to prepend to the input text.
         """
         super().__init__(model_id, save_history, system_prompt)
+
         self.transformers__device = transformers__device or get_best_device()
         self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(task, AutoModelForCausalLM)
+
+        # we need to do 3 checks for dtype:
+        # if cpu, must be torch.float32
+        # if bfloat16 is supported, must be torch.bfloat16
+        # else, must be torch.float16
+        # see: https://github.com/huggingface/transformers/issues/24774
+        _torch_dtype = self._get_correct_fp16_dtype() if use_fp16 else "auto"
+        self._torch_dtype = _torch_dtype if self.transformers__device != "cpu" else torch.float32
+        self._device_map = "auto" if self.transformers__device != "cpu" else {"": "cpu"}
 
         tokenizer, model = self._load_tokenizer_model(
             transformers__quantization_bits,
@@ -205,7 +221,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             task=task or "text-generation",
             model=model,
             tokenizer=tokenizer,
-            device_map="auto" if self.transformers__device != "cpu" else {"": "cpu"},
+            device_map=self._device_map,
         )
         self.streamer = TextIteratorStreamer(self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True)
 
@@ -226,7 +242,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         if transformers__quantization_bits == 4:
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16 if bfloat16_is_supported() else torch.float16,
+                bnb_4bit_compute_dtype=self._get_correct_fp16_dtype(),
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
                 **bnb_kwargs,
@@ -236,9 +252,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         model_kwargs.update(
             {
-                "device_map": ("auto" if self.transformers__device != "cpu" else {"": "cpu"}),
+                "device_map": self._device_map,
                 "trust_remote_code": True,
-                "torch_dtype": ("auto" if self.transformers__device != "cpu" else torch.float32),
+                "torch_dtype": self._torch_dtype,
                 "quantization_config": quantization_config,
                 "_attn_implementation": "flash" if flash_attention_is_available() else "eager",
             }
@@ -276,7 +292,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             input_text, max_new_tokens, temperature, stopwords, generation_kwargs
         )
 
-        generation_thread = KillableThread(target=self._generate_text, args=(templated_text, _generation_kwargs))
+        generation_thread = Thread(target=self._generate_text, args=(templated_text, _generation_kwargs))
         generation_thread.start()
 
         generated_text = ""
@@ -294,7 +310,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         finally:
             print()  # Print newline after generation is done
             stop_event.set()
-            generation_thread.kill()
+            # generation_thread.kill()
             generation_thread.join(timeout=TIMEOUT_TIME)
 
             if generation_thread.is_alive():
@@ -312,7 +328,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             input_text, max_new_tokens, temperature, None, generation_kwargs
         )
 
-        generation_thread = KillableThread(target=self._generate_text, args=(templated_text, _generation_kwargs))
+        generation_thread = Thread(target=self._generate_text, args=(templated_text, _generation_kwargs))
         generation_thread.start()
 
         generated_text = ""
@@ -329,7 +345,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             error = e
         finally:
             stop_event.set()
-            generation_thread.kill()
+            # generation_thread.kill()
             generation_thread.join(timeout=TIMEOUT_TIME)
 
             if generation_thread.is_alive():
@@ -378,6 +394,15 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             _generation_kwargs.update(generation_kwargs)
 
         return templated_text, _generation_kwargs
+
+    @lru_cache(maxsize=1)
+    def _get_correct_fp16_dtype(self):
+        if self.transformers__device == "cpu":
+            raise TypeError("FP16 is not supported on CPU.")
+        elif bfloat16_is_supported():
+            return torch.bfloat16
+        else:
+            return torch.float16
 
 
 class TextGenerationProcessorOnnx(TextGenerationProcessor):
