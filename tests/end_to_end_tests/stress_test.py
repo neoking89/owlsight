@@ -1,6 +1,9 @@
+import sys
+import os
+sys.path.append("src")
+
 import functools
 import platform
-import os
 import subprocess
 import random
 from typing import Optional
@@ -16,6 +19,7 @@ from pynput.keyboard import Key, Controller
 from owlsight.utils.constants import get_cache_dir
 
 # Configure logging
+SCRIPT = os.path.join("tests", "end_to_end_tests", "run_owlsight.py")
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -141,7 +145,7 @@ class OwlsightStressTester:
         """Find the Owlsight process"""
         for proc in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
-                if "owlsight" in str(proc.info["cmdline"]).lower():
+                if "owlsight" in str(proc.info["cmdline"]).lower() or "python" in str(proc.info["cmdline"]).lower():
                     return proc.info["pid"]
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
@@ -284,13 +288,16 @@ class OwlsightStressTester:
         for attempt in range(self.max_startup_retries):
             logger.debug(f"Startup attempt {attempt + 1}/{self.max_startup_retries}")
 
+            script_path = os.path.join(os.getcwd(), SCRIPT)
+            
             # Start terminal
             if self.system == "Windows":
-                cmd = f"start powershell -NoExit -Command \"cd '{os.getcwd()}'; $host.UI.RawUI.WindowTitle = 'Owlsight-Terminal'\""
+                cmd = f"start powershell -NoExit -Command \"cd '{os.getcwd()}'; $host.UI.RawUI.WindowTitle = 'Owlsight-Terminal'; python {script_path}\""
                 subprocess.Popen(cmd, shell=True)
             else:
                 subprocess.Popen(
-                    ["gnome-terminal", "--working-directory", os.getcwd(), "--title=Owlsight-Terminal", "--"]
+                    ["gnome-terminal", "--working-directory", os.getcwd(), 
+                     "--title=Owlsight-Terminal", "--", "python", script_path]
                 )
 
             # Wait for terminal window to appear
@@ -304,11 +311,8 @@ class OwlsightStressTester:
                 logger.error(f"Failed to focus terminal window on attempt {attempt + 1}")
                 continue
 
-            logger.debug("Terminal window found and focused, starting Owlsight")
+            logger.debug("Terminal window found and focused")
 
-            # Start Owlsight
-            self.type_fast("owlsight")
-            self.press_key(Key.enter)
             time.sleep(5)  # Wait for Owlsight to start
 
             # Find process
@@ -404,5 +408,19 @@ def test_owlsight_stress():
 
 
 if __name__ == "__main__":
+    # Create run_owlsight.py if it doesn't exist
+    run_script = """
+import sys
+sys.path.append("src")
+
+from owlsight.main import main as m
+
+if __name__ == "__main__":
+    m()
+    """
+    
+    with open(SCRIPT, "w") as f:
+        f.write(run_script)
+    
     # Allow running directly for debugging
     pytest.main([__file__, "-v", "-s"])
