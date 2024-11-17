@@ -100,7 +100,7 @@ def bfloat16_is_supported():
     try:
         _ = torch.tensor([1.0, 2.0], dtype=torch.bfloat16, device="cuda")
         return True
-    except Exception as e:
+    except Exception:
         return False
 
 
