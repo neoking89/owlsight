@@ -3,7 +3,6 @@ from typing import Optional, List, Dict, Any, Type, Union, Generator
 import os
 import time
 import traceback
-import threading
 from ast import literal_eval
 
 import torch
@@ -12,10 +11,11 @@ from transformers import (
     TextIteratorStreamer,
     AutoTokenizer,
     AutoModel,
+    AutoModelForCausalLM,
     PreTrainedTokenizer,
     pipeline,
 )
-from owlsight.utils.threads import KillableThread, TIMEOUT_TIME, ThreadNotKilledError
+from owlsight.utils.threads import KillableThread
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.logger import logger
@@ -192,7 +192,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         """
         super().__init__(model_id, save_history, system_prompt)
         self.transformers__device = transformers__device or get_best_device()
-        self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(task, "text-generation")
+        self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(task, AutoModelForCausalLM)
 
         tokenizer, model = self._load_tokenizer_model(
             transformers__quantization_bits,
@@ -257,8 +257,27 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        generated_text = self._generate_common(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
-        print(generated_text)  # Print the entire generated text
+        templated_text, _generation_kwargs = self._prepare_generate(
+            input_text, max_new_tokens, temperature, stopwords, generation_kwargs
+        )
+
+        generation_thread = KillableThread(target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs)
+        generation_thread.start()
+        generated_text = ""
+
+        try:
+            for new_text in self.streamer:
+                generated_text += new_text
+                print(new_text, end="", flush=True)
+        except KeyboardInterrupt:
+            logger.warning("Control+C pressed, aborting generation")
+        finally:
+            print()  # Print newline after generation is done
+            generation_thread.kill()
+            generation_thread.join()
+
+        self.update_history(input_text, generated_text.strip())
+
         return generated_text
 
     @torch.inference_mode()
@@ -268,63 +287,26 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         max_new_tokens: int = 512,
         temperature: float = 0.0,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        yield from self._generate_common(input_text, max_new_tokens, temperature, None, generation_kwargs, stream=True)
-
-    def _generate_common(self, input_text, max_new_tokens, temperature, stopwords, generation_kwargs, stream=False):
+    ) -> Generator[str, None, None]:
         templated_text, _generation_kwargs = self._prepare_generate(
-            input_text, max_new_tokens, temperature, stopwords, generation_kwargs
+            input_text, max_new_tokens, temperature, None, generation_kwargs
         )
 
-        generation_thread = KillableThread(target=self._generate_text, args=(templated_text, _generation_kwargs))
+        generated_text = ""
+        generation_thread = KillableThread(target=self.pipe, args=(templated_text,), kwargs=_generation_kwargs)
         generation_thread.start()
 
-        generated_text = ""
-        error = None
-        stop_event = threading.Event()
-
         try:
-            for new_text in self._stream_with_timeout(stop_event):
+            for new_text in self.streamer:
                 generated_text += new_text
-                if stream:
-                    yield new_text
-                else:
-                    print(new_text, end="", flush=True)
+                yield new_text
         except KeyboardInterrupt:
             logger.warning("Control+C pressed, aborting generation")
-        except Exception as e:
-            error = e
         finally:
-            if not stream:
-                print()  # Print newline after generation is done
-            stop_event.set()
             generation_thread.kill()
-            generation_thread.join(timeout=TIMEOUT_TIME)
-
-            if generation_thread.is_alive():
-                raise ThreadNotKilledError("Generation thread was not killed in time.")
-
-        if error:
-            logger.error(f"An error occurred during generation: {traceback.format_exc()}")
-            raise error
+            generation_thread.join()
 
         self.update_history(input_text, generated_text.strip())
-        if not stream:
-            return generated_text
-
-    def _generate_text(self, templated_text, generation_kwargs):
-        try:
-            self.pipe(templated_text, **generation_kwargs)
-        except Exception:
-            logger.error(f"Error in generation thread: {traceback.format_exc()}")
-            self.streamer.end()
-
-    def _stream_with_timeout(self, stop_event):
-        while not stop_event.is_set():
-            try:
-                yield next(self.streamer)
-            except StopIteration:
-                break
 
     def _prepare_generate(self, input_text, max_new_tokens, temperature, stopwords, generation_kwargs):
         templated_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
@@ -476,7 +458,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         max_new_tokens: int = 512,
         temperature: float = 0.0,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Generator[str, None, None]:
         """
         Generate text using the ONNX model.
 
