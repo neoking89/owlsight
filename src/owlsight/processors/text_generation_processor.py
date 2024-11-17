@@ -438,18 +438,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         system_prompt : str
             The system prompt to prepend to the input text.
         """
-        if og is None:
-            raise ImportError(ONNX_MSG)
-
-        if not os.path.exists(model_id):
-            raise FileNotFoundError(f"Model not found at {model_id}")
-        if not onnx__tokenizer:
-            raise ValueError(
-                "No tokenizer found! "
-                "A tokenizer from the transformers library is required "
-                "for ONNX models, to standardize chat templates."
-                "Look into HuggingFace (https://huggingface.co) and find the fitting model to use."
-            )
+        self._validate_model_tokenizer(model_id, onnx__tokenizer)
 
         super().__init__(model_id, save_history, system_prompt)
         self.onnx__verbose = onnx__verbose
@@ -568,7 +557,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.update_history(input_text, generated_text.strip())
 
     def _prepare_generate(self, input_text, max_new_tokens, temperature, generation_kwargs):
-        templated_text = self.apply_chat_template(input_text, self.transfomers_tokenizer)
+        templated_text = self.apply_chat_template(input_text, self.transformers_tokenizer)
 
         search_options = {
             "max_length": max_new_tokens,
@@ -587,9 +576,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
     def _set_tokenizer(self, onnx__tokenizer):
         if isinstance(onnx__tokenizer, str):
-            self.transfomers_tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
+            self.transformers_tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
         else:
-            self.transfomers_tokenizer = onnx__tokenizer
+            self.transformers_tokenizer = onnx__tokenizer
 
     def _set_environment_variables(self) -> None:
         os.environ.update(
@@ -609,6 +598,30 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.tokenizer_stream = self.tokenizer.create_stream()
         logger.info(f"Model loaded using {self.onnx__num_threads} threads")
         logger.info("Tokenizer created")
+
+    def _validate_model_tokenizer(self, model_id, onnx__tokenizer):
+        if og is None:
+            raise ImportError(ONNX_MSG)
+
+        if not os.path.exists(model_id):
+            raise FileNotFoundError(f"{model_id} does not exist! Ensure the model path is an existing local directory.")
+
+        if not os.path.isdir(model_id):
+            raise NotADirectoryError(f"{model_id} is not a directory! Ensure the model path is a directory.")
+
+        model_path_contents = os.listdir(model_id)
+        if not "genai_config.json" in model_path_contents:
+            raise FileNotFoundError(
+                f"{model_id} does not contain a genai_config.json! This file is required for ONNX models."
+            )
+
+        if not onnx__tokenizer:
+            raise ValueError(
+                "No tokenizer found! "
+                "A tokenizer from the transformers library is required "
+                "for ONNX models, to standardize chat templates."
+                "Look into HuggingFace (https://huggingface.co) and find the fitting model to use."
+            )
 
 
 class TextGenerationProcessorGGUF(TextGenerationProcessor):
