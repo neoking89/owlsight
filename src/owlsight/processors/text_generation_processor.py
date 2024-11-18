@@ -161,7 +161,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         transformers__device: str = None,
         transformers__quantization_bits: Optional[int] = None,
         transformers__stream: bool = True,
-        use_fp16: bool = False,
+        transformers__use_fp16: bool = False,
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
@@ -184,7 +184,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             The number of quantization bits to use for the model. Default is None.
         transformers__stream : bool
             Whether to use streaming generation. Default is True.
-        use_fp16 : bool
+        transformers__use_fp16 : bool
             Whether to use FP16 for the model. This will not work for cpu, as FP16 is not supported on CPU.
             Checks if bfloat16 is supported and will use this if available, else uses torch.float16.
         bnb_kwargs : Optional[dict]
@@ -211,7 +211,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         # if bfloat16 is supported, must be torch.bfloat16
         # else, must be torch.float16
         # see: https://github.com/huggingface/transformers/issues/24774
-        _torch_dtype = self._get_correct_fp16_dtype() if use_fp16 else "auto"
+        _torch_dtype = self._get_correct_fp16_dtype() if transformers__use_fp16 else "auto"
         self._torch_dtype = _torch_dtype if self.transformers__device != "cpu" else torch.float32
         self._device_map = "auto" if self.transformers__device != "cpu" else {"": "cpu"}
 

@@ -87,6 +87,11 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
                 "choices": [False, True],
                 "description": "Whether to stream input to transformers model",
             },
+            "transformers__use_fp16": {
+                "default": False,
+                "choices": [False, True],
+                "description": "Whether to use FP16 for transformers model",
+            },
             # GGUF specific
             "gguf__filename": {"default": "", "choices": None, "description": "GGUF model filename"},
             "gguf__verbose": {
