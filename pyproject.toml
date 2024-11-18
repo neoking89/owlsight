@@ -50,6 +50,10 @@ search = [
     "sentence-transformers",
 ]
 
+multimodal = [
+    "pytesseract",
+]
+
 # Define the "all" option to include everything (base + optional dependencies)
 all = [
     # Base dependencies
