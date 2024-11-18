@@ -9,7 +9,7 @@ from typing import Tuple
 from transformers import AutoTokenizer
 
 sys.path.append("src")
-from owlsight.processors.text_generation_processor import TextGenerationProcessorOnnx
+from owlsight.processors.text_generation_processors import TextGenerationProcessorOnnx
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

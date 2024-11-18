@@ -9,7 +9,7 @@ from .utils.deep_learning import (
     calculate_memory_for_model,
     calculate_available_vram,
 )
-from .processors.text_generation_processor import (
+from .processors.text_generation_processors import (
     select_processor_type,
     TextGenerationProcessorOnnx,
     TextGenerationProcessorTransformers,

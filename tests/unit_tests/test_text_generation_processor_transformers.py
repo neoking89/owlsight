@@ -5,7 +5,7 @@ sys.path.append("src")
 
 import pytest
 from transformers import AutoTokenizer
-from owlsight.processors.text_generation_processor import (
+from owlsight.processors.text_generation_processors import (
     TextGenerationProcessorTransformers,
 )
 

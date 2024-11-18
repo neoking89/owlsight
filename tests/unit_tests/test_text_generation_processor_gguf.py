@@ -3,7 +3,7 @@ sys.path.append("src")
 
 import pytest
 from transformers import AutoTokenizer
-from owlsight.processors.text_generation_processor import TextGenerationProcessorGGUF
+from owlsight.processors.text_generation_processors import TextGenerationProcessorGGUF
 
 
 @pytest.fixture
