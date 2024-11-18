@@ -33,10 +33,3 @@ def test_selector_initialization(options_dict):
     assert selector.user_inputs == {"You are a:": ""}
     assert selector.toggle_values == {"Is it ripe?": True}
     assert selector.current_index == 0
-
-
-def test_get_user_choice(options_dict):
-    """
-    Test that the get_user_choice function correctly returns the selected option.
-    """
-    # TODO: simulate cmd.exe to get user input?
