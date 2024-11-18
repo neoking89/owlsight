@@ -12,9 +12,6 @@ from owlsight.utils.helper_functions import os_is_windows, force_delete
 from owlsight.utils.logger import logger
 
 
-
-
-
 @contextmanager
 def create_venv(pyenv_path: str) -> str:
     """
@@ -113,10 +110,11 @@ def get_pip_path(pyenv_path: str) -> str:
     """
     return os.path.join(pyenv_path, "Scripts" if os_is_windows() else "bin", "pip")
 
+
 def get_temp_dir(suffix: str) -> str:
     """
     Get an appropriate temporary directory path that the user has write permissions for.
-    
+
     Parameters
     ----------
     suffix : str
@@ -142,6 +140,7 @@ def get_temp_dir(suffix: str) -> str:
     except Exception:
         # Fall back to system temp directory
         return tempfile.gettempdir()
+
 
 def install_python_modules(module_names: Union[str, List[str]], pip_path: str, target_dir: str, *args: Any) -> bool:
     """
