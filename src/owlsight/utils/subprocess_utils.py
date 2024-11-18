@@ -9,8 +9,6 @@ from owlsight.utils.helper_functions import os_is_windows
 from owlsight.utils.logger import logger
 
 
-
-
 def run_subprocess(command: List[str]) -> Tuple[str, str]:
     """
     Run subprocess command and capture stdout and stderr.
