@@ -54,8 +54,6 @@ class TextGenerationManager:
             logger.error(f"Error updating configuration for key '{key}': {traceback.format_exc()}")
             return
 
-        # TODO: refactor this part
-        # If 'model_id' is updated, reload the processor
         outer_key, inner_key = key.split(".", 1)
         if outer_key == "model":
             if inner_key == "model_id":
@@ -153,6 +151,8 @@ class TextGenerationManager:
         if loading_succesful:
             self.load_model_processor(reload=self.processor is not None)
 
+    # TODO: remove mechanism with **processor_kwargs and **kwargs in __init__ of TextGenerationProcessor classes
+    # It is prone to errors.
     def load_model_processor(self, reload=False) -> None | Exception:
         """
         Load the model processor with a 'model_id', to load the correct model and tokenizer.
