@@ -260,7 +260,7 @@ Owlsight automatically tries to fix and retry any code that encounters a **Modul
 
 ## API
 
-Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. Here's an example of how to use it:
+Owlsight can also be used as a library in Python scripts. The main classes are the `GenerationProcessor` family, which can be imported from the `owlsight` package. Here's an example of how to use it:
 
 ```python
 from owlsight import TextGenerationProcessorGGUF
@@ -281,7 +281,7 @@ for token in processor.generate_stream(question):
 **1.0.2**
 
 - Enhanced cross-platform compatibility.
-- Introduced the `generate_stream` method to all `TextGenerationProcessor` classes.
+- Introduced the `generate_stream` method to all `GenerationProcessor` classes.
 - Various minor bug fixes.
 
 **1.1.0**
