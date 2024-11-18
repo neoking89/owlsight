@@ -1,11 +1,10 @@
-from typing import Optional, List, Dict, Any, Type, Union
+from typing import Optional, List, Dict, Any, Type, Union, Tuple, Generator
 import os
 import time
 import traceback
 import threading
 from ast import literal_eval
 from functools import lru_cache
-from threading import Thread
 
 import torch
 from transformers import (
@@ -18,7 +17,7 @@ from transformers import (
     pipeline,
 )
 from owlsight.processors.base import GenerationProcessor
-from owlsight.utils.threads import TIMEOUT_TIME, ThreadNotKilledError
+from owlsight.utils.threads import ThreadNotKilledError
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.logger import logger
@@ -70,7 +69,15 @@ def select_processor_type(model_id: str) -> Type["GenerationProcessor"]:
             return TextGenerationProcessorTransformers
 
 
+# Constants
+GENERATION_THREAD_TIMEOUT = 5
+DEFAULT_MAX_TOKENS = 512
+DEFAULT_TEMPERATURE = 0.0
+DEFAULT_TASK = "text-generation"
+
+
 def flash_attention_is_available() -> bool:
+    """Check if flash attention is available."""
     try:
         from flash_attn import flash_attn_fn
 
@@ -83,7 +90,7 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
     def __init__(
         self,
         model_id: str,
-        transformers__device: str = None,
+        transformers__device: Optional[str] = None,
         transformers__quantization_bits: Optional[int] = None,
         transformers__stream: bool = True,
         transformers__use_fp16: bool = False,
@@ -127,104 +134,136 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         """
         super().__init__(model_id, save_history, system_prompt)
 
+        # Initialize configuration
         self.transformers__device = transformers__device or get_best_device()
-        self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(task, AutoModelForCausalLM)
         self.transformers__stream = transformers__stream
+        self.transformers__quantization_bits = transformers__quantization_bits
+        self.transformers__use_fp16 = transformers__use_fp16
+        self.bnb_kwargs = bnb_kwargs or {}
+        self.tokenizer_kwargs = tokenizer_kwargs or {}
+        self.model_kwargs = model_kwargs or {}
+        self.task = task or DEFAULT_TASK
 
-        # we need to do 3 checks for dtype:
-        # if cpu, must be torch.float32
-        # if bfloat16 is supported, must be torch.bfloat16
-        # else, must be torch.float16
-        # see: https://github.com/huggingface/transformers/issues/24774
-        _torch_dtype = self._get_correct_fp16_dtype() if transformers__use_fp16 else "auto"
-        self._torch_dtype = _torch_dtype if self.transformers__device != "cpu" else torch.float32
-        self._device_map = "auto" if self.transformers__device != "cpu" else {"": "cpu"}
+        # Set device and dtype configuration
+        self._device_map = self._get_device_map()
+        self._torch_dtype = self._determine_torch_dtype()
+        self._auto_model_cls = TASK_TO_AUTO_MODEL.get(self.task, AutoModelForCausalLM)
 
-        tokenizer, model = self._load_tokenizer_model(
-            transformers__quantization_bits,
-            tokenizer_kwargs=tokenizer_kwargs or {},
-            bnb_kwargs=bnb_kwargs or {},
-            model_kwargs=model_kwargs or {},
-        )
-        self.pipe = pipeline(
-            task=task or "text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            device_map=self._device_map,
-        )
-        self.streamer = (
-            TextIteratorStreamer(self.pipe.tokenizer, skip_prompt=True, skip_special_tokens=True)
-            if self.transformers__stream
-            else None
-        )
+        # Initialize model components
+        self.tokenizer, self.model = self._load_tokenizer_and_model()
+        self.pipe = self._setup_pipeline()
+        self.streamer = self._setup_streamer() if self.transformers__stream else None
 
-    def _load_tokenizer_model(
-        self,
-        transformers__quantization_bits: Optional[int],
-        tokenizer_kwargs: Dict,
-        bnb_kwargs: Dict,
-        model_kwargs: Dict,
-    ):
-        """Load and configure the tokenizer and model."""
-        if transformers__quantization_bits and self.transformers__device in ["cpu", "mps"]:
-            raise QuantizationNotSupportedError("Quantization is not supported on CPU or MPS.")
+    def _get_device_map(self) -> Dict[str, str]:
+        """Get device mapping configuration."""
+        return "auto" if self.transformers__device != "cpu" else {"": "cpu"}
 
-        quantization_config = None
-        if transformers__quantization_bits == 4:
-            quantization_config = BitsAndBytesConfig(
+    def _determine_torch_dtype(self) -> Any:
+        """Determine appropriate torch dtype based on configuration."""
+        if self.transformers__use_fp16:
+            if self.transformers__device == "cpu":
+                raise TypeError("FP16 is not supported on CPU.")
+            return self._get_correct_fp16_dtype()
+        return torch.float32 if self.transformers__device == "cpu" else "auto"
+
+    @lru_cache(maxsize=1)
+    def _get_correct_fp16_dtype(self) -> torch.dtype:
+        """Get correct FP16 dtype based on hardware support."""
+        return torch.bfloat16 if bfloat16_is_supported() else torch.float16
+
+    def _load_tokenizer_and_model(self) -> Tuple[AutoTokenizer, AutoModel]:
+        """Load and configure tokenizer and model."""
+        if self.transformers__quantization_bits and self.transformers__device in ["cpu", "mps"]:
+            raise QuantizationNotSupportedError("Quantization not supported on CPU or MPS.")
+
+        quantization_config = self._get_quantization_config()
+        model_kwargs = self._prepare_model_kwargs(quantization_config)
+
+        tokenizer = AutoTokenizer.from_pretrained(self.model_id, **self.tokenizer_kwargs)
+        model = self._auto_model_cls.from_pretrained(self.model_id, **model_kwargs)
+
+        return tokenizer, model
+
+    def _get_quantization_config(self) -> Optional[BitsAndBytesConfig]:
+        """Get quantization configuration if applicable."""
+        if self.transformers__quantization_bits == 4:
+            return BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=self._get_correct_fp16_dtype(),
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
-                **bnb_kwargs,
+                **self.bnb_kwargs,
             )
-        elif transformers__quantization_bits == 8:
-            quantization_config = BitsAndBytesConfig(load_in_8bit=True, **bnb_kwargs)
+        elif self.transformers__quantization_bits == 8:
+            return BitsAndBytesConfig(load_in_8bit=True, **self.bnb_kwargs)
+        return None
 
-        model_kwargs.update(
-            {
-                "device_map": self._device_map,
-                "trust_remote_code": True,
-                "torch_dtype": self._torch_dtype,
-                "quantization_config": quantization_config,
-                "_attn_implementation": "flash" if flash_attention_is_available() else "eager",
-            }
+    def _prepare_model_kwargs(self, quantization_config: Optional[BitsAndBytesConfig]) -> Dict[str, Any]:
+        """Prepare model initialization kwargs."""
+        kwargs = {
+            "device_map": self._device_map,
+            "trust_remote_code": True,
+            "torch_dtype": self._torch_dtype,
+            "quantization_config": quantization_config,
+            "_attn_implementation": "flash" if flash_attention_is_available() else "eager",
+        }
+        kwargs.update(self.model_kwargs)
+        return kwargs
+
+    def _setup_pipeline(self) -> Any:
+        """Set up the generation pipeline."""
+        return pipeline(
+            task=self.task,
+            model=self.model,
+            tokenizer=self.tokenizer,
+            device_map=self._device_map,
         )
 
-        tokenizer = AutoTokenizer.from_pretrained(self.model_id, **tokenizer_kwargs)
-        model = self._auto_model_cls.from_pretrained(self.model_id, **model_kwargs)
-
-        return tokenizer, model
+    def _setup_streamer(self) -> TextIteratorStreamer:
+        """Set up text streaming if enabled."""
+        return TextIteratorStreamer(
+            self.pipe.tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
+        )
 
     @torch.inference_mode()
     def generate(
         self,
         input_text: str,
-        max_new_tokens: int = 512,
-        temperature: float = 0.0,
+        max_new_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate text response."""
         if self.transformers__stream:
-            return self._generate_thread(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
-        else:
-            return self._generate_no_stream(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
+            response = ""
+            for text_chunk in self.generate_stream(
+                input_text, max_new_tokens, temperature, stopwords, generation_kwargs
+            ):
+                print(text_chunk, end="", flush=True)
+                response += text_chunk
+            print()  # Print newline after generation is done
+            return response
+        return self._generate_non_stream(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
 
     @torch.inference_mode()
     def generate_stream(
         self,
         input_text: str,
-        max_new_tokens: int = 512,
-        temperature: float = 0.0,
+        max_new_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
+        stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        """Generate text response as a stream."""
+    ) -> Generator[str, None, None]:
+        """Generate streaming text response."""
         if not self.transformers__stream:
-            raise ValueError("Streaming is disabled. Set transformers__stream=True during initialization to enable streaming.")
-        yield from self._generate_stream_thread(input_text, max_new_tokens, temperature, generation_kwargs)
+            raise ValueError("Streaming is disabled. Enable with transformers__stream=True.")
 
-    def _generate_no_stream(
+        yield from self._generate_stream(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
+
+    def _generate_non_stream(
         self,
         input_text: str,
         max_new_tokens: int,
@@ -232,172 +271,107 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         stopwords: Optional[List[str]],
         generation_kwargs: Optional[Dict[str, Any]],
     ) -> str:
-        """Non-streaming generation method."""
-        templated_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
-
-        _generation_kwargs = {
-            "max_new_tokens": max_new_tokens,
-            "eos_token_id": self.pipe.tokenizer.eos_token_id,
-            "temperature": temperature if temperature > 0.0 else None,
-            "do_sample": temperature > 0.0,
-        }
-
-        if stopwords is not None:
-            _generation_kwargs["stopping_criteria"] = StopWordCriteria(
-                prompts=[templated_text],
-                stop_words=stopwords,
-                tokenizer=self.pipe.tokenizer,
-            )
-
-        if generation_kwargs is not None:
-            _generation_kwargs.update(generation_kwargs)
-
-        output = self.pipe(templated_text, **_generation_kwargs)
+        """Generate text without streaming."""
+        templated_text, gen_kwargs = self._prepare_generation(
+            input_text, max_new_tokens, temperature, stopwords, generation_kwargs
+        )
+        output = self.pipe(templated_text, **gen_kwargs)
         generated_text = output[0]["generated_text"][len(templated_text) :].strip()
-
         self.update_history(input_text, generated_text)
         return generated_text
 
-    def _generate_thread(
+    def _generate_stream(
         self,
         input_text: str,
         max_new_tokens: int,
         temperature: float,
         stopwords: Optional[List[str]],
         generation_kwargs: Optional[Dict[str, Any]],
-    ) -> str:
-        """Threaded generation method for streaming."""
-        templated_text, _generation_kwargs = self._prepare_generate(
-            input_text, max_new_tokens, temperature, stopwords, generation_kwargs
+    ) -> Generator[str, None, None]:
+        """Generate streaming text."""
+        templated_text, gen_kwargs = self._prepare_generation(
+            input_text, max_new_tokens, temperature, stopwords, generation_kwargs, streaming=True
         )
 
-        generation_thread = Thread(target=self._generate_text, args=(templated_text, _generation_kwargs))
-        generation_thread.start()
-
-        generated_text = ""
-        error = None
         stop_event = threading.Event()
-
-        try:
-            for new_text in self._stream_with_timeout(stop_event):
-                generated_text += new_text
-                print(new_text, end="", flush=True)
-        except KeyboardInterrupt:
-            logger.warning("Control+C pressed, aborting generation")
-        except Exception as e:
-            error = e
-        finally:
-            print()  # Print newline after generation is done
-            stop_event.set()
-            generation_thread.join(timeout=TIMEOUT_TIME)
-
-            if generation_thread.is_alive():
-                raise ThreadNotKilledError("Generation thread was not killed in time.")
-
-        if error:
-            logger.error(f"An error occurred during generation: {traceback.format_exc()}")
-            raise error
-
-        self.update_history(input_text, generated_text.strip())
-        return generated_text
-
-    def _generate_stream_thread(
-        self,
-        input_text: str,
-        max_new_tokens: int,
-        temperature: float,
-        generation_kwargs: Optional[Dict[str, Any]],
-    ):
-        """Threaded generation method that yields stream of text."""
-        templated_text, _generation_kwargs = self._prepare_generate(
-            input_text, max_new_tokens, temperature, None, generation_kwargs
+        generation_thread = threading.Thread(
+            target=self._run_generation_thread,
+            args=(templated_text, gen_kwargs, stop_event),
         )
-
-        generation_thread = Thread(target=self._generate_text, args=(templated_text, _generation_kwargs))
         generation_thread.start()
 
-        generated_text = ""
-        error = None
-        stop_event = threading.Event()
-
         try:
-            for new_text in self._stream_with_timeout(stop_event):
-                generated_text += new_text
-                yield new_text
-        except KeyboardInterrupt:
-            logger.warning("Control+C pressed, aborting generation")
-        except Exception as e:
-            error = e
+            yield from self._stream_generator(stop_event, input_text)
         finally:
             stop_event.set()
-            generation_thread.join(timeout=TIMEOUT_TIME)
+            generation_thread.join(timeout=GENERATION_THREAD_TIMEOUT)
 
             if generation_thread.is_alive():
-                raise ThreadNotKilledError("Generation thread was not killed in time.")
+                raise ThreadNotKilledError("Generation thread wasn't killed in time.")
 
-        if error:
-            logger.error(f"An error occurred during generation: {traceback.format_exc()}")
-            raise error
-
-        self.update_history(input_text, generated_text.strip())
-
-    def _generate_text(self, templated_text: str, generation_kwargs: Dict[str, Any]):
-        """Helper method to generate text in a separate thread."""
+    def _stream_generator(self, stop_event: threading.Event, input_text: str) -> Generator[str, None, None]:
+        """Handle text stream generation."""
+        generated_text = ""
         try:
-            self.pipe(templated_text, **generation_kwargs)
+            while not stop_event.is_set():
+                try:
+                    new_text = next(self.streamer)
+                    generated_text += new_text
+                    yield new_text
+                except StopIteration:
+                    break
+        except Exception as e:
+            logger.error(f"Streaming error: {traceback.format_exc()}")
+            raise e
+        finally:
+            if generated_text:
+                self.update_history(input_text, generated_text.strip())
+
+    def _run_generation_thread(
+        self, templated_text: str, gen_kwargs: Dict[str, Any], stop_event: threading.Event
+    ) -> None:
+        """Run generation in a separate thread."""
+        try:
+            self.pipe(templated_text, **gen_kwargs)
         except Exception:
-            logger.error(f"Error in generation thread: {traceback.format_exc()}")
+            logger.error(f"Generation thread error: {traceback.format_exc()}")
             self.streamer.end()
+        finally:
+            stop_event.set()
 
-    def _stream_with_timeout(self, stop_event: threading.Event):
-        """Stream text with timeout handling."""
-        while not stop_event.is_set():
-            try:
-                yield next(self.streamer)
-            except StopIteration:
-                break
-
-    def _prepare_generate(
+    def _prepare_generation(
         self,
         input_text: str,
         max_new_tokens: int,
         temperature: float,
         stopwords: Optional[List[str]],
         generation_kwargs: Optional[Dict[str, Any]],
-    ):
-        """Prepare generation parameters and templated text."""
+        streaming: bool = False,
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Prepare generation parameters."""
         templated_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
-
-        _generation_kwargs = {
+        gen_kwargs = {
             "max_new_tokens": max_new_tokens,
-            "streamer": self.streamer,
             "eos_token_id": self.pipe.tokenizer.eos_token_id,
             "temperature": temperature if temperature > 0.0 else None,
             "do_sample": temperature > 0.0,
-            "num_beams": 1,  # set to 1 by limitations of streamer
         }
 
-        if stopwords is not None:
-            _generation_kwargs["stopping_criteria"] = StopWordCriteria(
+        if stopwords:
+            gen_kwargs["stopping_criteria"] = StopWordCriteria(
                 prompts=[templated_text],
                 stop_words=stopwords,
                 tokenizer=self.pipe.tokenizer,
             )
 
-        if generation_kwargs is not None:
-            _generation_kwargs.update(generation_kwargs)
+        if generation_kwargs:
+            gen_kwargs.update(generation_kwargs)
 
-        return templated_text, _generation_kwargs
+        if streaming:
+            gen_kwargs["streamer"] = self.streamer
+            # gen_kwargs["num_beams"] = 1  # Required for streaming
 
-    @lru_cache(maxsize=1)
-    def _get_correct_fp16_dtype(self):
-        """Get the correct FP16 dtype based on device and capabilities."""
-        if self.transformers__device == "cpu":
-            raise TypeError("FP16 is not supported on CPU.")
-        elif bfloat16_is_supported():
-            return torch.bfloat16
-        else:
-            return torch.float16
+        return templated_text, gen_kwargs
 
 
 class TextGenerationProcessorOnnx(GenerationProcessor):
@@ -664,7 +638,8 @@ class TextGenerationProcessorGGUF(GenerationProcessor):
         super().__init__(model_id, save_history, system_prompt)
 
         if Llama is None:
-            raise ImportError("llama-cpp not found. Install it using 'pip install llama-cpp-python'.")
+            raise ImportError("""llama-cpp not found. Install it using 'pip install llama-cpp-python'.
+                              Please see https://github.com/abetlen/llama-cpp-python for more information.""")
 
         _model_kwargs = {
             "verbose": gguf__verbose,
