@@ -15,7 +15,7 @@ def setup_processor():
     """Fixture to set up the text generation processor and tokenizer."""
     model_id = "hf-internal-testing/tiny-random-GPTNeoXForCausalLM"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    processor = TextGenerationProcessorTransformers(model_id, device="cuda")
+    processor = TextGenerationProcessorTransformers(model_id)
     return processor, tokenizer
 
 
