@@ -9,4 +9,8 @@ HUGGINGFACE_TASKS = [None] + [
     "text2text-generation",
     "translation",
     "summarization",
+    "image-to-text",
+    "automatic-speech-recognition",
+    "visual-question-answering",
+    "document-question-answering"
 ]
