@@ -3,8 +3,8 @@ import traceback
 import pkgutil
 import ast
 
-from owlsight.processors.base import GenerationProcessor
-from owlsight.processors.text_generation_processors import (
+from owlsight.processors.base import TextGenerationProcessor
+from owlsight.processors.helper_functions import (
     select_processor_type,
 )
 from owlsight.ui.console import get_user_choice
@@ -20,17 +20,17 @@ from owlsight.utils.logger import logger
 class TextGenerationManager:
     def __init__(self, config_manager: ConfigManager):
         """
-        Manage the lifecycle of a GenerationProcessor and its interaction with the configuration.
+        Manage the lifecycle of a TextGenerationProcessor and its interaction with the configuration.
 
         Parameters
         ----------
-        processor : GenerationProcessor
+        processor : TextGenerationProcessor
             An instance of the processor (either Transformers or Onnx).
         config_manager : ConfigManager
             Configuration dictionary to manage settings for the processor.
         """
         self.config_manager = config_manager
-        self.processor: Optional[GenerationProcessor] = None
+        self.processor: Optional[TextGenerationProcessor] = None
 
     def generate(self, input_text: str):
         """
@@ -195,7 +195,7 @@ class TextGenerationManager:
                 self.processor = processor_type(**processor_kwargs)
                 self.processor.history = old_history
             else:
-                processor_type = select_processor_type(model_id)
+                processor_type = select_processor_type(model_id, task=task)
                 self.processor = processor_type(**processor_kwargs)
         except Exception as e:
             logger.error(f"Error loading model_processor: {traceback.format_exc()}")
@@ -203,7 +203,7 @@ class TextGenerationManager:
 
         logger.info(f"Processor reloaded with model_id: {model_id}")
 
-    def get_processor(self) -> GenerationProcessor:
+    def get_processor(self) -> TextGenerationProcessor:
         """
         Return the current processor instance.
         """
