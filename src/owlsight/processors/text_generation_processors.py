@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any, Type, Union, Tuple, Generator
+from typing import Optional, List, Dict, Any, Union, Tuple, Generator
 import os
 import time
 import traceback
@@ -15,16 +15,22 @@ from transformers import (
     AutoModelForCausalLM,
     PreTrainedTokenizer,
     pipeline,
+    Pipeline,
 )
-from owlsight.processors.base import GenerationProcessor
+from owlsight.processors.base import TextGenerationProcessor
+from owlsight.processors.constants import (
+    DEFAULT_TASK,
+    GENERATION_THREAD_TIMEOUT,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TEMPERATURE,
+)
 from owlsight.utils.threads import ThreadNotKilledError
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
-from owlsight.utils.logger import logger
 from owlsight.utils.deep_learning import get_best_device, bfloat16_is_supported
-from owlsight.hugging_face.constants import TASK_TO_AUTO_MODEL
+from owlsight.hugging_face.constants import TASK_TO_AUTO_MODEL, SUPPORTED_TASKS
 from owlsight.utils.helper_functions import check_invalid_input_parameters
-
+from owlsight.utils.logger import logger
 
 ONNX_MSG = "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or install [onnxruntime-genai, onnxruntime-genai-cuda] seperately"
 
@@ -43,50 +49,7 @@ except ImportError:
     Llama = None
 
 
-def select_processor_type(model_id: str) -> Type["GenerationProcessor"]:
-    """
-    Utilityfunction which selects the appropriate GenerationProcessor class based on the model ID or directory.
-
-    If the model_id is a directory, the function will inspect the contents of the directory
-    to decide the processor type. Otherwise, it will use the model_id string to make the decision.
-    """
-    # Check if the model_id is a directory
-    if os.path.isdir(model_id):
-        # Check if any file in the directory ends with .onnx
-        if any(f.endswith("onnx") for f in os.listdir(model_id)):
-            return TextGenerationProcessorOnnx
-        elif model_id.lower().endswith("gguf") or any(f.endswith("gguf") for f in os.listdir(model_id)):
-            return TextGenerationProcessorGGUF
-        else:
-            return TextGenerationProcessorTransformers
-    else:
-        # If model_id is not a directory, use the model_id string
-        if model_id.lower().endswith("gguf"):
-            return TextGenerationProcessorGGUF
-        elif "onnx" in model_id.lower():
-            return TextGenerationProcessorOnnx
-        else:
-            return TextGenerationProcessorTransformers
-
-
-# Constants
-GENERATION_THREAD_TIMEOUT = 5
-DEFAULT_MAX_TOKENS = 512
-DEFAULT_TEMPERATURE = 0.0
-DEFAULT_TASK = "text-generation"
-
-
-def flash_attention_is_available() -> bool:
-    """Check if flash attention is available."""
-    try:
-        from flash_attn import flash_attn_fn
-
-        return True
-    except ImportError:
-        return False
-
-
-class TextGenerationProcessorTransformers(GenerationProcessor):
+class TextGenerationProcessorTransformers(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
@@ -132,6 +95,9 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         system_prompt : str
             The system prompt to prepend to the input text.
         """
+        if task and task not in SUPPORTED_TASKS:
+            raise ValueError(f"Task '{task}' is not supported. Supported tasks are: {list(SUPPORTED_TASKS.keys())}")
+
         super().__init__(model_id, save_history, system_prompt)
 
         # Initialize configuration
@@ -147,7 +113,7 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         # Set device and dtype configuration
         self._device_map = self._get_device_map()
         self._torch_dtype = self._determine_torch_dtype()
-        self._auto_model_cls = TASK_TO_AUTO_MODEL.get(self.task, AutoModelForCausalLM)
+        self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(self.task, AutoModelForCausalLM)
 
         # Initialize model components
         self.tokenizer, self.model = self._load_tokenizer_and_model()
@@ -171,6 +137,7 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         """Get correct FP16 dtype based on hardware support."""
         return torch.bfloat16 if bfloat16_is_supported() else torch.float16
 
+    #TODO: should we just ditch self._auto_model_cls for getting model and just pass self.model_id to pipeline instead?
     def _load_tokenizer_and_model(self) -> Tuple[AutoTokenizer, AutoModel]:
         """Load and configure tokenizer and model."""
         if self.transformers__quantization_bits and self.transformers__device in ["cpu", "mps"]:
@@ -180,9 +147,25 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         model_kwargs = self._prepare_model_kwargs(quantization_config)
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_id, **self.tokenizer_kwargs)
-        model = self._auto_model_cls.from_pretrained(self.model_id, **model_kwargs)
+        try:
+            model = self._auto_model_cls.from_pretrained(self.model_id, **model_kwargs)
+        except ValueError as e:
+            if "does not support `device_map='auto'" in str(e):
+                model_kwargs["device_map"] = self._device_map = None
+                model = self._auto_model_cls.from_pretrained(self.model_id, **model_kwargs)
+            else:
+                raise
 
         return tokenizer, model
+
+    def _flash_attention_is_available(self) -> bool:
+        """Check if flash attention is available."""
+        try:
+            from flash_attn import flash_attn_fn
+
+            return True
+        except ImportError:
+            return False
 
     def _get_quantization_config(self) -> Optional[BitsAndBytesConfig]:
         """Get quantization configuration if applicable."""
@@ -205,19 +188,31 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
             "trust_remote_code": True,
             "torch_dtype": self._torch_dtype,
             "quantization_config": quantization_config,
-            "_attn_implementation": "flash" if flash_attention_is_available() else "eager",
+            "_attn_implementation": "flash" if self._flash_attention_is_available() else "eager",
         }
         kwargs.update(self.model_kwargs)
         return kwargs
 
-    def _setup_pipeline(self) -> Any:
+    def _setup_pipeline(self) -> Pipeline:
         """Set up the generation pipeline."""
-        return pipeline(
-            task=self.task,
-            model=self.model,
-            tokenizer=self.tokenizer,
-            device_map=self._device_map,
-        )
+
+        def create_pipeline(model: Union[str, AutoModel], **kwargs) -> Pipeline:
+            """Helper function to create the pipeline."""
+            return pipeline(
+                task=self.task,
+                model=model,
+                tokenizer=self.tokenizer,
+                device_map=self._device_map,
+                **kwargs,
+            )
+
+        try:
+            return create_pipeline(self.model)
+        except Exception as e:
+            if "Impossible to guess which" in str(e):
+                # pass device here, as normally it was passed to AutoModel
+                return create_pipeline(self.model_id)
+            raise
 
     def _setup_streamer(self) -> TextIteratorStreamer:
         """Set up text streaming if enabled."""
@@ -263,6 +258,50 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
 
         yield from self._generate_stream(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
 
+    def prepare_generation(
+        self,
+        input_text: str,
+        max_new_tokens: int,
+        temperature: float,
+        stopwords: Optional[List[str]],
+        generation_kwargs: Optional[Dict[str, Any]],
+        streaming: bool = False,
+        apply_chat_template: bool = True,
+    ) -> Tuple[str, Dict[str, Any]]:
+        """
+        Prepare generation parameters.
+
+        Returns:
+        --------
+        Tuple[str, Dict[str, Any]]
+            The input text and generation_kwargs.
+        """
+        if apply_chat_template:
+            input_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
+
+        gen_kwargs = {
+            "max_new_tokens": max_new_tokens,
+            "eos_token_id": self.pipe.tokenizer.eos_token_id,
+            "temperature": temperature if temperature > 0.0 else None,
+            "do_sample": temperature > 0.0,
+        }
+
+        if stopwords:
+            gen_kwargs["stopping_criteria"] = StopWordCriteria(
+                prompts=[input_text],
+                stop_words=stopwords,
+                tokenizer=self.pipe.tokenizer,
+            )
+
+        if generation_kwargs:
+            gen_kwargs.update(generation_kwargs)
+
+        if streaming:
+            gen_kwargs["streamer"] = self.streamer
+            # gen_kwargs["num_beams"] = 1  # Required for streaming
+
+        return input_text, gen_kwargs
+
     def _generate_non_stream(
         self,
         input_text: str,
@@ -272,7 +311,7 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         generation_kwargs: Optional[Dict[str, Any]],
     ) -> str:
         """Generate text without streaming."""
-        templated_text, gen_kwargs = self._prepare_generation(
+        templated_text, gen_kwargs = self.prepare_generation(
             input_text, max_new_tokens, temperature, stopwords, generation_kwargs
         )
         output = self.pipe(templated_text, **gen_kwargs)
@@ -289,7 +328,7 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         generation_kwargs: Optional[Dict[str, Any]],
     ) -> Generator[str, None, None]:
         """Generate streaming text."""
-        templated_text, gen_kwargs = self._prepare_generation(
+        templated_text, gen_kwargs = self.prepare_generation(
             input_text, max_new_tokens, temperature, stopwords, generation_kwargs, streaming=True
         )
 
@@ -302,6 +341,9 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
 
         try:
             yield from self._stream_generator(stop_event, input_text)
+        except Exception as e:
+            logger.error(f"Streaming error: {traceback.format_exc()}")
+            raise e
         finally:
             stop_event.set()
             generation_thread.join(timeout=GENERATION_THREAD_TIMEOUT)
@@ -320,9 +362,9 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
                     yield new_text
                 except StopIteration:
                     break
-        except Exception as e:
-            logger.error(f"Streaming error: {traceback.format_exc()}")
-            raise e
+                # Check for error after each iteration
+                if hasattr(self.streamer, "error") and self.streamer.error is not None:
+                    raise self.streamer.error
         finally:
             if generated_text:
                 self.update_history(input_text, generated_text.strip())
@@ -333,48 +375,14 @@ class TextGenerationProcessorTransformers(GenerationProcessor):
         """Run generation in a separate thread."""
         try:
             self.pipe(templated_text, **gen_kwargs)
-        except Exception:
-            logger.error(f"Generation thread error: {traceback.format_exc()}")
+        except Exception as e:
+            self.streamer.error = e  # Store error in streamer
             self.streamer.end()
         finally:
             stop_event.set()
 
-    def _prepare_generation(
-        self,
-        input_text: str,
-        max_new_tokens: int,
-        temperature: float,
-        stopwords: Optional[List[str]],
-        generation_kwargs: Optional[Dict[str, Any]],
-        streaming: bool = False,
-    ) -> Tuple[str, Dict[str, Any]]:
-        """Prepare generation parameters."""
-        templated_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
-        gen_kwargs = {
-            "max_new_tokens": max_new_tokens,
-            "eos_token_id": self.pipe.tokenizer.eos_token_id,
-            "temperature": temperature if temperature > 0.0 else None,
-            "do_sample": temperature > 0.0,
-        }
 
-        if stopwords:
-            gen_kwargs["stopping_criteria"] = StopWordCriteria(
-                prompts=[templated_text],
-                stop_words=stopwords,
-                tokenizer=self.pipe.tokenizer,
-            )
-
-        if generation_kwargs:
-            gen_kwargs.update(generation_kwargs)
-
-        if streaming:
-            gen_kwargs["streamer"] = self.streamer
-            # gen_kwargs["num_beams"] = 1  # Required for streaming
-
-        return templated_text, gen_kwargs
-
-
-class TextGenerationProcessorOnnx(GenerationProcessor):
+class TextGenerationProcessorOnnx(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
@@ -593,7 +601,7 @@ class TextGenerationProcessorOnnx(GenerationProcessor):
             )
 
 
-class TextGenerationProcessorGGUF(GenerationProcessor):
+class TextGenerationProcessorGGUF(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
@@ -638,8 +646,10 @@ class TextGenerationProcessorGGUF(GenerationProcessor):
         super().__init__(model_id, save_history, system_prompt)
 
         if Llama is None:
-            raise ImportError("""llama-cpp not found. Install it using 'pip install llama-cpp-python'.
-                              Please see https://github.com/abetlen/llama-cpp-python for more information.""")
+            raise ImportError(
+                """llama-cpp not found. Install it using 'pip install llama-cpp-python'.
+                              Please see https://github.com/abetlen/llama-cpp-python for more information."""
+            )
 
         _model_kwargs = {
             "verbose": gguf__verbose,
