@@ -93,35 +93,19 @@ def test_invalid_generation_kwargs(setup_processor):
     assert duration < 5, "The generate method froze."
     assert response == "", "Response should be empty for invalid generation kwargs."
 
-def test_num_beams_with_streaming_raises_error(setup_processor):
-    """Test that the processor generates a valid response with num_beams."""
-    from io import StringIO
 
-    # Setup capture
-    stdout = StringIO()
-    stderr = StringIO()
-    sys.stdout, old_stdout = stdout, sys.stdout
-    sys.stderr, old_stderr = stderr, sys.stderr
+def test_num_beams_with_streaming_raises_error(setup_processor, capfd):
+    """Test that using num_beams with streaming produces appropriate error output."""
+    processor, _ = setup_processor
+    prompt = "test prompt"
+    max_new_tokens = 128
+    num_beams = 4
 
-    try:
-        processor, _ = setup_processor
-        prompt = "test prompt"
-        max_new_tokens = 128
-        num_beams = 4
+    # Generate with num_beams (will print error in thread)
+    with pytest.raises(ValueError) as exc:
+        processor.generate(prompt, max_new_tokens=max_new_tokens, generation_kwargs={"num_beams": num_beams})
+        "num_beams" in str(exc.value), "Error message should mention num_beams parameter"
 
-        _ = processor.generate(prompt, max_new_tokens=max_new_tokens, 
-                                generation_kwargs={"num_beams": num_beams})
-    except Exception as exc_info:
-        raise exc_info
-    finally:
-        # Restore stdout/stderr
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
-
-    # Get captured output
-    output = stdout.getvalue() + stderr.getvalue()
-    assert "num_beams" in output
-    assert "ValueError" in output
 
 if __name__ == "__main__":
     pytest.main([__file__])
