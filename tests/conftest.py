@@ -1,12 +1,12 @@
 import pytest
 from typing import List, Optional, Dict, Any, Union
 
-from owlsight.processors.base import GenerationProcessor
+from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.configurations.config_manager import ConfigManager
 
 
-class MockTextGenerationProcessor(GenerationProcessor):
+class MockTextGenerationProcessor(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
@@ -49,3 +49,12 @@ def config_manager():
 @pytest.fixture
 def text_generation_manager(config_manager):
     return TextGenerationManager(config_manager=config_manager)
+
+@pytest.fixture
+def media_model_mappings():
+    return {
+        "image-to-text": "Salesforce/blip-image-captioning-base",
+        "visual-question-answering": "dandelin/vilt-b32-finetuned-vqa",
+        "automatic-speech-recognition": "facebook/wav2vec2-base-960h",
+        "document-question-answering": "microsoft/layoutlm-base-uncased",
+    }
