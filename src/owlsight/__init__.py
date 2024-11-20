@@ -1,6 +1,7 @@
 # __init__.py
 
 # Importing functions to make them accessible from the package's root
+from .processors.helper_functions import select_processor_type
 from .rag.python_lib_search import search_python_libs
 from .utils.deep_learning import (
     get_best_device,
@@ -10,11 +11,11 @@ from .utils.deep_learning import (
     calculate_available_vram,
 )
 from .processors.text_generation_processors import (
-    select_processor_type,
     TextGenerationProcessorOnnx,
     TextGenerationProcessorTransformers,
     TextGenerationProcessorGGUF,
 )
+from .processors.multimodal_processors import TextGenerationProcessorWithMedia
 from .rag.core import (
     search_documents,
     HashingVectorizerSearch,
@@ -34,6 +35,7 @@ __all__ = [
     "TextGenerationProcessorOnnx",
     "TextGenerationProcessorTransformers",
     "TextGenerationProcessorGGUF",
+    "TextGenerationProcessorWithMedia",
     "search_python_libs",
     "search_documents",
     "HashingVectorizerSearch",
