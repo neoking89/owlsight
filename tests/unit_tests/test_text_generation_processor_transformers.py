@@ -104,7 +104,7 @@ def test_num_beams_with_streaming_raises_error(setup_processor, capfd):
     # Generate with num_beams (will print error in thread)
     with pytest.raises(ValueError) as exc:
         processor.generate(prompt, max_new_tokens=max_new_tokens, generation_kwargs={"num_beams": num_beams})
-        "num_beams" in str(exc.value), "Error message should mention num_beams parameter"
+        assert "num_beams" in str(exc.value), "Error message should mention num_beams parameter"
 
 
 if __name__ == "__main__":
