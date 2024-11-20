@@ -13,8 +13,6 @@ from prompt_toolkit.styles import Style
 from owlsight.utils.logger import logger
 
 
-
-
 def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
     """
     Extract language and code blocks from a markdown string.
@@ -23,10 +21,10 @@ def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
     return [(match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)]
 
 
-def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
+def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
     """
     Evaluates python expressions in the form of `{{}}` in the given text and replaces them with the result.
-    Supports method calls and simple expressions.
+    Supports method calls and complex expressions.
 
     Parameters
     ----------
@@ -37,41 +35,133 @@ def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> str:
 
     Returns
     -------
-    str
-        The input string with placeholders replaced by corresponding values from the dictionary.
+    Any
+        The evaluated object if the entire string is a placeholder, else the string with placeholders replaced.
 
     Examples
     --------
-    >>> df = pd.DataFrame({'A': [1, 2, 3], 'B': [4, 5, 6]})
-    >>> var_dict = {'df': df, 'name': 'Alice', 'age': 30}
-    >>> replace_bracket_placeholders("{{name}} is {{age}} years old. DataFrame mean: {{df.mean()}}", var_dict)
-    'Alice is 30 years old. DataFrame mean: A    2.0\nB    5.0\ndtype: float64'
+    >>> var_dict = {}
+    >>> replace_bracket_placeholders('{{{"key": 5}}}', var_dict)
+    {'key': 5}
     >>> replace_bracket_placeholders("1 + 1 = {{1+1}}", var_dict)
     '1 + 1 = 2'
     """
 
-    # def evaluate_expression(expr: str) -> Any:
-    #     return eval(expr, {"__builtins__": None}, var_dict)
-
     def evaluate_expression(expr: str) -> Any:
         try:
-            return eval(expr, {"__builtins__": None}, var_dict)
+            # Create a safe globals dict with necessary builtins
+            safe_globals = {
+                "__builtins__": {
+                    "range": range,
+                    "len": len,
+                    "int": int,
+                    "str": str,
+                    "float": float,
+                    "sum": sum,
+                    "max": max,
+                    "min": min,
+                    "list": list,
+                    "dict": dict,
+                    "set": set,
+                    "tuple": tuple,
+                }
+            }
+            # Merge with provided variables
+            safe_globals.update(var_dict)
+            return eval(expr, safe_globals, {})
         except Exception as e:
+            # Preserve the original error type
             error_message = f"Error evaluating '{expr}': {str(e)}"
             raise type(e)(error_message) from None
 
-    # Pattern to match content inside {{ }}
-    pattern = r"\{\{(.*?)\}\}"
+    # Match nested braces
+    pattern = r"(?<!\{)\{\{(.*?)\}\}(?!\})"
 
-    # Find all placeholders
-    placeholders = re.findall(pattern, text)
+    # If the entire text is a single placeholder, evaluate directly and return the result
+    match = re.fullmatch(pattern, text)
+    if match:
+        return evaluate_expression(match.group(1))
 
     # Replace each placeholder with the evaluated expression
-    for placeholder in placeholders:
-        evaluated = evaluate_expression(placeholder)
-        text = text.replace(f"{{{{{placeholder}}}}}", str(evaluated))
+    def replace_match(match):
+        expr = match.group(1)
+        evaluated = evaluate_expression(expr)
+        return str(evaluated)
 
-    return text
+    # Use re.sub to replace all placeholders
+    return re.sub(pattern, replace_match, text)
+
+
+# def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
+#     """
+#     Evaluates python expressions in the form of `{{}}` in the given text and replaces them with the result.
+#     Supports method calls and simple expressions.
+
+#     Parameters
+#     ----------
+#     text : str
+#         The input string that contains placeholders in the form of `{{}}`.
+#     var_dict : dict
+#         A dictionary where keys correspond to the placeholders and values are the replacements.
+
+#     Returns
+#     -------
+#     Any
+#         The evaluated object if the entire string is a placeholder, else the string with placeholders replaced.
+
+#     Examples
+#     --------
+#     >>> var_dict = {}
+#     >>> replace_bracket_placeholders('{{{"key": 5}}}', var_dict)
+#     {'key': 5}
+#     >>> replace_bracket_placeholders("1 + 1 = {{1+1}}", var_dict)
+#     '1 + 1 = 2'
+#     """
+#     def evaluate_expression(expr: str) -> Any:
+#         try:
+#             # Create a safe globals dict with necessary builtins
+#             safe_globals = {
+#                 '__builtins__': {
+#                     'range': range,
+#                     'len': len,
+#                     'int': int,
+#                     'str': str,
+#                     'float': float,
+#                     'sum': sum,
+#                     'max': max,
+#                     'min': min,
+#                     'list': list,
+#                     'dict': dict,
+#                     'set': set,
+#                     'tuple': tuple,
+#                 }
+#             }
+#             # Merge with provided variables
+#             safe_globals.update(var_dict)
+#             return eval(expr, safe_globals, {})
+#         except Exception as e:
+#             # Preserve the original error type
+#             error_message = f"Error evaluating '{expr}': {str(e)}"
+#             raise type(e)(error_message) from None
+
+#     # Pattern to match content inside {{ }} (non-greedy)
+#     pattern = r"\{\{(.*?)\}\}"
+
+#     # Find all placeholders
+#     placeholders = re.findall(pattern, text)
+
+#     # If the entire text is a single placeholder, evaluate directly and return the result
+#     if len(placeholders) == 1 and text.strip() == f"{{{{{placeholders[0]}}}}}":
+#         return evaluate_expression(placeholders[0])
+
+#     # Replace each placeholder with the evaluated expression
+#     def replace_match(match):
+#         expr = match.group(1)
+#         evaluated = evaluate_expression(expr)
+#         return str(evaluated)
+
+#     # Use re.sub to replace all placeholders
+#     return re.sub(pattern, replace_match, text)
 
 
 def editable_input(prompt_text: str, default_value: str, color: str = "ansicyan") -> str:
