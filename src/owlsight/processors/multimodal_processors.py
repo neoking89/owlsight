@@ -111,7 +111,7 @@ class MediaPreprocessor:
         return image
 
 
-class TextGenerationProcessorWithMedia(TextGenerationProcessor):
+class MultiModalProcessorTransformers(TextGenerationProcessor):
     # TODO: add docstring from TextGenerationProcessorTransformers
     def __init__(self, model_id: str, task: Optional[str], **kwargs):
         if task not in HUGGINGFACE_MEDIA_TASKS:
