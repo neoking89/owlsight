@@ -1,6 +1,4 @@
-# ------------- Unit Test for extract_markdown ----------------
 import sys
-
 sys.path.append("src")
 
 from owlsight.utils.helper_functions import extract_markdown
