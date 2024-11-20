@@ -260,7 +260,7 @@ Owlsight automatically tries to fix and retry any code that encounters a **Modul
 
 ## API
 
-Owlsight can also be used as a library in Python scripts. The main classes are the `GenerationProcessor` family, which can be imported from the `owlsight` package. Here's an example of how to use it:
+Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. Here's an example of how to use it:
 
 ```python
 from owlsight import TextGenerationProcessorGGUF
@@ -281,7 +281,7 @@ for token in processor.generate_stream(question):
 **1.0.2**
 
 - Enhanced cross-platform compatibility.
-- Introduced the `generate_stream` method to all `GenerationProcessor` classes.
+- Introduced the `generate_stream` method to all `TextGenerationProcessor` classes.
 - Various minor bug fixes.
 
 **1.1.0**
@@ -306,3 +306,9 @@ for token in processor.generate_stream(question):
 - improve RAG possibilities in the API, added **SentenceTransformerSearch**, **TFIDFSearch** and **HashingVectorizerSearch** as classes.
 - Added **search_documents** to offer a general RAG solution for documents.
 - Added caching possibility to all RAG solutions in the API (*cache_dir* & *cache_dir_suffix*), where documents, embeddings etc. get pickled. This can save a big amount of time if amount of documents is large.
+
+**2.0.0beta**
+
+- Added Huggingface API in the commandline interface. This allows to search and load models directly from the Huggingface modelhub and can be found through `config:huggingface`.
+- added `transformers__use_fp_16` and `transformers__stream` to `config:model` for using fp16 and streaming the model output in the transformers-based models.
+- Added **MultiModalProcessorTransformers** for non text-input based models. This class can be used for models which require additional input like images, audio or video.
