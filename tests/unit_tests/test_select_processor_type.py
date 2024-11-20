@@ -7,7 +7,7 @@ from owlsight import (
     TextGenerationProcessorTransformers,
     TextGenerationProcessorOnnx,
     TextGenerationProcessorGGUF,
-    TextGenerationProcessorWithMedia,
+    MultiModalProcessorTransformers,
 )
 from owlsight.processors.helper_functions import select_processor_type
 
@@ -36,7 +36,7 @@ def test_select_processor_type(model_path, expected_result):
 def test_select_media_processor_type(media_model_mappings):
     for task, model_id in media_model_mappings.items():
         result = select_processor_type(model_id, task)
-        assert result == TextGenerationProcessorWithMedia
+        assert result == MultiModalProcessorTransformers
 
 
 if __name__ == "__main__":
