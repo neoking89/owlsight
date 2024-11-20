@@ -72,16 +72,12 @@ def test_string_operations(test_context, test_id, input_string, expected):
     assert result == expected
 
 
-# Dictionary and complex operations
+# complex operations
 @pytest.mark.parametrize(
     "test_id, input_string, expected",
     [
-        ("dict_1", '{{test_dict["name"]}} scored {{max(test_dict["scores"])}}', "Alice scored 95"),
-        (
-            "dict_2",
-            '{{test_dict["name"]}} has average score of {{sum(test_dict["scores"])/len(test_dict["scores"])}}',
-            "Alice has average score of 90.0",
-        ),
+        ("complex_1", '{{5*2}} is more than {{2*3}}', "10 is more than 6"),
+        ("complex_2", '{{" ".join([str(x) for x in range(3)])}}', "0 1 2"),
     ],
 )
 def test_dict_operations(test_context, test_id, input_string, expected):
