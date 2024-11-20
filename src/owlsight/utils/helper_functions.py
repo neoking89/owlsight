@@ -5,6 +5,7 @@ import shutil
 import re
 import traceback
 import inspect
+from datetime import datetime, timedelta
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
@@ -23,145 +24,100 @@ def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
 
 def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
     """
-    Evaluates python expressions in the form of `{{}}` in the given text and replaces them with the result.
-    Supports method calls and complex expressions.
+    Evaluates expressions inside {{...}} in the given text and replaces them with the result.
+    Correctly handles expressions containing braces or other special characters.
 
     Parameters
     ----------
     text : str
-        The input string that contains placeholders in the form of `{{}}`.
+        The input string containing placeholders in the form of `{{...}}`.
     var_dict : dict
-        A dictionary where keys correspond to the placeholders and values are the replacements.
+        A dictionary where keys correspond to variables used in placeholders.
 
     Returns
     -------
     Any
-        The evaluated object if the entire string is a placeholder, else the string with placeholders replaced.
-
-    Examples
-    --------
-    >>> var_dict = {}
-    >>> replace_bracket_placeholders('{{{"key": 5}}}', var_dict)
-    {'key': 5}
-    >>> replace_bracket_placeholders("1 + 1 = {{1+1}}", var_dict)
-    '1 + 1 = 2'
+        The evaluated object if the entire string is a single placeholder,
+        otherwise the string with placeholders replaced.
     """
-
     def evaluate_expression(expr: str) -> Any:
         try:
-            # Create a safe globals dict with necessary builtins
             safe_globals = {
                 "__builtins__": {
-                    "range": range,
-                    "len": len,
-                    "int": int,
-                    "str": str,
+                    "abs": abs,
+                    "all": all,
+                    "any": any,
+                    "bin": bin,
+                    "bool": bool,
+                    "chr": chr,
+                    "divmod": divmod,
+                    "enumerate": enumerate,
+                    "filter": filter,
                     "float": float,
-                    "sum": sum,
+                    "format": format,
+                    "hash": hash,
+                    "hex": hex,
+                    "int": int,
+                    "isinstance": isinstance,
+                    "issubclass": issubclass,
+                    "iter": iter,
+                    "len": len,
+                    "list": list,
+                    "map": map,
                     "max": max,
                     "min": min,
-                    "list": list,
+                    "next": next,
+                    "oct": oct,
+                    "ord": ord,
+                    "pow": pow,
+                    "range": range,
+                    "repr": repr,
+                    "reversed": reversed,
+                    "round": round,
+                    "sorted": sorted,
+                    "str": str,
+                    "sum": sum,
+                    "tuple": tuple,
+                    "zip": zip,
                     "dict": dict,
                     "set": set,
-                    "tuple": tuple,
+                    "frozenset": frozenset,
+                    "datetime": datetime,
+                    "timedelta": timedelta,
                 }
             }
-            # Merge with provided variables
             safe_globals.update(var_dict)
             return eval(expr, safe_globals, {})
         except Exception as e:
-            # Preserve the original error type
             error_message = f"Error evaluating '{expr}': {str(e)}"
             raise type(e)(error_message) from None
 
-    # Match nested braces
-    pattern = r"(?<!\{)\{\{(.*?)\}\}(?!\})"
+    # Pattern to match balanced double braces
+    pattern = r"""
+        \{\{            # Opening double braces {{
+        (?P<expr>       # Start of named group 'expr'
+            [^\{\}]*    # Match any characters except { or }
+            (?:         # Non-capturing group
+                \{[^\{\}]*\} # Match balanced braces
+                [^\{\}]*    # Match any characters except { or }
+            )*          # Zero or more times
+        )               # End of named group 'expr'
+        \}\}            # Closing double braces }}
+    """
+    regex = re.compile(pattern, re.VERBOSE)
 
-    # If the entire text is a single placeholder, evaluate directly and return the result
-    match = re.fullmatch(pattern, text)
-    if match:
-        return evaluate_expression(match.group(1))
-
-    # Replace each placeholder with the evaluated expression
-    def replace_match(match):
-        expr = match.group(1)
-        evaluated = evaluate_expression(expr)
+    # Function to replace each placeholder
+    def replace_match(m):
+        expr = m.group("expr")
+        evaluated = evaluate_expression(expr.strip())
         return str(evaluated)
 
-    # Use re.sub to replace all placeholders
-    return re.sub(pattern, replace_match, text)
-
-
-# def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
-#     """
-#     Evaluates python expressions in the form of `{{}}` in the given text and replaces them with the result.
-#     Supports method calls and simple expressions.
-
-#     Parameters
-#     ----------
-#     text : str
-#         The input string that contains placeholders in the form of `{{}}`.
-#     var_dict : dict
-#         A dictionary where keys correspond to the placeholders and values are the replacements.
-
-#     Returns
-#     -------
-#     Any
-#         The evaluated object if the entire string is a placeholder, else the string with placeholders replaced.
-
-#     Examples
-#     --------
-#     >>> var_dict = {}
-#     >>> replace_bracket_placeholders('{{{"key": 5}}}', var_dict)
-#     {'key': 5}
-#     >>> replace_bracket_placeholders("1 + 1 = {{1+1}}", var_dict)
-#     '1 + 1 = 2'
-#     """
-#     def evaluate_expression(expr: str) -> Any:
-#         try:
-#             # Create a safe globals dict with necessary builtins
-#             safe_globals = {
-#                 '__builtins__': {
-#                     'range': range,
-#                     'len': len,
-#                     'int': int,
-#                     'str': str,
-#                     'float': float,
-#                     'sum': sum,
-#                     'max': max,
-#                     'min': min,
-#                     'list': list,
-#                     'dict': dict,
-#                     'set': set,
-#                     'tuple': tuple,
-#                 }
-#             }
-#             # Merge with provided variables
-#             safe_globals.update(var_dict)
-#             return eval(expr, safe_globals, {})
-#         except Exception as e:
-#             # Preserve the original error type
-#             error_message = f"Error evaluating '{expr}': {str(e)}"
-#             raise type(e)(error_message) from None
-
-#     # Pattern to match content inside {{ }} (non-greedy)
-#     pattern = r"\{\{(.*?)\}\}"
-
-#     # Find all placeholders
-#     placeholders = re.findall(pattern, text)
-
-#     # If the entire text is a single placeholder, evaluate directly and return the result
-#     if len(placeholders) == 1 and text.strip() == f"{{{{{placeholders[0]}}}}}":
-#         return evaluate_expression(placeholders[0])
-
-#     # Replace each placeholder with the evaluated expression
-#     def replace_match(match):
-#         expr = match.group(1)
-#         evaluated = evaluate_expression(expr)
-#         return str(evaluated)
-
-#     # Use re.sub to replace all placeholders
-#     return re.sub(pattern, replace_match, text)
+    # Check if the entire text is a single placeholder
+    if regex.fullmatch(text):
+        expr = regex.fullmatch(text).group("expr")
+        return evaluate_expression(expr.strip())
+    else:
+        return regex.sub(replace_match, text)
 
 
 def editable_input(prompt_text: str, default_value: str, color: str = "ansicyan") -> str:
