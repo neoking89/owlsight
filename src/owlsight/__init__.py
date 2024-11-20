@@ -15,7 +15,7 @@ from .processors.text_generation_processors import (
     TextGenerationProcessorTransformers,
     TextGenerationProcessorGGUF,
 )
-from .processors.multimodal_processors import TextGenerationProcessorWithMedia
+from .processors.multimodal_processors import MultiModalProcessorTransformers
 from .rag.core import (
     search_documents,
     HashingVectorizerSearch,
@@ -35,7 +35,7 @@ __all__ = [
     "TextGenerationProcessorOnnx",
     "TextGenerationProcessorTransformers",
     "TextGenerationProcessorGGUF",
-    "TextGenerationProcessorWithMedia",
+    "MultiModalProcessorTransformers",
     "search_python_libs",
     "search_documents",
     "HashingVectorizerSearch",
