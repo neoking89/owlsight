@@ -6,7 +6,7 @@ from transformers import PreTrainedTokenizer
 from owlsight.utils.logger import logger
 
 
-class GenerationProcessor(ABC):
+class TextGenerationProcessor(ABC):
     def __init__(
         self,
         model_id: str,
