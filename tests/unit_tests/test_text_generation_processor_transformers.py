@@ -94,7 +94,7 @@ def test_invalid_generation_kwargs(setup_processor):
     assert response == "", "Response should be empty for invalid generation kwargs."
 
 
-def test_num_beams_with_streaming_raises_error(setup_processor, capfd):
+def test_num_beams_with_streaming_raises_error(setup_processor):
     """Test that using num_beams with streaming produces appropriate error output."""
     processor, _ = setup_processor
     prompt = "test prompt"
