@@ -3,7 +3,7 @@ import os
 
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.processors.base import TextGenerationProcessor
-from owlsight.processors.multimodal_processors import TextGenerationProcessorWithMedia
+from owlsight.processors.multimodal_processors import MultiModalProcessorTransformers
 from owlsight.processors.text_generation_processors import (
     TextGenerationProcessorGGUF,
     TextGenerationProcessorOnnx,
@@ -15,10 +15,10 @@ def _select_transformers_processor_type_on_task(
     task: Optional[str],
 ) -> Union[
     Type["TextGenerationProcessorTransformers"],
-    Type["TextGenerationProcessorWithMedia"],
+    Type["MultiModalProcessorTransformers"],
 ]:
     if task and task in HUGGINGFACE_MEDIA_TASKS:
-        return TextGenerationProcessorWithMedia
+        return MultiModalProcessorTransformers
 
     return TextGenerationProcessorTransformers
 
