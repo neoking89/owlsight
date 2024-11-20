@@ -4,7 +4,12 @@ import os
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.multimodal_processors import TextGenerationProcessorWithMedia
-from owlsight.processors.text_generation_processors import TextGenerationProcessorGGUF, TextGenerationProcessorOnnx, TextGenerationProcessorTransformers
+from owlsight.processors.text_generation_processors import (
+    TextGenerationProcessorGGUF,
+    TextGenerationProcessorOnnx,
+    TextGenerationProcessorTransformers,
+)
+
 
 def _select_transformers_processor_type_on_task(
     task: Optional[str],
@@ -18,7 +23,7 @@ def _select_transformers_processor_type_on_task(
     return TextGenerationProcessorTransformers
 
 
-def select_processor_type(model_id: str, task: Optional[str]=None) -> Type["TextGenerationProcessor"]:
+def select_processor_type(model_id: str, task: Optional[str] = None) -> Type["TextGenerationProcessor"]:
     """
     Utilityfunction which selects the appropriate TextGenerationProcessor class based on the model ID or directory.
 
