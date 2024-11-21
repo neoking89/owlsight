@@ -142,7 +142,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         self.tokenizer = None
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, **self.tokenizer_kwargs)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_id, trust_remote_code=True, **self.tokenizer_kwargs
+            )
         except Exception:
             logger.error(f"Failed to load tokenizer for model {self.model_id}: {traceback.format_exc()}")
 
@@ -186,6 +188,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             model=self.model_id,
             tokenizer=self.tokenizer,
             device=self.transformers__device,
+            trust_remote_code=True,
             model_kwargs=self.model_kwargs,
         )
 
