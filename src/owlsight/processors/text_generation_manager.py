@@ -172,21 +172,20 @@ class TextGenerationManager:
         task = self.config_manager.get("huggingface.task", DEFAULTS["huggingface"]["task"])
         processor_kwargs = {"task": task, **model_kwargs}
 
-
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
             logger.error("No model_id provided. Please set a model_id in the configuration.")
             return
 
         logger.info(f"Loading processor with new model_id: {model_id}")
-
+        processor_type = select_processor_type(model_id, task=task)
+        
         try:
             if reload:
                 if self.processor is None:
                     raise ValueError("Processor is not initialized yet. Cannot reload.")
                 # Save the history from the old processor
                 old_history = self.processor.history
-                processor_type = self.processor.__class__
 
                 # Inmediately overwrite the processor with a new instance to save memory
                 self.processor = None
@@ -195,7 +194,6 @@ class TextGenerationManager:
                 self.processor = processor_type(**processor_kwargs)
                 self.processor.history = old_history
             else:
-                processor_type = select_processor_type(model_id, task=task)
                 self.processor = processor_type(**processor_kwargs)
         except Exception as e:
             logger.error(f"Error loading model_processor: {traceback.format_exc()}")
