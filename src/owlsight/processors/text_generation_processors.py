@@ -203,7 +203,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
     @torch.inference_mode()
     def generate(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
         stopwords: Optional[List[str]] = None,
@@ -213,18 +213,18 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         if self.transformers__stream:
             response = ""
             for text_chunk in self.generate_stream(
-                input_text, max_new_tokens, temperature, stopwords, generation_kwargs
+                input_data, max_new_tokens, temperature, stopwords, generation_kwargs
             ):
                 print(text_chunk, end="", flush=True)
                 response += text_chunk
             print()  # Print newline after generation is done
             return response
-        return self._generate_non_stream(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
+        return self._generate_non_stream(input_data, max_new_tokens, temperature, stopwords, generation_kwargs)
 
     @torch.inference_mode()
     def generate_stream(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
         stopwords: Optional[List[str]] = None,
@@ -234,11 +234,11 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         if not self.transformers__stream:
             raise ValueError("Streaming is disabled. Enable with transformers__stream=True.")
 
-        yield from self._generate_stream(input_text, max_new_tokens, temperature, stopwords, generation_kwargs)
+        yield from self._generate_stream(input_data, max_new_tokens, temperature, stopwords, generation_kwargs)
 
     def prepare_generation(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int,
         temperature: float,
         stopwords: Optional[List[str]],
@@ -255,7 +255,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             The input text and generation_kwargs.
         """
         if apply_chat_template:
-            input_text = self.apply_chat_template(input_text, self.pipe.tokenizer)
+            input_data = self.apply_chat_template(input_data, self.pipe.tokenizer)
 
         gen_kwargs = {
             "max_new_tokens": max_new_tokens,
@@ -266,7 +266,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         if stopwords:
             gen_kwargs["stopping_criteria"] = StopWordCriteria(
-                prompts=[input_text],
+                prompts=[input_data],
                 stop_words=stopwords,
                 tokenizer=self.pipe.tokenizer,
             )
@@ -278,11 +278,11 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             gen_kwargs["streamer"] = self.streamer
             # gen_kwargs["num_beams"] = 1  # Required for streaming
 
-        return input_text, gen_kwargs
+        return input_data, gen_kwargs
 
     def _generate_non_stream(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int,
         temperature: float,
         stopwords: Optional[List[str]],
@@ -290,16 +290,16 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
     ) -> str:
         """Generate text without streaming."""
         templated_text, gen_kwargs = self.prepare_generation(
-            input_text, max_new_tokens, temperature, stopwords, generation_kwargs
+            input_data, max_new_tokens, temperature, stopwords, generation_kwargs
         )
         output = self.pipe(templated_text, **gen_kwargs)
         generated_text = output[0]["generated_text"][len(templated_text) :].strip()
-        self.update_history(input_text, generated_text)
+        self.update_history(input_data, generated_text)
         return generated_text
 
     def _generate_stream(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int,
         temperature: float,
         stopwords: Optional[List[str]],
@@ -307,7 +307,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
     ) -> Generator[str, None, None]:
         """Generate streaming text."""
         templated_text, gen_kwargs = self.prepare_generation(
-            input_text, max_new_tokens, temperature, stopwords, generation_kwargs, streaming=True
+            input_data, max_new_tokens, temperature, stopwords, generation_kwargs, streaming=True
         )
 
         stop_event = threading.Event()
@@ -318,7 +318,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         generation_thread.start()
 
         try:
-            yield from self._stream_generator(stop_event, input_text)
+            yield from self._stream_generator(stop_event, input_data)
         except Exception as e:
             logger.error(f"Streaming error: {traceback.format_exc()}")
             raise e
@@ -329,7 +329,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             if generation_thread.is_alive():
                 raise ThreadNotKilledError("Generation thread wasn't killed in time.")
 
-    def _stream_generator(self, stop_event: threading.Event, input_text: str) -> Generator[str, None, None]:
+    def _stream_generator(self, stop_event: threading.Event, input_data: str) -> Generator[str, None, None]:
         """Handle text stream generation."""
         generated_text = ""
         try:
@@ -345,7 +345,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
                     raise self.streamer.error
         finally:
             if generated_text:
-                self.update_history(input_text, generated_text.strip())
+                self.update_history(input_data, generated_text.strip())
 
     def _run_generation_thread(
         self, templated_text: str, gen_kwargs: Dict[str, Any], stop_event: threading.Event
@@ -405,7 +405,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
     def generate(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int = 512,
         temperature: float = 0.0,
         stopwords: Optional[List[str]] = None,
@@ -417,7 +417,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         Parameters
         ----------
-        input_text : str
+        input_data : str
             The input text to generate a response for.
         max_new_tokens : int
             The maximum number of tokens to generate.
@@ -432,7 +432,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             Additional keyword arguments for generation.
             Example: {"top_k": 50, "top_p": 0.95}
         """
-        generator = self._prepare_generate(input_text, max_new_tokens, temperature, generation_kwargs)
+        generator = self._prepare_generate(input_data, max_new_tokens, temperature, generation_kwargs)
 
         logger.info("Running generation loop ...")
         generated_text, buffer = "", ""
@@ -465,13 +465,13 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         logger.info(f"Generation took {total_time:.2f} seconds")
         logger.info(f"Tokens per second: {token_counter / total_time:.2f}")
 
-        self.update_history(input_text, generated_text.strip())
+        self.update_history(input_data, generated_text.strip())
 
         return generated_text.strip()
 
     def generate_stream(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int = 512,
         temperature: float = 0.0,
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -481,7 +481,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         Parameters
         ----------
-        input_text : str
+        input_data : str
             The input text to generate a response for.
         max_new_tokens : int
             The maximum number of tokens to generate.
@@ -491,7 +491,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             Additional keyword arguments for generation.
             Example: {"top_k": 50, "top_p": 0.95}
         """
-        generator = self._prepare_generate(input_text, max_new_tokens, temperature, generation_kwargs)
+        generator = self._prepare_generate(input_data, max_new_tokens, temperature, generation_kwargs)
 
         logger.info("Running generation loop ...")
         generated_text = ""
@@ -509,10 +509,10 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         del generator
 
-        self.update_history(input_text, generated_text.strip())
+        self.update_history(input_data, generated_text.strip())
 
-    def _prepare_generate(self, input_text, max_new_tokens, temperature, generation_kwargs):
-        templated_text = self.apply_chat_template(input_text, self.transformers_tokenizer)
+    def _prepare_generate(self, input_data, max_new_tokens, temperature, generation_kwargs):
+        templated_text = self.apply_chat_template(input_data, self.transformers_tokenizer)
 
         search_options = {
             "max_length": max_new_tokens,
@@ -670,14 +670,14 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
 
     def generate(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int = 512,
         temperature: float = 0.1,
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         templated_text, _generation_kwargs = self._prepare_generate(
-            input_text, max_new_tokens, temperature, stopwords, generation_kwargs
+            input_data, max_new_tokens, temperature, stopwords, generation_kwargs
         )
 
         generated_text = ""
@@ -695,19 +695,19 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         finally:
             print()  # Print newline after generation is done
 
-        self.update_history(input_text, generated_text.strip())
+        self.update_history(input_data, generated_text.strip())
 
         return generated_text.strip()
 
     def generate_stream(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int = 512,
         temperature: float = 0.1,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         templated_text, _generation_kwargs = self._prepare_generate(
-            input_text, max_new_tokens, temperature, None, generation_kwargs
+            input_data, max_new_tokens, temperature, None, generation_kwargs
         )
 
         generated_text = ""
@@ -722,10 +722,10 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         except Exception:
             logger.error(f"Error occured during generation: \n{traceback.format_exc()}")
 
-        self.update_history(input_text, generated_text.strip())
+        self.update_history(input_data, generated_text.strip())
 
-    def _prepare_generate(self, input_text, max_new_tokens, temperature, stopwords, generation_kwargs):
-        templated_text = self.apply_chat_template(input_text)
+    def _prepare_generate(self, input_data, max_new_tokens, temperature, stopwords, generation_kwargs):
+        templated_text = self.apply_chat_template(input_data)
 
         _generation_kwargs = {
             "max_tokens": max_new_tokens,
@@ -744,11 +744,11 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         return templated_text, _generation_kwargs
 
     # override the original apply_chat_template method
-    def apply_chat_template(self, input_text: str) -> List[Dict[str, str]]:
+    def apply_chat_template(self, input_data: str) -> List[Dict[str, str]]:
         messages = []
         if self.save_history:
             messages = self.history.copy()
-        messages.append({"role": "user", "content": input_text})
+        messages.append({"role": "user", "content": input_data})
         if self.system_prompt:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
 

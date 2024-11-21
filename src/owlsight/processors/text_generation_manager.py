@@ -32,12 +32,12 @@ class TextGenerationManager:
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
 
-    def generate(self, input_text: str):
+    def generate(self, input_data: str):
         """
         Generate text using the processor.
         """
         kwargs = self.config_manager.get("generate", {})
-        generated_text = self.processor.generate(input_text, **kwargs)
+        generated_text = self.processor.generate(input_data, **kwargs)
         return generated_text
 
     def update_config(self, key: str, value: Any):

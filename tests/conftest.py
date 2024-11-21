@@ -19,7 +19,7 @@ class MockTextGenerationProcessor(TextGenerationProcessor):
 
     def generate(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int = 512,
         temperature: float = 0.0,
         stopwords: Optional[List[str]] = None,
@@ -29,7 +29,7 @@ class MockTextGenerationProcessor(TextGenerationProcessor):
         self.response_index += 1
 
         if self.save_history:
-            self.history.append((input_text, response))
+            self.history.append((input_data, response))
         return response
 
 

@@ -112,7 +112,6 @@ class MediaPreprocessor:
 
 
 class MultiModalProcessorTransformers(TextGenerationProcessor):
-    # TODO: add docstring from TextGenerationProcessorTransformers
     def __init__(self, model_id: str, task: str, save_history: bool = False, system_prompt: str = "", **kwargs):
         if task not in HUGGINGFACE_MEDIA_TASKS:
             raise ValueError(
@@ -137,12 +136,12 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
     ) -> str:
         # Unpack input_data if it contains input and question
         if isinstance(input_data, (tuple, list)) and len(input_data) == 2:
-            input_text, question = input_data
+            input_data, question = input_data
         else:
-            input_text, question = input_data, None
+            input_data, question = input_data, None
 
-        input_text, generate_kwargs = self.text_processor.prepare_generation(
-            input_text=input_text,
+        input_data, generate_kwargs = self.text_processor.prepare_generation(
+            input_data=input_data,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
             stopwords=stopwords,
@@ -152,10 +151,10 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
         )
         generate_kwargs.pop("eos_token_id", None)
 
-        if isinstance(input_text, list):
-            preprocessed = [self.media_preprocessor.preprocess_input(data, question) for data in input_text]
+        if isinstance(input_data, list):
+            preprocessed = [self.media_preprocessor.preprocess_input(data, question) for data in input_data]
         else:
-            preprocessed = self.media_preprocessor.preprocess_input(input_text, question)
+            preprocessed = self.media_preprocessor.preprocess_input(input_data, question)
 
         try:
             response = self.text_processor.pipe(preprocessed, generate_kwargs=generate_kwargs)
@@ -165,7 +164,7 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
             logger.error(f"Error generating text with media input: {traceback.format_exc()}")
             raise
 
-        self.update_history(str(input_text), response.strip())
+        self.update_history(str(input_data), response.strip())
         return response
 
     def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:

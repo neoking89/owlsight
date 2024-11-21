@@ -34,7 +34,7 @@ class TextGenerationProcessor(ABC):
 
     def apply_chat_template(
         self,
-        input_text: str,
+        input_data: str,
         tokenizer: PreTrainedTokenizer,
     ) -> str:
         """
@@ -43,18 +43,18 @@ class TextGenerationProcessor(ABC):
         """
         if tokenizer.chat_template is not None:
             messages = self.get_history()
-            messages.append({"role": "user", "content": input_text})
+            messages.append({"role": "user", "content": input_data})
             templated_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         else:
             logger.warning("Chat template not found in tokenizer. Using input text as is.")
-            templated_text = input_text
+            templated_text = input_data
 
         return templated_text
 
-    def update_history(self, input_text: str, generated_text: str):
+    def update_history(self, input_data: str, generated_text: str):
         """Update the history with the input and generated text."""
         if self.save_history:
-            self.history.append({"role": "user", "content": input_text})
+            self.history.append({"role": "user", "content": input_data})
             self.history.append({"role": "assistant", "content": generated_text.strip()})
 
     def get_history(self) -> List[Dict[str, str]]:
@@ -67,7 +67,7 @@ class TextGenerationProcessor(ABC):
 
     def generate(
         self,
-        input_text: str,
+        input_data: str,
         max_new_tokens: int,
         temperature: float,
         stopwords: Optional[List[str]],
@@ -76,6 +76,6 @@ class TextGenerationProcessor(ABC):
         raise NotImplementedError("generate method must be implemented in the subclass.")
 
     def generate_stream(
-        self, input_text: str, max_new_tokens: int, temperature: float, generation_kwargs: Optional[Dict[str, Any]]
+        self, input_data: str, max_new_tokens: int, temperature: float, generation_kwargs: Optional[Dict[str, Any]]
     ) -> Generator[str, None, None]:
         raise NotImplementedError("generate_stream method must be implemented in the subclass.")
