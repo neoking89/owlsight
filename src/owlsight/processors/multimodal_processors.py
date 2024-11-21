@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Iterator
 import traceback
 from pathlib import Path
 import io
@@ -113,25 +113,26 @@ class MediaPreprocessor:
 
 class MultiModalProcessorTransformers(TextGenerationProcessor):
     # TODO: add docstring from TextGenerationProcessorTransformers
-    def __init__(self, model_id: str, task: Optional[str], **kwargs):
+    def __init__(self, model_id: str, task: str, save_history: bool = False, system_prompt: str="", **kwargs):
         if task not in HUGGINGFACE_MEDIA_TASKS:
             raise ValueError(
                 f"Task {task} is not supported for media preprocessing. Should be one of {HUGGINGFACE_MEDIA_TASKS}"
             )
-
+        
+        super().__init__(model_id=model_id, save_history=save_history, system_prompt=system_prompt)
         self.task = task
         self.text_processor = TextGenerationProcessorTransformers(model_id=model_id, task=task, **kwargs)
         self.media_preprocessor = MediaPreprocessor(self.text_processor.task)
 
     def generate(
         self,
-        input_data: Union[str, bytes, Path, List[Union[str, bytes, Path]]],
+        input_data: Union[str, bytes, Path, Iterator[Union[str, bytes, Path]]],
         max_new_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        question: Optional[str] = None,
+        # question: Optional[str] = None,
         stopwords=None,  # add stop_words for interface compatibility
-    ) -> Union[str, List[Dict[str, Any]]]:
+    ) -> str:
         input_data, generate_kwargs = self.text_processor.prepare_generation(
             input_text=input_data,
             max_new_tokens=max_new_tokens,
@@ -142,16 +143,22 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
             apply_chat_template=False,
         )
         generate_kwargs.pop("eos_token_id", None)
-        if isinstance(input_data, list):
-            preprocessed = [self.media_preprocessor.preprocess_input(data, question) for data in input_data]
-        else:
-            preprocessed = self.media_preprocessor.preprocess_input(input_data, question)
+        # if isinstance(input_data, list):
+        #     preprocessed = [self.media_preprocessor.preprocess_input(data, question) for data in input_data]
+        # else:
+        #     preprocessed = self.media_preprocessor.preprocess_input(input_data, question)
 
         try:
-            return self.text_processor.pipe(preprocessed, generate_kwargs=generate_kwargs)
+            response = self.text_processor.pipe(input_data, generate_kwargs=generate_kwargs)
+            print(response)
+            response = str(response)
         except Exception as e:
             logger.error(f"Error generating text with media input: {traceback.format_exc()}")
             raise
+        
+        self.update_history(str(input_data), response.strip())
+        return response
+
 
     def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:
         processed = self.media_preprocessor.preprocess_input(input_data, question)
