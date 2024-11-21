@@ -46,8 +46,11 @@ TEST_CASES = [
 def test_data():
     """Download and cache test data."""
     cached_data = {}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+    }
     for case in TEST_CASES:
-        response = requests.get(case["url"], timeout=10)
+        response = requests.get(case["url"], headers=headers, timeout=10)
         response.raise_for_status()
         cached_data[case["task"]] = response.content
     return cached_data
