@@ -111,18 +111,13 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         self.task = task or DEFAULT_TASK
 
         # Set device and dtype configuration
-        self._device_map = self._get_device_map()
         self._torch_dtype = self._determine_torch_dtype()
         self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(self.task, AutoModelForCausalLM)
 
         # Initialize model components
-        self.tokenizer, self.model = self._load_tokenizer_and_model()
+        self._setup_tokenizer_and_model_kwargs()
         self.pipe = self._setup_pipeline()
         self.streamer = self._setup_streamer() if self.transformers__stream else None
-
-    def _get_device_map(self) -> Dict[str, str]:
-        """Get device mapping configuration."""
-        return "auto" if self.transformers__device != "cpu" else {"": "cpu"}
 
     def _determine_torch_dtype(self) -> Any:
         """Determine appropriate torch dtype based on configuration."""
@@ -137,26 +132,19 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         """Get correct FP16 dtype based on hardware support."""
         return torch.bfloat16 if bfloat16_is_supported() else torch.float16
 
-    #TODO: should we just ditch self._auto_model_cls for getting model and just pass self.model_id to pipeline instead?
-    def _load_tokenizer_and_model(self) -> Tuple[AutoTokenizer, AutoModel]:
+    def _setup_tokenizer_and_model_kwargs(self) -> Tuple[AutoTokenizer, AutoModel]:
         """Load and configure tokenizer and model."""
         if self.transformers__quantization_bits and self.transformers__device in ["cpu", "mps"]:
             raise QuantizationNotSupportedError("Quantization not supported on CPU or MPS.")
 
         quantization_config = self._get_quantization_config()
-        model_kwargs = self._prepare_model_kwargs(quantization_config)
+        self.model_kwargs = self._prepare_model_kwargs(quantization_config)
 
-        tokenizer = AutoTokenizer.from_pretrained(self.model_id, **self.tokenizer_kwargs)
+        self.tokenizer = None
         try:
-            model = self._auto_model_cls.from_pretrained(self.model_id, **model_kwargs)
-        except ValueError as e:
-            if "does not support `device_map='auto'" in str(e):
-                model_kwargs["device_map"] = self._device_map = None
-                model = self._auto_model_cls.from_pretrained(self.model_id, **model_kwargs)
-            else:
-                raise
-
-        return tokenizer, model
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, **self.tokenizer_kwargs)
+        except Exception:
+            logger.error(f"Failed to load tokenizer for model {self.model_id}: {traceback.format_exc()}")
 
     def _flash_attention_is_available(self) -> bool:
         """Check if flash attention is available."""
@@ -184,8 +172,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
     def _prepare_model_kwargs(self, quantization_config: Optional[BitsAndBytesConfig]) -> Dict[str, Any]:
         """Prepare model initialization kwargs."""
         kwargs = {
-            "device_map": self._device_map,
-            "trust_remote_code": True,
             "torch_dtype": self._torch_dtype,
             "quantization_config": quantization_config,
             "_attn_implementation": "flash" if self._flash_attention_is_available() else "eager",
@@ -195,24 +181,13 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
     def _setup_pipeline(self) -> Pipeline:
         """Set up the generation pipeline."""
-
-        def create_pipeline(model: Union[str, AutoModel], **kwargs) -> Pipeline:
-            """Helper function to create the pipeline."""
-            return pipeline(
-                task=self.task,
-                model=model,
-                tokenizer=self.tokenizer,
-                device_map=self._device_map,
-                **kwargs,
-            )
-
-        try:
-            return create_pipeline(self.model)
-        except Exception as e:
-            if "Impossible to guess which" in str(e):
-                # pass device here, as normally it was passed to AutoModel
-                return create_pipeline(self.model_id)
-            raise
+        return pipeline(
+            task=self.task,
+            model=self.model_id,
+            tokenizer=self.tokenizer,
+            device=self.transformers__device,
+            model_kwargs=self.model_kwargs,
+        )
 
     def _setup_streamer(self) -> TextIteratorStreamer:
         """Set up text streaming if enabled."""
