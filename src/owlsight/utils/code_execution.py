@@ -194,7 +194,7 @@ class CodeExecutor:
             except EOFError:
                 # Handle Ctrl+D
                 break
-        print("Exiting interactive console and returning to the script.")
+        print("Exiting interactive python console.")
 
     def pip_install(self, modules: str) -> bool:
         """Install Python modules using pip."""
