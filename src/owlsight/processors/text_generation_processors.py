@@ -12,7 +12,6 @@ from transformers import (
     TextIteratorStreamer,
     AutoTokenizer,
     AutoModel,
-    AutoModelForCausalLM,
     PreTrainedTokenizer,
     pipeline,
     Pipeline,
@@ -28,7 +27,7 @@ from owlsight.utils.threads import ThreadNotKilledError
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.deep_learning import get_best_device, bfloat16_is_supported
-from owlsight.hugging_face.constants import TASK_TO_AUTO_MODEL, SUPPORTED_TASKS
+from owlsight.hugging_face.constants import SUPPORTED_TASKS
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
 
@@ -112,7 +111,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         # Set device and dtype configuration
         self._torch_dtype = self._determine_torch_dtype()
-        self._auto_model_cls: AutoModel = TASK_TO_AUTO_MODEL.get(self.task, AutoModelForCausalLM)
 
         # Initialize model components
         self._setup_tokenizer_and_model_kwargs()
