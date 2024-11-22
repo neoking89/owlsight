@@ -1,5 +1,5 @@
-from abc import ABC
-from typing import Any, Dict, Generator, List, Optional
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
 
 from transformers import PreTrainedTokenizer
 
@@ -7,6 +7,8 @@ from owlsight.utils.logger import logger
 
 
 class TextGenerationProcessor(ABC):
+    """Abstract base class for text generation processors implementing basic generation."""
+
     def __init__(
         self,
         model_id: str,
@@ -14,15 +16,17 @@ class TextGenerationProcessor(ABC):
         system_prompt: str,
     ):
         """
-        Abstract class for text generation processors.
+        Initialize the text generation processor.
 
         Parameters
         ----------
-        model_id: str
+        model_id : str
             The model ID to use for generation.
             Usually the name of the model or the path to the model.
         save_history : bool
             Whether or not to save the history of inputs and outputs.
+        system_prompt : str
+            The system prompt to use for generation.
         """
         if not model_id:
             raise ValueError("Model ID cannot be empty.")
@@ -40,6 +44,18 @@ class TextGenerationProcessor(ABC):
         """
         Apply chat template to the input text.
         This is used to format the input text before generating a response and should be universal across all models.
+
+        Parameters
+        ----------
+        input_data : str
+            The input text to apply the template to.
+        tokenizer : PreTrainedTokenizer
+            The tokenizer to use for applying the template.
+
+        Returns
+        -------
+        str
+            The formatted text with the chat template applied.
         """
         if tokenizer.chat_template is not None:
             messages = self.get_history()
@@ -51,31 +67,43 @@ class TextGenerationProcessor(ABC):
 
         return templated_text
 
-    def update_history(self, input_data: str, generated_text: str):
-        """Update the history with the input and generated text."""
+    def update_history(self, input_data: str, generated_text: str) -> None:
+        """
+        Update the history with the input and generated text.
+
+        Parameters
+        ----------
+        input_data : str
+            The input text that was provided.
+        generated_text : str
+            The text that was generated in response.
+        """
         if self.save_history:
             self.history.append({"role": "user", "content": input_data})
             self.history.append({"role": "assistant", "content": generated_text.strip()})
 
     def get_history(self) -> List[Dict[str, str]]:
-        """Get complete chathistory of inputs and outputs and system prompt."""
+        """
+        Get complete chat history of inputs and outputs and system prompt.
+
+        Returns
+        -------
+        List[Dict[str, str]]
+            The chat history including system prompt if present.
+        """
         messages = self.history.copy()
         if self.system_prompt:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
-
         return messages
 
+    @abstractmethod
     def generate(
         self,
         input_data: str,
         max_new_tokens: int,
         temperature: float,
-        stopwords: Optional[List[str]],
-        generation_kwargs: Optional[Dict[str, Any]],
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> str:
+        """Generate text based on input data."""
         raise NotImplementedError("generate method must be implemented in the subclass.")
-
-    def generate_stream(
-        self, input_data: str, max_new_tokens: int, temperature: float, generation_kwargs: Optional[Dict[str, Any]]
-    ) -> Generator[str, None, None]:
-        raise NotImplementedError("generate_stream method must be implemented in the subclass.")
