@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any, Union, Iterator, Tuple
+from typing import Optional, Dict, Any, Union, Iterator, Tuple
 import traceback
 from pathlib import Path
 import io
@@ -122,7 +122,6 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
         self.task = task
         self.text_processor = TextGenerationProcessorTransformers(model_id=model_id, task=task, **kwargs)
         self.media_preprocessor = MediaPreprocessor(self.text_processor.task)
-
 
     def generate(
         self,
