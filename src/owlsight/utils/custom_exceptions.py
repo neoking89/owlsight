@@ -18,3 +18,4 @@ class QuantizationNotSupportedError(Exception):
 
 class InvalidGGUFFileError(Exception):
     """Exception raised when the GGUF file is invalid."""
+    
