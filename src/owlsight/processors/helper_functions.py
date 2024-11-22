@@ -1,5 +1,8 @@
-from typing import Optional, Union, Type
+from typing import Optional, Type
 import os
+import traceback
+
+from transformers.pipelines import get_task
 
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.processors.base import TextGenerationProcessor
@@ -9,15 +12,22 @@ from owlsight.processors.text_generation_processors import (
     TextGenerationProcessorOnnx,
     TextGenerationProcessorTransformers,
 )
+from owlsight.utils.logger import logger
 
 
 def _select_transformers_processor_type_on_task(
-    task: Optional[str],
-) -> Union[
-    Type["TextGenerationProcessorTransformers"],
-    Type["MultiModalProcessorTransformers"],
-]:
-    if task and task in HUGGINGFACE_MEDIA_TASKS:
+    model_id: str,
+    task: Optional[str] = None,
+) -> TextGenerationProcessor:
+    if not task:
+        try:
+            task = get_task(model_id)
+        except Exception as e:
+            logger.error(
+                f"Error while trying to infer the task for model {model_id}: {e}. Inferred TextGenerationProcessor might not be the correct one."
+            )
+
+    if task in HUGGINGFACE_MEDIA_TASKS:
         return MultiModalProcessorTransformers
 
     return TextGenerationProcessorTransformers
@@ -38,7 +48,7 @@ def select_processor_type(model_id: str, task: Optional[str] = None) -> Type["Te
         elif model_id.lower().endswith("gguf") or any(f.endswith("gguf") for f in os.listdir(model_id)):
             return TextGenerationProcessorGGUF
         else:
-            return _select_transformers_processor_type_on_task(task)
+            return _select_transformers_processor_type_on_task(model_id, task)
     else:
         # If model_id is not a directory, use the model_id string
         if model_id.lower().endswith("gguf"):
@@ -46,4 +56,4 @@ def select_processor_type(model_id: str, task: Optional[str] = None) -> Type["Te
         elif "onnx" in model_id.lower():
             return TextGenerationProcessorOnnx
         else:
-            return _select_transformers_processor_type_on_task(task)
+            return _select_transformers_processor_type_on_task(model_id, task)
