@@ -12,12 +12,16 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
-from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
 
+
+    
 from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, MAIN_MENU, get_prompt_cache
 from owlsight.utils.logger import logger
 
-
+try:
+    from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
+except:
+    NoConsoleScreenBufferError = Exception
 
 
 class HistoryCompleter(Completer):
