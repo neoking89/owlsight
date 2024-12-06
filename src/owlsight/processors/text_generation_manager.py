@@ -124,15 +124,18 @@ class TextGenerationManager:
                 if exc:
                     if select_model.lower().endswith("gguf"):
                         gguf_list = str(exc).split("Available Files:")[1].strip()
-                        gguf_list = [file for file in ast.literal_eval(gguf_list) if file.endswith("gguf")]
-                        gguf_menu = {
-                            "back": None,
-                            "Choose a GGUF model": gguf_list,
-                        }
-                        gguf__filename = get_user_choice(gguf_menu)
-                        if gguf__filename:
-                            self.config_manager.set("model.gguf__filename", gguf__filename)
-                            self.load_model_processor(reload=self.processor is not None)
+                        if gguf_list:
+                            gguf_list = [file for file in ast.literal_eval(gguf_list) if file.endswith("gguf")]
+                            gguf_menu = {
+                                "back": None,
+                                "Choose a GGUF model": gguf_list,
+                            }
+                            gguf__filename = get_user_choice(gguf_menu)
+                            if gguf__filename:
+                                self.config_manager.set("model.gguf__filename", gguf__filename)
+                                self.load_model_processor(reload=self.processor is not None)
+                        else:
+                            logger.warning("No gguf-list could be inferred")
             elif inner_key == "task":
                 task = self.config_manager.get("huggingface.task", DEFAULTS["huggingface"]["task"])
                 self.config_manager.set("huggingface.task", task)
