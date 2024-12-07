@@ -5,11 +5,13 @@ import pytest
 
 sys.path.append("src")
 from owlsight.utils.subprocess_utils import parse_globals_from_stdout
+from owlsight.utils.helper_functions import os_is_windows
 
 
 def test_parse_command_without_subprocess_run():
     # arrange
-    command = 'python -c "print(5)"'
+    python_executable = "python" if os_is_windows() else "python3"
+    command = f'{python_executable} -c "print(5)"'
     expected = "5\n"
 
     # act
@@ -21,7 +23,8 @@ def test_parse_command_without_subprocess_run():
 
 def test_parse_command_with_spaces_subprocess_run():
     # arrange
-    command = 'python -c "a = 5;print(a)"'
+    python_executable = "python" if os_is_windows() else "python3"
+    command = f'{python_executable} -c "a = 5;print(a)"'
     expected = "5\n"
 
     # act
