@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, List
 import traceback
 from pathlib import Path
 import io
@@ -129,6 +129,7 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
         self,
         input_data: str,
         media_objects: Dict[str, MediaObject],
+        stopwords: Optional[List[str]] = None,
         max_new_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -138,7 +139,7 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
             input_data=input_data,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
-            stopwords=None,
+            stopwords=stopwords,
             streaming=False,
             generation_kwargs=generation_kwargs,
             apply_chat_template=False,
@@ -169,6 +170,7 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
         try:
             response = self.text_processor.pipe(preprocessed_data, generate_kwargs=generate_kwargs)
             response = str(response)
+            print(response)
         except Exception as e:
             logger.error(f"Error generating text with media input: {traceback.format_exc()}")
             raise
