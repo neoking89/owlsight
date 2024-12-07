@@ -17,6 +17,7 @@ tmp*.py
 /logo
 /dist
 /build
+/data
 deploy.ps1
 build.bat
 .vscode/*
