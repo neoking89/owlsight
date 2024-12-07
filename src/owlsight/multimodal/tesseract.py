@@ -55,14 +55,17 @@ def download_and_install_tesseract():
 def find_tesseract_installation() -> str:
     """Find and return the path to the Tesseract executable."""
     tesseract_path = ""
-    if platform.system() == "Windows":
+    if os_is_windows():
         common_paths = [
             r"C:\Program Files\Tesseract-OCR\tesseract.exe",
             r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
         ]
-        for path in common_paths:
-            if os.path.exists(path):
-                return path
+    else:
+        common_paths = ["/usr/bin/tesseract", "/usr/local/bin/tesseract"]
+
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
     try:
         subprocess.run(
             ["tesseract", "--version"],
