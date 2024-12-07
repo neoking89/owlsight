@@ -55,19 +55,7 @@ class ConfigSchema:
                 "description": "Whether to save conversation history",
             },
             "system_prompt": {
-                "default": """
-# ROLE:
-You are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.
-
-# TASK:
-- Prioritize Python solutions when appropriate.
-- Present code in markdown format.
-- Clearly state when non-Python solutions are necessary.
-- Break down complex problems into manageable steps and think through the solution step-by-step.
-- Adhere to best coding practices, including error handling and consideration of edge cases.
-- Acknowledge any limitations in your solutions.
-- Always aim to provide the best solution to the user's problem, whether it involves Python or not.
-                """.strip(),
+                "default": "",
                 "choices": None,
                 "description": "System prompt defining model behavior",
             },
