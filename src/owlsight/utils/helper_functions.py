@@ -253,3 +253,112 @@ def flatten_dict(d, parent_key="", sep=".") -> dict:
         else:
             flattened[new_key] = v
     return flattened
+
+
+def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    """
+    Parse media syntax patterns [[type:path|option1=value1|...]] in text and evaluate any
+    Python expressions inside {{...}}. Returns the modified text and a dictionary of
+    media objects with their options.
+
+    Parameters
+    ----------
+    text : str
+        The input string containing media placeholders and optional Python expressions
+    var_dict : dict
+        A dictionary where keys correspond to variables used in Python expressions
+
+    Returns
+    -------
+    Tuple[str, Dict[str, Any]]
+        A tuple containing:
+        - The text with media placeholders replaced with unique identifiers
+        - A dictionary mapping identifiers to media objects with their options
+
+    Examples
+    --------
+    >>> var_dict = {"folder": "images", "filename": "cat.jpg"}
+    >>> text = "Analyze this: [[image:{{folder}}/{{filename}}|width=512]]"
+    >>> result, media_objects = parse_media_placeholders(text, var_dict)
+    >>> print(result)
+    'Analyze this: __MEDIA_0__'
+    >>> print(media_objects)
+    {
+        '__MEDIA_0__': {
+            'type': 'image',
+            'path': 'images/cat.jpg',
+            'options': {'width': '512'}
+        }
+    }
+    """
+
+    # First validate the input text for media syntax
+    def validate_media_syntax(text: str) -> None:
+        # Check for valid media types
+        invalid_types = re.findall(r"\[\[(\w+):", text)
+        valid_types = {"image", "audio", "video"}
+        for t in invalid_types:
+            if t not in valid_types:
+                raise ValueError(f"Invalid media type: {t}. Must be one of {valid_types}")
+
+        # Check for missing paths
+        if re.search(r"\[\[\w+:\s*(\||\]\])", text):
+            raise ValueError("Media path cannot be empty")
+
+        # Check for invalid option format
+        option_pattern = r"\|(?!\w+=)[^]|]*(?=[\]|])"
+        invalid_options = re.findall(option_pattern, text)
+        if invalid_options:
+            raise ValueError(f"Invalid option format: {invalid_options[0].strip()}. Must be key=value")
+
+    validate_media_syntax(text)
+
+    # Pattern to match media syntax with options
+    pattern = r"""\[\[
+        (?P<type>image|audio|video):  # Media type
+        (?P<path>[^\|\]]+)            # Path (anything until | or ])
+        (?:\|(?P<options>[^\]]+))?    # Optional options after |
+        \]\]"""
+
+    media_objects = {}
+    replacement_count = 0
+
+    def replace_match(match) -> str:
+        nonlocal replacement_count
+
+        media_type = match.group("type")
+        raw_path = match.group("path")
+        options_str = match.group("options") or ""
+
+        # Process the path first - evaluate any Python expressions
+        processed_path = replace_bracket_placeholders(raw_path, var_dict)
+
+        # Process options
+        options = {}
+        if options_str:
+            for option in options_str.split("|"):
+                if "=" in option:
+                    key, value = option.split("=", 1)
+                    # Evaluate Python expressions in option values and convert to string
+                    processed_value = str(replace_bracket_placeholders(value.strip(), var_dict))
+                    options[key.strip()] = processed_value
+
+        # Create unique identifier
+        identifier = f"__MEDIA_{replacement_count}__"
+        replacement_count += 1
+
+        # Store media object information
+        media_objects[identifier] = {"type": media_type, "path": processed_path, "options": options}
+
+        return identifier
+
+    # Use verbose flag for multiline regex pattern
+    regex = re.compile(pattern, re.VERBOSE)
+
+    # First replace media placeholders
+    processed_text = regex.sub(replace_match, text)
+
+    # Then evaluate any remaining Python expressions in the text
+    processed_text = replace_bracket_placeholders(processed_text, var_dict)
+
+    return processed_text, media_objects
