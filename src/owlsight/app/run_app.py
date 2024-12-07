@@ -12,7 +12,7 @@ from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedba
 from owlsight.utils.helper_functions import (
     force_delete,
     remove_temp_directories,
-    replace_bracket_placeholders,
+    parse_media_placeholders,
     os_is_windows,
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
@@ -173,8 +173,8 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
-    user_question = replace_bracket_placeholders(user_choice, code_executor.globals_dict)
-    # user_question = f"# QUESTION:\n{user_question}\n\n"
+    # Parse media placeholders in the user choice, if present. 
+    user_question, media_objects = parse_media_placeholders(user_choice, code_executor.globals_dict)
     rag_is_active = manager.get_config_key("rag.active", False)
     library_to_rag = manager.get_config_key("rag.target_library", "")
     if rag_is_active and library_to_rag:
@@ -191,7 +191,7 @@ Use this information to help generate a code snippet that answers the question.
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
         logger.info(f"Context added to the question with approx amount of {len(context.split())} words")
 
-    response = manager.generate(user_question)
+    response = manager.generate(user_question, media_objects=media_objects)
     execute_code_with_feedback(
         response=response,
         original_question=user_question,
