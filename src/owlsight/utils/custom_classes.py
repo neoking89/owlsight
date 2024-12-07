@@ -5,7 +5,8 @@ This software is released under the Apache License 2.0.
 
 import torch
 from transformers import StoppingCriteria, AutoTokenizer
-from typing import List
+from typing import List, Literal, Dict
+from dataclasses import dataclass
 
 
 class StopWordCriteria(StoppingCriteria):
@@ -131,3 +132,26 @@ class SingletonDict(dict):
         if cls._instance is None:
             cls._instance = super(SingletonDict, cls).__new__(cls, *args, **kwargs)
         return cls._instance
+
+
+MediaType = Literal["image", "audio", "video"]
+
+
+@dataclass
+class MediaObject:
+    """
+    Represents a media object with its type, path, and options.
+
+    Attributes
+    ----------
+    type : MediaType
+        The type of media (image, audio, or video)
+    path : str
+        The path to the media file
+    options : Dict[str, str]
+        Optional parameters for processing the media
+    """
+
+    type: MediaType
+    path: str
+    options: Dict[str, str]

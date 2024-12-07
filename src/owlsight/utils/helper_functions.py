@@ -12,6 +12,7 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 
 from owlsight.utils.logger import logger
+from owlsight.utils.custom_classes import MediaObject, MediaType
 
 
 def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
@@ -255,7 +256,7 @@ def flatten_dict(d, parent_key="", sep=".") -> dict:
     return flattened
 
 
-def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str, MediaObject]]:
     """
     Parse media syntax patterns [[type:path|option1=value1|...]] in text and evaluate any
     Python expressions inside {{...}}. Returns the modified text and a dictionary of
@@ -270,10 +271,10 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
 
     Returns
     -------
-    Tuple[str, Dict[str, Any]]
+    Tuple[str, MediaObjects]
         A tuple containing:
         - The text with media placeholders replaced with unique identifiers
-        - A dictionary mapping identifiers to media objects with their options
+        - A dictionary mapping identifiers to MediaObject instances
 
     Examples
     --------
@@ -284,15 +285,14 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
     'Analyze this: __MEDIA_0__'
     >>> print(media_objects)
     {
-        '__MEDIA_0__': {
-            'type': 'image',
-            'path': 'images/cat.jpg',
-            'options': {'width': '512'}
-        }
+        '__MEDIA_0__': MediaObject(
+            type='image',
+            path='images/cat.jpg',
+            options={'width': '512'}
+        )
     }
     """
 
-    # First validate the input text for media syntax
     def validate_media_syntax(text: str) -> None:
         # Check for valid media types
         invalid_types = re.findall(r"\[\[(\w+):", text)
@@ -313,20 +313,19 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
 
     validate_media_syntax(text)
 
-    # Pattern to match media syntax with options
     pattern = r"""\[\[
         (?P<type>image|audio|video):  # Media type
         (?P<path>[^\|\]]+)            # Path (anything until | or ])
         (?:\|(?P<options>[^\]]+))?    # Optional options after |
         \]\]"""
 
-    media_objects = {}
+    media_objects: Dict[str, MediaObject] = {}
     replacement_count = 0
 
     def replace_match(match) -> str:
         nonlocal replacement_count
 
-        media_type = match.group("type")
+        media_type: MediaType = match.group("type")  # type: ignore
         raw_path = match.group("path")
         options_str = match.group("options") or ""
 
@@ -334,7 +333,7 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
         processed_path = replace_bracket_placeholders(raw_path, var_dict)
 
         # Process options
-        options = {}
+        options: Dict[str, str] = {}
         if options_str:
             for option in options_str.split("|"):
                 if "=" in option:
@@ -347,8 +346,8 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
         identifier = f"__MEDIA_{replacement_count}__"
         replacement_count += 1
 
-        # Store media object information
-        media_objects[identifier] = {"type": media_type, "path": processed_path, "options": options}
+        # Store media object information using the MediaObject class
+        media_objects[identifier] = MediaObject(type=media_type, path=processed_path, options=options)
 
         return identifier
 

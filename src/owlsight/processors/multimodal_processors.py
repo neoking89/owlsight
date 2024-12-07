@@ -1,16 +1,18 @@
-from typing import Optional, Dict, Any, Union, Iterator, Tuple
+from typing import Optional, Dict, Any, Union
 import traceback
 from pathlib import Path
 import io
 import requests
 import numpy as np
 from PIL import Image
+import re
 
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 
 from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.text_generation_processors import TextGenerationProcessorTransformers
 from owlsight.processors.constants import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
+from owlsight.utils.custom_classes import MediaObject
 from owlsight.utils.logger import logger
 
 
@@ -125,39 +127,47 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
 
     def generate(
         self,
-        input_data: Union[
-            str, bytes, Path, Tuple[Union[str, bytes, Path], Optional[str]], Iterator[Union[str, bytes, Path]]
-        ],
+        input_data: str,
+        media_objects: Dict[str, MediaObject],
         max_new_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        stopwords=None,  # add stop_words for interface compatibility
     ) -> str:
-        # Unpack input_data if it contains input and question
-        if isinstance(input_data, (tuple, list)) and len(input_data) == 2:
-            input_data, question = input_data
-        else:
-            input_data, question = input_data, None
-
+        # First prepare the generation parameters
         input_data, generate_kwargs = self.text_processor.prepare_generation(
             input_data=input_data,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
-            stopwords=stopwords,
+            stopwords=None,
             streaming=False,
             generation_kwargs=generation_kwargs,
             apply_chat_template=False,
         )
         generate_kwargs.pop("eos_token_id", None)
 
-        if isinstance(input_data, list):
-            preprocessed = [self.media_preprocessor.preprocess_input(data, question) for data in input_data]
-        else:
-            preprocessed = self.media_preprocessor.preprocess_input(input_data, question)
+        # Extract any referenced media objects and their positions if in the input text
+        media_refs = re.finditer(r"__MEDIA_\d+__", input_data)
+
+        # For each media reference, preprocess the media and store question if present
+        preprocessed_data = []
+        for ref in media_refs:
+            media_id = ref.group()
+            media_object = media_objects[media_id]
+
+            # Get the question from the input text before the media reference
+            text_before = input_data[: ref.start()].strip()
+            question = text_before if text_before else None
+
+            # Preprocess the media file
+            preprocessed = self.media_preprocessor.preprocess_input(media_object.path, question)
+            preprocessed_data.append(preprocessed)
+
+        # If we have only one media object, unpack it
+        if len(preprocessed_data) == 1:
+            preprocessed_data = preprocessed_data[0]
 
         try:
-            response = self.text_processor.pipe(preprocessed, generate_kwargs=generate_kwargs)
-            print(response)
+            response = self.text_processor.pipe(preprocessed_data, generate_kwargs=generate_kwargs)
             response = str(response)
         except Exception as e:
             logger.error(f"Error generating text with media input: {traceback.format_exc()}")

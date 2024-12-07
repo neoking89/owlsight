@@ -1,7 +1,8 @@
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 import traceback
 import pkgutil
 import ast
+import inspect
 
 from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.helper_functions import (
@@ -32,11 +33,12 @@ class TextGenerationManager:
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
 
-    def generate(self, input_data: str):
+    def generate(self, input_data: str, media_objects: Optional[Dict[str, dict]] = None) -> str:
         """
         Generate text using the processor.
         """
         kwargs = self.config_manager.get("generate", {})
+        kwargs = self._add_media_objects_if_applicable(media_objects, kwargs)
         generated_text = self.processor.generate(input_data, **kwargs)
         return generated_text
 
@@ -110,7 +112,9 @@ class TextGenerationManager:
                 # set list of models from model_dict to select_model
                 self.config_manager.set("huggingface.select_model", list(model_dict.keys()))
             elif inner_key == "select_model":
-                select_model = self.config_manager.get("huggingface.select_model", DEFAULTS["huggingface"]["select_model"])
+                select_model = self.config_manager.get(
+                    "huggingface.select_model", DEFAULTS["huggingface"]["select_model"]
+                )
                 if not select_model:
                     logger.error("No model provided. Please set a model in the configuration.")
                     return
@@ -182,7 +186,7 @@ class TextGenerationManager:
 
         logger.info(f"Loading processor with new model_id: {model_id}")
         processor_type = select_processor_type(model_id, task=task)
-        
+
         try:
             if reload:
                 if self.processor is None:
@@ -232,3 +236,11 @@ class TextGenerationManager:
         Get the value of a key in the configuration.
         """
         return self.config_manager.get(key, default)
+
+    def _add_media_objects_if_applicable(self, media_objects, kwargs) -> Dict[str, Any]:
+        processor_generate = self.processor.generate
+        signature = inspect.signature(processor_generate)
+        if media_objects and "media_objects" in signature.parameters:
+            kwargs["media_objects"] = media_objects
+
+        return kwargs

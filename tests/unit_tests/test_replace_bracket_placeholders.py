@@ -8,7 +8,7 @@ sys.path.append("src")
 import pytest
 
 from owlsight.utils.helper_functions import replace_bracket_placeholders, parse_media_placeholders
-
+from owlsight.utils.custom_classes import MediaObject
 
 # Fixture for test data
 @pytest.fixture
@@ -141,17 +141,6 @@ def test_error_handling(test_id, input_string, expected_error):
         replace_bracket_placeholders(input_string, {})
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
-
-
-# Add to test_helper_functions.py
-
-import pytest
-from owlsight.utils.helper_functions import parse_media_placeholders
-
-
-# Basic media syntax
 @pytest.mark.parametrize(
     "test_id, input_string, var_dict, expected_text, expected_media",
     [
@@ -160,21 +149,21 @@ from owlsight.utils.helper_functions import parse_media_placeholders
             "[[image:photo.jpg]]",
             {},
             "__MEDIA_0__",
-            {"__MEDIA_0__": {"type": "image", "path": "photo.jpg", "options": {}}},
+            {"__MEDIA_0__": MediaObject(type="image", path="photo.jpg", options={})},
         ),
         (
             "basic_audio",
             "[[audio:recording.mp3]]",
             {},
             "__MEDIA_0__",
-            {"__MEDIA_0__": {"type": "audio", "path": "recording.mp3", "options": {}}},
+            {"__MEDIA_0__": MediaObject(type="audio", path="recording.mp3", options={})},
         ),
         (
             "basic_video",
             "[[video:clip.mp4]]",
             {},
             "__MEDIA_0__",
-            {"__MEDIA_0__": {"type": "video", "path": "clip.mp4", "options": {}}},
+            {"__MEDIA_0__": MediaObject(type="video", path="clip.mp4", options={})},
         ),
     ],
 )
@@ -182,7 +171,6 @@ def test_basic_media_syntax(test_id, input_string, var_dict, expected_text, expe
     result_text, result_media = parse_media_placeholders(input_string, var_dict)
     assert result_text == expected_text
     assert result_media == expected_media
-
 
 # Python expression integration
 @pytest.mark.parametrize(
@@ -193,14 +181,14 @@ def test_basic_media_syntax(test_id, input_string, var_dict, expected_text, expe
             "[[image:{{folder}}/{{filename}}]]",
             {"folder": "photos", "filename": "cat.jpg"},
             "__MEDIA_0__",
-            {"__MEDIA_0__": {"type": "image", "path": "photos/cat.jpg", "options": {}}},
+            {"__MEDIA_0__": MediaObject(type="image", path="photos/cat.jpg", options={})},
         ),
         (
             "python_expr_options",
             "[[image:{{folder}}/test.jpg|width={{size}}]]",
             {"folder": "images", "size": 512},
             "__MEDIA_0__",
-            {"__MEDIA_0__": {"type": "image", "path": "images/test.jpg", "options": {"width": "512"}}},
+            {"__MEDIA_0__": MediaObject(type="image", path="images/test.jpg", options={"width": "512"})},
         ),
     ],
 )
@@ -208,7 +196,6 @@ def test_python_expression_integration(test_id, input_string, var_dict, expected
     result_text, result_media = parse_media_placeholders(input_string, var_dict)
     assert result_text == expected_text
     assert result_media == expected_media
-
 
 # Multiple media objects and options
 @pytest.mark.parametrize(
@@ -220,8 +207,8 @@ def test_python_expression_integration(test_id, input_string, var_dict, expected
             {},
             "Compare __MEDIA_0__ with __MEDIA_1__",
             {
-                "__MEDIA_0__": {"type": "image", "path": "first.jpg", "options": {}},
-                "__MEDIA_1__": {"type": "image", "path": "second.jpg", "options": {}},
+                "__MEDIA_0__": MediaObject(type="image", path="first.jpg", options={}),
+                "__MEDIA_1__": MediaObject(type="image", path="second.jpg", options={}),
             },
         ),
         (
@@ -230,11 +217,11 @@ def test_python_expression_integration(test_id, input_string, var_dict, expected
             {},
             "__MEDIA_0__",
             {
-                "__MEDIA_0__": {
-                    "type": "image",
-                    "path": "photo.jpg",
-                    "options": {"width": "512", "height": "512", "pipeline": "depth-estimation"},
-                }
+                "__MEDIA_0__": MediaObject(
+                    type="image",
+                    path="photo.jpg",
+                    options={"width": "512", "height": "512", "pipeline": "depth-estimation"},
+                )
             },
         ),
     ],
@@ -243,7 +230,6 @@ def test_multiple_media_and_options(test_id, input_string, var_dict, expected_te
     result_text, result_media = parse_media_placeholders(input_string, var_dict)
     assert result_text == expected_text
     assert result_media == expected_media
-
 
 # Mixed content
 @pytest.mark.parametrize(
@@ -254,7 +240,7 @@ def test_multiple_media_and_options(test_id, input_string, var_dict, expected_te
             "The value is {{2 + 2}} and here's an [[image:test.jpg]]",
             {},
             "The value is 4 and here's an __MEDIA_0__",
-            {"__MEDIA_0__": {"type": "image", "path": "test.jpg", "options": {}}},
+            {"__MEDIA_0__": MediaObject(type="image", path="test.jpg", options={})},
         ),
         (
             "mixed_complex",
@@ -264,8 +250,8 @@ def test_multiple_media_and_options(test_id, input_string, var_dict, expected_te
             """Process this __MEDIA_0__ 
             with value 6 and __MEDIA_1__""",
             {
-                "__MEDIA_0__": {"type": "image", "path": "imgs/test.jpg", "options": {"width": "256"}},
-                "__MEDIA_1__": {"type": "audio", "path": "recording.mp3", "options": {"language": "en"}},
+                "__MEDIA_0__": MediaObject(type="image", path="imgs/test.jpg", options={"width": "256"}),
+                "__MEDIA_1__": MediaObject(type="audio", path="recording.mp3", options={"language": "en"}),
             },
         ),
     ],
@@ -275,17 +261,14 @@ def test_mixed_content(test_id, input_string, var_dict, expected_text, expected_
     assert result_text == expected_text
     assert result_media == expected_media
 
-
 # Error handling
 def test_invalid_media_type():
     with pytest.raises(ValueError):
         parse_media_placeholders("[[invalid:test.jpg]]", {})
 
-
 def test_missing_path():
     with pytest.raises(ValueError):
         parse_media_placeholders("[[image:]]", {})
-
 
 def test_invalid_option_format():
     with pytest.raises(ValueError):
