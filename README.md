@@ -114,7 +114,7 @@ The following available commands are available from the mainmenu:
 
 ### Example Workflow
 
-You can combine Python variables with language models in Owlsight. For example:
+You can combine Python variables with language models in Owlsight through special double curly-brackets. For example:
 
 ```
 python > a = 42
@@ -143,7 +143,7 @@ python > excel_data = read_excel("path/to/excel")
 
 ## MultiModal Support
 
-In Owlsight 2, models are supported that require additional input,like images, audio, or video. In the backend, this is done through the **MultiModalProcessorTransformers** class. In the CLI, this is done by setting the *model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. For convenience, it is recommended to select a model through the new Huggingface API in the configuration-settings (read below for more information).
+In Owlsight 2, models are supported that require additional input, like images, audio, or video. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. In the CLI, this can be done by setting the *model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. For convenience, it is recommended to select a model through the new Huggingface API in the configuration-settings (read below for more information).
 
 The following tasks are supported:
 
@@ -152,17 +152,17 @@ The following tasks are supported:
 - visual-question-answering
 - document-question-answering
 
-These models require additional input, which can be passed in the prompt. The syntax for passing mediatypes is as follows:
+These models require additional input, which can be passed in the prompt. The syntax for passing mediatypes done through special double-square brackets syntax, like so:
 
 ```
-{{mediatype:path/to/file}}
+[[mediatype:path/to/file]]
 ```
 
 The supported mediatypes are: *image*, *audio*, *video*.
 For example, to pass an image to a document-question-answering model, you can use the following syntax:
 
 ```
-What is the first sentence? {{image:path/to/image.jpg}}
+What is the first sentence? [[image:path/to/image.jpg]]
 ```
 
 ## Python interpreter
