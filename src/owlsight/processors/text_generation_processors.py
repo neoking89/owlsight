@@ -180,15 +180,28 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         return kwargs
 
     def _setup_pipeline(self) -> Pipeline:
-        """Set up the generation pipeline."""
-        return pipeline(
-            task=self.task,
-            model=self.model_id,
-            tokenizer=self.tokenizer,
-            device=self.transformers__device,
-            trust_remote_code=True,
-            model_kwargs=self.model_kwargs,
-        )
+        """Set up the generation pipeline using EAFP pattern.
+        
+        Attempts to create pipeline with device specification first.
+        If that fails due to Accelerate, creates pipeline without device parameter.
+        """
+        pipeline_kwargs = {
+            "task": self.task,
+            "model": self.model_id,
+            "tokenizer": self.tokenizer,
+            "trust_remote_code": True,
+            "model_kwargs": self.model_kwargs,
+            "device": self.transformers__device  # Try with device first
+        }
+        
+        try:
+            return pipeline(**pipeline_kwargs)
+        except ValueError as e:
+            if "model has been loaded with `accelerate`" in str(e):
+                # Remove device parameter and retry if using accelerate
+                del pipeline_kwargs["device"]
+                return pipeline(**pipeline_kwargs)
+            raise  # Re-raise if it's a different ValueError
 
     def _setup_streamer(self) -> TextIteratorStreamer:
         """Set up text streaming if enabled."""
