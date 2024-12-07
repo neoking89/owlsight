@@ -2,7 +2,6 @@ from typing import Any, Optional, Dict
 import traceback
 import pkgutil
 import ast
-import inspect
 
 from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.helper_functions import (
@@ -12,16 +11,16 @@ from owlsight.ui.console import get_user_choice
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.rag.python_lib_search import search_python_libs
 from owlsight.hugging_face.core import show_and_return_model_data
+from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
 from owlsight.utils.constants import get_pickle_cache, DEFAULTS
 from owlsight.utils.logger import logger
 
-
 class TextGenerationManager:
     def __init__(self, config_manager: ConfigManager):
         """
-        Manage the lifecycle of a TextGenerationProcessor and its interaction with the configuration.
+        Manage the lifecycle of a TextGenerationProcessor and its interaction with the configuration during runtime of the CLI app.
 
         Parameters
         ----------
@@ -37,9 +36,24 @@ class TextGenerationManager:
         """
         Generate text using the processor.
         """
+        task = self.config_manager.get("huggingface.task")
         kwargs = self.config_manager.get("generate", {})
-        kwargs = self._add_media_objects_if_applicable(media_objects, kwargs)
-        generated_text = self.processor.generate(input_data, **kwargs)
+        if media_objects or task in HUGGINGFACE_MEDIA_TASKS:
+            generated_text = self.processor.generate(input_data, media_objects=media_objects, **kwargs)
+        else:
+            generated_text = self.processor.generate(input_data, **kwargs)
+        if task in HUGGINGFACE_MEDIA_TASKS:
+            try:
+                result = ast.literal_eval(generated_text)
+            except Exception:
+                logger.error(f"Error evaluating generated text: {traceback.format_exc()}")
+            if not result:
+                logger.warning(f"No text generated for media task '{task}'.")
+                logger.warning("Use the special [[]] syntax to pass media objects to the model.")
+                for mediatype in ["image", "audio", "video"]:
+                    logger.warning(f"For example: '[[{mediatype}:path/to/{mediatype}]]'")
+                logger.warning("Or for QA: 'What color is the car? [[image:path/to/image.jpg]]'")
+
         return generated_text
 
     def update_config(self, key: str, value: Any):
@@ -237,10 +251,10 @@ class TextGenerationManager:
         """
         return self.config_manager.get(key, default)
 
-    def _add_media_objects_if_applicable(self, media_objects, kwargs) -> Dict[str, Any]:
-        processor_generate = self.processor.generate
-        signature = inspect.signature(processor_generate)
-        if media_objects and "media_objects" in signature.parameters:
-            kwargs["media_objects"] = media_objects
+    # def _add_media_objects_if_applicable(self, media_objects, kwargs) -> Dict[str, Any]:
+    #     processor_generate = self.processor.generate
+    #     signature = inspect.signature(processor_generate)
+    #     if media_objects and "media_objects" in signature.parameters:
+    #         kwargs["media_objects"] = media_objects
 
-        return kwargs
+    #     return kwargs
