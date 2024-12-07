@@ -19,6 +19,8 @@ Generate code directly from model prompts and access this code directly from the
 - **Model Flexibility**: Supports models in **pytorch**, **ONNX**, and **GGUF** formats.
 - **Customizable Configuration**: Easily modify model and generation settings.
 - **Retrieval Augmented Generation (RAG)**: Enrich prompts with documentation from Python libraries.
+- **API Access**: Use Owlsight as a library in Python scripts.
+- **Multimodal Support**: Use models that require additional input like images, audio, or video.
 
 ## Installation
 
@@ -80,7 +82,7 @@ Then, a distinction needs to be made in Owlsight between 3 different, but very s
    Examples from the main menu are:
 
    - *python*: Enter the python interpreter.
-   - *clear history*: clear cache -and chathistory.
+   - *clear history*: clear cache -and chat history.
    - *quit*: exit the Owlsight application.
 2. **Toggle:** When standing on a toggle style option, press the LEFT and RIGHT arrow keys to toggle between different "multiple choice "options.
    Examples from the main menu are:
@@ -94,7 +96,7 @@ Then, a distinction needs to be made in Owlsight between 3 different, but very s
    - *how can I assist you?* : Given a model has been loaded by providing a valid *model_id*  in *config:model*,  type a question or instruction and press ENTER to get a response from the model.
    - *shell:* Interactive shell session. Type in a command and press ENTER.
    - *save*: Provide a valid path to save the current configurations as json. Then press ENTER. This is incredibly useful, as it allows later reuse of the current model with all its respective settings.
-   - *load:* Provide a valid path to load configurations from an earlier saved json. Then press ENTER. If on windows, you can directly press ENTER without specifying a path to open up a filedialog window for convenience.
+   - *load:* Provide a valid path to load configurations from an earlier saved json. Then press ENTER. If on windows, you can directly press ENTER without specifying a path to open up a file dialog window for convenience.
 
 Start to use the application by loading a model. Go to **config > model** and set a *model_id* to load a model locally or from *[https://huggingface.co/]()*
 
@@ -106,8 +108,8 @@ The following available commands are available from the mainmenu:
 * **shell** : Execute shell commands. This can be useful for pip installing python libraries inside the application.
 * **python** : Enter a Python interpreter. Press exit() to return to the mainmenu.
 * **config: main** : Modify the *main*, *model* , *generate* or *rag* configuration settings.
-* **save/load** : Save or load a configurationfile.
-* **clear history** : Clear the chathistory and cache folder.
+* **save/load** : Save or load a configuration file.
+* **clear history** : Clear the chat history and cache folder.
 * **quit** : Exit the application.
 
 ### Example Workflow
@@ -130,13 +132,37 @@ From a model response, all generated python code will be extracted and can be ed
 Example:
 
 ```
-How can I assist you? > Can you write a function which reads an excelfile?
+How can I assist you? > Can you write a function which reads an Excel file?
 ```
 
 -> *model writes a function called read_excel*
 
 ```
 python > excel_data = read_excel("path/to/excel")
+```
+
+## MultiModal Support
+
+In Owlsight 2, models are supported that require additional input,like images, audio, or video. In the backend, this is done through the **MultiModalProcessorTransformers** class. In the CLI, this is done by setting the *model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. For convenience, it is recommended to select a model through the new Huggingface API in the configuration-settings (read below for more information).
+
+The following tasks are supported:
+
+- image-to-text
+- automatic-speech-recognition
+- visual-question-answering
+- document-question-answering
+
+These models require additional input, which can be passed in the prompt. The syntax for passing mediatypes is as follows:
+
+```
+{{mediatype:path/to/file}}
+```
+
+The supported mediatypes are: *image*, *audio*, *video*.
+For example, to pass an image to a document-question-answering model, you can use the following syntax:
+
+```
+What is the first sentence? {{image:path/to/image.jpg}}
 ```
 
 ## Python interpreter
@@ -160,11 +186,11 @@ These are:
 * **owl_write(file_path: str, content: str)**
   Write content to a text file.
 * **owl_history(to_string: bool = False)**
-  Get chathistory with current model.
+  Get chat history with current model.
 
 ## Configurations
 
-Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into four main sections: `main`, `model`,  `generate` and `rag`. Here's an overview of the key configuration options:
+Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into five main sections: `main`, `model`,  `generate`, `rag` and `huggingface`. Here's an overview of the key configuration options:
 
 ### Main Configuration
 
@@ -202,6 +228,13 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 - `top_k`: The number of search results to return.
 - `search_query`: The search query to use for RAG. When ENTER is pressed and `active` is true, the search results can be seen directly in the console.
 
+### Huggingface Configuration
+
+- `search`: The search query to use for searching models on the Huggingface model hub. Use a keyword like "Chinese" or "Python" and press ENTER to see the search results. Alternatively, you can also keep this empty and press ENTER.
+- `top_k`: The number of search results to return.
+- `select_model`: The model to select from the search results. Use the LEFT and RIGHT arrow keys to select a model and press ENTER to load it.
+- `task`: The task to use for searching models on the Huggingface model hub.
+
 Here's an example of what the default configuration looks like:
 
 ```json
@@ -209,16 +242,18 @@ Here's an example of what the default configuration looks like:
 {
     "main": {
         "max_retries_on_error": 3,
-	"prompt_retry_on_error": false,
+        "prompt_retry_on_error": false,
         "prompt_code_execution": true,
         "extra_index_url": ""
     },
     "model": {
         "model_id": "",
         "save_history": false,
-        "system_prompt": "# ROLE:\nYou are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.\n\n# TASK:\n- Prioritize Python solutions when appropriate.\n- Present code in markdown format.\n- Clearly state when non-Python solutions are necessary.\n- Break down complex problems into manageable steps and think through the solution step-by-step.\n- Adhere to best coding practices, including error handling and consideration of edge cases.\n- Acknowledge any limitations in your solutions.\n- Always aim to provide the best solution to the user's problem, whether it involves Python or not.",
+        "system_prompt": "",
         "transformers__device": null,
         "transformers__quantization_bits": null,
+        "transformers__stream": true,
+        "transformers__use_fp16": false,
         "gguf__filename": "",
         "gguf__verbose": false,
         "gguf__n_ctx": 512,
@@ -240,11 +275,17 @@ Here's an example of what the default configuration looks like:
         "target_library": "",
         "top_k": 3,
         "search_query": ""
+    },
+    "huggingface": {
+        "search": "",
+        "top_k": 5,
+        "select_model": "",
+        "task": null
     }
 }
 ```
 
-Configuration files can be saved and loaded through the main menu.
+Configuration files can be saved (`save`) and loaded (`load`) through the main menu.
 
 ### Changing configurations
 
@@ -264,7 +305,7 @@ Owlsight can also be used as a library in Python scripts. The main classes are t
 
 ```python
 from owlsight import TextGenerationProcessorGGUF
-# If you want to use another type of model, you can import the other classes: TextGenerationProcessorONNX, TextGenerationProcessorTransformers
+# If you want to use another type of text-generation model, you can import the other classes: TextGenerationProcessorONNX, TextGenerationProcessorTransformers
 
 processor = TextGenerationProcessorGGUF(
     model_id=r"path\to\Phi-3-mini-128k-instruct.Q5_K_S.gguf",
@@ -297,23 +338,26 @@ for token in processor.generate_stream(question):
 
 **1.3.0**
 
-- Add `owl_history` function to python interpeter for directly accessing model chathistory.
-- Improved validation when  loading a configurationfile.
+- Add `owl_history` function to python interpreter for directly accessing model chat history.
+- Improved validation when  loading a configuration file.
 - Added validation for retrying a codeblock from an error. This configuration is called `prompt_retry_on_error`
 
 **1.4.1**
 
-- improve RAG possibilities in the API, added **SentenceTransformerSearch**, **TFIDFSearch** and **HashingVectorizerSearch** as classes.
+- improve RAG capabilities in the API, added **SentenceTransformerSearch**, **TFIDFSearch** and **HashingVectorizerSearch** as classes.
 - Added **search_documents** to offer a general RAG solution for documents.
 - Added caching possibility to all RAG solutions in the API (*cache_dir* & *cache_dir_suffix*), where documents, embeddings etc. get pickled. This can save a big amount of time if amount of documents is large.
 
-**2.0.0beta**
+**2.0.1beta**
 
 *BREAKING CHANGES*
 
-- Added Huggingface API in the commandline interface. This allows the user to search and load models directly from the Huggingface modelhub and can be found through `config:huggingface`.
-- added `transformers__use_fp_16` and `transformers__stream` to `config:model` for using fp16 and streaming the model output in the transformers-based models.
+- Added Huggingface API in the configuration-settings of the CLI. This allows the user to search and load models directly from the Huggingface modelhub and can be found through `config:huggingface`.
+- added `transformers__use_fp16` and `transformers__stream` to `config:model` for using fp16 and streaming the model output in the transformers-based models.
 - Added **MultiModalProcessorTransformers** for non text-input based models. This class can be used for models which require additional input like images, audio or video and works with models from the Huggingace hub based on the Pytorch framework.
 - Introduced new syntax for passing mediatypes in the prompt.
 - Improved logging with clearer color coding and more detailed information.
 - System Prompt is now an empty string as default.
+- Several small bugfixes and improvements.
+
+**Disclaimer**: This version is still in beta and might contain bugs, especially on non-Windows systems. If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
