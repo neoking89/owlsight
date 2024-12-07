@@ -114,7 +114,7 @@ The following available commands are available from the mainmenu:
 
 ### Example Workflow
 
-You can combine Python variables with language models in Owlsight through special double curly-brackets. For example:
+You can combine Python variables with language models in Owlsight through special double curly-brackets syntax. For example:
 
 ```
 python > a = 42
