@@ -313,5 +313,7 @@ for token in processor.generate_stream(question):
 
 - Added Huggingface API in the commandline interface. This allows the user to search and load models directly from the Huggingface modelhub and can be found through `config:huggingface`.
 - added `transformers__use_fp_16` and `transformers__stream` to `config:model` for using fp16 and streaming the model output in the transformers-based models.
-- Added **MultiModalProcessorTransformers** for non text-input based models. This class can be used for models which require additional input like images, audio or video.
+- Added **MultiModalProcessorTransformers** for non text-input based models. This class can be used for models which require additional input like images, audio or video and works with models from the Huggingace hub based on the Pytorch framework.
+- Introduced new syntax for passing mediatypes in the prompt.
 - Improved logging with clearer color coding and more detailed information.
+- System Prompt is now an empty string as default.
