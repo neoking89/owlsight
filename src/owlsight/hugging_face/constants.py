@@ -1,5 +1,4 @@
 from transformers.pipelines import SUPPORTED_TASKS
-from transformers import QuestionAnsweringPipeline, DocumentQuestionAnsweringPipeline,  AutomaticSpeechRecognitionPipeline, VisualQuestionAnsweringPipeline, TranslationPipeline, SummarizationPipeline
 
 TASK_TO_AUTO_MODEL = {k: v["pt"][0] for k, v in SUPPORTED_TASKS.items()}
 
