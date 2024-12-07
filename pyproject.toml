@@ -76,6 +76,15 @@ all = [
     "onnxruntime-genai",
     "onnxruntime-genai-cuda",
     "sentence-transformers",
+    "pytesseract",
+    # Dev dependencies
+    "build",
+    "twine",
+    "pytest",
+    "pytest-asyncio<=0.24",
+    "ruff",
+    "black",
+    "pynput",
 ]
 
 [tool.pytest.ini_options]
