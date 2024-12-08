@@ -181,3 +181,10 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
     def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:
         processed = self.media_preprocessor.preprocess_input(input_data, question)
         return processed
+
+class MultiModalProcessorGGUF(TextGenerationProcessor):
+    pass
+
+
+class MultiModalProcessorOnnx(TextGenerationProcessor):
+    pass
