@@ -183,24 +183,50 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
             text_before = input_data[: ref.start()].strip()
             question = text_before if text_before else None
 
+            media_obj_iter = self._get_media_obj_iter(media_object)
             # Preprocess the media file
-            if os.path.isdir(media_object.path):
-                for file in os.listdir(media_object.path):
+            if media_obj_iter:
+                for media_obj in media_obj_iter:
                     try:
-                        media_obj = MediaObject(
-                            path=os.path.join(media_object.path, file),
-                            type=media_object.type,
-                            options=media_object.options,
-                        )
                         preprocessed = self.media_preprocessor.preprocess_input(media_obj.path, question)
                         preprocessed_data.append(preprocessed)
                     except Exception as e:
-                        logger.error(f"Error preprocessing media file {file}: {e}")
+                        logger.error(f"Error preprocessing MediaObject {media_obj}: {e}")
             else:
                 preprocessed = self.media_preprocessor.preprocess_input(media_object.path, question)
                 preprocessed_data.append(preprocessed)
 
         return preprocessed_data
+
+    def _get_media_obj_iter(self, media_object: MediaObject) -> List[MediaObject]:
+        """
+        Get an iterator of media objects if the path is a directory or list.
+        """
+        l = []
+        if isinstance(media_object.path, str) and os.path.isdir(media_object.path):
+            return [
+                MediaObject(
+                    type=media_object.type, path=os.path.join(media_object.path, file), options=media_object.options
+                )
+                for file in os.listdir(media_object.path)
+            ]
+
+        # If path is a list, treat each element in the list as a separate file path.
+        elif isinstance(media_object.path, list):
+            for file in media_object.path:
+                if not os.path.exists(file):
+                    logger.error(f"File not found: '{file}'. Did you provide the complete and correct path?")
+                    continue
+                try:
+                    media_obj = MediaObject(type=media_object.type, path=file, options=media_object.options)
+                    l.append(media_obj)
+                except Exception as e:
+                    logger.error(f"Error processing file {file} to a MediaObject: {e}")
+
+            if not l:
+                raise ValueError("No valid media files found in the list.")
+
+        return l
 
 
 class MultiModalProcessorGGUF(TextGenerationProcessor):
