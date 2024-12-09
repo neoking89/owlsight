@@ -44,14 +44,7 @@ class TextGenerationManager:
         kwargs = self.config_manager.get("generate", {})
 
         if media_objects or task in HUGGINGFACE_MEDIA_TASKS:
-            # if provided media object is a directory, handle it differently
-            first_media_object: Union[MediaObject, None] = next(iter(media_objects.values()), None)
-            if isinstance(first_media_object, MediaObject) and os.path.isdir(first_media_object.path):
-                generated_text = self._handle_dir_with_mediafiles(
-                    input_data, media_objects, generated_text, kwargs, first_media_object
-                )
-            else:
-                generated_text = self.processor.generate(input_data, media_objects=media_objects, **kwargs)
+            generated_text = self.processor.generate(input_data, media_objects=media_objects, **kwargs)
         else:
             generated_text = self.processor.generate(input_data, **kwargs)
         if task in HUGGINGFACE_MEDIA_TASKS:
@@ -262,36 +255,3 @@ class TextGenerationManager:
         Get the value of a key in the configuration.
         """
         return self.config_manager.get(key, default)
-
-    def _handle_dir_with_mediafiles(self, input_data, media_objects, generated_text, kwargs, first_media_object) -> str:
-        """
-        Handle the case where the media object is a directory with multiple files, where we assume each file is media-related.
-        """
-        generated_text = ""
-        files_in_dir = os.listdir(first_media_object.path)
-        logger.info(f"Generating text for all files in directory: {first_media_object.path}")
-        logger.info(f"Found files:\n{files_in_dir}")
-        for file in os.listdir(first_media_object.path):
-            try:
-                media_obj = MediaObject(
-                    path=os.path.join(first_media_object.path, file),
-                    type=first_media_object.type,
-                    options=first_media_object.options,
-                )
-                first_media_key = next(iter(media_objects.keys()), None)
-                _media_objects = {first_media_key: media_obj}
-
-                _generated_text = self.processor.generate(input_data, media_objects=_media_objects, **kwargs)
-                generated_text += f"{_generated_text}\n"
-            except Exception as e:
-                logger.error(f"Error generating text for file {file}: {e}")
-
-        return generated_text
-
-    # def _add_media_objects_if_applicable(self, media_objects, kwargs) -> Dict[str, Any]:
-    #     processor_generate = self.processor.generate
-    #     signature = inspect.signature(processor_generate)
-    #     if media_objects and "media_objects" in signature.parameters:
-    #         kwargs["media_objects"] = media_objects
-
-    #     return kwargs
