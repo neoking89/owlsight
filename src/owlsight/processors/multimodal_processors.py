@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any, Union, List
 import traceback
 from pathlib import Path
 import io
+import os
 import requests
 import numpy as np
 from PIL import Image
@@ -147,9 +148,32 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
         generate_kwargs.pop("eos_token_id", None)
 
         # Extract any referenced media objects and their positions if in the input text
+        # TODO: what if input_data is a list or directory?
         media_refs = re.finditer(r"__MEDIA_\d+__", input_data)
 
         # For each media reference, preprocess the media and store question if present
+        preprocessed_data = self._preprocess_media_objects(input_data, media_objects, media_refs)
+
+        # If we have only one media object, unpack it
+        if len(preprocessed_data) == 1:
+            preprocessed_data = preprocessed_data[0]
+
+        try:
+            response = self.text_processor.pipe_call(preprocessed_data, generate_kwargs=generate_kwargs)
+            response = str(response)
+            print(response)
+        except Exception:
+            logger.error(f"Error generating text with media input: {traceback.format_exc()}")
+            raise
+
+        self.update_history(str(input_data), response.strip())
+        return response
+
+    def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:
+        processed = self.media_preprocessor.preprocess_input(input_data, question)
+        return processed
+
+    def _preprocess_media_objects(self, input_data, media_objects, media_refs) -> List[Dict[str, Any]]:
         preprocessed_data = []
         for ref in media_refs:
             media_id = ref.group()
@@ -160,27 +184,24 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
             question = text_before if text_before else None
 
             # Preprocess the media file
-            preprocessed = self.media_preprocessor.preprocess_input(media_object.path, question)
-            preprocessed_data.append(preprocessed)
+            if os.path.isdir(media_object.path):
+                for file in os.listdir(media_object.path):
+                    try:
+                        media_obj = MediaObject(
+                            path=os.path.join(media_object.path, file),
+                            type=media_object.type,
+                            options=media_object.options,
+                        )
+                        preprocessed = self.media_preprocessor.preprocess_input(media_obj.path, question)
+                        preprocessed_data.append(preprocessed)
+                    except Exception as e:
+                        logger.error(f"Error preprocessing media file {file}: {e}")
+            else:
+                preprocessed = self.media_preprocessor.preprocess_input(media_object.path, question)
+                preprocessed_data.append(preprocessed)
 
-        # If we have only one media object, unpack it
-        if len(preprocessed_data) == 1:
-            preprocessed_data = preprocessed_data[0]
+        return preprocessed_data
 
-        try:
-            response = self.text_processor.pipe(preprocessed_data, generate_kwargs=generate_kwargs)
-            response = str(response)
-            print(response)
-        except Exception as e:
-            logger.error(f"Error generating text with media input: {traceback.format_exc()}")
-            raise
-
-        self.update_history(str(input_data), response.strip())
-        return response
-
-    def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:
-        processed = self.media_preprocessor.preprocess_input(input_data, question)
-        return processed
 
 class MultiModalProcessorGGUF(TextGenerationProcessor):
     pass
