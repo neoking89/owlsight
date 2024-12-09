@@ -32,7 +32,7 @@ class ConfigSchema:
                 "description": "Maximum number of retries for error recovery",
             },
             "prompt_retry_on_error": {
-                "default": False,
+                "default": True,
                 "choices": [False, True],
                 "description": "Whether to prompt before retrying on error",
             },
