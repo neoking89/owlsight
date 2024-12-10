@@ -677,7 +677,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                             logger.error(file)
                     except (ValueError, SyntaxError):
                         logger.error("Could not parse available files list")
-                raise InvalidGGUFFileError() from exc
+                raise InvalidGGUFFileError(message=error_msg) from exc
 
     def generate(
         self,
