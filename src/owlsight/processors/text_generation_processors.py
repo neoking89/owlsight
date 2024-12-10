@@ -56,9 +56,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         transformers__quantization_bits: Optional[int] = None,
         transformers__stream: bool = True,
         transformers__use_fp16: bool = False,
+        transformers__model_kwargs: Optional[dict] = None,
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
-        model_kwargs: Optional[dict] = None,
         task: Optional[str] = None,
         save_history: bool = False,
         system_prompt: str = "",
@@ -81,12 +81,12 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         transformers__use_fp16 : bool
             Whether to use FP16 for the model. This will not work for cpu, as FP16 is not supported on CPU.
             Checks if bfloat16 is supported and will use this if available, else uses torch.float16.
+        transformers__model_kwargs : Optional[dict]
+            Additional keyword arguments for the model. Default is None.
         bnb_kwargs : Optional[dict]
             Additional keyword arguments for BitsAndBytesConfig. Default is None.
         tokenizer_kwargs : Optional[dict]
             Additional keyword arguments for the tokenizer. Default is None.
-        model_kwargs : Optional[dict]
-            Additional keyword arguments for the model. Default is None.
         task : Optional[str]
             The task to use for the pipeline. Default is None, where the task is set to "text-generation".
         save_history : bool
@@ -104,9 +104,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         self.transformers__stream = transformers__stream
         self.transformers__quantization_bits = transformers__quantization_bits
         self.transformers__use_fp16 = transformers__use_fp16
+        self.model_kwargs = transformers__model_kwargs or {}
         self.bnb_kwargs = bnb_kwargs or {}
         self.tokenizer_kwargs = tokenizer_kwargs or {}
-        self.model_kwargs = model_kwargs or {}
         self.task = task or DEFAULT_TASK
 
         # Set device and dtype configuration
@@ -305,7 +305,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             Any: Processed output from the pipeline.
         """
         # Handle a single string input directly
-        if isinstance(input_data, str):
+        if not isinstance(input_data, (list, tuple)):
             logger.debug("Processing single input with pipeline...")
             return self.pipe(input_data, **gen_kwargs)
 
@@ -313,7 +313,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         if not input_data:
             logger.debug("Received empty input list.")
             return []
-        
+
         data_len = 1 if not isinstance(input_data, (list, tuple)) else len(input_data)
 
         batch_size = None
@@ -423,7 +423,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         model_id: str,
         onnx__tokenizer: Union[str, PreTrainedTokenizer],
         onnx__verbose: bool = False,
-        onnx__num_threads: int = 1,
+        onnx__n_cpu_threads: int = 1,
         save_history: bool = False,
         system_prompt: str = None,
         **kwargs,
@@ -443,7 +443,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             This tokenizer allows universal use of chat templates.
         onnx__verbose : bool
             Whether to print verbose logs.
-        onnx__num_threads : int
+        onnx__n_cpu_threads : int
             Number of threads to use for generation.
         save_history : bool
             Set to True if you want model to generate responses based on previous inputs.
@@ -454,7 +454,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         super().__init__(model_id, save_history, system_prompt)
         self.onnx__verbose = onnx__verbose
-        self.onnx__num_threads = onnx__num_threads
+        self.onnx__n_cpu_threads = onnx__n_cpu_threads
 
         self._set_tokenizer(onnx__tokenizer)
         self._set_environment_variables()
@@ -595,11 +595,11 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
     def _set_environment_variables(self) -> None:
         os.environ.update(
             {
-                "OMP_NUM_THREADS": str(self.onnx__num_threads),
+                "OMP_NUM_THREADS": str(self.onnx__n_cpu_threads),
                 "OMP_WAIT_POLICY": "ACTIVE",
                 "OMP_SCHEDULE": "STATIC",
-                "ONNXRUNTIME_INTRA_OP_NUM_THREADS": str(self.onnx__num_threads),
-                "ONNXRUNTIME_INTER_OP_NUM_THREADS": "1",
+                "ONNXRUNTIME_INTRA_OP_NUM_THREADS": str(self.onnx__n_cpu_threads),
+                "ONNXRUNTIME_INTER_OP_NUM_THREADS": str(self.onnx__n_cpu_threads),
             }
         )
 
@@ -608,7 +608,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.model = og.Model(self.model_id)
         self.tokenizer = og.Tokenizer(self.model)
         self.tokenizer_stream = self.tokenizer.create_stream()
-        logger.info(f"Model loaded using {self.onnx__num_threads} threads")
+        logger.info(f"Model loaded using {self.onnx__n_cpu_threads} threads")
         logger.info("Tokenizer created")
 
     def _validate_model_tokenizer(self, model_id, onnx__tokenizer):
