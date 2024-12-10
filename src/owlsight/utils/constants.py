@@ -80,6 +80,11 @@ class ConfigSchema:
                 "choices": [False, True],
                 "description": "Whether to use FP16 for transformers model",
             },
+            "transformers__model_kwargs": {
+                "default": {},
+                "choices": None,
+                "description": "Additional model parameters for transformers model",
+            },
             # GGUF specific
             "gguf__filename": {"default": "", "choices": None, "description": "GGUF model filename"},
             "gguf__verbose": {
@@ -94,8 +99,8 @@ class ConfigSchema:
             },
             "gguf__n_gpu_layers": {
                 "default": 0,
-                "choices": [-1, 0, 1] + [(2**n) for n in range(1, 9)],
-                "description": "Number of GPU layers for GGUF model",
+                "choices": [-1, 0, 1] + [(2**n) for n in range(1, 11)],
+                "description": "Number of layers from model which are offloaded to the GPU",
             },
             "gguf__n_batch": {
                 "default": 512,
@@ -114,10 +119,10 @@ class ConfigSchema:
                 "choices": [False, True],
                 "description": "Verbose output for ONNX model",
             },
-            "onnx__num_threads": {
+            "onnx__n_cpu_threads": {
                 "default": 1,
                 "choices": list(range(1, os.cpu_count() + 1)),
-                "description": "Number of threads for ONNX model",
+                "description": "Number of CPU threads for ONNX model",
             },
         },
         "generate": {
