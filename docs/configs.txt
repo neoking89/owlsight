@@ -23,7 +23,7 @@ extra_index_url: An additional URL to use for package installation. This can be 
         "gguf__n_cpu_threads": 1,
         "onnx__tokenizer": "",
         "onnx__verbose": false,
-        "onnx__num_threads": 1
+        "onnx__n_cpu_threads": 1
     },
 
 model_id: The ID of the model to use. Can be either locally stored or on the Hugging Face model hub.
