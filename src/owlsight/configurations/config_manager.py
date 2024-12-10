@@ -89,6 +89,7 @@ class ConfigManager:
             "transformers__quantization_bits": self._get_toggle_choice("model", "transformers__quantization_bits"),
             "transformers__stream": self._get_toggle_choice("model", "transformers__stream"),
             "transformers__use_fp16": self._get_toggle_choice("model", "transformers__use_fp16"),
+            "transformers__model_kwargs": str(self._get_basic_choice("model", "transformers__model_kwargs")),
             "gguf__filename": self._get_basic_choice("model", "gguf__filename"),
             "gguf__verbose": self._get_toggle_choice("model", "gguf__verbose"),
             "gguf__n_ctx": self._get_toggle_choice("model", "gguf__n_ctx"),
@@ -97,7 +98,7 @@ class ConfigManager:
             "gguf__n_cpu_threads": self._get_toggle_choice("model", "gguf__n_cpu_threads"),
             "onnx__tokenizer": self._get_basic_choice("model", "onnx__tokenizer"),
             "onnx__verbose": self._get_toggle_choice("model", "onnx__verbose"),
-            "onnx__num_threads": self._get_basic_choice("model", "onnx__num_threads"),
+            "onnx__n_cpu_threads": self._get_toggle_choice("model", "onnx__n_cpu_threads"),
         }
 
     def _create_generate_choices(self) -> Dict[str, Any]:
