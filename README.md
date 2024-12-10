@@ -206,13 +206,18 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 - `system_prompt`: The prompt defining the model's behavior, role, and task.
 - `transformers__device`: The device to use for the transformers model.
 - `transformers__quantization_bits`: The number of bits for quantization of the transformers model.
+- `transformers__stream`: Whether to stream input to transformers model
+- `transformers__use_fp16`: Whether to use fp16 for the transformers model.
+- `transformers__model_kwargs`: Additional keyword arguments for the transformers model.
 - `gguf__filename`: The filename of the GGUF model (required for GGUF models).
 - `gguf__verbose`: Whether to print verbose output for the GGUF model.
+- `gguf__n_gpu_layers`: The number of model layers to offload to the GPU.
 - `gguf__n_batch`: Increase the batch size for a faster inference, but it may require more memory.
   `gguf__n_cpu_threads`:  Increase the number of CPU threads for a faster inference if multiple cpu cores are available.
 - `gguf__n_ctx`: The total context length for the GGUF model.
 - `onnx__tokenizer`: The tokenizer to use for the ONNX model (required for ONNX models).
 - `onnx__verbose`: Whether to print verbose output for the ONNX model.
+- `onnx__n_cpu_threads`: Increase the number of CPU threads for a faster inference if multiple cpu cores are available.
 
 ### Generate Configuration
 
@@ -239,6 +244,7 @@ Here's an example of what the default configuration looks like:
 
 ```json
 
+
 {
     "main": {
         "max_retries_on_error": 3,
@@ -254,6 +260,7 @@ Here's an example of what the default configuration looks like:
         "transformers__quantization_bits": null,
         "transformers__stream": true,
         "transformers__use_fp16": false,
+	"transformers__model_kwargs": {},
         "gguf__filename": "",
         "gguf__verbose": false,
         "gguf__n_ctx": 512,
@@ -262,7 +269,7 @@ Here's an example of what the default configuration looks like:
         "gguf__n_cpu_threads": 1,
         "onnx__tokenizer": "",
         "onnx__verbose": false,
-        "onnx__num_threads": 1
+        "onnx__n_cpu_threads": 1
     },
     "generate": {
         "stopwords": [],
