@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any, Union, List
 import traceback
 from pathlib import Path
 import io
+import os
 import requests
 import numpy as np
 from PIL import Image
@@ -147,31 +148,21 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
         generate_kwargs.pop("eos_token_id", None)
 
         # Extract any referenced media objects and their positions if in the input text
+        # TODO: what if input_data is a list or directory?
         media_refs = re.finditer(r"__MEDIA_\d+__", input_data)
 
         # For each media reference, preprocess the media and store question if present
-        preprocessed_data = []
-        for ref in media_refs:
-            media_id = ref.group()
-            media_object = media_objects[media_id]
-
-            # Get the question from the input text before the media reference
-            text_before = input_data[: ref.start()].strip()
-            question = text_before if text_before else None
-
-            # Preprocess the media file
-            preprocessed = self.media_preprocessor.preprocess_input(media_object.path, question)
-            preprocessed_data.append(preprocessed)
+        preprocessed_data = self._preprocess_media_objects(input_data, media_objects, media_refs)
 
         # If we have only one media object, unpack it
         if len(preprocessed_data) == 1:
             preprocessed_data = preprocessed_data[0]
 
         try:
-            response = self.text_processor.pipe(preprocessed_data, generate_kwargs=generate_kwargs)
+            response = self.text_processor.pipe_call(preprocessed_data, generate_kwargs=generate_kwargs)
             response = str(response)
             print(response)
-        except Exception as e:
+        except Exception:
             logger.error(f"Error generating text with media input: {traceback.format_exc()}")
             raise
 
@@ -181,3 +172,66 @@ class MultiModalProcessorTransformers(TextGenerationProcessor):
     def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:
         processed = self.media_preprocessor.preprocess_input(input_data, question)
         return processed
+
+    def _preprocess_media_objects(self, input_data, media_objects, media_refs) -> List[Dict[str, Any]]:
+        preprocessed_data = []
+        for ref in media_refs:
+            media_id = ref.group()
+            media_object = media_objects[media_id]
+
+            # Get the question from the input text before the media reference
+            text_before = input_data[: ref.start()].strip()
+            question = text_before if text_before else None
+
+            media_obj_iter = self._get_media_obj_iter(media_object)
+            # Preprocess the media file
+            if media_obj_iter:
+                for media_obj in media_obj_iter:
+                    try:
+                        preprocessed = self.media_preprocessor.preprocess_input(media_obj.path, question)
+                        preprocessed_data.append(preprocessed)
+                    except Exception as e:
+                        logger.error(f"Error preprocessing MediaObject {media_obj}: {e}")
+            else:
+                preprocessed = self.media_preprocessor.preprocess_input(media_object.path, question)
+                preprocessed_data.append(preprocessed)
+
+        return preprocessed_data
+
+    def _get_media_obj_iter(self, media_object: MediaObject) -> List[MediaObject]:
+        """
+        Get an iterator of media objects if the path is a directory or list.
+        """
+        l = []
+        if isinstance(media_object.path, str) and os.path.isdir(media_object.path):
+            return [
+                MediaObject(
+                    type=media_object.type, path=os.path.join(media_object.path, file), options=media_object.options
+                )
+                for file in os.listdir(media_object.path)
+            ]
+
+        # If path is a list, treat each element in the list as a separate file path.
+        elif isinstance(media_object.path, list):
+            for file in media_object.path:
+                if not os.path.exists(file):
+                    logger.error(f"File not found: '{file}'. Did you provide the complete and correct path?")
+                    continue
+                try:
+                    media_obj = MediaObject(type=media_object.type, path=file, options=media_object.options)
+                    l.append(media_obj)
+                except Exception as e:
+                    logger.error(f"Error processing file {file} to a MediaObject: {e}")
+
+            if not l:
+                raise ValueError("No valid media files found in the list.")
+
+        return l
+
+
+class MultiModalProcessorGGUF(TextGenerationProcessor):
+    pass
+
+
+class MultiModalProcessorOnnx(TextGenerationProcessor):
+    pass

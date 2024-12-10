@@ -296,7 +296,7 @@ def execute_code_with_feedback(
     original_question: str,
     code_executor: CodeExecutor,
     prompt_code_execution: bool = True,
-    prompt_retry_on_error: bool = False,
+    prompt_retry_on_error: bool = True,
 ) -> List[Dict]:
     """
     Extract code blocks from a response and execute them with feedback and retry logic.

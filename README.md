@@ -195,8 +195,8 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 ### Main Configuration
 
 - `max_retries_on_error`: The maximum number of retries to attempt when an error occurs during code execution (default: 3).
-- `prompt_retry_on_error`: Whether to prompt the user before executing code which comes from trying to fix an error (default: false)
-- `prompt_code_execution`: Whether to prompt the user before executing code (default: true).
+- `prompt_retry_on_error`: Whether to prompt the user before executing code which comes from trying to fix an error in the previous generated code (default: true). ***Use false with caution, as generated code might be executed without warning!***
+- `prompt_code_execution`: Whether to prompt the user before executing code from the modelresponse (default: true). ***Use false with caution, as generated code might be executed without warning!***
 - `extra_index_url`: An additional URL to use for package installation, useful for custom package indexes.
 
 ### Model Configuration

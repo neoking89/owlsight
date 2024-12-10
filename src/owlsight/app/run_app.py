@@ -63,7 +63,10 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
                 continue
 
             if manager.processor is None:
-                logger.error("Processor not set. Please load a model first by setting 'model.model_id' in the config!")
+                logger.error("Processor not set! Please load a model first by either:") 
+                logger.error("1: Setting 'model_id' in the 'config: model' section")
+                logger.error("2: Loading an existing configuration with the 'load' command")
+                logger.error("3: Search and select a model through the Huggingface model hub in the 'config: huggingface' section")
                 continue
             else:
                 process_user_question(user_choice, code_executor, manager)

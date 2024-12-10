@@ -1,4 +1,5 @@
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, Union
+import os
 import traceback
 import pkgutil
 import ast
@@ -16,6 +17,8 @@ from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory
 from owlsight.utils.constants import get_pickle_cache, DEFAULTS
 from owlsight.utils.logger import logger
+from owlsight.utils.custom_classes import MediaObject
+
 
 class TextGenerationManager:
     def __init__(self, config_manager: ConfigManager):
@@ -36,8 +39,10 @@ class TextGenerationManager:
         """
         Generate text using the processor.
         """
+        generated_text = ""
         task = self.config_manager.get("huggingface.task")
         kwargs = self.config_manager.get("generate", {})
+
         if media_objects or task in HUGGINGFACE_MEDIA_TASKS:
             generated_text = self.processor.generate(input_data, media_objects=media_objects, **kwargs)
         else:
@@ -249,11 +254,3 @@ class TextGenerationManager:
         Get the value of a key in the configuration.
         """
         return self.config_manager.get(key, default)
-
-    # def _add_media_objects_if_applicable(self, media_objects, kwargs) -> Dict[str, Any]:
-    #     processor_generate = self.processor.generate
-    #     signature = inspect.signature(processor_generate)
-    #     if media_objects and "media_objects" in signature.parameters:
-    #         kwargs["media_objects"] = media_objects
-
-    #     return kwargs

@@ -181,7 +181,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
     def _setup_pipeline(self) -> Pipeline:
         """Set up the generation pipeline using EAFP pattern.
-        
+
         Attempts to create pipeline with device specification first.
         If that fails due to Accelerate, creates pipeline without device parameter.
         """
@@ -191,9 +191,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             "tokenizer": self.tokenizer,
             "trust_remote_code": True,
             "model_kwargs": self.model_kwargs,
-            "device": self.transformers__device  # Try with device first
+            "device": self.transformers__device,  # Try with device first
         }
-        
+
         try:
             return pipeline(**pipeline_kwargs)
         except ValueError as e:
@@ -291,6 +291,52 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
         return input_data, gen_kwargs
 
+    def pipe_call(self, input_data: Union[str, List[str]], **gen_kwargs) -> Any:
+        """
+        Call the pipeline with input data and kwargs, supporting batch processing.
+
+        Parameters:
+        -----------
+            input_data (Union[str, List[str]]): Input text or a list of texts to process.
+            batch_size (Optional[int]): The size of the batches for pipeline processing.
+            **gen_kwargs: Additional keyword arguments passed to the pipeline.
+
+        Returns:
+            Any: Processed output from the pipeline.
+        """
+        # Handle a single string input directly
+        if isinstance(input_data, str):
+            logger.debug("Processing single input with pipeline...")
+            return self.pipe(input_data, **gen_kwargs)
+
+        # Handle empty list
+        if not input_data:
+            logger.debug("Received empty input list.")
+            return []
+        
+        data_len = 1 if not isinstance(input_data, (list, tuple)) else len(input_data)
+
+        batch_size = None
+        if isinstance(gen_kwargs, dict):
+            batch_size = next(iter(gen_kwargs.values()), {}).pop("batch_size", None)
+
+        # If batch_size is specified and valid, let pipeline handle batching by using a generator
+        if batch_size is not None and batch_size > 0:
+            logger.info(f"Processing {data_len} inputs in pipeline-managed batches of size {batch_size}...")
+
+            def data_generator():
+                yield from input_data
+
+            results = []
+            # Passing a generator to the pipeline with batch_size will make it process in batches internally
+            for out in self.pipe(data_generator(), batch_size=batch_size, **gen_kwargs):
+                results.append(out)
+            return results
+        else:
+            # No batch_size provided, process all at once
+            logger.info(f"Processing {data_len} inputs without explicit batching...")
+            return self.pipe(input_data, **gen_kwargs)
+
     def _generate_non_stream(
         self,
         input_data: str,
@@ -303,7 +349,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         templated_text, gen_kwargs = self.prepare_generation(
             input_data, max_new_tokens, temperature, stopwords, generation_kwargs
         )
-        output = self.pipe(templated_text, **gen_kwargs)
+        output = self.pipe_call(templated_text, **gen_kwargs)
         generated_text = output[0]["generated_text"][len(templated_text) :].strip()
         self.update_history(input_data, generated_text)
         return generated_text
@@ -363,7 +409,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
     ) -> None:
         """Run generation in a separate thread."""
         try:
-            self.pipe(templated_text, **gen_kwargs)
+            self.pipe_call(templated_text, **gen_kwargs)
         except Exception as e:
             self.streamer.error = e  # Store error in streamer
             self.streamer.end()
