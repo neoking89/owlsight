@@ -89,7 +89,7 @@ class TextGenerationManager:
                     setattr(self.processor, inner_key, value)
                     logger.info(f"Processor updated: {inner_key} = {value}")
                 else:
-                    logger.warning(f"'{inner_key}' not found in self.processor, meaning it was not updated")
+                    logger.warning(f"'{inner_key}' not found in self.processor, meaning it was not updated.")
                     logger.warning(
                         "It is possible that this value is only set during initialization of self.processor."
                     )
