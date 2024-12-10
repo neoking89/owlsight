@@ -18,4 +18,7 @@ class QuantizationNotSupportedError(Exception):
 
 class InvalidGGUFFileError(Exception):
     """Exception raised when the GGUF file is invalid."""
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(self.message)
     
