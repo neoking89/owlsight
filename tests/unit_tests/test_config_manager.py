@@ -193,5 +193,12 @@ def test_defaults_variable_should_not_be_modified(config_manager, defaults):
     assert defaults["main"]["max_retries_on_error"] != 5, "ConfigManager should not modify DEFAULTS"
 
 
+def test_config_choices_should_return_right_types(config_manager):
+    """Test that the ConfigManager returns the right types."""
+    type_choices = (list, str, type(None))
+    for section, choices in config_manager.config_choices.items():
+        for key, value in choices.items():
+            assert type(value) in type_choices, f"In key '{key}', Expected type {type_choices}, got {type(value)}"
+
 if __name__ == "__main__":
     pytest.main(["-vv", "-s", __file__])
