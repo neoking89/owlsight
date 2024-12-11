@@ -107,3 +107,7 @@ class TextGenerationProcessor(ABC):
     ) -> str:
         """Generate text based on input data."""
         raise NotImplementedError("generate method must be implemented in the subclass.")
+
+
+class MultiModalTextGenerationProcessor(TextGenerationProcessor):
+    """Abstract base class for multimodal text generation processors."""
