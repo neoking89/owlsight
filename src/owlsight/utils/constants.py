@@ -72,7 +72,7 @@ class ConfigSchema:
             },
             "transformers__quantization_bits": {
                 "default": None,
-                "choices": [None, 8, 4, 16],
+                "choices": [None, 4, 8, 16],
                 "description": "Quantization bits for transformers model",
             },
             "transformers__stream": {
