@@ -1,10 +1,14 @@
 import gc
 import subprocess
+import functools
+import threading
+import time
+
+import psutil
 import torch
 
+
 from owlsight.utils.logger import logger
-
-
 
 
 def free_memory():
@@ -17,12 +21,8 @@ def free_memory():
 
 def print_memory_stats(device: torch.device):
     """Print two different measures of GPU memory usage."""
-    print(
-        f"Max memory allocated: {torch.cuda.max_memory_allocated(device) / 1e9:.2f} GB"
-    )
-    print(
-        f"Max memory reserved: { torch.cuda.max_memory_reserved(device) / 1e9:.2f} GB"
-    )
+    print(f"Max memory allocated: {torch.cuda.max_memory_allocated(device) / 1e9:.2f} GB")
+    print(f"Max memory reserved: { torch.cuda.max_memory_reserved(device) / 1e9:.2f} GB")
 
 
 def calculate_model_size(model) -> float:
@@ -41,23 +41,17 @@ def check_gpu_and_cuda():
     if torch.cuda.is_available():
         gpu = torch.cuda.get_device_name(0)
         logger.info(f"GPU found: {gpu}")
-        logger.info(
-            "CUDA-capable GPU is available and PyTorch is built with CUDA support."
-        )
+        logger.info("CUDA-capable GPU is available and PyTorch is built with CUDA support.")
 
     cuda_version = None
     try:
         output_cuda = subprocess.check_output(["nvcc", "--version"]).decode("utf-8")
         cuda_version = output_cuda[
-            output_cuda.find("release")
-            + len("release")
-            + 1 : output_cuda.find(",", output_cuda.find("release"))
+            output_cuda.find("release") + len("release") + 1 : output_cuda.find(",", output_cuda.find("release"))
         ]
         logger.info("CUDA %s is installed.", cuda_version)
     except subprocess.CalledProcessError:
-        logger.warning(
-            "Warning: CUDA-capable GPU is available, but CUDA is not installed. Please install CUDA."
-        )
+        logger.warning("Warning: CUDA-capable GPU is available, but CUDA is not installed. Please install CUDA.")
     except Exception as e:
         logger.error("%s", e)
 
@@ -120,9 +114,7 @@ def calculate_available_vram() -> float:
     Calculate the available VRAM on the GPU in GB.
     """
     if torch.cuda.is_available():
-        available_memory = torch.cuda.get_device_properties(
-            0
-        ).total_memory - torch.cuda.memory_allocated(0)
+        available_memory = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)
         available_memory_gb = available_memory / 1024**3
         return available_memory_gb
     else:
@@ -140,12 +132,8 @@ def calculate_max_parameters_per_dtype():
         logger.info(f"Available VRAM: {available_vram:.2f} GB")
 
         for bits in [32, 16, 8, 4]:
-            max_params = available_vram / calculate_memory_for_model(
-                1, bits
-            )  # for 1 billion parameters
-            logger.info(
-                f"Maximum number of billion parameters for {bits}-bit model: {max_params:.2f} billion"
-            )
+            max_params = available_vram / calculate_memory_for_model(1, bits)  # for 1 billion parameters
+            logger.info(f"Maximum number of billion parameters for {bits}-bit model: {max_params:.2f} billion")
     else:
         logger.warning("No available VRAM to calculate parameters.")
 
@@ -160,3 +148,83 @@ def get_best_device() -> str:
         return "mps"
     else:
         return "cpu"
+
+
+def track_measure_usage(func, polling_time: float = 1.0):
+    """
+    Decorator to track and measure CPU and GPU usage during function execution.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            cpu_usages = []
+            gpu_usages = []
+
+            gpu_available = torch.cuda.is_available()
+            if gpu_available:
+                device = torch.device("cuda:0")
+                torch.cuda.init()
+                total_mem = torch.cuda.get_device_properties(device).total_memory
+
+            stop_event = threading.Event()
+
+            def monitor_usage():
+                while not stop_event.is_set():
+                    # CPU usage
+                    cpu_usage = psutil.cpu_percent(interval=None)
+
+                    # GPU usage (as memory usage %)
+                    if gpu_available:
+                        allocated_mem = torch.cuda.memory_allocated(device)
+                        gpu_mem_usage_percent = (allocated_mem / total_mem) * 100.0
+                    else:
+                        gpu_mem_usage_percent = 0.0
+
+                    cpu_usages.append(cpu_usage)
+                    gpu_usages.append(gpu_mem_usage_percent)
+
+                    time.sleep(polling_time)
+
+            # Start monitoring in a separate thread
+            monitor_thread = threading.Thread(target=monitor_usage, daemon=True)
+            monitor_thread.start()
+
+            total_time = 0
+            word_count = 0
+            mean_time_per_word = 0
+
+            try:
+                start_time = time.time()
+                result = func(*args, **kwargs)
+                total_time = time.time() - start_time
+
+                # Calculate words
+                word_count = len(result.split()) if isinstance(result, str) else 0
+                mean_time_per_word = total_time / word_count if word_count > 0 else 0
+
+            finally:
+                # Stop monitoring and wait for thread to finish
+                stop_event.set()
+                monitor_thread.join()
+
+                # Compute mean usage
+                mean_cpu = sum(cpu_usages) / len(cpu_usages) if cpu_usages else 0.0
+                mean_gpu = sum(gpu_usages) / len(gpu_usages) if gpu_usages else 0.0
+
+                stats = {
+                    "total_time": f"{total_time:.2f}s",
+                    "words": word_count,
+                    "mean_time_per_word": f"{mean_time_per_word * 1000:.2f}ms",
+                    "mean_cpu_usage": f"{mean_cpu:.2f}%",
+                    "mean_gpu_usage": f"{mean_gpu:.2f}%",
+                }
+
+                for key, value in stats.items():
+                    print(f"{key}: {value} |", end=" ")
+                print()
+
+            return result
+
+        return wrapper
+
+    return decorator
