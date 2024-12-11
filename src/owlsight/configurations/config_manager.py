@@ -89,7 +89,6 @@ class ConfigManager:
             "transformers__device": self._get_toggle_choice("model", "transformers__device"),
             "transformers__quantization_bits": self._get_toggle_choice("model", "transformers__quantization_bits"),
             "transformers__stream": self._get_toggle_choice("model", "transformers__stream"),
-            "transformers__use_fp16": self._get_toggle_choice("model", "transformers__use_fp16"),
             "transformers__model_kwargs": str(self._get_basic_choice("model", "transformers__model_kwargs")),
             "gguf__filename": self._get_basic_choice("model", "gguf__filename"),
             "gguf__verbose": self._get_toggle_choice("model", "gguf__verbose"),
