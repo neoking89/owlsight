@@ -72,18 +72,13 @@ class ConfigSchema:
             },
             "transformers__quantization_bits": {
                 "default": None,
-                "choices": [None, 8, 4],
+                "choices": [None, 8, 4, 16],
                 "description": "Quantization bits for transformers model",
             },
             "transformers__stream": {
                 "default": True,
                 "choices": [False, True],
                 "description": "Whether to stream input to transformers model",
-            },
-            "transformers__use_fp16": {
-                "default": False,
-                "choices": [False, True],
-                "description": "Whether to use FP16 for transformers model",
             },
             "transformers__model_kwargs": {
                 "default": {},
@@ -109,7 +104,7 @@ class ConfigSchema:
             },
             "gguf__n_batch": {
                 "default": 512,
-                "choices": [32 * (2**n) for n in range(11)],
+                "choices": [4 * (2**n) for n in range(13)],
                 "description": "Batch size for GGUF model",
             },
             "gguf__n_cpu_threads": {
