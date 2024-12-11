@@ -10,6 +10,8 @@ import torch
 
 from owlsight.utils.logger import logger
 
+CURRENT_RAM_PCT = psutil.virtual_memory().percent
+
 
 def free_memory():
     """Free up memory and reset stats."""
@@ -150,10 +152,11 @@ def get_best_device() -> str:
         return "cpu"
 
 
-def track_measure_usage(func, polling_time: float = 1.0):
+def track_measure_usage(func, polling_time: float = 0.5):
     """
     Decorator to track and measure CPU and GPU usage during function execution.
     """
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -176,7 +179,14 @@ def track_measure_usage(func, polling_time: float = 1.0):
                     # GPU usage (as memory usage %)
                     if gpu_available:
                         allocated_mem = torch.cuda.memory_allocated(device)
-                        gpu_mem_usage_percent = (allocated_mem / total_mem) * 100.0
+                        if total_mem > 0:
+                            gpu_mem_usage_percent = min((allocated_mem / total_mem) * 100.0, 100.0)
+                            if allocated_mem > total_mem:
+                                print(
+                                    f"Warning: Allocated memory ({allocated_mem} bytes) exceeds total memory ({total_mem} bytes)."
+                                )
+                        else:
+                            gpu_mem_usage_percent = 0.0
                     else:
                         gpu_mem_usage_percent = 0.0
 
@@ -222,6 +232,8 @@ def track_measure_usage(func, polling_time: float = 1.0):
                 for key, value in stats.items():
                     print(f"{key}: {value} |", end=" ")
                 print()
+                _current_ram_pct = psutil.virtual_memory().percent
+                print(f"RAM usage at start: {CURRENT_RAM_PCT:.2f} | RAM usage at end: {_current_ram_pct:.2f}%")
 
             return result
 
