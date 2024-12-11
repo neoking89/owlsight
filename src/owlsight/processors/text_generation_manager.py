@@ -4,7 +4,7 @@ import traceback
 import pkgutil
 import ast
 
-from owlsight.processors.base import TextGenerationProcessor
+from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
 from owlsight.processors.helper_functions import (
     select_processor_type,
 )
@@ -14,10 +14,9 @@ from owlsight.rag.python_lib_search import search_python_libs
 from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.utils.helper_functions import convert_to_real_type
-from owlsight.utils.deep_learning import free_memory
+from owlsight.utils.deep_learning import free_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache, DEFAULTS
 from owlsight.utils.logger import logger
-from owlsight.utils.custom_classes import MediaObject
 
 
 class TextGenerationManager:
@@ -27,13 +26,30 @@ class TextGenerationManager:
 
         Parameters
         ----------
-        processor : TextGenerationProcessor
-            An instance of the processor (either Transformers or Onnx).
         config_manager : ConfigManager
             Configuration dictionary to manage settings for the processor.
         """
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
+        self._original_generate_method = None
+
+    def _wrap_with_usage_tracking(self):
+        """Wrap the processor's generate method with the track_measure_usage decorator."""
+        if not self._original_generate_method:
+            # Save the original method
+            self._original_generate_method = self.processor.generate
+
+        if not getattr(self.processor.generate, "_is_tracked", False):
+            # Wrap the method if not already wrapped
+            self.processor.generate = track_measure_usage(self._original_generate_method, polling_time=0.5)(
+                self._original_generate_method
+            )
+            self.processor.generate._is_tracked = True
+
+    def _restore_original_method(self):
+        """Restore the processor's original generate method if it was modified."""
+        if self._original_generate_method:
+            self.processor.generate = self._original_generate_method
 
     def generate(self, input_data: str, media_objects: Optional[Dict[str, dict]] = None) -> str:
         """
@@ -43,10 +59,25 @@ class TextGenerationManager:
         task = self.config_manager.get("huggingface.task")
         kwargs = self.config_manager.get("generate", {})
 
+        track_usage = self.config_manager.get("main.track_usage", False)
+        if track_usage:
+            logger.info("Tracking memory usage during generation.")
+            self._wrap_with_usage_tracking()
+        else:
+            self._restore_original_method()
+
         if media_objects or task in HUGGINGFACE_MEDIA_TASKS:
+            if not isinstance(self.processor, MultiModalTextGenerationProcessor):
+                logger.error("Processor is not a MultiModalTextGenerationProcessor, but media objects were provided.")
+                logger.error(
+                    f"Please select a model that supports multimodal generation through one of the following tasks: {HUGGINGFACE_MEDIA_TASKS}"
+                )
+                return generated_text
+
             generated_text = self.processor.generate(input_data, media_objects=media_objects, **kwargs)
         else:
             generated_text = self.processor.generate(input_data, **kwargs)
+
         if task in HUGGINGFACE_MEDIA_TASKS:
             try:
                 result = ast.literal_eval(generated_text)
