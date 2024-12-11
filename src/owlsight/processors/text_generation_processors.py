@@ -55,7 +55,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         transformers__device: Optional[str] = None,
         transformers__quantization_bits: Optional[int] = None,
         transformers__stream: bool = True,
-        transformers__use_fp16: bool = False,
         transformers__model_kwargs: Optional[dict] = None,
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
@@ -78,9 +77,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             The number of quantization bits to use for the model. Default is None.
         transformers__stream : bool
             Whether to use streaming generation. Default is True.
-        transformers__use_fp16 : bool
-            Whether to use FP16 for the model. This will not work for cpu, as FP16 is not supported on CPU.
-            Checks if bfloat16 is supported and will use this if available, else uses torch.float16.
         transformers__model_kwargs : Optional[dict]
             Additional keyword arguments for the model. Default is None.
         bnb_kwargs : Optional[dict]
@@ -103,7 +99,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         self.transformers__device = transformers__device or get_best_device()
         self.transformers__stream = transformers__stream
         self.transformers__quantization_bits = transformers__quantization_bits
-        self.transformers__use_fp16 = transformers__use_fp16
         self.model_kwargs = transformers__model_kwargs or {}
         self.bnb_kwargs = bnb_kwargs or {}
         self.tokenizer_kwargs = tokenizer_kwargs or {}
@@ -119,7 +114,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
     def _determine_torch_dtype(self) -> Any:
         """Determine appropriate torch dtype based on configuration."""
-        if self.transformers__use_fp16:
+        if self.transformers__quantization_bits==16:
             if self.transformers__device == "cpu":
                 raise TypeError("FP16 is not supported on CPU.")
             return self._get_correct_fp16_dtype()
