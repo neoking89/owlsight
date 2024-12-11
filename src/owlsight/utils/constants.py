@@ -41,6 +41,11 @@ class ConfigSchema:
                 "choices": [False, True],
                 "description": "Whether to prompt before executing code",
             },
+            "track_usage": {
+                "default": False,
+                "choices": [False, True],
+                "description": "Show metrics, which tracks GPU/CPU usage and response time of model",
+            },
             "extra_index_url": {
                 "default": "",
                 "choices": None,
