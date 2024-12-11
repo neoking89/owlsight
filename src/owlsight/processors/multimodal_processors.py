@@ -10,7 +10,7 @@ import re
 
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 
-from owlsight.processors.base import TextGenerationProcessor
+from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
 from owlsight.processors.text_generation_processors import TextGenerationProcessorTransformers
 from owlsight.processors.constants import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from owlsight.utils.custom_classes import MediaObject
@@ -114,7 +114,7 @@ class MediaPreprocessor:
         return image
 
 
-class MultiModalProcessorTransformers(TextGenerationProcessor):
+class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
     def __init__(self, model_id: str, task: str, save_history: bool = False, system_prompt: str = "", **kwargs):
         if task not in HUGGINGFACE_MEDIA_TASKS:
             raise ValueError(
