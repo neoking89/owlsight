@@ -85,7 +85,7 @@ class TextGenerationManager:
                 logger.error(f"Error evaluating generated text: {traceback.format_exc()}")
             if not result:
                 logger.warning(f"No text generated for media task '{task}'.")
-                logger.warning("Use the special [[]] syntax to pass media objects to the model.")
+                logger.warning("Use double-square brackets '[[]]' syntax to pass media objects to the model.")
                 for mediatype in ["image", "audio", "video"]:
                     logger.warning(f"For example: '[[{mediatype}:path/to/{mediatype}]]'")
                 logger.warning("Or for QA: 'What color is the car? [[image:path/to/image.jpg]]'")
