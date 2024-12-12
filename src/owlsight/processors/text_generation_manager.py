@@ -1,12 +1,11 @@
-from typing import Any, Optional, Dict, Union
-import os
+from typing import Any, Optional, Dict
 import traceback
 import pkgutil
 import ast
 
 from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
 from owlsight.processors.helper_functions import (
-    select_processor_type,
+    select_processor_type, warn_processor_not_loaded
 )
 from owlsight.ui.console import get_user_choice
 from owlsight.configurations.config_manager import ConfigManager
@@ -112,9 +111,7 @@ class TextGenerationManager:
                 self.load_model_processor(reload=self.processor is not None)
             else:
                 if self.processor is None:
-                    logger.error(
-                        "Processor is not initialized yet. Assign a model_id first, to initialize a model for the processor."
-                    )
+                    warn_processor_not_loaded()
                     return
                 if hasattr(self.processor, inner_key):
                     setattr(self.processor, inner_key, value)
