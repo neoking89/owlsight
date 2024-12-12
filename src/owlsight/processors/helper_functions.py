@@ -15,6 +15,29 @@ from owlsight.processors.text_generation_processors import (
 from owlsight.utils.logger import logger
 
 
+class GGUF_Utils:
+    @staticmethod
+    def get_optimal_n_batch() -> int:
+        cpu_count = os.cpu_count()
+        if cpu_count <= 2:
+            return 1
+        if cpu_count <= 4:
+            return 2
+        if cpu_count <= 8:
+            return 4
+        if cpu_count <= 16:
+            return 8
+        return 16
+
+    @staticmethod
+    def get_optimal_n_threads() -> int:
+        return max(os.cpu_count() // 2, 1)
+
+    @staticmethod
+    def get_optimal_n_threads_batch() -> int:
+        return os.cpu_count()
+
+
 def _select_transformers_processor_type_on_task(
     model_id: str,
     task: Optional[str] = None,
@@ -63,4 +86,6 @@ def warn_processor_not_loaded() -> None:
     logger.warning("Processor is not initialized yet. Please load a model first by either:")
     logger.warning("1: Setting 'model_id' in the 'config: model' section")
     logger.warning("2: Loading an existing configuration with the 'load' command")
-    logger.warning("3: Search and select a model through the Huggingface model hub in the 'config: huggingface' section")
+    logger.warning(
+        "3: Search and select a model through the Huggingface model hub in the 'config: huggingface' section"
+    )
