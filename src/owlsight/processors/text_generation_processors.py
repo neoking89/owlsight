@@ -114,7 +114,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
     def _determine_torch_dtype(self) -> Any:
         """Determine appropriate torch dtype based on configuration."""
-        if self.transformers__quantization_bits==16:
+        if self.transformers__quantization_bits == 16:
             if self.transformers__device == "cpu":
                 raise TypeError("FP16 is not supported on CPU.")
             return self._get_correct_fp16_dtype()
@@ -331,6 +331,10 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             # No batch_size provided, process all at once
             logger.info(f"Processing {data_len} inputs without explicit batching...")
             return self.pipe(input_data, **gen_kwargs)
+
+    def get_max_context_length(self) -> Optional[int]:
+        if self.tokenizer:
+            return self.tokenizer.model_max_length
 
     def _generate_non_stream(
         self,
@@ -563,6 +567,10 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         self.update_history(input_data, generated_text.strip())
 
+    def get_max_context_length(self) -> Optional[int]:
+        if self.tokenizer:
+            return self.transformers_tokenizer.model_max_length
+
     def _prepare_generate(self, input_data, max_new_tokens, temperature, generation_kwargs):
         templated_text = self.apply_chat_template(input_data, self.transformers_tokenizer)
 
@@ -637,10 +645,10 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         model_id: str,
         gguf__filename: str = "",
         gguf__verbose: bool = False,
-        gguf__n_ctx: int = 512,
+        gguf__n_ctx: Optional[int] = None,
         gguf__n_gpu_layers: int = 0,
-        gguf__n_batch: int = 512,
-        gguf__n_cpu_threads: int = 1,
+        gguf__n_batch: Optional[int] = None,
+        gguf__n_cpu_threads: Optional[int] = None,
         save_history: bool = False,
         system_prompt: str = "",
         model_kwargs: Dict[str, Any] = None,
@@ -681,17 +689,23 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                               Please see https://github.com/abetlen/llama-cpp-python for more information."""
             )
 
+        n_batch = gguf__n_batch or self._get_optimal_n_batch()
+        n_cpu_threads = gguf__n_cpu_threads or self._get_optimal_n_threads()
+        n_ctx = gguf__n_ctx or 512
+
         _model_kwargs = {
             "verbose": gguf__verbose,
-            "n_ctx": gguf__n_ctx,
+            "n_ctx": n_ctx,
             "n_gpu_layers": gguf__n_gpu_layers,
-            "n_batch": gguf__n_batch,
-            "n_threads": gguf__n_cpu_threads,
+            "n_batch": n_batch,
+            "n_threads": n_cpu_threads,
+            "n_threads_batch": self._get_optimal_n_threads_batch(),
             **(model_kwargs or {}),
         }
 
         check_invalid_input_parameters(Llama.__init__, _model_kwargs)
 
+        # load model
         if os.path.exists(model_id):
             self.llm = Llama(
                 model_path=model_id,
@@ -776,6 +790,23 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
 
         self.update_history(input_data, generated_text.strip())
 
+    def get_max_context_length(self) -> Optional[int]:
+        max_length = self.llm.metadata.get("llama.context_length", None)
+        if max_length is not None:
+            return int(max_length)
+        return None
+
+    # override the original apply_chat_template method
+    def apply_chat_template(self, input_data: str) -> List[Dict[str, str]]:
+        messages = []
+        if self.save_history:
+            messages = self.history.copy()
+        messages.append({"role": "user", "content": input_data})
+        if self.system_prompt:
+            messages.insert(0, {"role": "system", "content": self.system_prompt})
+
+        return messages
+
     def _prepare_generate(self, input_data, max_new_tokens, temperature, stopwords, generation_kwargs):
         templated_text = self.apply_chat_template(input_data)
 
@@ -795,13 +826,20 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
 
         return templated_text, _generation_kwargs
 
-    # override the original apply_chat_template method
-    def apply_chat_template(self, input_data: str) -> List[Dict[str, str]]:
-        messages = []
-        if self.save_history:
-            messages = self.history.copy()
-        messages.append({"role": "user", "content": input_data})
-        if self.system_prompt:
-            messages.insert(0, {"role": "system", "content": self.system_prompt})
+    def _get_optimal_n_batch(self) -> int:
+        cpu_count = os.cpu_count()
+        if cpu_count <= 2:
+            return 1
+        if cpu_count <= 4:
+            return 2
+        if cpu_count <= 8:
+            return 4
+        if cpu_count <= 16:
+            return 8
+        return 16
 
-        return messages
+    def _get_optimal_n_threads(self) -> int:
+        return max(os.cpu_count() // 2, 1)
+
+    def _get_optimal_n_threads_batch(self) -> int:
+        return os.cpu_count()
