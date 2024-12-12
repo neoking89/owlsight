@@ -611,7 +611,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.model = og.Model(self.model_id)
         self.tokenizer = og.Tokenizer(self.model)
         self.tokenizer_stream = self.tokenizer.create_stream()
-        logger.info(f"Model loaded using {self.onnx__n_cpu_threads} threads")
+        logger.info(f"Model loaded using {self.onnx__n_cpu_threads} cpu-threads")
         logger.info("Tokenizer created")
 
     def _validate_model_tokenizer(self, model_id, onnx__tokenizer):
