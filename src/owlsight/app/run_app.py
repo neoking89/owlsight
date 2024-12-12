@@ -26,6 +26,7 @@ from owlsight.utils.constants import (
 )
 from owlsight.utils.deep_learning import free_memory
 from owlsight.rag.python_lib_search import search_python_libs
+from owlsight.processors.helper_functions import warn_processor_not_loaded
 from owlsight.utils.logger import logger
 
 
@@ -63,10 +64,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
                 continue
 
             if manager.processor is None:
-                logger.error("Processor not set! Please load a model first by either:") 
-                logger.error("1: Setting 'model_id' in the 'config: model' section")
-                logger.error("2: Loading an existing configuration with the 'load' command")
-                logger.error("3: Search and select a model through the Huggingface model hub in the 'config: huggingface' section")
+                warn_processor_not_loaded()
                 continue
             else:
                 process_user_question(user_choice, code_executor, manager)
