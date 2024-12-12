@@ -126,14 +126,29 @@ def test_preprocessing(media_model_mappings):
     test_image.save(buffer, format="PNG")
 
     # Test with bytes
-    result = processor.media_preprocessor.preprocess_input(buffer.getvalue())
+    media_obj = MediaObject(type="image", path=buffer.getvalue(), options={})
+    result = processor.media_preprocessor.preprocess_input(media_obj=media_obj)
     assert isinstance(result, Image.Image)
 
     # Test with Path
     test_image.save("test_image.png")
-    result = processor.media_preprocessor.preprocess_input(Path("test_image.png"))
+    media_obj = MediaObject(type="image", path=Path("test_image.png"), options={})
+    result = processor.media_preprocessor.preprocess_input(media_obj=media_obj)
     assert isinstance(result, Image.Image)
+    # test with invalid media type
+    with pytest.raises(ValueError):
+        media_obj = MediaObject(type="invalid", path=Path("test_image.png"), options={})
+        processor.media_preprocessor.preprocess_input(media_obj=media_obj)
     Path("test_image.png").unlink()
+
+    with pytest.raises(TypeError):
+        # Test with non-MediaObject input
+        processor.media_preprocessor.preprocess_input(media_obj="not_media_object")
+
+    with pytest.raises(FileNotFoundError):
+        # Test with non-existent file
+        media_obj = MediaObject(type="invalid", path="124q51q1q.png", options={})
+        processor.media_preprocessor.preprocess_input(media_obj=media_obj)
 
 
 def test_audio_preprocessing(test_data, media_model_mappings):
@@ -142,7 +157,8 @@ def test_audio_preprocessing(test_data, media_model_mappings):
         model_id=media_model_mappings["automatic-speech-recognition"], task="automatic-speech-recognition"
     )
 
-    result = processor.media_preprocessor.preprocess_input(test_data["automatic-speech-recognition"])
+    media_obj = MediaObject(type="audio", path=test_data["automatic-speech-recognition"], options={})
+    result = processor.media_preprocessor.preprocess_input(media_obj=media_obj)
 
     assert "array" in result
     assert "sampling_rate" in result
