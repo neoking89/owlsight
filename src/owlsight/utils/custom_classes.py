@@ -2,11 +2,13 @@
 Created by Nestor Demeure.
 This software is released under the Apache License 2.0.
 """
+from typing import List, Literal, Dict, Union
+from dataclasses import dataclass, field
+from pathlib import Path
 
 import torch
 from transformers import StoppingCriteria, AutoTokenizer
-from typing import List, Literal, Dict
-from dataclasses import dataclass, field
+
 
 
 class StopWordCriteria(StoppingCriteria):
@@ -146,12 +148,12 @@ class MediaObject:
     ----------
     type : MediaType
         The type of media (image, audio, or video)
-    path : str
-        The path to the media file
+    path : Union[str, Path, bytes]
+        The path to the media file or a bytes-like object
     options : Dict[str, str]
         Optional parameters for processing the media
     """
 
     type: MediaType
-    path: str
-    options: Dict[str, str] = field(default_factory=lambda: {}) # ensure each instance has its own options dict
+    path: Union[str, Path, bytes]
+    options: Dict[str, str] = field(default_factory=lambda: {})  # ensure each instance has its own options dict
