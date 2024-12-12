@@ -25,27 +25,12 @@ class MediaPreprocessor:
     to the appropriate model pipeline.
     """
 
-    def __init__(self, task: str):
+    def __init__(self):
         """
         Initialize preprocessor for specific task.
-
-        Parameters
-        ----------
-        task : str
-            The task to handle. Must be one of HUGGINGFACE_MEDIA_TASKS or a text task.
         """
-        self.task = task
-        self._validate_task()
 
-    def _validate_task(self) -> None:
-        """Validate that the task is supported."""
-        if self.task not in HUGGINGFACE_MEDIA_TASKS and not self.task.endswith("generation"):
-            raise ValueError(
-                f"Task {self.task} is not supported. Must be one of {HUGGINGFACE_MEDIA_TASKS} "
-                f"or end with 'generation'"
-            )
-
-    def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:
+    def preprocess_input(self, media_obj: MediaObject, question: Optional[str] = None) -> Any:
         """
         Preprocess input data based on task type.
 
@@ -61,27 +46,26 @@ class MediaPreprocessor:
         Dict[str, Any]
             Preprocessed data in format expected by the model.
         """
-        if self.task not in HUGGINGFACE_MEDIA_TASKS:
-            raise ValueError(
-                f"Task {self.task} is not supported for media preprocessing. Should be one of {HUGGINGFACE_MEDIA_TASKS}"
-            )
+        if not isinstance(media_obj, MediaObject):
+            raise TypeError("Input data must be a MediaObject instance.")
+        input_data = media_obj.path
 
         try:
             if isinstance(input_data, (str, Path)):
                 input_data = self._load_from_path_or_url(input_data)
 
-            if self.task == "automatic-speech-recognition":
+            if media_obj.type == "audio":
                 return self._preprocess_audio(input_data)
-            elif self.task in ["image-to-text", "visual-question-answering", "document-question-answering"]:
+            elif media_obj.type == "image":
                 processed = self._preprocess_image(input_data)
-                if question and self.task in ["visual-question-answering", "document-question-answering"]:
+                if question:
                     return {"image": processed, "question": question}
             else:
-                raise ValueError(f"Task {self.task} is not supported for media preprocessing.")
+                raise ValueError(f"Media type {media_obj.type} is not supported")
             return processed
 
         except Exception:
-            logger.error(f"Error preprocessing input for task {self.task}: {traceback.format_exc()}")
+            logger.error(f"Error preprocessing input for MediaObject {media_obj}: {traceback.format_exc()}")
             raise
 
     def _load_from_path_or_url(self, source: Union[str, Path]) -> bytes:
@@ -124,7 +108,7 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
         super().__init__(model_id=model_id, save_history=save_history, system_prompt=system_prompt)
         self.task = task
         self.text_processor = TextGenerationProcessorTransformers(model_id=model_id, task=task, **kwargs)
-        self.media_preprocessor = MediaPreprocessor(self.text_processor.task)
+        self.media_preprocessor = MediaPreprocessor()
 
     def generate(
         self,
@@ -173,6 +157,9 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
         processed = self.media_preprocessor.preprocess_input(input_data, question)
         return processed
 
+    def get_max_context_length(self):
+        return self.text_processor.get_max_context_length()
+
     def _preprocess_media_objects(self, input_data, media_objects, media_refs) -> List[Dict[str, Any]]:
         preprocessed_data = []
         for ref in media_refs:
@@ -188,12 +175,12 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
             if media_obj_iter:
                 for media_obj in media_obj_iter:
                     try:
-                        preprocessed = self.media_preprocessor.preprocess_input(media_obj.path, question)
+                        preprocessed = self.media_preprocessor.preprocess_input(media_obj, question)
                         preprocessed_data.append(preprocessed)
                     except Exception as e:
                         logger.error(f"Error preprocessing MediaObject {media_obj}: {e}")
             else:
-                preprocessed = self.media_preprocessor.preprocess_input(media_object.path, question)
+                preprocessed = self.media_preprocessor.preprocess_input(media_object, question)
                 preprocessed_data.append(preprocessed)
 
         return preprocessed_data
