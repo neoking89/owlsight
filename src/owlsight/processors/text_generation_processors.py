@@ -23,6 +23,7 @@ from owlsight.processors.constants import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
 )
+from owlsight.processors.helper_functions import GGUF_Utils
 from owlsight.utils.threads import ThreadNotKilledError
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
@@ -31,12 +32,12 @@ from owlsight.hugging_face.constants import SUPPORTED_TASKS
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
 
-ONNX_MSG = "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or install [onnxruntime-genai, onnxruntime-genai-cuda] seperately"
-
 try:
     import onnxruntime_genai as og
 except ImportError:
-    logger.warning("Support for ONNX models is disabled.")
+    logger.warning(
+        "Support for ONNX models is disabled, because onnxruntime-genai is not found. Install it using 'pip install onnxruntime-genai'."
+    )
     og = None
 
 try:
@@ -616,7 +617,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
     def _validate_model_tokenizer(self, model_id, onnx__tokenizer):
         if og is None:
-            raise ImportError(ONNX_MSG)
+            raise ImportError(
+                "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or install [onnxruntime-genai, onnxruntime-genai-cuda] seperately"
+            )
 
         if not os.path.exists(model_id):
             raise FileNotFoundError(f"{model_id} does not exist! Ensure the model path is an existing local directory.")
@@ -689,8 +692,8 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                               Please see https://github.com/abetlen/llama-cpp-python for more information."""
             )
 
-        n_batch = gguf__n_batch or self._get_optimal_n_batch()
-        n_cpu_threads = gguf__n_cpu_threads or self._get_optimal_n_threads()
+        n_batch = gguf__n_batch or GGUF_Utils.get_optimal_n_batch()
+        n_cpu_threads = gguf__n_cpu_threads or GGUF_Utils.get_optimal_n_threads()
         n_ctx = gguf__n_ctx or 512
 
         _model_kwargs = {
@@ -699,7 +702,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             "n_gpu_layers": gguf__n_gpu_layers,
             "n_batch": n_batch,
             "n_threads": n_cpu_threads,
-            "n_threads_batch": self._get_optimal_n_threads_batch(),
+            "n_threads_batch": GGUF_Utils.get_optimal_n_threads_batch(),
             **(model_kwargs or {}),
         }
 
@@ -825,21 +828,3 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         check_invalid_input_parameters(self.llm.create_chat_completion, _generation_kwargs)
 
         return templated_text, _generation_kwargs
-
-    def _get_optimal_n_batch(self) -> int:
-        cpu_count = os.cpu_count()
-        if cpu_count <= 2:
-            return 1
-        if cpu_count <= 4:
-            return 2
-        if cpu_count <= 8:
-            return 4
-        if cpu_count <= 16:
-            return 8
-        return 16
-
-    def _get_optimal_n_threads(self) -> int:
-        return max(os.cpu_count() // 2, 1)
-
-    def _get_optimal_n_threads_batch(self) -> int:
-        return os.cpu_count()
