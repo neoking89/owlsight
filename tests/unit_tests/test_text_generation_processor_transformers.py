@@ -107,5 +107,12 @@ def test_num_beams_with_streaming_raises_error(setup_processor):
         assert "num_beams" in str(exc.value), "Error message should mention num_beams parameter"
 
 
+def test_get_max_context_length(setup_processor):
+    """Test that the processor returns the correct max context length."""
+    processor, _ = setup_processor
+    max_context_length = processor.get_max_context_length()
+    assert isinstance(max_context_length, int), "Max context length should be an integer."
+    assert max_context_length > 0, "Max context length should be greater than zero."
+
 if __name__ == "__main__":
     pytest.main([__file__])
