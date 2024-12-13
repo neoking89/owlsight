@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Union, Optional, Any, Dict, TypeVar
 
 from owlsight.hugging_face.constants import HUGGINGFACE_TASKS
+from owlsight.processors.custom_classes import GGUF_Utils
 
 # ANSI color codes for terminal output
 COLOR_CODES = {
@@ -103,12 +104,12 @@ class ConfigSchema:
                 "description": "Number of layers from model which are offloaded to the GPU",
             },
             "gguf__n_batch": {
-                "default": 512,
+                "default": GGUF_Utils.get_optimal_n_batch(),
                 "choices": [4 * (2**n) for n in range(13)],
                 "description": "Batch size for GGUF model",
             },
             "gguf__n_cpu_threads": {
-                "default": 1,
+                "default": GGUF_Utils.get_optimal_n_threads(),
                 "choices": list(range(1, os.cpu_count() + 1)),
                 "description": "Number of CPU threads for GGUF model",
             },
