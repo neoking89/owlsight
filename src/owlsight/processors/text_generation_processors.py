@@ -23,7 +23,7 @@ from owlsight.processors.constants import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
 )
-from owlsight.processors.helper_functions import GGUF_Utils
+from owlsight.processors.custom_classes import GGUF_Utils
 from owlsight.utils.threads import ThreadNotKilledError
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
