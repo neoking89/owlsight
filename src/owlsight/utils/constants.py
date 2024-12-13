@@ -121,7 +121,7 @@ class ConfigSchema:
                 "description": "Verbose output for ONNX model",
             },
             "onnx__n_cpu_threads": {
-                "default": 1,
+                "default": GGUF_Utils.get_optimal_n_threads(),
                 "choices": list(range(1, os.cpu_count() + 1)),
                 "description": "Number of CPU threads for ONNX model",
             },
