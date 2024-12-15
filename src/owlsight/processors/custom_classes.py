@@ -3,7 +3,7 @@ import os
 
 class GGUF_Utils:
     """
-    A utility class to determine optimal settings based on CPU count.
+    A utility class to determine optimal settings for GGUF models based on CPU count.
     Credits for the original implementation go to the authors of the easy-llama project.
     source: https://github.com/ddh0/easy-llama
     """
