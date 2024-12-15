@@ -3,10 +3,11 @@ import subprocess
 import functools
 import threading
 import time
+import traceback
 
 import psutil
 import torch
-
+import numpy as np
 
 from owlsight.utils.logger import logger
 
@@ -240,3 +241,27 @@ def track_measure_usage(func, polling_time: float = 0.5):
         return wrapper
 
     return decorator
+
+
+def check_onnx_device(current_device: str = "cuda") -> str:
+    """
+    Check the current device being used for ONNXRuntime.
+
+    Parameters:
+    current_device (str): The current device to use. Default is 'cuda'.
+    """
+    import onnxruntime
+
+    print("Current device for ONNXRuntime: ")
+    print(onnxruntime.get_device())
+
+    providers = onnxruntime.get_available_providers()
+    print("Available providers: ")
+    print(providers)
+
+    try:
+        input_data = np.random.randn(1, 3).astype(np.float32)
+        X_ortvalue = onnxruntime.OrtValue.ortvalue_from_numpy(input_data, current_device, 0)
+    except Exception as e:
+        print(f"Error with using Onnx on current device {current_device}:\n{traceback.format_exc()}")
+
