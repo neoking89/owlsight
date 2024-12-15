@@ -96,7 +96,7 @@ class ConfigManager:
             "gguf__n_gpu_layers": self._get_toggle_choice("model", "gguf__n_gpu_layers"),
             "gguf__n_batch": self._get_toggle_choice("model", "gguf__n_batch"),
             "gguf__n_cpu_threads": self._get_toggle_choice("model", "gguf__n_cpu_threads"),
-            "onnx__tokenizer": self._get_basic_choice("model", "onnx__tokenizer"),
+            "onnx__model_dir": self._get_basic_choice("model", "onnx__model_dir"),
             "onnx__verbose": self._get_toggle_choice("model", "onnx__verbose"),
             "onnx__n_cpu_threads": self._get_toggle_choice("model", "onnx__n_cpu_threads"),
         }
