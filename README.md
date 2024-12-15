@@ -215,7 +215,7 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 - `gguf__n_batch`: Increase the batch size for a faster inference, but it may require more memory.
   `gguf__n_cpu_threads`:  Increase the number of CPU threads for a faster inference if multiple cpu cores are available.
 - `gguf__n_ctx`: The total context length for the GGUF model.
-- `onnx__tokenizer`: The tokenizer to use for the ONNX model (required for ONNX models).
+- `onnx__model_dir`: The directory of the ONNX model (useful if a repository on huggingface contains multiple models).
 - `onnx__verbose`: Whether to print verbose output for the ONNX model.
 - `onnx__n_cpu_threads`: Increase the number of CPU threads for a faster inference if multiple cpu cores are available.
 
@@ -267,7 +267,7 @@ Here's an example of what the default configuration looks like:
         "gguf__n_gpu_layers": 0,
         "gguf__n_batch": 512,
         "gguf__n_cpu_threads": 1,
-        "onnx__tokenizer": "",
+        "onnx__model_dir": "",
         "onnx__verbose": false,
         "onnx__n_cpu_threads": 1
     },
