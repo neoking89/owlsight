@@ -114,7 +114,7 @@ class ConfigSchema:
                 "description": "Number of CPU threads for GGUF model",
             },
             # ONNX specific
-            "onnx__tokenizer": {"default": "", "choices": None, "description": "Tokenizer for ONNX model"},
+            "onnx__model_dir": {"default": "", "choices": None, "description": "Directory containing ONNX model"},
             "onnx__verbose": {
                 "default": False,
                 "choices": [False, True],
