@@ -7,12 +7,13 @@ from ast import literal_eval
 from functools import lru_cache
 
 import torch
+import onnxruntime_genai as og
+from huggingface_hub import snapshot_download, list_repo_files
 from transformers import (
     BitsAndBytesConfig,
     TextIteratorStreamer,
     AutoTokenizer,
     AutoModel,
-    PreTrainedTokenizer,
     pipeline,
     Pipeline,
 )
@@ -418,45 +419,58 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
 
 class TextGenerationProcessorOnnx(TextGenerationProcessor):
+    """Text generation processor using ONNX Runtime with HuggingFace Hub support."""
+
     def __init__(
         self,
         model_id: str,
-        onnx__tokenizer: Union[str, PreTrainedTokenizer],
         onnx__verbose: bool = False,
-        onnx__n_cpu_threads: int = 1,
+        onnx__n_cpu_threads: int = GGUF_Utils.get_optimal_n_threads(),
+        onnx__model_directory: Optional[str] = None,
+        token: Optional[str] = None,
         save_history: bool = False,
         system_prompt: str = None,
         **kwargs,
     ):
         """
-        Text generation processor using ONNX Runtime.
+        Initialize the ONNX text generation processor.
 
         Parameters
         ----------
         model_id : str
             The model ID to use for generation.
-            Usually the name of the model or the path to the model.
-        onnx__tokenizer : Union[str, PreTrainedTokenizer]
-            The tokenizer to use for generation.
-            If str, it should be the model ID of the tokenizer.
-            else, it should be a PreTrainedTokenizer object.
-            This tokenizer allows universal use of chat templates.
+            Can be either:
+            - A local path to an ONNX model directory
+            - A HuggingFace Hub model ID (e.g., 'onnx-community/Llama-3.2-3B-Instruct-ONNX')
+        onnx__model_directory : Optional[str]
+            The directory containing the ONNX model.
+            Apply this if there are multiple valid directories in the model repository.
         onnx__verbose : bool
             Whether to print verbose logs.
         onnx__n_cpu_threads : int
             Number of threads to use for generation.
         save_history : bool
-            Set to True if you want model to generate responses based on previous inputs.
+            Whether to save conversation history.
         system_prompt : str
-            The system prompt to prepend to the input text.
+            System prompt to prepend to all inputs.
+        cache_dir : Optional[str]
+            Directory to store downloaded models.
+        token : Optional[str]
+            HuggingFace token for private models.
         """
-        self._validate_model_tokenizer(model_id, onnx__tokenizer)
+        if og is None:
+            raise ImportError("ONNX Runtime is disabled. Install with: pip install owlsight[onnx]")
 
-        super().__init__(model_id, save_history, system_prompt)
+        self.pre_validate_model_id(model_id, onnx__model_directory)
+        allow_patterns = [f"{onnx__model_directory}/*"] if onnx__model_directory else None
+        self.model_id = snapshot_download(model_id, token=token, repo_type="model", allow_patterns=allow_patterns)
+        self.model_id = self._post_validate_model_id(self.model_id)
+        self.transformers_tokenizer = AutoTokenizer.from_pretrained(self.model_id, token=token)
+
+        super().__init__(self.model_id, save_history, system_prompt)
         self.onnx__verbose = onnx__verbose
         self.onnx__n_cpu_threads = onnx__n_cpu_threads
 
-        self._set_tokenizer(onnx__tokenizer)
         self._set_environment_variables()
         self._initialize_model()
 
@@ -475,23 +489,26 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         Parameters
         ----------
         input_data : str
-            The input text to generate a response for.
+            Input text for generation
         max_new_tokens : int
-            The maximum number of tokens to generate.
+            Maximum number of tokens to generate
         temperature : float
-            The temperature for sampling.
-        stopwords : List[str], optional
-            List of stop words to stop generation at.
+            Generation temperature (0.0 = deterministic)
+        stopwords : Optional[List[str]]
+            List of words to stop generation at
         buffer_wordsize : int
-            The buffer word size for generation.
-            Larger buffer sizes will check later for stop words.
-        generation_kwargs : Dict[str, Any], optional
-            Additional keyword arguments for generation.
-            Example: {"top_k": 50, "top_p": 0.95}
+            Size of word buffer for stopword checking
+        generation_kwargs : Optional[Dict[str, Any]]
+            Additional generation parameters
+
+        Returns
+        -------
+        str
+            Generated text
         """
         generator = self._prepare_generate(input_data, max_new_tokens, temperature, generation_kwargs)
 
-        logger.info("Running generation loop ...")
+        logger.info("Starting generation...")
         generated_text, buffer = "", ""
         token_counter = 0
         start = time.time()
@@ -503,6 +520,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
                 new_text = self.tokenizer_stream.decode(generator.get_next_tokens()[0])
                 buffer += new_text
                 token_counter += 1
+
                 print(new_text, end="", flush=True)
 
                 if len(buffer.split()) > buffer_wordsize:
@@ -513,17 +531,16 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
                         break
 
         except KeyboardInterrupt:
-            logger.warning("Control+C pressed, aborting generation")
+            logger.warning("Generation interrupted by user")
 
         generated_text += buffer
         del generator
 
         total_time = time.time() - start
-        logger.info(f"Generation took {total_time:.2f} seconds")
-        logger.info(f"Tokens per second: {token_counter / total_time:.2f}")
+        if self.onnx__verbose:
+            logger.info(f"Generation took {total_time:.2f}s ({token_counter / total_time:.2f} tokens/s)")
 
         self.update_history(input_data, generated_text.strip())
-
         return generated_text.strip()
 
     def generate_stream(
@@ -534,23 +551,25 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Generate text using the ONNX model.
+        Stream generated text token by token.
 
         Parameters
         ----------
         input_data : str
-            The input text to generate a response for.
+            Input text for generation
         max_new_tokens : int
-            The maximum number of tokens to generate.
+            Maximum number of tokens to generate
         temperature : float
-            The temperature for sampling.
-        generation_kwargs : Dict[str, Any], optional
-            Additional keyword arguments for generation.
-            Example: {"top_k": 50, "top_p": 0.95}
+            Generation temperature (0.0 = deterministic)
+        generation_kwargs : Optional[Dict[str, Any]]
+            Additional generation parameters
+
+        Yields
+        ------
+        str
+            Generated text tokens
         """
         generator = self._prepare_generate(input_data, max_new_tokens, temperature, generation_kwargs)
-
-        logger.info("Running generation loop ...")
         generated_text = ""
 
         try:
@@ -562,41 +581,19 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
                 yield new_text
 
         except KeyboardInterrupt:
-            logger.warning("Control+C pressed, aborting generation")
+            logger.warning("Generation interrupted by user")
 
         del generator
-
         self.update_history(input_data, generated_text.strip())
 
     def get_max_context_length(self) -> Optional[int]:
+        """Get maximum context length for the model."""
         if self.tokenizer:
             return self.transformers_tokenizer.model_max_length
-
-    def _prepare_generate(self, input_data, max_new_tokens, temperature, generation_kwargs):
-        templated_text = self.apply_chat_template(input_data, self.transformers_tokenizer)
-
-        search_options = {
-            "max_length": max_new_tokens,
-            "temperature": temperature,
-            **(generation_kwargs or {}),
-        }
-
-        input_tokens = self.tokenizer.encode(templated_text)
-
-        params = og.GeneratorParams(self.model)
-        params.set_search_options(**search_options)
-        params.input_ids = input_tokens
-        generator = og.Generator(self.model, params)
-
-        return generator
-
-    def _set_tokenizer(self, onnx__tokenizer):
-        if isinstance(onnx__tokenizer, str):
-            self.transformers_tokenizer = AutoTokenizer.from_pretrained(onnx__tokenizer)
-        else:
-            self.transformers_tokenizer = onnx__tokenizer
+        return None
 
     def _set_environment_variables(self) -> None:
+        """Set ONNX runtime environment variables."""
         os.environ.update(
             {
                 "OMP_NUM_THREADS": str(self.onnx__n_cpu_threads),
@@ -608,38 +605,88 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         )
 
     def _initialize_model(self) -> None:
-        logger.info("Loading model...")
-        self.model = og.Model(self.model_id)
-        self.tokenizer = og.Tokenizer(self.model)
-        self.tokenizer_stream = self.tokenizer.create_stream()
-        logger.info(f"Model loaded using {self.onnx__n_cpu_threads} cpu-threads")
-        logger.info("Tokenizer created")
+        """Initialize the ONNX model and tokenizer."""
+        logger.info("Loading ONNX model...")
+        try:
+            self.model = og.Model(self.model_id)
+            self.tokenizer = og.Tokenizer(self.model)
+            self.tokenizer_stream = self.tokenizer.create_stream()
+            if self.onnx__verbose:
+                logger.info(f"Model loaded with {self.onnx__n_cpu_threads} threads")
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize model: {str(e)}")
 
-    def _validate_model_tokenizer(self, model_id, onnx__tokenizer):
-        if og is None:
-            raise ImportError(
-                "ONNX Runtime is disabled. Use 'pip install owlsight[onnx]' or install [onnxruntime-genai, onnxruntime-genai-cuda] seperately"
-            )
+    def _prepare_generate(self, input_data, max_new_tokens, temperature, generation_kwargs):
+        """Prepare the generator for text generation."""
+        templated_text = self.apply_chat_template(input_data, self.transformers_tokenizer)
 
+        search_options = {
+            "max_length": max_new_tokens,
+            "temperature": temperature,
+            **(generation_kwargs or {}),
+        }
+
+        input_tokens = self.tokenizer.encode(templated_text)
+        params = og.GeneratorParams(self.model)
+        params.set_search_options(**search_options)
+        params.input_ids = input_tokens
+
+        return og.Generator(self.model, params)
+
+    def _post_validate_model_id(self, model_id: str) -> str:
+        """Validate the model_id and model_directory after using `snapshot_download`."""
         if not os.path.exists(model_id):
-            raise FileNotFoundError(f"{model_id} does not exist! Ensure the model path is an existing local directory.")
+            raise FileNotFoundError(f"Model directory not found: {model_id}")
 
-        if not os.path.isdir(model_id):
-            raise NotADirectoryError(f"{model_id} is not a directory! Ensure the model path is a directory.")
+        configs = ("tokenizer.json", "genai_config.json")
+        config_paths = [os.path.join(model_id, config) for config in configs]
 
-        model_path_contents = os.listdir(model_id)
-        if not "genai_config.json" in model_path_contents:
-            raise FileNotFoundError(
-                f"{model_id} does not contain a genai_config.json! This file is required for ONNX models."
-            )
+        if not all(os.path.exists(p) for p in config_paths):
+            for root, _, files in os.walk(model_id):
+                if all(config in files for config in configs):
+                    return root
+        else:
+            return model_id
 
-        if not onnx__tokenizer:
-            raise ValueError(
-                "No tokenizer found! "
-                "A tokenizer from the transformers library is required "
-                "for ONNX models, to standardize chat templates."
-                "Look into HuggingFace (https://huggingface.co) and find the fitting model to use."
-            )
+        raise FileNotFoundError(f"Config files not found in model directory: {model_id}")
+
+    @staticmethod
+    def list_valid_repo_files(repo_id: str) -> List[str]:
+        file_list = list_repo_files(repo_id)
+
+        valid_directories = []
+
+        for file in file_list:
+            if file.endswith("genai_config.json"):
+                directory = file.rsplit("/", 1)[0]
+                if f"{directory}/tokenizer.json" in file_list:
+                    valid_directories.append(directory)
+
+        return valid_directories
+
+    @staticmethod
+    def pre_validate_model_id(model_id: str, onnx__model_directory: str):
+        """Validate the model_id and model_directory before using `snapshot_download`."""
+        repo_files = TextGenerationProcessorOnnx.list_valid_repo_files(model_id)
+        if len(repo_files) > 1:
+            if not onnx__model_directory:
+                raise ValueError(
+                    f"Multiple valid directories found in model repository {model_id}: {repo_files}. Please specify a valid onnx__model_directory."
+                )
+            if onnx__model_directory not in repo_files:
+                raise ValueError(
+                    f"Model directory {onnx__model_directory} not found in model repository {model_id}. Valid directories are: {repo_files}"
+                )
+
+    # def __del__(self):
+    #     """Cleanup when object is deleted."""
+    #     # Clean up ONNX runtime resources if they exist
+    #     if hasattr(self, "tokenizer_stream"):
+    #         del self.tokenizer_stream
+    #     if hasattr(self, "tokenizer"):
+    #         del self.tokenizer
+    #     if hasattr(self, "model"):
+    #         del self.model
 
 
 class TextGenerationProcessorGGUF(TextGenerationProcessor):
@@ -828,3 +875,8 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         check_invalid_input_parameters(self.llm.create_chat_completion, _generation_kwargs)
 
         return templated_text, _generation_kwargs
+
+    # def __del__(self):
+    #     """Cleanup when object is deleted."""
+    #     if hasattr(self, "llm"):
+    #         del self.llm
