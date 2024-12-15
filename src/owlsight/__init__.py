@@ -10,6 +10,7 @@ from .utils.deep_learning import (
     calculate_max_parameters_per_dtype,
     calculate_memory_for_model,
     calculate_available_vram,
+    check_onnx_device,
 )
 from .processors.text_generation_processors import (
     TextGenerationProcessorOnnx,
@@ -29,6 +30,7 @@ from .hugging_face.core import get_model_data
 __all__ = [
     "setup_tesseract",
     "get_best_device",
+    "check_onnx_device",
     "check_gpu_and_cuda",
     "calculate_max_parameters_per_dtype",
     "calculate_memory_for_model",
