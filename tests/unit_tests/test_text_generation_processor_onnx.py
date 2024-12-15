@@ -1,4 +1,3 @@
-import os
 import sys
 import logging
 
@@ -54,22 +53,12 @@ def setup_processor() -> Tuple[TextGenerationProcessorOnnx, AutoTokenizer]:
     Returns:
         Tuple[TextGenerationProcessorOnnx, AutoTokenizer]: Processor and tokenizer
     """
-    model_repo = "https://huggingface.co/llmware/tiny-llama-chat-onnx"
-    destination_dir = Path("tests/data/tiny-llama-chat-onnx")
-    tokenizer_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-
-    # Ensure parent directory exists
-    destination_dir.parent.mkdir(parents=True, exist_ok=True)
-
-    # Download model if needed
-    if not download_model(model_repo, destination_dir):
-        pytest.skip("Failed to download model")
+    model_repo = "llmware/tiny-llama-chat-onnx"
 
     try:
         logger.info("Initializing processor and tokenizer...")
         processor = TextGenerationProcessorOnnx(
-            model_id=str(destination_dir),
-            onnx__tokenizer=tokenizer_id,
+            model_id=model_repo,
         )
         logger.info("Processor initialized successfully")
         return processor, processor.transformers_tokenizer
