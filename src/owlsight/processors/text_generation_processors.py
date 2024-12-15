@@ -7,7 +7,6 @@ from ast import literal_eval
 from functools import lru_cache
 
 import torch
-import onnxruntime_genai as og
 from huggingface_hub import snapshot_download, list_repo_files
 from transformers import (
     BitsAndBytesConfig,
@@ -426,7 +425,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         model_id: str,
         onnx__verbose: bool = False,
         onnx__n_cpu_threads: int = GGUF_Utils.get_optimal_n_threads(),
-        onnx__model_directory: Optional[str] = None,
+        onnx__model_dir: Optional[str] = None,
         token: Optional[str] = None,
         save_history: bool = False,
         system_prompt: str = None,
@@ -442,7 +441,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             Can be either:
             - A local path to an ONNX model directory
             - A HuggingFace Hub model ID (e.g., 'onnx-community/Llama-3.2-3B-Instruct-ONNX')
-        onnx__model_directory : Optional[str]
+        onnx__model_dir : Optional[str]
             The directory containing the ONNX model.
             Apply this if there are multiple valid directories in the model repository.
         onnx__verbose : bool
@@ -461,8 +460,8 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         if og is None:
             raise ImportError("ONNX Runtime is disabled. Install with: pip install owlsight[onnx]")
 
-        self.pre_validate_model_id(model_id, onnx__model_directory)
-        allow_patterns = [f"{onnx__model_directory}/*"] if onnx__model_directory else None
+        self.pre_validate_model_id(model_id, onnx__model_dir)
+        allow_patterns = [f"{onnx__model_dir}/*"] if onnx__model_dir else None
         self.model_id = snapshot_download(model_id, token=token, repo_type="model", allow_patterns=allow_patterns)
         self.model_id = self._post_validate_model_id(self.model_id)
         self.transformers_tokenizer = AutoTokenizer.from_pretrained(self.model_id, token=token)
@@ -665,17 +664,17 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         return valid_directories
 
     @staticmethod
-    def pre_validate_model_id(model_id: str, onnx__model_directory: str):
+    def pre_validate_model_id(model_id: str, onnx__model_dir: str):
         """Validate the model_id and model_directory before using `snapshot_download`."""
         repo_files = TextGenerationProcessorOnnx.list_valid_repo_files(model_id)
         if len(repo_files) > 1:
-            if not onnx__model_directory:
+            if not onnx__model_dir:
                 raise ValueError(
-                    f"Multiple valid directories found in model repository {model_id}: {repo_files}. Please specify a valid onnx__model_directory."
+                    f"Multiple valid directories found in model repository {model_id}: {repo_files}. Please specify a valid onnx__model_dir."
                 )
-            if onnx__model_directory not in repo_files:
+            if onnx__model_dir not in repo_files:
                 raise ValueError(
-                    f"Model directory {onnx__model_directory} not found in model repository {model_id}. Valid directories are: {repo_files}"
+                    f"Model directory {onnx__model_dir} not found in model repository {model_id}. Valid directories are: {repo_files}"
                 )
 
     # def __del__(self):
