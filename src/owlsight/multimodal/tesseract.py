@@ -7,7 +7,6 @@ import subprocess
 import traceback
 from urllib.parse import urlparse
 
-import pytesseract
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
@@ -15,6 +14,10 @@ from tqdm import tqdm
 from owlsight.utils.helper_functions import os_is_windows
 from owlsight.utils.logger import logger
 
+try:
+    import pytesseract
+except ImportError:
+    logger.warning("pytesseract is not installed. Please install it using 'pip install pytesseract'.")
 
 def setup_tesseract() -> str:
     """Initialize Tesseract. Return the path to the Tesseract executable."""
