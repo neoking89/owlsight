@@ -233,7 +233,7 @@ def track_measure_usage(func, polling_time: float = 0.5):
                     print(f"{key}: {value} |", end=" ")
                 print()
                 _current_ram_pct = psutil.virtual_memory().percent
-                print(f"RAM usage at start: {CURRENT_RAM_PCT:.2f} | RAM usage at end: {_current_ram_pct:.2f}%")
+                print(f"RAM usage at start: {CURRENT_RAM_PCT:.2f}% | RAM usage at end: {_current_ram_pct:.2f}%")
 
             return result
 
