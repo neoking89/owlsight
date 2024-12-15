@@ -66,7 +66,7 @@ class OwlDefaultFunctions:
             print(f"Error importing module:\n{traceback.format_exc()}")
 
     # Function to show all currently active imported objects in the namespace except builtins
-    def owl_show(self, docs: bool = False):
+    def owl_show(self, docs: bool = True):
         """Show all currently active imported objects in the namespace except builtins.
 
         Parameters:
