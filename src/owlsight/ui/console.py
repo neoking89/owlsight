@@ -357,7 +357,6 @@ def get_user_choice(
     return ""
 
 
-# TODO: refactor this part to handle mainmenu OR other menus in a more structured way
 def get_user_input(
     menu: Optional[Dict[str, Union[None, str, List[Any]]]] = None, start_index: int = 0
 ) -> Tuple[str, Union[str, None]]:
