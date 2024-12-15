@@ -17,7 +17,7 @@ dependencies = [
     "bitsandbytes",
     "accelerate",
     "sentencepiece",
-    "prompt_toolkit",
+    "prompt_toolkit==2.0.10",
     "keyboard",
     "scikit-learn",
     "beautifulsoup4",
@@ -52,6 +52,7 @@ search = [
 
 multimodal = [
     "pytesseract",
+    "pillow",
 ]
 
 # Define the "all" option to include everything (base + optional dependencies)
@@ -65,7 +66,7 @@ all = [
     "bitsandbytes",
     "accelerate",
     "sentencepiece",
-    "prompt_toolkit",
+    "prompt_toolkit<=2.0.10",
     "keyboard",
     "scikit-learn",
     "beautifulsoup4",
@@ -77,6 +78,7 @@ all = [
     "onnxruntime-genai-cuda",
     "sentence-transformers",
     "pytesseract",
+    "pillow",
     # Dev dependencies
     "build",
     "twine",
