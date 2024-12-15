@@ -5,17 +5,19 @@ import io
 import os
 import requests
 import numpy as np
-from PIL import Image
 import re
 
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
-
 from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
 from owlsight.processors.text_generation_processors import TextGenerationProcessorTransformers
 from owlsight.processors.constants import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from owlsight.utils.custom_classes import MediaObject
 from owlsight.utils.logger import logger
 
+try:
+    from PIL import Image
+except ImportError:
+    logger.warning("Pillow is not installed. Please install it using 'pip install pillow'.")
 
 class MediaPreprocessor:
     """
@@ -92,7 +94,7 @@ class MediaPreprocessor:
 
         return {"array": audio_array, "sampling_rate": 16000}  # Standard sampling rate for most models
 
-    def _preprocess_image(self, image_data: bytes) -> Image.Image:
+    def _preprocess_image(self, image_data: bytes):
         """Preprocess image data."""
         image = Image.open(io.BytesIO(image_data))
         return image
