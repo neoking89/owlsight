@@ -131,8 +131,6 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
         )
         generate_kwargs.pop("eos_token_id", None)
 
-        # Extract any referenced media objects and their positions if in the input text
-        # TODO: what if input_data is a list or directory?
         media_refs = re.finditer(r"__MEDIA_\d+__", input_data)
 
         # For each media reference, preprocess the media and store question if present
