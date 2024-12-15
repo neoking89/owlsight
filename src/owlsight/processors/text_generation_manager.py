@@ -204,8 +204,6 @@ class TextGenerationManager:
         if loading_succesful:
             self.load_model_processor(reload=self.processor is not None)
 
-    # TODO: remove mechanism with **processor_kwargs and **kwargs in __init__ of TextGenerationProcessor classes
-    # It is prone to errors.
     def load_model_processor(self, reload=False) -> None | Exception:
         """
         Load the model processor with a 'model_id', to load the correct model and tokenizer.
