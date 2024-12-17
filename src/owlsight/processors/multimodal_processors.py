@@ -101,13 +101,13 @@ class MediaPreprocessor:
 
 
 class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
-    def __init__(self, model_id: str, task: str, save_history: bool = False, system_prompt: str = "", **kwargs):
+    def __init__(self, model_id: str, task: str, apply_chat_history: bool = False, system_prompt: str = "", **kwargs):
         if task not in HUGGINGFACE_MEDIA_TASKS:
             raise ValueError(
                 f"Task {task} is not supported for media preprocessing. Should be one of {HUGGINGFACE_MEDIA_TASKS}"
             )
 
-        super().__init__(model_id=model_id, save_history=save_history, system_prompt=system_prompt)
+        super().__init__(model_id=model_id, apply_chat_history=apply_chat_history, system_prompt=system_prompt)
         self.task = task
         self.text_processor = TextGenerationProcessorTransformers(model_id=model_id, task=task, **kwargs)
         self.media_preprocessor = MediaPreprocessor()

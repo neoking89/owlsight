@@ -12,7 +12,7 @@ class TextGenerationProcessor(ABC):
     def __init__(
         self,
         model_id: str,
-        save_history: bool,
+        apply_chat_history: bool,
         system_prompt: str,
     ):
         """
@@ -23,7 +23,7 @@ class TextGenerationProcessor(ABC):
         model_id : str
             The model ID to use for generation.
             Usually the name of the model or the path to the model.
-        save_history : bool
+        apply_chat_history : bool
             Whether or not to save the history of inputs and outputs.
         system_prompt : str
             The system prompt to use for generation.
@@ -32,9 +32,9 @@ class TextGenerationProcessor(ABC):
             raise ValueError("Model ID cannot be empty.")
 
         self.model_id = model_id
-        self.save_history = save_history
+        self.apply_chat_history = apply_chat_history
         self.system_prompt = system_prompt
-        self.history = []
+        self.chat_history = []
 
     def apply_chat_template(
         self,
@@ -58,7 +58,7 @@ class TextGenerationProcessor(ABC):
             The formatted text with the chat template applied.
         """
         if tokenizer.chat_template is not None:
-            messages = self.get_history()
+            messages = self.get_history() if self.apply_chat_history else []
             messages.append({"role": "user", "content": input_data})
             templated_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         else:
@@ -78,9 +78,8 @@ class TextGenerationProcessor(ABC):
         generated_text : str
             The text that was generated in response.
         """
-        if self.save_history:
-            self.history.append({"role": "user", "content": input_data})
-            self.history.append({"role": "assistant", "content": generated_text.strip()})
+        self.chat_history.append({"role": "user", "content": input_data})
+        self.chat_history.append({"role": "assistant", "content": generated_text.strip()})
 
     def get_history(self) -> List[Dict[str, str]]:
         """
@@ -91,7 +90,7 @@ class TextGenerationProcessor(ABC):
         List[Dict[str, str]]
             The chat history including system prompt if present.
         """
-        messages = self.history.copy()
+        messages = self.chat_history.copy()
         if self.system_prompt:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
         return messages
@@ -119,6 +118,7 @@ class TextGenerationProcessor(ABC):
             The maximum number of tokens the model can process in a single input.
         """
         raise NotImplementedError("get_max_context_length method must be implemented in the subclass.")
+
 
 class MultiModalTextGenerationProcessor(TextGenerationProcessor):
     """Abstract base class for multimodal text generation processors."""

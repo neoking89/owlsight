@@ -60,7 +60,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
         task: Optional[str] = None,
-        save_history: bool = False,
+        apply_chat_history: bool = False,
         system_prompt: str = "",
         **kwargs,
     ):
@@ -86,7 +86,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             Additional keyword arguments for the tokenizer. Default is None.
         task : Optional[str]
             The task to use for the pipeline. Default is None, where the task is set to "text-generation".
-        save_history : bool
+        apply_chat_history : bool
             Set to True if you want model to generate responses based on previous inputs.
         system_prompt : str
             The system prompt to prepend to the input text.
@@ -94,7 +94,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         if task and task not in SUPPORTED_TASKS:
             raise ValueError(f"Task '{task}' is not supported. Supported tasks are: {list(SUPPORTED_TASKS.keys())}")
 
-        super().__init__(model_id, save_history, system_prompt)
+        super().__init__(model_id, apply_chat_history, system_prompt)
 
         # Initialize configuration
         self.transformers__device = transformers__device or get_best_device()
@@ -427,7 +427,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         onnx__n_cpu_threads: int = GGUF_Utils.get_optimal_n_threads(),
         onnx__model_dir: Optional[str] = None,
         token: Optional[str] = None,
-        save_history: bool = False,
+        apply_chat_history: bool = False,
         system_prompt: str = None,
         **kwargs,
     ):
@@ -448,7 +448,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             Whether to print verbose logs.
         onnx__n_cpu_threads : int
             Number of threads to use for generation.
-        save_history : bool
+        apply_chat_history : bool
             Whether to save conversation history.
         system_prompt : str
             System prompt to prepend to all inputs.
@@ -466,7 +466,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.model_id = self._post_validate_model_id(self.model_id)
         self.transformers_tokenizer = AutoTokenizer.from_pretrained(self.model_id, token=token)
 
-        super().__init__(self.model_id, save_history, system_prompt)
+        super().__init__(self.model_id, apply_chat_history, system_prompt)
         self.onnx__verbose = onnx__verbose
         self.onnx__n_cpu_threads = onnx__n_cpu_threads
 
@@ -698,7 +698,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         gguf__n_gpu_layers: int = 0,
         gguf__n_batch: Optional[int] = None,
         gguf__n_cpu_threads: Optional[int] = None,
-        save_history: bool = False,
+        apply_chat_history: bool = False,
         system_prompt: str = "",
         model_kwargs: Dict[str, Any] = None,
         **kwargs,
@@ -723,14 +723,14 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             The batch size for generation. Increase for faster generation, at the cost of memory.
         gguf__n_cpu_threads : int
             The number of CPU threads to use for generation. Increase for much faster generation if multiple cores are available.
-        save_history : bool
+        apply_chat_history : bool
             Set to True if you want model to generate responses based on previous inputs (eg. chat history).
         system_prompt : str
             The system prompt to prepend to the input text.
         model_kwargs : Dict[str, Any]
             Additional keyword arguments for the model. These get passed directly to llama-cpp.Llama.__init__.
         """
-        super().__init__(model_id, save_history, system_prompt)
+        super().__init__(model_id, apply_chat_history, system_prompt)
 
         if Llama is None:
             raise ImportError(
@@ -848,8 +848,8 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
     # override the original apply_chat_template method
     def apply_chat_template(self, input_data: str) -> List[Dict[str, str]]:
         messages = []
-        if self.save_history:
-            messages = self.history.copy()
+        if self.apply_chat_history:
+            messages = self.chat_history.copy()
         messages.append({"role": "user", "content": input_data})
         if self.system_prompt:
             messages.insert(0, {"role": "system", "content": self.system_prompt})

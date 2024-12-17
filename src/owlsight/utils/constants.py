@@ -55,7 +55,7 @@ class ConfigSchema:
         },
         "model": {
             "model_id": {"default": "", "choices": None, "description": "Model identifier or path"},
-            "save_history": {
+            "apply_chat_history": {
                 "default": False,
                 "choices": [False, True],
                 "description": "Whether to save conversation history",
@@ -144,7 +144,7 @@ class ConfigSchema:
             "active": {"default": False, "choices": [False, True], "description": "Whether RAG is active"},
             "target_library": {"default": "", "choices": None, "description": "Target python library for RAG"},
             "top_k": {"default": 3, "choices": list(range(1, 51)), "description": "Number of RAG results to return"},
-            "search_query": {"default": "", "choices": None, "description": "RAG search query"},
+            "search": {"default": "", "choices": None, "description": "RAG search query"},
         },
         "huggingface": {
             "search": {"default": "", "choices": None, "description": "search for a model on huggingface"},

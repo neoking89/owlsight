@@ -33,7 +33,7 @@ class HistoryCompleter(Completer):
         """
         Initialize with the InMemoryHistory object.
         """
-        self.history = history
+        self.chat_history = history
 
     def get_completions(self, document, complete_event):
         """
@@ -41,7 +41,7 @@ class HistoryCompleter(Completer):
         """
         text_so_far = document.text_before_cursor
         # Get all unique entries in the history
-        unique_history_items = list(set(self.history.get_strings()))
+        unique_history_items = list(set(self.chat_history.get_strings()))
 
         for item in unique_history_items:
             if item.startswith(text_so_far):
@@ -102,7 +102,7 @@ class OptionSelectorApp:
         # Do not set the layout immediately; set it dynamically when the selector is ready.
         self.layout = None
         self.application = None
-        self.history = {}
+        self.chat_history = {}
         self.build_key_bindings()
 
     def set_selector(self, selector: Selector) -> None:
@@ -173,11 +173,11 @@ class OptionSelectorApp:
     def create_editable_option_control(self, i: int, label: str) -> VSplit:
         """Create a control for an editable option."""
         # Create a TextArea for the editable field
-        if label not in self.history:
-            self.history[label] = FileHistory(get_prompt_cache())
+        if label not in self.chat_history:
+            self.chat_history[label] = FileHistory(get_prompt_cache())
 
         # Create the HistoryCompleter that fetches suggestions from the history
-        completer = HistoryCompleter(self.history[label])
+        completer = HistoryCompleter(self.chat_history[label])
 
         text_area = TextArea(
             text=self.selector.user_inputs[label],
@@ -185,7 +185,7 @@ class OptionSelectorApp:
             wrap_lines=False,
             focus_on_click=True,
             height=1,  # Limit the TextArea to one line
-            history=self.history[label],
+            history=self.chat_history[label],
             auto_suggest=AutoSuggestFromHistory(),
             completer=completer,  # Attach the completer for autocompletion from history
         )
@@ -290,7 +290,7 @@ class OptionSelectorApp:
     def _handle_editable_input(self, current_option, user_input) -> None:
         """Handle the input for editable fields."""
         if current_option == MENU_KEYS["assistant"]:
-            self.history[current_option].append_string(user_input)
+            self.chat_history[current_option].append_string(user_input)
 
     def _initialize_application(self) -> None:
         """Initialize the application with the layout and key bindings."""

@@ -163,7 +163,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     force_delete(get_cache_dir())
 
     if manager.processor is not None:
-        manager.processor.history.clear()
+        manager.processor.chat_history.clear()
 
     logger.info(f"Cleared cachefolder {get_cache_dir()} and model chathistory.")
 

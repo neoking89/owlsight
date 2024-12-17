@@ -84,7 +84,7 @@ class ConfigManager:
         return {
             "back": None,
             "model_id": self._get_basic_choice("model", "model_id"),
-            "save_history": self._get_toggle_choice("model", "save_history"),
+            "apply_chat_history": self._get_toggle_choice("model", "apply_chat_history"),
             "system_prompt": self._get_basic_choice("model", "system_prompt"),
             "transformers__device": self._get_toggle_choice("model", "transformers__device"),
             "transformers__quantization_bits": self._get_toggle_choice("model", "transformers__quantization_bits"),
@@ -118,7 +118,7 @@ class ConfigManager:
             "active": self._get_toggle_choice("rag", "active"),
             "target_library": self._get_basic_choice("rag", "target_library"),
             "top_k": self._get_toggle_choice("rag", "top_k"),
-            "search_query": self._get_basic_choice("rag", "search_query"),
+            "search": self._get_basic_choice("rag", "search"),
         }
 
     def _create_huggingface_choices(self):

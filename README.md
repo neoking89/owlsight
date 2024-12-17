@@ -202,7 +202,7 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 ### Model Configuration
 
 - `model_id`: The ID of the model to use, either locally stored or from the Hugging Face model hub.
-- `save_history`: Whether to save the conversation history (default: false).
+- `apply_chat_history`: Whether to save the conversation history (default: false).
 - `system_prompt`: The prompt defining the model's behavior, role, and task.
 - `transformers__device`: The device to use for the transformers model.
 - `transformers__quantization_bits`: The number of bits for quantization of the transformers model.
@@ -228,10 +228,10 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 
 ### RAG Configuration
 
-- `active`: Whether to add RAG search results to the model input (default: false). If true, the `search_query` results will be added as context to the modelprompt.
+- `active`: Whether to add RAG search results to the model input (default: false). If true, the `search` results will be added as context to the modelprompt.
 - `target_library`: The Python library documentation to apply RAG to.
 - `top_k`: The number of search results to return.
-- `search_query`: The search query to use for RAG. When ENTER is pressed and `active` is true, the search results can be seen directly in the console.
+- `search`: The search query to use for RAG. When ENTER is pressed and `active` is true, the search results can be seen directly in the console.
 
 ### Huggingface Configuration
 
@@ -254,7 +254,7 @@ Here's an example of what the default configuration looks like:
     },
     "model": {
         "model_id": "",
-        "save_history": false,
+        "apply_chat_history": false,
         "system_prompt": "",
         "transformers__device": null,
         "transformers__quantization_bits": null,
@@ -281,7 +281,7 @@ Here's an example of what the default configuration looks like:
         "active": false,
         "target_library": "",
         "top_k": 3,
-        "search_query": ""
+        "search": ""
     },
     "huggingface": {
         "search": "",

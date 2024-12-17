@@ -138,13 +138,13 @@ class TextGenerationManager:
                     logger.error(f"Library '{library}' not found in the current Python session.")
                     logger.error(f"available libraries: {sorted(available_libraries)}")
                     return
-                elif inner_key == "search_query":
-                    search_query = self.config_manager.get("rag.search_query", "")
-                    if not search_query:
+                elif inner_key == "search":
+                    search = self.config_manager.get("rag.search", "")
+                    if not search:
                         logger.error("No example prompt provided. Please set an example prompt in the configuration.")
                         return
                     top_k = self.config_manager.get("rag.top_k", DEFAULTS[outer_key]["top_k"])
-                    context = search_python_libs(library, search_query, top_k, cache_dir=get_pickle_cache())
+                    context = search_python_libs(library, search, top_k, cache_dir=get_pickle_cache())
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
         elif outer_key == "huggingface":
             if inner_key == "search":
@@ -236,14 +236,14 @@ class TextGenerationManager:
                 if self.processor is None:
                     raise ValueError("Processor is not initialized yet. Cannot reload.")
                 # Save the history from the old processor
-                old_history = self.processor.history
+                old_chat_history = self.processor.chat_history
 
                 # Inmediately overwrite the processor with a new instance to save memory
                 self.processor = None
                 free_memory()
 
                 self.processor = processor_type(**processor_kwargs)
-                self.processor.history = old_history
+                self.processor.chat_history = old_chat_history
             else:
                 self.processor = processor_type(**processor_kwargs)
         except Exception as e:

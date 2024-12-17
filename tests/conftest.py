@@ -10,10 +10,10 @@ class MockTextGenerationProcessor(TextGenerationProcessor):
     def __init__(
         self,
         model_id: str,
-        save_history: bool = False,
+        apply_chat_history: bool = False,
         mock_responses: Union[str, List[str]] = "Default mock response",
     ):
-        super().__init__(model_id, save_history, system_prompt=None)
+        super().__init__(model_id, apply_chat_history, system_prompt=None)
         self.mock_responses = [mock_responses] if isinstance(mock_responses, str) else mock_responses
         self.response_index = 0
 
@@ -28,8 +28,8 @@ class MockTextGenerationProcessor(TextGenerationProcessor):
         response = self.mock_responses[self.response_index % len(self.mock_responses)]
         self.response_index += 1
 
-        if self.save_history:
-            self.history.append((input_data, response))
+        if self.apply_chat_history:
+            self.chat_history.append((input_data, response))
         return response
 
 
@@ -38,7 +38,7 @@ def mock_text_generator(request):
     mock_responses = getattr(request, "param", "Default mock response")
     if isinstance(mock_responses, list) and len(mock_responses) == 1:
         mock_responses = mock_responses[0]
-    return MockTextGenerationProcessor("mock-model", save_history=True, mock_responses=mock_responses)
+    return MockTextGenerationProcessor("mock-model", apply_chat_history=True, mock_responses=mock_responses)
 
 
 @pytest.fixture
