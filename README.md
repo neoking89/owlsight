@@ -44,11 +44,19 @@ To add ONNX functionality:
 pip install owlsight[onnx]
 ```
 
+To add multimodal functionality:
+
+```
+pip install owlsight[multimodal]
+```
+
 To install all packages:
 
 ```
 pip install owlsight[all]
 ```
+
+It is recommended to use the `all` option, as this will install all dependencies and allow you to use all features of Owlsight.
 
 ## Usage
 
@@ -58,7 +66,7 @@ After installation, launch Owlsight in the terminal by running the following com
 owlsight
 ```
 
-This will present you with some giant ASCII-art of an owl and information which tells you whether you have access to an active GPU.
+This will present you with some giant ASCII-art of an owl and information which tells you whether you have access to an active GPU (assuming you use CUDA).
 
 Then, you are presented with the mainmenu:
 
@@ -98,7 +106,12 @@ Then, a distinction needs to be made in Owlsight between 3 different, but very s
    - *save*: Provide a valid path to save the current configurations as json. Then press ENTER. This is incredibly useful, as it allows later reuse of the current model with all its respective settings.
    - *load:* Provide a valid path to load configurations from an earlier saved json. Then press ENTER. If on windows, you can directly press ENTER without specifying a path to open up a file dialog window for convenience.
 
-Start to use the application by loading a model. Go to **config > model** and set a *model_id* to load a model locally or from *[https://huggingface.co/]()*
+Now, lets start out by loading a model. Go to **config > huggingface** , choose a task like *text-generation* and press ENTER. 
+
+Then, use the *search* option to search for a model. 
+You can first type in keywords before searching, like "llama gguf". This will give you results from the Huggingface modelhub which are related to models in the llama-family in GGUf format.
+
+Press ENTER to see the top_k results. Use the LEFT and RIGHT arrow keys in the *select_model* option to select a model and press ENTER to load it.
 
 ### Available Commands
 
@@ -143,7 +156,7 @@ python > excel_data = read_excel("path/to/excel")
 
 ## MultiModal Support
 
-In Owlsight 2, models are supported that require additional input, like images, audio, or video. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. In the CLI, this can be done by setting the *model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. For convenience, it is recommended to select a model through the new Huggingface API in the configuration-settings (read below for more information).
+In Owlsight 2, models are supported that require additional input, like images or audio. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. In the CLI, this can be done by setting the *model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. For convenience, it is recommended to select a model through the new Huggingface API in the configuration-settings (read below for more information).
 
 The following tasks are supported:
 
@@ -158,7 +171,7 @@ These models require additional input, which can be passed in the prompt. The sy
 [[mediatype:path/to/file]]
 ```
 
-The supported mediatypes are: *image*, *audio*, *video*.
+The supported mediatypes are: *image*, *audio*.
 For example, to pass an image to a document-question-answering model, you can use the following syntax:
 
 ```
@@ -205,9 +218,8 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 - `apply_chat_history`: Whether to save the conversation history (default: false).
 - `system_prompt`: The prompt defining the model's behavior, role, and task.
 - `transformers__device`: The device to use for the transformers model.
-- `transformers__quantization_bits`: The number of bits for quantization of the transformers model.
+- `transformers__quantization_bits`: The number of bits for quantization of the transformers model. Choices are 4,8 amd 16 bits.
 - `transformers__stream`: Whether to stream input to transformers model
-- `transformers__use_fp16`: Whether to use fp16 for the transformers model.
 - `transformers__model_kwargs`: Additional keyword arguments for the transformers model.
 - `gguf__filename`: The filename of the GGUF model (required for GGUF models).
 - `gguf__verbose`: Whether to print verbose output for the GGUF model.
@@ -366,5 +378,7 @@ for token in processor.generate_stream(question):
 - Improved logging with clearer color coding and more detailed information.
 - System Prompt is now an empty string as default.
 - Several small bugfixes and improvements.
+
+2.0.2 (stable)
 
 **Disclaimer**: This version is still in beta and might contain bugs, especially on non-Windows systems. If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
