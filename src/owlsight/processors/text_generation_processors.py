@@ -350,7 +350,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             input_data, max_new_tokens, temperature, stopwords, generation_kwargs
         )
         output = self.pipe_call(templated_text, **gen_kwargs)
-        generated_text = output[0]["generated_text"][len(templated_text) :].strip()
+        generated_text = next(iter(output[0].values()))[len(templated_text) :].strip()
         self.update_history(input_data, generated_text)
         return generated_text
 
