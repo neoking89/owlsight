@@ -127,7 +127,7 @@ class TextGenerationManager:
             if rag_is_active:
                 library = self.config_manager.get("rag.target_library", "")
                 if not library:
-                    logger.error("No library provided. Please set a library in the configuration.")
+                    logger.error("No library provided. Please set 'target_library' in the configuration.")
                     return
 
                 # get all libs without the _ prefix and in sorted order
