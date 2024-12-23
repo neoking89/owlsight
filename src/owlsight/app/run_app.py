@@ -43,7 +43,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
     user_choice = None
     while True:
         try:
-            print_colored("Make a choice:", color=PROMPT_COLOR)
+            # print_colored("Make a choice:", color=PROMPT_COLOR)
 
             # define startindex of arrow in mainmenu
             _option_or_userchoice: bool = option or user_choice
