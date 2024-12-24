@@ -33,6 +33,7 @@ except ImportError:
 
         pass
 
+BACKGROUND_STYLE = "bg:#1a1a1a"
 
 class HistoryCompleter(Completer):
     """
@@ -104,7 +105,7 @@ class OptionSelectorApp:
             {
                 # Base colors and removing white bar
                 "": "bg:#1a1a1a fg:#ffffff",  # Global default
-                "bottom-toolbar": "bg:#1a1a1a",
+                "bottom-toolbar": BACKGROUND_STYLE,
                 "frame.border": "bg:#1a1a1a fg:#404040",  # Frame border color
                 "frame.label": "bg:#1a1a1a fg:#3498db",  # Frame title color
                 # Menu elements
@@ -114,7 +115,7 @@ class OptionSelectorApp:
                 "option": "fg:#ecf0f1",  # Normal option text
                 # Input area
                 "text-area": "bg:#1a1a1a fg:#ffffff",
-                "text-area.cursor-line": "bg:#1a1a1a",
+                "text-area.cursor-line": BACKGROUND_STYLE,
                 "cursor": "fg:#ffffff",
                 # Completion menu
                 "completion-menu": "bg:#2c3e50 fg:#ffffff",
@@ -143,13 +144,13 @@ class OptionSelectorApp:
             content=FormattedTextControl(
                 lambda: self.set_current_selection(),
             ),
-            style="bg:#1a1a1a",
+            style=BACKGROUND_STYLE,
         )
 
         # Frame around options with modern styling
         framed_controls = Frame(
             body=HSplit(self.controls),
-            style="bg:#1a1a1a",
+            style=BACKGROUND_STYLE,
             width=None,
             height=None,
             title=" Use ↑/↓ to navigate, ←/→ to toggle/edit, Enter to select ",
@@ -235,8 +236,8 @@ class OptionSelectorApp:
         # TODO: change to multiline output?
         text_area = TextArea(
             text=self.selector.user_inputs[label],
-            multiline=False,
-            wrap_lines=False,
+            multiline=True,
+            wrap_lines=True,
             focus_on_click=True,
             height=1,
             history=self.chat_history[label],
