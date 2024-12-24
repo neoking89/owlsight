@@ -1,6 +1,5 @@
 from typing import Optional, Type
 import os
-import traceback
 
 from transformers.pipelines import get_task
 

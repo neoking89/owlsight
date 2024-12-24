@@ -189,7 +189,7 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
         """
         Get an iterator of media objects if the path is a directory or list.
         """
-        l = []
+        lst = []
         if isinstance(media_object.path, str) and os.path.isdir(media_object.path):
             return [
                 MediaObject(
@@ -206,14 +206,14 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
                     continue
                 try:
                     media_obj = MediaObject(type=media_object.type, path=file, options=media_object.options)
-                    l.append(media_obj)
+                    lst.append(media_obj)
                 except Exception as e:
                     logger.error(f"Error processing file {file} to a MediaObject: {e}")
 
-            if not l:
+            if not lst:
                 raise ValueError("No valid media files found in the list.")
 
-        return l
+        return lst
 
 
 class MultiModalProcessorGGUF(TextGenerationProcessor):

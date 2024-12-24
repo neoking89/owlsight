@@ -5,7 +5,7 @@ from enum import Enum, auto
 import os
 
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
-from owlsight.ui.console import get_user_choice, print_colored, get_user_input
+from owlsight.ui.console import get_user_choice, get_user_input
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.app.handlers import handle_interactive_code_execution
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
@@ -17,7 +17,6 @@ from owlsight.utils.helper_functions import (
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
 from owlsight.utils.constants import (
-    PROMPT_COLOR,
     MAIN_MENU,
     get_cache_dir,
     get_pickle_cache,
