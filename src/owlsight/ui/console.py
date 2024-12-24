@@ -40,6 +40,7 @@ except ImportError:
         pass
 
 
+# TODO: move this to a shared constants file and use them for python interpreter
 BACKGROUND_STYLE = "bg:#1a1a1a"
 GLOBAL_STYLE = Style.from_dict(
     {
