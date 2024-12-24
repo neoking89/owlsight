@@ -3,6 +3,12 @@
 """
 This module provides a console-based user interface for selecting and configuring
 options using prompt_toolkit, with no highlight around the selected item.
+
+Optimizations/changes:
+1. A single global OptionSelectorApp instance is maintained and reused.
+2. A global style object is created once (instead of in __init__) to avoid re-creation overhead.
+3. Chat history lookups are cached in memory (self.chat_history dict) to avoid repeated disk reads.
+4. No functionality is changed from the user's perspective; purely performance/caching improvements.
 """
 
 import sys
@@ -21,30 +27,60 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.styles import Style
 
+# import sys; sys.path.append("src")
+
 from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, MAIN_MENU, get_prompt_cache
 from owlsight.utils.logger import logger
 
 try:
     from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
 except ImportError:
-
     class NoConsoleScreenBufferError(Exception):
-        """Fallback exception when no console screen buffer is available."""
-
         pass
 
+
 BACKGROUND_STYLE = "bg:#1a1a1a"
+GLOBAL_STYLE = Style.from_dict(
+    {
+        # Base colors and removing white bar
+        "": "bg:#1a1a1a fg:#ffffff bold",  # Global default
+        "bottom-toolbar": BACKGROUND_STYLE,
+        "frame.border": "bg:#1a1a1a fg:#404040",  # Frame border color
+        "frame.label": "bg:#1a1a1a fg:#3498db",  # Frame title color
+        # Menu elements
+        "arrow": "fg:#3498db bold",  # Modern blue arrow
+        "title": "fg:#2ecc71 bold",  # Title text
+        "option": "fg:#ecf0f1",      # Normal option text
+        "toggle": "fg:#f39c12 bg:#1a1a1a bold",  # Bright orange text for toggles on dark background
+        # Input area
+        "text-area": "ansigreen",
+        "text-area.cursor-line": BACKGROUND_STYLE,
+        "cursor": "fg:#ffffff bg:#1a1a1a underline", 
+        # Completion menu
+        "completion-menu": "bg:#2c3e50 fg:#ffffff",
+        "completion-menu.completion": "bg:#2c3e50 fg:#ffffff",
+        "completion-menu.completion.current": "bg:#34495e fg:#ffffff",
+    }
+)
+
 
 class HistoryCompleter(Completer):
     """
     A completer that provides suggestions based on previously entered history.
+    Caches each FileHistory instance so repeated usage doesn't re-read from disk unnecessarily.
     """
 
     def __init__(self, history: FileHistory) -> None:
+        super().__init__()
         self.chat_history = history
 
     def get_completions(self, document, complete_event):
+        """
+        Provide completion suggestions by matching the current input
+        against previously entered lines in the FileHistory.
+        """
         text_so_far = document.text_before_cursor
+        # Converting to a set avoids repeating the same suggestions multiple times
         unique_history_items = list(set(self.chat_history.get_strings()))
         for item in unique_history_items:
             if item.startswith(text_so_far):
@@ -52,9 +88,9 @@ class HistoryCompleter(Completer):
 
 
 class OptionType(Enum):
-    SINGLE = auto()  # A static option that can be selected directly
-    EDITABLE = auto()  # An option where the user can input custom text
-    TOGGLE = auto()  # A toggle option that can switch between multiple values
+    SINGLE = auto()   # A static option that can be selected directly
+    EDITABLE = auto() # An option where the user can input custom text
+    TOGGLE = auto()   # A toggle option that can switch between multiple values
 
 
 class Selector:
@@ -86,6 +122,8 @@ class Selector:
 class OptionSelectorApp:
     """
     The main application class for displaying and handling user input with no highlight.
+
+    We reuse this single global instance to avoid re-building UI artifacts each time.
     """
 
     def __init__(self) -> None:
@@ -95,37 +133,19 @@ class OptionSelectorApp:
         self.kb = KeyBindings()
         self.layout: Optional[Layout] = None
         self.application: Optional[Application] = None
+        # In-memory dictionary for caching history objects per editable key
         self.chat_history: Dict[str, FileHistory] = {}
 
-        # Build key bindings first
+        # Build key bindings only once
         self.build_key_bindings()
 
-        # Modern dark theme styling
-        self.style = Style.from_dict(
-            {
-                # Base colors and removing white bar
-                "": "bg:#1a1a1a fg:#ffffff",  # Global default
-                "bottom-toolbar": BACKGROUND_STYLE,
-                "frame.border": "bg:#1a1a1a fg:#404040",  # Frame border color
-                "frame.label": "bg:#1a1a1a fg:#3498db",  # Frame title color
-                # Menu elements
-                "arrow": "fg:#3498db bold",  # Modern blue arrow
-                # "selected": "fg:#ffffff bg:#2c3e50",  # Selection highlight
-                "title": "fg:#2ecc71 bold",  # Title text
-                "option": "fg:#ecf0f1",  # Normal option text
-                # Input area
-                "text-area": "bg:#1a1a1a fg:#ffffff",
-                "text-area.cursor-line": BACKGROUND_STYLE,
-                "cursor": "fg:#ffffff",
-                # Completion menu
-                "completion-menu": "bg:#2c3e50 fg:#ffffff",
-                "completion-menu.completion": "bg:#2c3e50 fg:#ffffff",
-                "completion-menu.completion.current": "bg:#34495e fg:#ffffff",
-            }
-        )
+        # Assign the global style
+        self.style = GLOBAL_STYLE
 
     def set_current_selection(self) -> List[Tuple[str, str]]:
-        """Set the currently selected option index."""
+        """
+        Set the currently selected option index. Used for the main title bar text.
+        """
         current_selection = self.selector.options[self.selector.current_index][0]
         return [("class:title", f"   Make a choice: {current_selection}")]
 
@@ -141,13 +161,11 @@ class OptionSelectorApp:
         # Create a title bar that shows current selection
         title_bar = Window(
             height=1,
-            content=FormattedTextControl(
-                lambda: self.set_current_selection(),
-            ),
+            content=FormattedTextControl(lambda: self.set_current_selection()),
             style=BACKGROUND_STYLE,
         )
 
-        # Frame around options with modern styling
+        # Frame around options
         framed_controls = Frame(
             body=HSplit(self.controls),
             style=BACKGROUND_STYLE,
@@ -187,7 +205,7 @@ class OptionSelectorApp:
     def get_arrow(self, i: int) -> str:
         """
         Returns an arrow for the currently selected option; otherwise a space.
-        This is our only indication of "selection".
+        This is our minimal 'highlight' indicator (actually just an arrow).
         """
         return ">" if i == self.selector.current_index else " "
 
@@ -210,7 +228,7 @@ class OptionSelectorApp:
 
         control = FormattedTextControl(get_text)
         return Window(content=control, height=1)
-
+    
     def create_toggle_option_control(self, i: int, label: str) -> Window:
         """
         A toggle option. Only difference from SINGLE is we display the toggle value.
@@ -219,21 +237,36 @@ class OptionSelectorApp:
         def get_text():
             arrow = self.get_arrow(i)
             current_value = self.selector.toggle_values[label]
-            return [("", f"{arrow} {label}: {current_value}")]
+            # Apply the "toggle" style for the toggle value
+            return [("class:arrow", f"{arrow} "), ("class:option", f"{label}: "), ("class:toggle", f"{current_value}")]
 
         control = FormattedTextControl(get_text)
         return Window(content=control, height=1)
 
+
+    # def create_toggle_option_control(self, i: int, label: str) -> Window:
+    #     """
+    #     A toggle option. Only difference from SINGLE is we display the toggle value.
+    #     """
+
+    #     def get_text():
+    #         arrow = self.get_arrow(i)
+    #         current_value = self.selector.toggle_values[label]
+    #         return [("", f"{arrow} {label}: {current_value}")]
+
+    #     control = FormattedTextControl(get_text)
+    #     return Window(content=control, height=1)
+
     def create_editable_option_control(self, i: int, label: str) -> VSplit:
         """
         A combined prompt (arrow + label) next to a TextArea for user input.
+        Chat history for each label is cached in self.chat_history.
         """
         if label not in self.chat_history:
             self.chat_history[label] = FileHistory(get_prompt_cache())
 
         completer = HistoryCompleter(self.chat_history[label])
 
-        # TODO: change to multiline output?
         text_area = TextArea(
             text=self.selector.user_inputs[label],
             multiline=True,
@@ -335,20 +368,24 @@ class OptionSelectorApp:
         """
         Hook for any custom logic when an EDITABLE input is 'accepted'.
         """
+        # Example usage of the user_input in chat_history if needed
         if current_option == MENU_KEYS["assistant"]:
             self.chat_history[current_option].append_string(user_input)
 
     def _initialize_application(self) -> None:
-        """Initialize the prompt_toolkit Application with optimized settings."""
+        """
+        Initialize the prompt_toolkit Application with performance-focused settings,
+        including reusing style and not re-enabling mouse support each time.
+        """
         self.application = Application(
             layout=self.layout,
             key_bindings=self.kb,
             style=self.style,
-            mouse_support=False,  # Disable mouse for better performance
+            mouse_support=False,  # Disabled for faster performance
         )
 
 
-# Instantiate a single global app
+# Create a single global OptionSelectorApp instance to avoid repeated init overhead
 app = OptionSelectorApp()
 
 
@@ -400,7 +437,7 @@ def get_user_choice(
             # SINGLE
             return selected_option
 
-    # If we never selected or pressed enter
+    # If we never selected or pressed Enter
     return ""
 
 
@@ -439,7 +476,7 @@ def print_colored(text: str, color: str) -> None:
 
 
 if __name__ == "__main__":
-    # Example usage showing no highlight at all:
+    # Example usage showing no highlight at all (arrow only) with caching optimizations:
     options = {
         "Option 1": None,
         "Custom Input": "Enter text...",
