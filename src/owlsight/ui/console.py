@@ -35,6 +35,7 @@ from owlsight.utils.logger import logger
 try:
     from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
 except ImportError:
+
     class NoConsoleScreenBufferError(Exception):
         pass
 
@@ -50,12 +51,12 @@ GLOBAL_STYLE = Style.from_dict(
         # Menu elements
         "arrow": "fg:#3498db bold",  # Modern blue arrow
         "title": "fg:#2ecc71 bold",  # Title text
-        "option": "fg:#ecf0f1",      # Normal option text
+        "option": "fg:#ecf0f1",  # Normal option text
         "toggle": "fg:#f39c12 bg:#1a1a1a bold",  # Bright orange text for toggles on dark background
         # Input area
         "text-area": "ansigreen",
         "text-area.cursor-line": BACKGROUND_STYLE,
-        "cursor": "fg:#ffffff bg:#1a1a1a underline", 
+        "cursor": "fg:#ffffff bg:#1a1a1a underline",
         # Completion menu
         "completion-menu": "bg:#2c3e50 fg:#ffffff",
         "completion-menu.completion": "bg:#2c3e50 fg:#ffffff",
@@ -88,9 +89,9 @@ class HistoryCompleter(Completer):
 
 
 class OptionType(Enum):
-    SINGLE = auto()   # A static option that can be selected directly
-    EDITABLE = auto() # An option where the user can input custom text
-    TOGGLE = auto()   # A toggle option that can switch between multiple values
+    SINGLE = auto()  # A static option that can be selected directly
+    EDITABLE = auto()  # An option where the user can input custom text
+    TOGGLE = auto()  # A toggle option that can switch between multiple values
 
 
 class Selector:
@@ -174,12 +175,7 @@ class OptionSelectorApp:
             title=" Use ↑/↓ to navigate, ←/→ to toggle/edit, Enter to select ",
         )
 
-        self.layout = Layout(
-            HSplit([
-                title_bar,
-                framed_controls
-            ])
-        )
+        self.layout = Layout(HSplit([title_bar, framed_controls]))
 
         try:
             self._initialize_application()
@@ -228,7 +224,7 @@ class OptionSelectorApp:
 
         control = FormattedTextControl(get_text)
         return Window(content=control, height=1)
-    
+
     def create_toggle_option_control(self, i: int, label: str) -> Window:
         """
         A toggle option. Only difference from SINGLE is we display the toggle value.
@@ -242,20 +238,6 @@ class OptionSelectorApp:
 
         control = FormattedTextControl(get_text)
         return Window(content=control, height=1)
-
-
-    # def create_toggle_option_control(self, i: int, label: str) -> Window:
-    #     """
-    #     A toggle option. Only difference from SINGLE is we display the toggle value.
-    #     """
-
-    #     def get_text():
-    #         arrow = self.get_arrow(i)
-    #         current_value = self.selector.toggle_values[label]
-    #         return [("", f"{arrow} {label}: {current_value}")]
-
-    #     control = FormattedTextControl(get_text)
-    #     return Window(content=control, height=1)
 
     def create_editable_option_control(self, i: int, label: str) -> VSplit:
         """
