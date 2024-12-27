@@ -2,18 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 This module provides a console-based user interface for selecting and configuring
-options using prompt_toolkit, with no highlight around the selected item.
-
-Optimizations/changes:
-1. A single global OptionSelectorApp instance is maintained and reused.
-2. A global style object is created once (instead of in __init__) to avoid re-creation overhead.
-3. Chat history lookups are cached in memory (self.chat_history dict) to avoid repeated disk reads.
-4. No functionality is changed from the user's perspective; purely performance/caching improvements.
+options using prompt_toolkit.
 """
 
 import sys
 import traceback
-from enum import Enum, auto
 from typing import List, Dict, Tuple, Union, Any, Optional
 
 from prompt_toolkit import Application
@@ -25,11 +18,13 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.widgets import TextArea, Frame
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
-from prompt_toolkit.styles import Style
 
 # import sys; sys.path.append("src")
 
-from owlsight.utils.constants import COLOR_CODES, MENU_KEYS, MAIN_MENU, get_prompt_cache
+from owlsight.configurations.constants import MAIN_MENU
+from owlsight.ui.constants import BACKGROUND_STYLE, COLOR_CODES, GLOBAL_STYLE, INSTRUCTIONS
+from owlsight.ui.custom_classes import OptionType
+from owlsight.utils.constants import get_prompt_cache
 from owlsight.utils.logger import logger
 
 try:
@@ -38,32 +33,6 @@ except ImportError:
 
     class NoConsoleScreenBufferError(Exception):
         pass
-
-
-# TODO: move this to a shared constants file and use them for python interpreter
-BACKGROUND_STYLE = "bg:#1a1a1a"
-GLOBAL_STYLE = Style.from_dict(
-    {
-        # Base colors and removing white bar
-        "": "bg:#1a1a1a fg:#ffffff bold",  # Global default
-        "bottom-toolbar": BACKGROUND_STYLE,
-        "frame.border": "bg:#1a1a1a fg:#404040",  # Frame border color
-        "frame.label": "bg:#1a1a1a fg:#3498db",  # Frame title color
-        # Menu elements
-        "arrow": "fg:#3498db bold",  # Modern blue arrow
-        "title": "fg:#2ecc71 bold",  # Title text
-        "option": "fg:#ecf0f1",  # Normal option text
-        "toggle": "fg:#f39c12 bg:#1a1a1a bold",  # Bright orange text for toggles on dark background
-        # Input area
-        "text-area": "ansigreen",
-        "text-area.cursor-line": BACKGROUND_STYLE,
-        "cursor": "fg:#ffffff bg:#1a1a1a underline",
-        # Completion menu
-        "completion-menu": "bg:#2c3e50 fg:#ffffff",
-        "completion-menu.completion": "bg:#2c3e50 fg:#ffffff",
-        "completion-menu.completion.current": "bg:#34495e fg:#ffffff",
-    }
-)
 
 
 class HistoryCompleter(Completer):
@@ -89,12 +58,6 @@ class HistoryCompleter(Completer):
                 yield Completion(item, start_position=-len(text_so_far))
 
 
-class OptionType(Enum):
-    SINGLE = auto()  # A static option that can be selected directly
-    EDITABLE = auto()  # An option where the user can input custom text
-    TOGGLE = auto()  # A toggle option that can switch between multiple values
-
-
 class Selector:
     """
     A selector that manages a list of options (single, toggle, or editable).
@@ -111,7 +74,7 @@ class Selector:
         # Parse the dictionary and set up internal structures
         for key, value in options_dict.items():
             if value is None:
-                self.options.append((key, OptionType.SINGLE))
+                self.options.append((key, OptionType.ACTION))
             elif isinstance(value, list):
                 self.options.append((key, OptionType.TOGGLE))
                 self.toggle_choices[key] = value
@@ -173,7 +136,7 @@ class OptionSelectorApp:
             style=BACKGROUND_STYLE,
             width=None,
             height=None,
-            title=" Use ↑/↓ to navigate, ←/→ to toggle/edit, Enter to select ",
+            title=INSTRUCTIONS.MAIN_MENU,
         )
 
         self.layout = Layout(HSplit([title_bar, framed_controls]))
@@ -189,7 +152,7 @@ class OptionSelectorApp:
         Create a UI control (Window or VSplit) for each option in the Selector.
         """
         for i, (label, opt_type) in enumerate(self.selector.options):
-            if opt_type == OptionType.SINGLE:
+            if opt_type == OptionType.ACTION:
                 control = self.create_single_option_control(i, label)
             elif opt_type == OptionType.TOGGLE:
                 control = self.create_toggle_option_control(i, label)
@@ -352,7 +315,7 @@ class OptionSelectorApp:
         Hook for any custom logic when an EDITABLE input is 'accepted'.
         """
         # Example usage of the user_input in chat_history if needed
-        if current_option == MENU_KEYS["assistant"]:
+        if current_option == list(MAIN_MENU.keys())[0]:
             self.chat_history[current_option].append_string(user_input)
 
     def _initialize_application(self) -> None:
