@@ -4,6 +4,7 @@ from typing import Union
 from enum import Enum, auto
 import os
 
+from owlsight.configurations.constants import MAIN_MENU
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
 from owlsight.ui.console import get_user_choice, get_user_input
 from owlsight.processors.text_generation_manager import TextGenerationManager
@@ -17,7 +18,6 @@ from owlsight.utils.helper_functions import (
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
 from owlsight.utils.constants import (
-    MAIN_MENU,
     get_cache_dir,
     get_pickle_cache,
     get_prompt_cache,
