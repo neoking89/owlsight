@@ -3,6 +3,7 @@ import traceback
 import pkgutil
 import ast
 
+from owlsight.configurations.constants import CONFIG_DEFAULTS
 from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
 from owlsight.processors.helper_functions import (
     select_processor_type, warn_processor_not_loaded
@@ -14,7 +15,7 @@ from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory, track_measure_usage
-from owlsight.utils.constants import get_pickle_cache, DEFAULTS
+from owlsight.utils.constants import get_pickle_cache
 from owlsight.utils.logger import logger
 
 
@@ -143,15 +144,15 @@ class TextGenerationManager:
                     if not search:
                         logger.error("No example prompt provided. Please set an example prompt in the configuration.")
                         return
-                    top_k = self.config_manager.get("rag.top_k", DEFAULTS[outer_key]["top_k"])
+                    top_k = self.config_manager.get("rag.top_k", CONFIG_DEFAULTS[outer_key]["top_k"])
                     context = search_python_libs(library, search, top_k, cache_dir=get_pickle_cache())
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
         elif outer_key == "huggingface":
             if inner_key == "search":
                 # search models from huggingface
-                model_search = self.config_manager.get("huggingface.search", DEFAULTS["huggingface"]["search"])
-                top_k = self.config_manager.get("huggingface.top_k", DEFAULTS["huggingface"]["top_k"])
-                task = self.config_manager.get("huggingface.task", DEFAULTS["huggingface"]["task"])
+                model_search = self.config_manager.get("huggingface.search", CONFIG_DEFAULTS["huggingface"]["search"])
+                top_k = self.config_manager.get("huggingface.top_k", CONFIG_DEFAULTS["huggingface"]["top_k"])
+                task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
                 model_dict = show_and_return_model_data(model_search, top_n_models=top_k, task=task)
                 if not model_dict:
                     logger.error("No models found. Please try a different search query.")
@@ -160,7 +161,7 @@ class TextGenerationManager:
                 self.config_manager.set("huggingface.select_model", list(model_dict.keys()))
             elif inner_key == "select_model":
                 select_model = self.config_manager.get(
-                    "huggingface.select_model", DEFAULTS["huggingface"]["select_model"]
+                    "huggingface.select_model", CONFIG_DEFAULTS["huggingface"]["select_model"]
                 )
                 if not select_model:
                     logger.error("No model provided. Please set a model in the configuration.")
@@ -170,7 +171,7 @@ class TextGenerationManager:
                     return
                 # select and load a model from huggingface
                 self.config_manager.set("model.model_id", select_model)
-                task = self.config_manager.get("huggingface.task", DEFAULTS["huggingface"]["task"])
+                task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
                 exc = self.load_model_processor(reload=self.processor is not None)
                 if exc and select_model.lower().endswith("gguf"):
                     gguf_list = str(exc).split("Available Files:")[1].strip()
@@ -187,7 +188,7 @@ class TextGenerationManager:
                     else:
                         logger.warning("No gguf-list could be inferred")
             elif inner_key == "task":
-                task = self.config_manager.get("huggingface.task", DEFAULTS["huggingface"]["task"])
+                task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
                 self.config_manager.set("huggingface.task", task)
 
     def save_config(self, path: str):
@@ -220,7 +221,7 @@ class TextGenerationManager:
             None if successful, otherwise an exception is returned.
         """
         model_kwargs = self.config_manager.get("model", {})
-        task = self.config_manager.get("huggingface.task", DEFAULTS["huggingface"]["task"])
+        task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
         processor_kwargs = {"task": task, **model_kwargs}
 
         model_id = self.config_manager.get("model.model_id", "")
