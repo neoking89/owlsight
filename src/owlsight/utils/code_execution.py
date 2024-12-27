@@ -10,6 +10,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
+from owlsight.ui.constants import EDIT_CODE_BLOCK_COLOR
 from owlsight.utils.custom_exceptions import ModuleNotFoundInVenvError
 from owlsight.utils.custom_classes import SingletonDict
 from owlsight.utils.subprocess_utils import execute_shell_command
@@ -24,10 +25,8 @@ from owlsight.utils.venv_manager import (
     get_lib_path,
     get_python_executable,
 )
-from owlsight.utils.constants import PROMPT_COLOR, get_py_cache 
+from owlsight.utils.constants import get_py_cache
 from owlsight.utils.logger import logger
-
-
 
 
 class CodeExecutor:
@@ -394,7 +393,7 @@ def prompt_code_edit(code_block: str) -> str:
     code_block = editable_input(
         "Edit the code block (press ENTER to confirm):\n",
         code_block,
-        color=PROMPT_COLOR,
+        color=EDIT_CODE_BLOCK_COLOR,
     )
     logger.info(f"Edited Code Block:\n{code_block}")
     return code_block
