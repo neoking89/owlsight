@@ -5,20 +5,22 @@ import json
 from copy import deepcopy
 from unittest.mock import patch, mock_open
 
+from owlsight.configurations.constants import CONFIG_DEFAULTS
+
 sys.path.append("src")
 from owlsight.configurations.config_manager import ConfigManager, DottedDict, _prepare_toggle_choices
-from owlsight.utils.constants import DEFAULTS, ConfigSchema
+from owlsight.configurations.schema import Schema
 
 
 @pytest.fixture(scope="function", autouse=True)
 def defaults():
-    """Fixture to reset DEFAULTS after each test."""
-    yield ConfigSchema.get_defaults()
+    """Fixture to reset CONFIG_DEFAULTS after each test."""
+    yield Schema.get_config_defaults()
 
 @pytest.fixture(scope="function", autouse=True)
 def choices():
     """Fixture to return the choices."""
-    yield ConfigSchema.get_choices()
+    yield Schema.get_config_choices()
 
 @pytest.fixture
 def config_manager():
@@ -67,7 +69,7 @@ def test_save_config(mock_file, config_manager):
         mock_file().write.assert_called()
 
 
-@patch("builtins.open", new_callable=mock_open, read_data=json.dumps(DEFAULTS))
+@patch("builtins.open", new_callable=mock_open, read_data=json.dumps(CONFIG_DEFAULTS))
 def test_load_config(mock_file, config_manager):
     """Test loading configuration from a file."""
     with patch("os.path.exists", return_value=True):
@@ -107,7 +109,7 @@ def test_load_invalid_config(mock_file, mock_exists, config_manager):
 def test_validate_config_missing_sections(config_manager):
     """Test config validation with missing keys."""
     invalid_config = {"main": {}}
-    expected_missing_sections = set(DEFAULTS.keys()) - set(invalid_config.keys())
+    expected_missing_sections = set(CONFIG_DEFAULTS.keys()) - set(invalid_config.keys())
     expected_error_message = f"Config misses the following sections: {expected_missing_sections}"
 
     with pytest.raises(KeyError, match=re.escape(expected_error_message)):
@@ -180,17 +182,17 @@ def test_prepare_toggle_choices():
 
 
 def test_copy_defaults_does_not_modify_original(defaults):
-    """Test that the DEFAULTS copy does not modify the original DEFAULTS."""
-    assert defaults["main"]["max_retries_on_error"] == 3, "DEFAULTS should have the right default value"
+    """Test that the CONFIG_DEFAULTS copy does not modify the original CONFIG_DEFAULTS."""
+    assert defaults["main"]["max_retries_on_error"] == 3, "CONFIG_DEFAULTS should have the right default value"
     defaults_copy = deepcopy(defaults)
     defaults_copy["main"]["max_retries_on_error"] = 5
-    assert defaults["main"]["max_retries_on_error"] != 5, "DEFAULTS should not be modified"
+    assert defaults["main"]["max_retries_on_error"] != 5, "CONFIG_DEFAULTS should not be modified"
 
 
 def test_defaults_variable_should_not_be_modified(config_manager, defaults):
-    """Test that the DEFAULTS variable is not modified by the ConfigManager."""
+    """Test that the CONFIG_DEFAULTS variable is not modified by the ConfigManager."""
     config_manager.set("main.max_retries_on_error", 5)
-    assert defaults["main"]["max_retries_on_error"] != 5, "ConfigManager should not modify DEFAULTS"
+    assert defaults["main"]["max_retries_on_error"] != 5, "ConfigManager should not modify CONFIG_DEFAULTS"
 
 
 def test_config_choices_should_return_right_types(config_manager):
