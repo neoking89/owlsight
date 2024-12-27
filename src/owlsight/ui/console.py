@@ -19,9 +19,7 @@ from prompt_toolkit.widgets import TextArea, Frame
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
 
-# import sys; sys.path.append("src")
-
-from owlsight.configurations.constants import MAIN_MENU
+from owlsight.configurations.constants import ASSISTENT_PROMPT, MAIN_MENU
 from owlsight.ui.constants import BACKGROUND_STYLE, COLOR_CODES, GLOBAL_STYLE, INSTRUCTIONS
 from owlsight.ui.custom_classes import OptionType
 from owlsight.utils.constants import get_prompt_cache
@@ -314,8 +312,7 @@ class OptionSelectorApp:
         """
         Hook for any custom logic when an EDITABLE input is 'accepted'.
         """
-        # Example usage of the user_input in chat_history if needed
-        if current_option == list(MAIN_MENU.keys())[0]:
+        if current_option == ASSISTENT_PROMPT:
             self.chat_history[current_option].append_string(user_input)
 
     def _initialize_application(self) -> None:
