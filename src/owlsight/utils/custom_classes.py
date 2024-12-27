@@ -2,13 +2,13 @@
 Created by Nestor Demeure.
 This software is released under the Apache License 2.0.
 """
+
 from typing import List, Literal, Dict, Union
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import torch
 from transformers import StoppingCriteria, AutoTokenizer
-
 
 
 class StopWordCriteria(StoppingCriteria):
