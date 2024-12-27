@@ -162,6 +162,10 @@ class ConfigManager:
         if not isinstance(path, str) or not path:
             logger.error(f"{err_msg} Invalid file path provided.")
             return False
+        
+        if not path.endswith(".json"):
+            logger.error(f"{err_msg} Configuration file must be a valid JSON file, ending with '.json'.")
+            return False
 
         # Ensure that the directory exists
         directory = os.path.dirname(path)
