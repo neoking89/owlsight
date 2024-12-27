@@ -4,8 +4,9 @@ import os
 import traceback
 from copy import deepcopy
 
+from owlsight.configurations.constants import CONFIG_DEFAULTS
 from owlsight.utils.logger import logger
-from owlsight.utils.constants import DEFAULTS, CHOICES
+from owlsight.configurations.constants import CONFIG_CHOICES
 from owlsight.utils.helper_functions import flatten_dict
 from owlsight.utils.validations import validate_key_is_nested_one_layer
 
@@ -31,8 +32,8 @@ class ConfigManager:
         """
         Initialize the configuration manager with default values.
         """
-        self._defaults = deepcopy(DEFAULTS)
-        self._choices = deepcopy(CHOICES)
+        self._defaults = deepcopy(CONFIG_DEFAULTS)
+        self._choices = deepcopy(CONFIG_CHOICES)
         self._config = DottedDict(self._defaults)
 
     def get(self, key: str, default=None) -> Any:
