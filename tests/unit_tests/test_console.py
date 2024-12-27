@@ -1,5 +1,6 @@
 import pytest
-from owlsight.ui.console import OptionType, Selector
+from owlsight.ui.console import Selector
+from owlsight.ui.custom_classes import OptionType
 
 
 @pytest.fixture
@@ -25,8 +26,8 @@ def test_selector_initialization(options_dict):
     # Ensure that the options are properly parsed and initialized
     assert len(selector.options) == 4
     assert selector.options[0] == ("You are a:", OptionType.EDITABLE)
-    assert selector.options[1] == ("apple", OptionType.SINGLE)
-    assert selector.options[2] == ("pear", OptionType.SINGLE)
+    assert selector.options[1] == ("apple", OptionType.ACTION)
+    assert selector.options[2] == ("pear", OptionType.ACTION)
     assert selector.options[3] == ("Is it ripe?", OptionType.TOGGLE)
 
     # Ensure that the initial values of user inputs and toggles are correct
