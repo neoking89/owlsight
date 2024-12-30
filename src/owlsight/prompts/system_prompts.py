@@ -474,7 +474,7 @@ You are a testing specialist focused on creating comprehensive, maintainable tes
 """.strip()
 
 
-def write_system_prompt(system_prompt: str, target_json: str) -> None:
+def write_system_prompt_to_config(system_prompt: str, target_json: str) -> None:
     """
     Updates the 'system_prompt' field under the 'model' key in the given Owlsight configuration JSON file.
 
