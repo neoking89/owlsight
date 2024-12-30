@@ -1,7 +1,6 @@
 from owlsight.ui.constants import COLOR_CODES
 
 def print_logo():
-    # ANSI escape codes for styling
     BOLD = "\033[1m"
     CYAN = COLOR_CODES["cyan"]
     RESET = COLOR_CODES["reset"]
@@ -52,5 +51,4 @@ uvuvvccczzzXXXXXXXXYYUUUUJJJJCCLLLCCLQLLLLQQQ000000OOOOOOOOO
 uuvvvvvvcczzzXXXXXXYYYYUUUJJJCCCCCCCCLLLLLLLQQQQ000000OOOO0O
 """.strip()
 
-    # Print the logo with bold cyan styling
     print(f"{CYAN}{BOLD}{logo}{RESET}")
