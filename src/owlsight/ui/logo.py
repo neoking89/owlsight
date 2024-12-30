@@ -1,4 +1,11 @@
+from owlsight.ui.constants import COLOR_CODES
+
 def print_logo():
+    # ANSI escape codes for styling
+    BOLD = "\033[1m"
+    CYAN = COLOR_CODES["cyan"]
+    RESET = COLOR_CODES["reset"]
+    
     logo = """
 ZZZmmmwwwwqqqqqppppdddddddbbbbkkhkkbka#*Z|!pohhhhhaahhhhaaaa
 ZZZmZmmwwwwqqqqpppppppdbkkhhhkkkkho#owv_:^:qohhhaahhaahaaaaa
@@ -38,10 +45,12 @@ zzzzXXXXYYYYUJJJJCCLCOZ[  i)X0QCCLQQLCJCZf  ^0wmmmmmmwwwwwww
 czzzzXXXYYYYUUJJJJCCLLLwX,  I{cJUUUUUULZt  'OkpqwwmmmZmmmwmw
 cccczzXXXXXYUUUJJJJCCLLCOmt.  ,]fzCLCQ0}  "OU}|0wmmZmZZmmmmm
 vcccczzXXXXYUUUUUJJJCCLLLCZ0/,   I}jCXi  <Zb!  upZZZZZZZmmmm
-vvvcczzzzXXXYYUUUUUJJCCCLLL0qwc]`   ^.  |wZZOuJmZZZZZZZZZmZZ
+vvvcczzzzXXXYYUUUUUJJCCCLLL0qwc]`   ^.  |wZZOuJmZZZZZZZZmZZ
 vvvvczzzzzXXXXYYUUUUJJJCCL0ZZOZm0X|<. IzmQ0OOwZOOOOOZZZZZZZZ
 uuvvvcczzzzXXXXXXYYYUJJJJJCLLLLLL0ZZQXQ0LQ000QQ0OOOOOOZZZOZZ
 uvuvvccczzzXXXXXXXXYYUUUUJJJJCCLLLCCLQLLLLQQQ000000OOOOOOOOO
 uuvvvvvvcczzzXXXXXXYYYYUUUJJJCCCCCCCCLLLLLLLQQQQ000000OOOO0O
 """.strip()
-    print(logo)
+
+    # Print the logo with bold cyan styling
+    print(f"{CYAN}{BOLD}{logo}{RESET}")
