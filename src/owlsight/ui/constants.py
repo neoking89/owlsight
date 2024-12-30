@@ -7,8 +7,8 @@ GLOBAL_STYLE = Style.from_dict(
         # Base colors and removing white bar
         "": "bg:#1a1a1a fg:#ffffff bold",  # Global default
         "bottom-toolbar": BACKGROUND_STYLE,
-        "frame.border": "bg:#1a1a1a fg:#404040",  # Frame border color
-        "frame.label": "bg:#1a1a1a fg:#3498db",  # Frame title color
+        "frame.border": "bg:#1a1a1a fg:blue bold",
+        "frame.label": "bg:#1a1a1a fg:#3498db bold",
         # Menu elements
         "arrow": "fg:#3498db bold",  # Modern blue arrow
         "title": "fg:#2ecc71 bold",  # Title text
