@@ -142,7 +142,7 @@ class TextGenerationManager:
                 elif inner_key == "search":
                     search = self.config_manager.get("rag.search", "")
                     if not search:
-                        logger.error("No example prompt provided. Please set an example prompt in the configuration.")
+                        logger.error("No prompt provided. Please provide a prompt in the 'search' field.")
                         return
                     top_k = self.config_manager.get("rag.top_k", CONFIG_DEFAULTS[outer_key]["top_k"])
                     context = search_python_libs(library, search, top_k, cache_dir=get_pickle_cache())
