@@ -679,16 +679,6 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
                     f"Model directory {onnx__model_dir} not found in model repository {model_id}. Valid directories are: {repo_files}"
                 )
 
-    # def __del__(self):
-    #     """Cleanup when object is deleted."""
-    #     # Clean up ONNX runtime resources if they exist
-    #     if hasattr(self, "tokenizer_stream"):
-    #         del self.tokenizer_stream
-    #     if hasattr(self, "tokenizer"):
-    #         del self.tokenizer
-    #     if hasattr(self, "model"):
-    #         del self.model
-
 
 class TextGenerationProcessorGGUF(TextGenerationProcessor):
     def __init__(
@@ -876,8 +866,4 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         check_invalid_input_parameters(self.llm.create_chat_completion, _generation_kwargs)
 
         return templated_text, _generation_kwargs
-
-    # def __del__(self):
-    #     """Cleanup when object is deleted."""
-    #     if hasattr(self, "llm"):
-    #         del self.llm
+    
