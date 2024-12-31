@@ -220,7 +220,7 @@ Main Menu:
   - model settings:
     - back: Return to previous menu
     - model_id: Model identifier or path. The most important parameter in the configuration, as this decides the model being used., , Type: OptionType.EDITABLE
-    - apply_chat_history: Whether to save conversation history, Options: False, True, Type: OptionType.TOGGLE
+    - apply_chat_history: Whether to apply chathistory to the model prompt. As default all chathistory is saved, but when this is True, This history is added to the model prompt. Useful for chat-style models., Options: False, True, Type: OptionType.TOGGLE
     - system_prompt: System prompt defining model behavior, , Type: OptionType.EDITABLE
     - transformers__device: Device for transformers model, Options: None, cpu, cuda, mps, Type: OptionType.TOGGLE
     - transformers__quantization_bits: Quantization bits for transformers model, Options: None, 4, 8, 16, Type: OptionType.TOGGLE
@@ -384,7 +384,11 @@ for token in processor.generate_stream(question):
 - Several small bugfixes and improvements.
 
 2.0.2 (stable)
-- Upgraded UI to look more professional and modern.
-
+- Upgraded UI.
+- Removed `onnx__tokenizer` from `TextGenerationProcessorOnnx` constructor, so that only *model_id* is needed as constructor argument.
+- Added `get_max_context_length` method to all `TextGenerationProcessor` classes, which returns the maximum context length of the loaded model.
+- Moved `transformers__use_fp16` in config:model to `transformers__quantization_bits` as value 16, as it is more clear.
+- Added `track_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
+- Added possibility to pass complete directories as argument to mediatypes, like so: [[image:directory/containing/images]]
 
 **Disclaimer**: This version is still in beta and might contain bugs, especially on non-Windows systems. If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
