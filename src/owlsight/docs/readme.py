@@ -295,13 +295,17 @@ for token in processor.generate_stream(question):
 - Several small bugfixes and improvements.
 
 2.0.2 (stable)
-- Upgraded UI to look more professional and modern.
-
+- Upgraded UI.
+- Removed `onnx__tokenizer` from `TextGenerationProcessorOnnx` constructor, so that only *model_id* is needed as constructor argument.
+- Added `get_max_context_length` method to all `TextGenerationProcessor` classes, which returns the maximum context length of the loaded model.
+- Moved `transformers__use_fp16` in config:model to `transformers__quantization_bits` as value 16, as it is more clear.
+- Added `track_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
+- Added possibility to pass complete directories as argument to mediatypes, like so: [[image:directory/containing/images]]
 
 **Disclaimer**: This version is still in beta and might contain bugs, especially on non-Windows systems. If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
 
-def write_readme(content, filename:str):
+def write_readme(content: str, filename:str):
     """
     Write the README content to a file with proper encoding.
 
