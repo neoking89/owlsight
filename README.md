@@ -390,5 +390,6 @@ for token in processor.generate_stream(question):
 - Moved `transformers__use_fp16` in config:model to `transformers__quantization_bits` as value 16, as it is more clear.
 - Added `track_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
 - Added possibility to pass complete directories as argument to mediatypes, like so: [[image:directory/containing/images]]
+- Add owl_models() function to python interpreter for displaying all Huggingface models in the cache directory.
 
-**Disclaimer**: This version is still in beta and might contain bugs, especially on non-Windows systems. If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
+If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
