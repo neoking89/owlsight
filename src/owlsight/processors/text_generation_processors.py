@@ -462,10 +462,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         if og is None:
             raise ImportError("ONNX Runtime is disabled. Install with: pip install owlsight[onnx]")
 
-        self.pre_validate_model_id(model_id, onnx__model_dir)
-        allow_patterns = [f"{onnx__model_dir}/*"] if onnx__model_dir else None
-        self.model_id = snapshot_download(model_id, token=token, repo_type="model", allow_patterns=allow_patterns)
-        self.model_id = self._post_validate_model_id(self.model_id)
+        self.model_id = self._validate_model_id(model_id, onnx__model_dir, token)
         self.transformers_tokenizer = AutoTokenizer.from_pretrained(self.model_id, token=token)
 
         super().__init__(self.model_id, apply_chat_history, system_prompt)
@@ -474,6 +471,57 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         self._set_environment_variables()
         self._initialize_model()
+
+    def _validate_model_id(
+        self, model_id: str, onnx__model_dir: Optional[str] = None, token: Optional[str] = None
+    ) -> str:
+        """
+        Initialize the model and tokenizer from either a local path or Hugging Face repo ID.
+
+        Parameters
+        ----------
+        model_id : str
+            The model ID to use for generation.
+            Can be either:
+            - A local path to an ONNX model directory
+            - A HuggingFace Hub model ID
+        onnx__model_dir : Optional[str]
+            The directory containing the ONNX model.
+            Apply this if there are multiple valid directories in the model repository.
+        token : Optional[str]
+            HuggingFace token for private models.
+
+        Returns
+        -------
+        str
+            The validated model ID path
+
+        Raises
+        ------
+        ValueError
+            If the model_id is neither a valid local path nor a valid Hugging Face repository ID
+        """
+        # Handle local paths vs Hugging Face repo IDs
+        if os.path.exists(model_id):
+            # Local path - use directly
+            self.model_id = model_id
+        else:
+            # Try as Hugging Face repo ID
+            try:
+                self.pre_validate_model_id(model_id, onnx__model_dir)
+                allow_patterns = [f"{onnx__model_dir}/*"] if onnx__model_dir else None
+                self.model_id = snapshot_download(
+                    model_id, token=token, repo_type="model", allow_patterns=allow_patterns
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid model_id: {model_id} is neither a valid local path nor a valid Hugging Face repository ID"
+                ) from e
+
+        # Validate and find correct model directory
+        self.model_id = self._post_validate_model_id(self.model_id)
+
+        return self.model_id
 
     def generate(
         self,
@@ -824,6 +872,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                 new_text = item["choices"][0]["delta"].get("content", "")
                 generated_text += new_text
                 yield new_text
+
         except KeyboardInterrupt:
             logger.warning("Control+C pressed, aborting generation")
         except Exception:
@@ -866,4 +915,3 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         check_invalid_input_parameters(self.llm.create_chat_completion, _generation_kwargs)
 
         return templated_text, _generation_kwargs
-    
