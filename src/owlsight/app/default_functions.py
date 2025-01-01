@@ -6,9 +6,10 @@ import traceback
 import re
 from typing import Optional, List, Dict
 from datetime import datetime
+from pathlib import Path
+
 import requests
 from bs4 import BeautifulSoup
-
 from huggingface_hub import scan_cache_dir, CachedRepoInfo
 from huggingface_hub.constants import HF_HUB_CACHE
 
@@ -178,7 +179,10 @@ class OwlDefaultFunctions:
         -----------
         cache_dir (str, optional): The directory path to scan for models. If None, the default cache directory is used.
         """
-        cache_dir = cache_dir or HF_HUB_CACHE
+        cache_dir: Path = Path(cache_dir or HF_HUB_CACHE)
+        if not cache_dir.exists():
+            print(f"Cache directory '{cache_dir}' does not exist.")
+            return
         try:
             cache_info = scan_cache_dir(cache_dir)
             if not cache_info.repos:
