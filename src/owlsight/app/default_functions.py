@@ -5,9 +5,12 @@ import inspect
 import traceback
 import re
 from typing import Optional, List, Dict
-
+from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
+
+from huggingface_hub import scan_cache_dir, CachedRepoInfo
+from huggingface_hub.constants import HF_HUB_CACHE
 
 from owlsight.utils.custom_classes import SingletonDict
 
@@ -34,7 +37,6 @@ class OwlDefaultFunctions:
             if not name.startswith("owl_"):
                 raise ValueError(f"Method '{name}' does not follow the 'owl_' naming convention!")
 
-    # Function to read a text file
     def owl_read(self, file_path: str) -> str:
         """
         Read the content of a text file.
@@ -45,7 +47,6 @@ class OwlDefaultFunctions:
         except FileNotFoundError:
             return f"File not found: {file_path}"
 
-    # Function to dynamically import a Python file and load its contents into the current namespace
     def owl_import(self, file_path: str):
         """
         Import a Python file and load its contents into the current namespace.
@@ -65,9 +66,9 @@ class OwlDefaultFunctions:
         except Exception:
             print(f"Error importing module:\n{traceback.format_exc()}")
 
-    # Function to show all currently active imported objects in the namespace except builtins
     def owl_show(self, docs: bool = True):
-        """Show all currently active imported objects in the namespace except builtins.
+        """
+        Show all currently active imported objects in the namespace except builtins.
 
         Parameters:
         -----------
@@ -77,10 +78,10 @@ class OwlDefaultFunctions:
         active_objects = {name: obj for name, obj in current_globals.items() if name not in dir(builtins)}
 
         brackets = "#" * 50
+        print("Active imported objects:")
         print(brackets)
-        print("Active imported objects:\n")
         for name, obj in active_objects.items():
-            if not name.startswith("__"):
+            if not name.startswith("_"):
                 obj_type = type(obj).__name__
                 print(f"{name} ({obj_type})")
 
@@ -91,8 +92,7 @@ class OwlDefaultFunctions:
                         print(f"Doc: {docstring.strip()}")
                     else:
                         print("Doc: No documentation available")
-
-        print(brackets)
+                print(brackets)
 
     # Function to write content to a file
     def owl_write(self, file_path: str, content: str):
@@ -105,7 +105,6 @@ class OwlDefaultFunctions:
             print(f"Content successfully written to {file_path}")
         except Exception as e:
             print(f"Error writing to file: {e}")
-
 
     def owl_scrape(
         self,
@@ -169,6 +168,68 @@ class OwlDefaultFunctions:
             return re.sub(pattern, replacement, filtered_text)
 
         return filtered_text
+
+    def owl_models(self, cache_dir: Optional[str] = None) -> None:
+        """
+        Show all Hugging Face models currently loaded in the cache directory.
+        This function displays the model names and their respective sizes.
+
+        Parameters:
+        -----------
+        cache_dir (str, optional): The directory path to scan for models. If None, the default cache directory is used.
+        """
+        cache_dir = cache_dir or HF_HUB_CACHE
+        try:
+            cache_info = scan_cache_dir(cache_dir)
+            if not cache_info.repos:
+                print(f"No models found in the Hugging Face cache directory {cache_dir}")
+                return
+
+            print("\n=== Cached Hugging Face Models ===\n")
+            for repo in cache_info.repos:
+                try:
+                    last_modified = datetime.fromtimestamp(repo.last_modified).strftime("%Y-%m-%d %H:%M:%S")
+                    print(f"Model: {repo.repo_id}")
+                    print(f"Size: {repo.size_on_disk / (1024*1024):.2f} MB")
+                    print(f"Last Modified: {last_modified}")
+                    print(f"Location: {repo.repo_path}")
+                    model_id = self._get_model_id(repo)
+                    print(f"Eligable for model_id: {model_id}")
+
+                    print("-" * 50)
+                except Exception as e:
+                    print(f"Error accessing model with id {repo.repo_id}: {str(e)}")
+
+            print(f"\nTotal Cache Size: {cache_info.size_on_disk / (1024*1024):.2f} MB")
+            print(f"cache_dir: {cache_dir}")
+
+        except Exception as e:
+            print(f"Error accessing Hugging Face cache: {str(e)}")
+
+    def _get_model_id(self, repo: CachedRepoInfo) -> str:
+        """
+        Determine the model ID based on the repository content.
+
+        Parameters
+        ----------
+        repo : Repository
+            The repository object containing repo_id and repo_path
+
+        Returns
+        -------
+        str or Path
+            The determined model ID
+        """
+        repo_lower = repo.repo_id.lower()
+        if "onnx" in repo_lower:
+            for file in repo.repo_path.glob("**/*"):
+                if file.is_dir() and any(f.endswith(".onnx") for f in os.listdir(file)):
+                    return file
+        elif "gguf" in repo_lower:
+            for file in repo.repo_path.glob("**/*"):
+                if str(file).endswith(".gguf"):
+                    return file
+        return repo.repo_id
 
 
 def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> list:
