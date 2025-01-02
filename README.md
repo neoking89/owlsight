@@ -186,8 +186,10 @@ These are:
 
 * **owl_import(file_path: str)**
   Import a Python file and load its contents into the current namespace.
+  - *file_path*: The path to the Python file to import.
 * **owl_read(file_path: str)**
   Read the content of a text file.
+  - *file_path*: The path to the text file to read.
 * **owl_scrape(url_or_terms: str, trim_newlines: int = 2, filter_by: Optional[dict], request_kwargs: dict)**
   Scrape the text content of a webpage or search Bing and return the first result as a string.
   * `url_or_terms`: Webpage URL or search term.
@@ -196,10 +198,18 @@ These are:
   * `**request_kwargs`: Additional options for `requests.get`.
 * **owl_show(docs: bool = False)**
   Display all imported objects (optional: include docstrings).
+  - *docs*: If True, also display docstrings.
 * **owl_write(file_path: str, content: str)**
   Write content to a text file.
+  - *file_path*: The path to the text file to write.
+  - *content*: The content to write to the file.
 * **owl_history(to_string: bool = False)**
-  Get chat history with current model.
+  Display command history (optional: return as string).
+  - *to_string*: If True, returns the history as a formatted string, by default False
+* **owl_models(cache_dir: str = None, show_task: bool = False)**
+  Display all Hugging Face models currently loaded in the cache directory. Shows model names, sizes, and last modified dates.
+  * `cache_dir`: Optional path to custom cache directory. If None, uses default Hugging Face cache.
+  * `show_task`: If True, also displays the task associated with each model (may take longer to load).
 
 ## Configurations
 
