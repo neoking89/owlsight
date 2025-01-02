@@ -187,7 +187,7 @@ Use this information to help generate a code snippet that answers the question.
         )
         ctx_to_add += context
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
-        logger.info(f"Context added to the question with approx amount of {len(context.split())} words")
+        logger.info(f"Context added to the question with approximate amount of {len(context.split())} words")
 
     response = manager.generate(user_question, media_objects=media_objects)
     execute_code_with_feedback(
