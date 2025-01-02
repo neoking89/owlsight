@@ -104,7 +104,7 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
     def __init__(self, model_id: str, task: str, apply_chat_history: bool = False, system_prompt: str = "", **kwargs):
         if task not in HUGGINGFACE_MEDIA_TASKS:
             raise ValueError(
-                f"Task {task} is not supported for media preprocessing. Should be one of {HUGGINGFACE_MEDIA_TASKS}"
+                f"Task {task} is not supported for media preprocessing. Should be one of {HUGGINGFACE_MEDIA_TASKS}.\nPerhaps we should set the right task for the model in 'config:huggingface:task' inside the CLI?"
             )
 
         super().__init__(model_id=model_id, apply_chat_history=apply_chat_history, system_prompt=system_prompt)
