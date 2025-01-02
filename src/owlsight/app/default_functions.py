@@ -10,7 +10,7 @@ from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-from huggingface_hub import scan_cache_dir, CachedRepoInfo
+from huggingface_hub import scan_cache_dir, CachedRepoInfo, HfApi
 from huggingface_hub.constants import HF_HUB_CACHE
 
 from owlsight.utils.custom_classes import SingletonDict
@@ -170,20 +170,25 @@ class OwlDefaultFunctions:
 
         return filtered_text
 
-    def owl_models(self, cache_dir: Optional[str] = None) -> None:
+    def owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> None:
         """
         Show all Hugging Face models currently loaded in the cache directory.
         This function displays the model names and their respective sizes.
 
         Parameters:
         -----------
-        cache_dir (str, optional): The directory path to scan for models. If None, the default cache directory is used.
+        cache_dir (str, optional): 
+            The directory path to scan for models. If None, the default cache directory is used.
+        show_task (bool, optional): 
+            If True, also display the tasks associated with each model.
+            If used, showing models will take a while longer.
         """
         cache_dir: Path = Path(cache_dir or HF_HUB_CACHE)
         if not cache_dir.exists():
             print(f"Cache directory '{cache_dir}' does not exist.")
             return
         try:
+            hf_api = HfApi()
             cache_info = scan_cache_dir(cache_dir)
             if not cache_info.repos:
                 print(f"No models found in the Hugging Face cache directory {cache_dir}")
@@ -194,6 +199,10 @@ class OwlDefaultFunctions:
                 try:
                     last_modified = datetime.fromtimestamp(repo.last_modified).strftime("%Y-%m-%d %H:%M:%S")
                     print(f"Model: {repo.repo_id}")
+                    if show_task:
+                        model_info = hf_api.model_info(repo.repo_id, expand=["pipeline_tag"])
+                        task = model_info.pipeline_tag
+                        print(f"Task: {task}")
                     print(f"Size: {repo.size_on_disk / (1024*1024):.2f} MB")
                     print(f"Last Modified: {last_modified}")
                     print(f"Location: {repo.repo_path}")
@@ -205,7 +214,7 @@ class OwlDefaultFunctions:
                     print(f"Error accessing model with id {repo.repo_id}: {str(e)}")
 
             print(f"\nTotal Cache Size: {cache_info.size_on_disk / (1024*1024):.2f} MB")
-            print(f"cache_dir: {cache_dir}")
+            print(f"Cache Directory: {cache_dir}")
 
         except Exception as e:
             print(f"Error accessing Hugging Face cache: {str(e)}")
