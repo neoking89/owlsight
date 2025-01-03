@@ -40,7 +40,7 @@ class Schema:
             ),
             "extra_index_url": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Additional URL for package installation. Useful for example when installing packages from private repositories",
+                description="Additional URL for Python package installation. Useful for example when installing python packages (through pip) from private repositories",
                 default="",
                 choices=None,
             ),
