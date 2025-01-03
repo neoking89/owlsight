@@ -216,7 +216,7 @@ These are:
 Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into five main sections: `main`, `model`,  `generate`, `rag` and `huggingface`. Here's an overview of the application architecture:
 
 Main Menu:
-- assistant: Chat with the loaded model. Use {{expression}} to pass python code directly. Or e.g. [[image: path/to/image.jpg]] to pass an image to the model.
+- assistant: Chat with the loaded model. Use {{expression}} to pass python code directly. Or e.g. [[image: path/to/image.jpg]] to pass an image to the model
 - shell: Execute shell commands
 - python: Enter Python interpreter
 - config: Configuration settings
@@ -225,44 +225,44 @@ Main Menu:
     - max_retries_on_error: Maximum number of retries for Python code error recovery. This parameter is only used when `prompt_retry_on_error` is set to True., Options: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, Type: OptionType.TOGGLE
     - prompt_retry_on_error: Whether to prompt before retrying on error. Set this to True to avoid direct Python code execution on error!, Options: False, True, Type: OptionType.TOGGLE
     - prompt_code_execution: Whether to prompt before executing code. Set this to True to avoid direct Python code execution!, Options: False, True, Type: OptionType.TOGGLE
-    - track_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
-    - extra_index_url: Additional URL for package installation. Useful for example when installing packages from private repositories., , Type: OptionType.EDITABLE
+    - track_model_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
+    - extra_index_url: Additional URL for package installation. Useful for example when installing packages from private repositories, Type: OptionType.EDITABLE
   - model settings:
     - back: Return to previous menu
-    - model_id: Model identifier or path. The most important parameter in the configuration, as this decides the model being used., , Type: OptionType.EDITABLE
+    - model_id: Model identifier or path. The most important parameter in the configuration, as this will load the model to be used, Type: OptionType.EDITABLE
     - apply_chat_history: Whether to apply chathistory to the model prompt. All chathistory is saved as default, but when this is True, This history is added to the model prompt, Options: False, True, Type: OptionType.TOGGLE
-    - system_prompt: System prompt defining model behavior, , Type: OptionType.EDITABLE
+    - system_prompt: System prompt defining model behavior, Type: OptionType.EDITABLE
     - transformers__device: Device for transformers model, Options: None, cpu, cuda, mps, Type: OptionType.TOGGLE
     - transformers__quantization_bits: Quantization bits for transformers model, Options: None, 4, 8, 16, Type: OptionType.TOGGLE
     - transformers__stream: Whether to stream input to transformers model, Options: False, True, Type: OptionType.TOGGLE
-    - transformers__model_kwargs: Additional model parameters for transformers model, , Type: OptionType.EDITABLE
-    - gguf__filename: GGUF model filename, , Type: OptionType.EDITABLE
+    - transformers__model_kwargs: Additional model parameters for transformers model, Type: OptionType.EDITABLE
+    - gguf__filename: GGUF model filename, Type: OptionType.EDITABLE
     - gguf__verbose: Verbose output for GGUF model, Options: False, True, Type: OptionType.TOGGLE
     - gguf__n_ctx: Context length for GGUF model, Options: 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, Type: OptionType.TOGGLE
     - gguf__n_gpu_layers: Number of layers from the model which are offloaded to the GPU, Options: -1, 0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, Type: OptionType.TOGGLE
     - gguf__n_batch: Batch size to be used by GGUF model, Options: 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, Type: OptionType.TOGGLE
-    - gguf__n_cpu_threads: Number of CPU threads to be used by GGUF model, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, Type: OptionType.TOGGLE
-    - onnx__model_dir: Directory containing local ONNX model, , Type: OptionType.EDITABLE
+    - gguf__n_cpu_threads: Number of CPU threads to be used by GGUF model., Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, Type: OptionType.TOGGLE
+    - onnx__model_dir: Directory containing local ONNX model, Type: OptionType.EDITABLE
     - onnx__verbose: Verbose output for ONNX model, Options: False, True, Type: OptionType.TOGGLE
     - onnx__n_cpu_threads: Number of CPU threads to be used by ONNX model, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, Type: OptionType.TOGGLE
   - generate settings:
     - back: Return to previous menu
-    - stopwords: Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop., , Type: OptionType.EDITABLE
+    - stopwords: Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop, Type: OptionType.EDITABLE
     - max_new_tokens: Maximum amount of tokens to generate, Options: 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, Type: OptionType.TOGGLE
-    - temperature: Temperature for model generation., Options: 0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, Type: OptionType.TOGGLE
-    - generation_kwargs: Additional generation parameters, like top_k, top_p, etc., , Type: OptionType.EDITABLE
+    - temperature: Temperature for model generation, Options: 0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, Type: OptionType.TOGGLE
+    - generation_kwargs: Additional generation parameters, like top_k, top_p, etc, Type: OptionType.EDITABLE
   - rag settings:
     - back: Return to previous menu
-    - active: Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown., Options: False, True, Type: OptionType.TOGGLE
-    - target_library: Target python library for to use for RAG. If the library is not installed in the active environment, a warning will be showed with available options., , Type: OptionType.EDITABLE
+    - active: Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown, Options: False, True, Type: OptionType.TOGGLE
+    - target_library: Target python library for to use for RAG. If the library is not installed in the active environment, a warning will be showed with available options, Type: OptionType.EDITABLE
     - top_k: Number of most matching RAG results to return, based on `search` query, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, Type: OptionType.TOGGLE
-    - search: RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True., , Type: OptionType.EDITABLE
+    - search: RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True, Type: OptionType.EDITABLE
   - huggingface settings:
     - back: Return to previous menu
-    - search: Search for a model on the Huggingface Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', , Type: OptionType.EDITABLE
-    - top_k: Top number of huggingface results to return. The results will be sorted by highest score first., Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, Type: OptionType.TOGGLE
-    - select_model: Select and load a model from the HuggingFace Hub by toggling through the options found by `search`., , Type: OptionType.TOGGLE
-    - task: Task for huggingface. When using `search`, the results will be filtered directly by chosen task., Options: None, text-generation, text2text-generation, translation, summarization, image-to-text, automatic-speech-recognition, visual-question-answering, document-question-answering, Type: OptionType.TOGGLE
+    - search: Search for a model on the Huggingface Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', Type: OptionType.EDITABLE
+    - top_k: Top number of huggingface results to return. The results will be sorted by highest score first, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, Type: OptionType.TOGGLE
+    - select_model: Select and load a model from the HuggingFace Hub by toggling through the options found by `search`, Type: OptionType.TOGGLE
+    - task: Task for huggingface. When using `search`, the results will be filtered directly by chosen task, Options: None, text-generation, text2text-generation, translation, summarization, image-to-text, automatic-speech-recognition, visual-question-answering, document-question-answering, Type: OptionType.TOGGLE
 - save: Save current configuration as JSON-file
 - load: Load a configuration from a JSON-file
 - clear history: Clear cache and chat history
@@ -276,7 +276,7 @@ Here's an example of what the default configuration looks like:
         "max_retries_on_error": 3,
         "prompt_retry_on_error": true,
         "prompt_code_execution": true,
-        "track_usage": false,
+        "track_model_usage": false,
         "extra_index_url": ""
     },
     "model": {
@@ -394,13 +394,12 @@ for token in processor.generate_stream(question):
 - Several small bugfixes and improvements.
 
 2.0.2 (stable)
-- Upgraded UI.
+- Upgraded UI with new color scheme and improved readability. Description of the current choice is now displayed above the menu.
 - Removed `onnx__tokenizer` from `TextGenerationProcessorOnnx` constructor, so that only *model_id* is needed as constructor argument.
 - Added `get_max_context_length` method to all `TextGenerationProcessor` classes, which returns the maximum context length of the loaded model.
 - Moved `transformers__use_fp16` in config:model to `transformers__quantization_bits` as value 16, as it is more clear.
-- Added `track_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
+- Added `track_model_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
 - Added possibility to pass complete directories as argument to mediatypes, like so: [[image:directory/containing/images]]
 - Add owl_models() function to python interpreter for displaying all Huggingface models in the cache directory.
-- Show description of the current configuration section in the main title bar.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
