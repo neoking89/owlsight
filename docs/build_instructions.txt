@@ -9,3 +9,13 @@
     SET API_TOKEN=... // get api-token from pypi
     twine check dist/*
     twine upload -u __token__ -p %API_TOKEN% dist/* --verbose
+
+TROUBLESHOOTING
+
+I want to replace the latest git tag:
+- find last tag
+git tag 
+- delete last tag
+git tag -d <tag_name>
+- push changes
+git push origin --delete <tag_name>
