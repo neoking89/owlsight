@@ -32,7 +32,7 @@ class Schema:
                 default=True,
                 choices=[False, True],
             ),
-            "track_usage": MenuItem(
+            "track_model_usage": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model",
                 default=False,
@@ -40,7 +40,7 @@ class Schema:
             ),
             "extra_index_url": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Additional URL for package installation. Useful for example when installing packages from private repositories.",
+                description="Additional URL for package installation. Useful for example when installing packages from private repositories",
                 default="",
                 choices=None,
             ),
@@ -48,7 +48,7 @@ class Schema:
         "model": {
             "model_id": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Model identifier or path. The most important parameter in the configuration, as this decides the model being used.",
+                description="Model identifier or path. The most important parameter in the configuration, as this will load the model to be used",
                 default="",
                 choices=None,
             ),
@@ -114,7 +114,7 @@ class Schema:
             ),
             "gguf__n_cpu_threads": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Number of CPU threads to be used by GGUF model",
+                description="Number of CPU threads to be used by GGUF model.",
                 default=GGUF_Utils.get_optimal_n_threads(),
                 choices=list(range(1, os.cpu_count() + 1)),
             ),
@@ -137,7 +137,7 @@ class Schema:
         "generate": {
             "stopwords": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop.",
+                description="Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop",
                 default=[],
                 choices=None,
             ),
@@ -149,13 +149,13 @@ class Schema:
             ),
             "temperature": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Temperature for model generation.",
+                description="Temperature for model generation",
                 default=0.0,
                 choices=[round(x * 0.05, 2) for x in range(21)],
             ),
             "generation_kwargs": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Additional generation parameters, like top_k, top_p, etc.",
+                description="Additional generation parameters, like top_k, top_p, etc",
                 default={},
                 choices=None,
             ),
@@ -163,13 +163,13 @@ class Schema:
         "rag": {
             "active": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown.",
+                description="Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown",
                 default=False,
                 choices=[False, True],
             ),
             "target_library": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Target python library for to use for RAG. If the library is not installed in the active environment, a warning will be showed with available options.",
+                description="Target python library for to use for RAG. If the library is not installed in the active environment, a warning will be showed with available options",
                 default="",
                 choices=None,
             ),
@@ -181,7 +181,7 @@ class Schema:
             ),
             "search": MenuItem(
                 type=OptionType.EDITABLE,
-                description="RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True.",
+                description="RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True",
                 default="",
                 choices=None,
             ),
@@ -195,19 +195,19 @@ class Schema:
             ),
             "top_k": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Top number of huggingface results to return. The results will be sorted by highest score first.",
+                description="Top number of huggingface results to return. The results will be sorted by highest score first",
                 default=10,
                 choices=list(range(1, 51)),
             ),
             "select_model": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Select and load a model from the HuggingFace Hub by toggling through the options found by `search`.",
+                description="Select and load a model from the HuggingFace Hub by toggling through the options found by `search`",
                 default="",
                 choices=None,
             ),
             "task": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Task for huggingface. When using `search`, the results will be filtered directly by chosen task.",
+                description="Task for huggingface. When using `search`, the results will be filtered directly by chosen task",
                 default=None,
                 choices=HUGGINGFACE_TASKS,
             ),
@@ -217,7 +217,7 @@ class Schema:
     MENU = {
         "assistant": MenuItem(
             type=OptionType.EDITABLE,
-            description="Chat with the loaded model. Use {{expression}} to pass python code directly. Or e.g. [[image: path/to/image.jpg]] to pass an image to the model.",
+            description="Chat with the loaded model. Use {{expression}} to pass python code directly. Or e.g. [[image: path/to/image.jpg]] to pass an image to the model",
             default="How can I assist you?",
         ),
         "shell": MenuItem(type=OptionType.EDITABLE, description="Execute shell commands", default=""),
@@ -297,6 +297,11 @@ class Schema:
                             desc = details.description
                             choice_str = f"Options: {', '.join(str(c) for c in choices)}" if choices else ""
                             optiontype_str = f"Type: {details.type}" if details.type else ""
-                            lines.append(f"    - {setting}: {desc}, {choice_str}, {optiontype_str}")
+                            line = f"    - {setting}: {desc}"
+                            if choice_str:
+                                line += f", {choice_str}"
+                            if optiontype_str:
+                                line += f", {optiontype_str}"
+                            lines.append(line)
 
         return "\n".join(lines)
