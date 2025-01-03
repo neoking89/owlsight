@@ -1,3 +1,5 @@
+# STEPS FOR BUILDING AND RELEASING NEW VERSION
+
 0. git checkout -b release/vX.X.X
 1. Run all tests with pytest -vvv
 2. Update the README.md in the working directory by running src/owlsight/docs/readme.py
@@ -9,8 +11,12 @@
     SET API_TOKEN=... // get api-token from pypi
     twine check dist/*
     twine upload -u __token__ -p %API_TOKEN% dist/* --verbose
+8. If all went well, merge the relasebranch with the mainbranch:
+    git checkout main
+    git merge release/v.X.X.X
+    git push
 
-TROUBLESHOOTING
+# TROUBLESHOOTING
 
 I want to replace the latest git tag:
 - find last tag
