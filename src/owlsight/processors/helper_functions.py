@@ -59,7 +59,7 @@ def select_processor_type(model_id: str, task: Optional[str] = None) -> Type["Te
 
 
 def warn_processor_not_loaded() -> None:
-    logger.warning("Processor is not initialized yet. Please load a model first by either:")
+    logger.warning("Please load a model first by either:")
     logger.warning("1: Setting 'model_id' in the 'config: model' section")
     logger.warning("2: Loading an existing configuration with the 'load' command")
     logger.warning(
