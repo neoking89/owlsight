@@ -393,7 +393,8 @@ for token in processor.generate_stream(question):
 - System Prompt is now an empty string as default.
 - Several small bugfixes and improvements.
 
-2.0.2 (stable)
+**2.0.1 (stable)**
+
 - Upgraded UI with new color scheme and improved readability. Description of the current choice is now displayed above the menu.
 - Removed `onnx__tokenizer` from `TextGenerationProcessorOnnx` constructor, so that only *model_id* is needed as constructor argument.
 - Added `get_max_context_length` method to all `TextGenerationProcessor` classes, which returns the maximum context length of the loaded model.
