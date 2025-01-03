@@ -1,3 +1,4 @@
+0. git checkout -b release/vX.X.X
 1. Run all tests with pytest -vvv
 2. Update the README.md in the working directory by running src/owlsight/docs/readme.py
 3. Commit changes: git commit -am "Update version to X.X.X"
