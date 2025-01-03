@@ -31,6 +31,7 @@ from owlsight.utils.logger import logger
 
 class CommandResult(Enum):
     """Enum to represent the result of a command from the mainmenu."""
+
     CONTINUE = auto()
     BREAK = auto()
     PROCEED = auto()
@@ -127,7 +128,7 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> st
     selected_config = available_choices[user_choice]
 
     # Get user choice for the nested configuration
-    user_selected_choice = get_user_choice(selected_config, return_value_only=False)
+    user_selected_choice = get_user_choice(selected_config, return_value_only=False, last_config_choice=user_choice)
 
     if isinstance(user_selected_choice, dict):
         nested_key = next(iter(user_selected_choice))  # Get the first key
@@ -171,7 +172,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
-    # Parse media placeholders in the user choice, if present. 
+    # Parse media placeholders in the user choice, if present.
     user_question, media_objects = parse_media_placeholders(user_choice, code_executor.globals_dict)
     rag_is_active = manager.get_config_key("rag.active", False)
     library_to_rag = manager.get_config_key("rag.target_library", "")
