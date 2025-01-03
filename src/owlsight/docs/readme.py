@@ -77,7 +77,7 @@ This will present you with some giant ASCII-art of an owl and information which 
 Then, you are presented with the mainmenu:
 
 ```
-Make a choice:
+Current choice:
 > how can I assist you?
 shell
 python

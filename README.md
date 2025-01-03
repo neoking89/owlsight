@@ -71,7 +71,7 @@ This will present you with some giant ASCII-art of an owl and information which 
 Then, you are presented with the mainmenu:
 
 ```
-Make a choice:
+Current choice:
 > how can I assist you?
 shell
 python
@@ -216,21 +216,21 @@ These are:
 Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into five main sections: `main`, `model`,  `generate`, `rag` and `huggingface`. Here's an overview of the application architecture:
 
 Main Menu:
-- assistant: Ask a question or give an instruction
+- assistant: Chat with the loaded model. Use {{expression}} to pass python code directly. Or e.g. [[image: path/to/image.jpg]] to pass an image to the model.
 - shell: Execute shell commands
 - python: Enter Python interpreter
-- config: Configure application settings
+- config: Configuration settings
   - main settings:
     - back: Return to previous menu
     - max_retries_on_error: Maximum number of retries for Python code error recovery. This parameter is only used when `prompt_retry_on_error` is set to True., Options: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, Type: OptionType.TOGGLE
     - prompt_retry_on_error: Whether to prompt before retrying on error. Set this to True to avoid direct Python code execution on error!, Options: False, True, Type: OptionType.TOGGLE
     - prompt_code_execution: Whether to prompt before executing code. Set this to True to avoid direct Python code execution!, Options: False, True, Type: OptionType.TOGGLE
     - track_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
-    - extra_index_url: Additional URL for package installation. This can be useful for for example when installing packages from private repositories., , Type: OptionType.EDITABLE
+    - extra_index_url: Additional URL for package installation. Useful for example when installing packages from private repositories., , Type: OptionType.EDITABLE
   - model settings:
     - back: Return to previous menu
     - model_id: Model identifier or path. The most important parameter in the configuration, as this decides the model being used., , Type: OptionType.EDITABLE
-    - apply_chat_history: Whether to apply chathistory to the model prompt. As default all chathistory is saved, but when this is True, This history is added to the model prompt. Useful for chat-style models., Options: False, True, Type: OptionType.TOGGLE
+    - apply_chat_history: Whether to apply chathistory to the model prompt. All chathistory is saved as default, but when this is True, This history is added to the model prompt, Options: False, True, Type: OptionType.TOGGLE
     - system_prompt: System prompt defining model behavior, , Type: OptionType.EDITABLE
     - transformers__device: Device for transformers model, Options: None, cpu, cuda, mps, Type: OptionType.TOGGLE
     - transformers__quantization_bits: Quantization bits for transformers model, Options: None, 4, 8, 16, Type: OptionType.TOGGLE
@@ -253,18 +253,18 @@ Main Menu:
     - generation_kwargs: Additional generation parameters, like top_k, top_p, etc., , Type: OptionType.EDITABLE
   - rag settings:
     - back: Return to previous menu
-    - active: Whether RAG is active. If True, the search-results will be implicitly added as context to the modelprompt. Also, when pressing `search`, results will be shown. If False, no search-results will be shown and nothing will be added to the modelprompt., Options: False, True, Type: OptionType.TOGGLE
+    - active: Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown., Options: False, True, Type: OptionType.TOGGLE
     - target_library: Target python library for to use for RAG. If the library is not installed in the active environment, a warning will be showed with available options., , Type: OptionType.EDITABLE
     - top_k: Number of most matching RAG results to return, based on `search` query, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, Type: OptionType.TOGGLE
     - search: RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True., , Type: OptionType.EDITABLE
   - huggingface settings:
     - back: Return to previous menu
-    - search: Search for a model on the Huggingface Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults. Example: 'llama 3b gguf' will (likely) give all GGUF models with the Llama architecture with 3 bilion parameters., , Type: OptionType.EDITABLE
+    - search: Search for a model on the Huggingface Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', , Type: OptionType.EDITABLE
     - top_k: Top number of huggingface results to return. The results will be sorted by highest score first., Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, Type: OptionType.TOGGLE
-    - select_model: Select and load a model from the HuggingFace Hub by toggling through the options found by `search`. This means `search` first has to be used before using this option., , Type: OptionType.TOGGLE
+    - select_model: Select and load a model from the HuggingFace Hub by toggling through the options found by `search`., , Type: OptionType.TOGGLE
     - task: Task for huggingface. When using `search`, the results will be filtered directly by chosen task., Options: None, text-generation, text2text-generation, translation, summarization, image-to-text, automatic-speech-recognition, visual-question-answering, document-question-answering, Type: OptionType.TOGGLE
-- save: Save current configuration
-- load: Load configuration from file
+- save: Save current configuration as JSON-file
+- load: Load a configuration from a JSON-file
 - clear history: Clear cache and chat history
 - quit: Exit application
 
