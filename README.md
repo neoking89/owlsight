@@ -401,5 +401,6 @@ for token in processor.generate_stream(question):
 - Added `track_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
 - Added possibility to pass complete directories as argument to mediatypes, like so: [[image:directory/containing/images]]
 - Add owl_models() function to python interpreter for displaying all Huggingface models in the cache directory.
+- Show description of the current configuration section in the main title bar.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
