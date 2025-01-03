@@ -40,7 +40,7 @@ class Schema:
             ),
             "extra_index_url": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Additional URL for package installation. This can be useful for for example when installing packages from private repositories.",
+                description="Additional URL for package installation. Useful for example when installing packages from private repositories.",
                 default="",
                 choices=None,
             ),
@@ -54,7 +54,7 @@ class Schema:
             ),
             "apply_chat_history": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Whether to apply chathistory to the model prompt. As default all chathistory is saved, but when this is True, This history is added to the model prompt. Useful for chat-style models.",
+                description="Whether to apply chathistory to the model prompt. All chathistory is saved as default, but when this is True, This history is added to the model prompt",
                 default=False,
                 choices=[False, True],
             ),
@@ -163,7 +163,7 @@ class Schema:
         "rag": {
             "active": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Whether RAG is active. If True, the search-results will be implicitly added as context to the modelprompt. Also, when pressing `search`, results will be shown. If False, no search-results will be shown and nothing will be added to the modelprompt.",
+                description="Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown.",
                 default=False,
                 choices=[False, True],
             ),
@@ -189,7 +189,7 @@ class Schema:
         "huggingface": {
             "search": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Search for a model on the Huggingface Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults. Example: 'llama 3b gguf' will (likely) give all GGUF models with the Llama architecture with 3 bilion parameters.",
+                description="Search for a model on the Huggingface Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf'",
                 default="",
                 choices=None,
             ),
@@ -201,7 +201,7 @@ class Schema:
             ),
             "select_model": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Select and load a model from the HuggingFace Hub by toggling through the options found by `search`. This means `search` first has to be used before using this option.",
+                description="Select and load a model from the HuggingFace Hub by toggling through the options found by `search`.",
                 default="",
                 choices=None,
             ),
@@ -217,18 +217,18 @@ class Schema:
     MENU = {
         "assistant": MenuItem(
             type=OptionType.EDITABLE,
-            description="Ask a question or give an instruction",
+            description="Chat with the loaded model. Use {{expression}} to pass python code directly. Or e.g. [[image: path/to/image.jpg]] to pass an image to the model.",
             default="How can I assist you?",
         ),
         "shell": MenuItem(type=OptionType.EDITABLE, description="Execute shell commands", default=""),
         "python": MenuItem(type=OptionType.ACTION, description="Enter Python interpreter"),
         "config": MenuItem(
             type=OptionType.TOGGLE,
-            description="Configure application settings",
+            description="Configuration settings",
             choices=list(CONFIG.keys()),
         ),
-        "save": MenuItem(type=OptionType.EDITABLE, description="Save current configuration", default=""),
-        "load": MenuItem(type=OptionType.EDITABLE, description="Load configuration from file", default=""),
+        "save": MenuItem(type=OptionType.EDITABLE, description="Save current configuration as JSON-file", default=""),
+        "load": MenuItem(type=OptionType.EDITABLE, description="Load a configuration from a JSON-file", default=""),
         "clear history": MenuItem(type=OptionType.ACTION, description="Clear cache and chat history"),
         "quit": MenuItem(type=OptionType.ACTION, description="Exit application"),
     }
