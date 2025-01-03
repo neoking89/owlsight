@@ -59,8 +59,8 @@ class TextGenerationManager:
         task = self.config_manager.get("huggingface.task")
         kwargs = self.config_manager.get("generate", {})
 
-        track_usage = self.config_manager.get("main.track_usage", False)
-        if track_usage:
+        track_model_usage = self.config_manager.get("main.track_model_usage", False)
+        if track_model_usage:
             logger.info("Tracking memory usage during generation.")
             self._wrap_with_usage_tracking()
         else:

@@ -76,7 +76,7 @@ class ConfigManager:
             "max_retries_on_error": self._get_toggle_choice("main", "max_retries_on_error"),
             "prompt_code_execution": self._get_toggle_choice("main", "prompt_code_execution"),
             "prompt_retry_on_error": self._get_toggle_choice("main", "prompt_retry_on_error"),
-            "track_usage": self._get_toggle_choice("main", "track_usage"),
+            "track_model_usage": self._get_toggle_choice("main", "track_model_usage"),
             "extra_index_url": self._get_basic_choice("main", "extra_index_url"),
         }
 
