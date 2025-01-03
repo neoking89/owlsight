@@ -19,7 +19,8 @@ from prompt_toolkit.widgets import TextArea, Frame
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application.current import get_app
 
-from owlsight.configurations.constants import ASSISTENT_PROMPT, MAIN_MENU
+from owlsight.configurations.constants import ASSISTENT_PROMPT, MAIN_MENU, CONFIG_DESCRIPTIONS
+from owlsight.configurations.schema import Schema
 from owlsight.ui.constants import BACKGROUND_STYLE, COLOR_CODES, GLOBAL_STYLE, INSTRUCTIONS
 from owlsight.ui.custom_classes import OptionType
 from owlsight.utils.constants import get_prompt_cache
@@ -98,19 +99,50 @@ class OptionSelectorApp:
         self.application: Optional[Application] = None
         # In-memory dictionary for caching history objects per editable key
         self.chat_history: Dict[str, FileHistory] = {}
-
-        # Build key bindings only once
-        self.build_key_bindings()
-
         # Assign the global style
         self.style = GLOBAL_STYLE
 
-    def set_current_selection(self) -> List[Tuple[str, str]]:
+        # Build key bindings only once
+        self.build_key_bindings()
+        self._last_config_choice = ""
+
+    def set_current_description(self) -> None:
         """
-        Set the currently selected option index. Used for the main title bar text.
+        Set the currently selected option index and show its description.
+        Used for the main title bar text.
         """
         current_selection = self.selector.options[self.selector.current_index][0]
-        return [("class:title", f"   Make a choice: {current_selection}")]
+        is_main_menu = self.selector.options[-1][0] == list(MAIN_MENU.keys())[-1]
+
+        description = ""
+        current_config_section = ""
+
+        if not is_main_menu:
+            current_config_section = self._last_config_choice
+            description = CONFIG_DESCRIPTIONS.get(current_config_section, {}).get(current_selection, "")
+            # self._last_config_choice = ""
+        else:
+            if self.selector.current_index == 0:
+                description = Schema.MENU["assistant"].description
+            else:
+                description = Schema.MENU.get(current_selection, {}).description
+
+        # Return title and description as separate formatted text elements
+        return [("class:description", f" {description}")]
+
+    def set_current_selection(self) -> List[List[Tuple[str, str]]]:
+        """
+        Set the currently selected option index and show its description.
+        Used for the main title bar text.
+        Returns a list of two formatted text tuples: [title, description]
+        """
+        current_selection = self.selector.options[self.selector.current_index][0]
+
+        # Format the title based on whether we're in a section
+        title = f" Current choice: {current_selection}"
+
+        # Return title and description as separate formatted text elements
+        return [("class:title", title)]
 
     def set_selector(self, selector: Selector) -> None:
         """
@@ -121,11 +153,22 @@ class OptionSelectorApp:
         self.buffers.clear()
         self.build_controls()
 
-        # Create a title bar that shows current selection
-        title_bar = Window(
-            height=1,
-            content=FormattedTextControl(lambda: self.set_current_selection()),
-            style=BACKGROUND_STYLE,
+        # Create a title bar that shows current selection and description
+        title_bar = HSplit(
+            [
+                # Title window with normal height
+                Window(
+                    height=1,
+                    content=FormattedTextControl(lambda: self.set_current_selection()),
+                    style=BACKGROUND_STYLE,
+                ),
+                # Description window with reduced height and dimmed color
+                Window(
+                    height=1,
+                    content=FormattedTextControl(lambda: self.set_current_description()),
+                    style="grey",  # Very dim grey for smaller appearance
+                ),
+            ]
         )
 
         # Frame around options
@@ -336,6 +379,7 @@ def get_user_choice(
     options_dict: Dict[str, Union[None, str, List[Any]]],
     return_value_only: bool = True,
     start_index: int = 0,
+    last_config_choice: str = "",
 ) -> Union[str, Dict[str, Any]]:
     """
     Display a styled (yet highlight-free) menu of options. The user uses arrow keys
@@ -354,6 +398,10 @@ def get_user_choice(
         If False, returns a dict {chosen_label: chosen_value}.
     start_index : int
         The index at which to start the selector. Default is 0.
+    last_config_choice : str
+        The key of the last selected config option.
+        This option is added to prevent ambiguity, as some keys might be shared among config options.
+        Eg: "search" might be present in both config:rag and config:huggingface.
 
     Returns
     -------
@@ -362,6 +410,7 @@ def get_user_choice(
         Returns "" if nothing was selected.
     """
     global app
+    app._last_config_choice = last_config_choice
     selector = Selector(options_dict, start_index)
     app.set_selector(selector)
     app.run()
