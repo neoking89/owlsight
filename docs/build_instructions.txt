@@ -1,0 +1,10 @@
+1. Run all tests with pytest -vvv
+2. Update the README.md in the working directory by running src/owlsight/docs/readme.py
+3. Commit changes: git commit -am "Update version to X.X.X"
+4. Add a git tag by command: git tag -a vX.X.X -m "New release version X.X.X"
+5. Push the changes and tags to the repository: git push && git push --tags
+6. Build the distribution packages: python -m build
+7. Upload the package to PyPI through CMD.exe:
+    SET API_TOKEN=... // get api-token from pypi
+    twine check dist/*
+    twine upload -u __token__ -p %API_TOKEN% dist/* --verbose
