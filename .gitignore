@@ -18,6 +18,7 @@ tmp*.py
 /dist
 /build
 /data
+/archive
 deploy.ps1
 build.bat
 .vscode/*
