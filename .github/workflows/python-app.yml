@@ -1,13 +1,12 @@
 name: Python application
 
 on:
-  pull_request:
-    types: [closed]
+  push:
+    branches:
+      - main
 
 jobs:
   test:
-
-    if: github.event.pull_request.merged == true
 
     strategy:
       matrix:
