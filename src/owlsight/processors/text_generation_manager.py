@@ -1,4 +1,4 @@
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, Union
 import traceback
 import pkgutil
 import ast
@@ -205,7 +205,7 @@ class TextGenerationManager:
         if loading_succesful:
             self.load_model_processor(reload=self.processor is not None)
 
-    def load_model_processor(self, reload=False) -> None | Exception:
+    def load_model_processor(self, reload=False) -> Union[None, Exception]:
         """
         Load the model processor with a 'model_id', to load the correct model and tokenizer.
 
@@ -217,7 +217,7 @@ class TextGenerationManager:
 
         Returns
         -------
-        None | Exception
+        Union[None, Exception]
             None if successful, otherwise an exception is returned.
         """
         model_kwargs = self.config_manager.get("model", {})

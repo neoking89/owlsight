@@ -389,7 +389,7 @@ def get_user_choice(
     Parameters
     ----------
     options_dict : Dict[str, Union[None, str, List[Any]]]
-        Key-value pairs of label -> (None | str | list).
+        Key-value pairs of label -> Union[None, str, List[Any]].
         None means a normal single option.
         str means an editable field (the default string).
         list means a toggle field with multiple values.

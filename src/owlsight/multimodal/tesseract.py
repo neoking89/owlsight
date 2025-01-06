@@ -5,6 +5,7 @@ import os
 import platform
 import subprocess
 import traceback
+from typing import Union
 from urllib.parse import urlparse
 
 import requests
@@ -82,7 +83,7 @@ def find_tesseract_installation() -> str:
     return tesseract_path
 
 
-def download_tesseract(output_dir=".", timeout=10) -> str | None:
+def download_tesseract(output_dir=".", timeout=10) -> Union[str, None]:
     """
     Download Tesseract .exe from the specified GitHub page and show a progress bar during download.
 
@@ -93,7 +94,7 @@ def download_tesseract(output_dir=".", timeout=10) -> str | None:
 
     Returns
     -------
-    str | None
+    Union[str, None]
         The name of the downloaded file, or None if the download failed.
     """
     tesseract_url = "https://github.com/UB-Mannheim/tesseract/wiki"

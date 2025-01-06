@@ -1,7 +1,7 @@
 import re
 import inspect
 import traceback
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from types import MethodType
 
 from owlsight.utils.logger import logger
@@ -14,9 +14,9 @@ class TransformersArgumentInferer:
     """
 
     def __init__(self):
-        self._last_returned_value: Optional[Dict[str, dict | str]] = None
+        self._last_returned_value: Optional[Dict[str, Union[dict, str]]] = None
 
-    def transform_inferred_arguments_to_text(self, inferred_arguments: Dict[str, dict | str]) -> Optional[str]:
+    def transform_inferred_arguments_to_text(self, inferred_arguments: Dict[str, Union[dict, str]]) -> Optional[str]:
         """
         Transform the dict acquired from self.__call__ to a string.\n
         For example, as placeholder text in an UI application."""
@@ -31,7 +31,7 @@ class TransformersArgumentInferer:
 
         return "\n".join([f"{arg}: {arg_info['types']}" for arg, arg_info in inferred_arguments.items()])
 
-    def __call__(self, func: MethodType, docstring: Optional[str] = None) -> Dict[str, dict | str]:
+    def __call__(self, func: MethodType, docstring: Optional[str] = None) -> Dict[str, Union[dict, str]]:
         """
         Infer the arguments of the specified function or method.
 
@@ -45,7 +45,7 @@ class TransformersArgumentInferer:
 
         Returns
         -------
-        Dict[str, dict] | List[str]
+        Dict[str, Union[dict, str]]
             A dictionary with the argument names as keys and a dictionary with the argument details as values,
             or a list of obliged argument names.
         """
