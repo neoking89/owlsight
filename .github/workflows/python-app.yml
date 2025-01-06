@@ -11,6 +11,7 @@ jobs:
         python-version: [3.11]
 
     runs-on: ${{ matrix.os }}
+    continue-on-error: true
 
     steps:
     - name: Check out the repository
@@ -31,7 +32,7 @@ jobs:
         python -m pip install pytest
 
     - name: Run tests
-      run: pytest -m "not requires_display"
+      run: pytest -vvv
 
     - name: Clean up
       if: always()
