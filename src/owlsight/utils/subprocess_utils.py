@@ -42,11 +42,15 @@ def _get_activate_script(pyenv_path: str) -> str:
     str
         The path to the activation script for the virtual environment.
     """
-    return os.path.join(
-        pyenv_path,
-        "Scripts" if os_is_windows() else "bin",
-        "activate",
-    )
+    # Normalize path separators for the current OS
+    pyenv_path = os.path.normpath(pyenv_path)
+    
+    # Get the correct activation script path
+    if os_is_windows():
+        return os.path.join(pyenv_path, "Scripts", "activate.bat")
+    else:
+        # For WSL/Linux, use the bin/activate script
+        return os.path.join(pyenv_path, "bin", "activate")
 
 
 def execute_shell_command(command: str, pyenv_path: str) -> subprocess.CompletedProcess:
@@ -66,19 +70,30 @@ def execute_shell_command(command: str, pyenv_path: str) -> subprocess.Completed
         The result of the subprocess run or the exception if failed.
     """
     activate_venv = _get_activate_script(pyenv_path)
+    logger.info(f"Virtual env path: {pyenv_path}")
+    logger.info(f"Activation script path: {activate_venv}")
+    logger.info(f"Checking if activation script exists: {os.path.exists(activate_venv)}")
 
     if os_is_windows():
         command_list = ["cmd", "/c", f"call {activate_venv} && {command}"]
     else:
         command_list = ["bash", "-c", f"source {activate_venv} && {command}"]
+    
+    logger.info(f"Executing command: {' '.join(command_list)}")
 
     result = None
     try:
         result = subprocess.run(command_list, capture_output=True, text=True, check=True)
+        logger.info("Command executed successfully")
     except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed with exit code {e.returncode}: {e.stderr}")
-        logger.error(f"Output: {e.stdout}")
+        logger.error(f"Command failed with exit code {e.returncode}")
+        logger.error(f"Command stderr: {e.stderr}")
+        logger.error(f"Command stdout: {e.stdout}")
         result = e
+    except Exception as e:
+        logger.error(f"Unexpected error during command execution: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise
     finally:
         _log_shell_output(result)
 

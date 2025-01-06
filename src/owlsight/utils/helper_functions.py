@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Union
 import ast
 import os
 import shutil
@@ -6,6 +6,7 @@ import re
 import traceback
 import inspect
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
@@ -157,21 +158,41 @@ def editable_input(prompt_text: str, default_value: str, color: str = "ansicyan"
     return result.strip()
 
 
-def force_delete(temp_dir: str) -> None:
-    """Forcefully deletes a directory if it exists."""
-    if os.path.exists(temp_dir):
+def force_delete(temp_dir: Union[str, Path]) -> None:
+    """
+    Forcefully deletes a directory if it exists.
+
+    Parameters
+    ----------
+    temp_dir : Union[str, Path]
+        Path to the directory to delete
+    """
+    temp_dir = Path(temp_dir)
+    if temp_dir.exists():
         try:
             shutil.rmtree(temp_dir)
         except Exception:
             logger.error(f"Error deleting directory {temp_dir}:\n{traceback.format_exc()}")
 
 
-def remove_temp_directories(lib_path: str) -> None:
-    """Removes lingering temporary directories in the virtual environment's library path."""
-    for d in os.listdir(lib_path):
-        if d.startswith("tmp"):
+def remove_temp_directories(lib_path: Union[str, Path]) -> None:
+    """
+    Removes lingering temporary directories in the virtual environment's library path.
+
+    Parameters
+    ----------
+    lib_path : Union[str, Path]
+        Path to the library directory to clean
+    """
+    lib_path = Path(lib_path)
+    if not lib_path.exists():
+        logger.warning(f"Library path does not exist: {lib_path}")
+        return
+
+    for d in lib_path.iterdir():
+        if d.name.startswith("tmp"):
             logger.info(f"Removing temporary directory: {d}")
-            force_delete(os.path.join(lib_path, d))
+            force_delete(d)
 
 
 def format_error_message(e: Exception) -> str:
