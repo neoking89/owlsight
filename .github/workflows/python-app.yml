@@ -1,9 +1,13 @@
 name: Python application
 
-on: [push, pull_request]
+on:
+  pull_request:
+    types: [closed]
 
 jobs:
   test:
+
+    if: github.event.pull_request.merged == true
 
     strategy:
       matrix:
@@ -11,7 +15,6 @@ jobs:
         python-version: [3.11]
 
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
 
     steps:
     - name: Check out the repository
