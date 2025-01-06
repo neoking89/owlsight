@@ -28,7 +28,7 @@ jobs:
         pip install pytest
 
     - name: Run tests
-      run: pytest -m "not requires_display" -v
+      run: pytest -vvv
 
     - name: Clean up
       if: always()
