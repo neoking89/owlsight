@@ -24,6 +24,18 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Install Tesseract OCR on Windows
+      if: matrix.os == 'windows-latest'
+      run: choco install tesseract
+
+    - name: Install Tesseract OCR on Ubuntu
+      if: matrix.os == 'ubuntu-latest'
+      run: sudo apt-get install -y tesseract-ocr
+
+    - name: Install Tesseract OCR on macOS
+      if: matrix.os == 'macos-latest'
+      run: brew install tesseract
+
     - name: Upgrade pip
       run: |
         python -m pip install --upgrade pip || python -m pip install pip==21.1.3
