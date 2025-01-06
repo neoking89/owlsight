@@ -363,23 +363,24 @@ class EnsembleSearchEngine:
             if weight <= 0:
                 continue
 
-            kwargs = {
+            engine_kwargs = {
                 "documents": self.documents,
                 "cache_dir": self.cache_dir,
                 "cache_dir_suffix": self.cache_dir_suffix or "",
             }
 
             if method == SearchMethod.TFIDF:
-                engine = TfidfSearch(**kwargs | self.engine_init_arguments.get(SearchMethod.TFIDF, {}))
+                engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.TFIDF, {}))
+                engine = TfidfSearch(**engine_kwargs)
             elif method == SearchMethod.SENTENCE_TRANSFORMER:
-                engine = SentenceTransformerSearch(
-                    **kwargs | self.engine_init_arguments.get(SearchMethod.SENTENCE_TRANSFORMER, {})
-                )
+                engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.SENTENCE_TRANSFORMER, {}))
+                engine = SentenceTransformerSearch(**engine_kwargs)
             elif method == SearchMethod.HASHING:
-                engine = HashingVectorizerSearch(**kwargs | self.engine_init_arguments.get(SearchMethod.HASHING, {}))
+                engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.HASHING, {}))
+                engine = HashingVectorizerSearch(**engine_kwargs)
             else:
                 raise ValueError(f"Unknown search method: {method}")
-
+            
             self.engines[method] = engine
             engine.create_index()
 
