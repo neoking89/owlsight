@@ -70,9 +70,9 @@ def execute_shell_command(command: str, pyenv_path: str) -> subprocess.Completed
         The result of the subprocess run or the exception if failed.
     """
     activate_venv = _get_activate_script(pyenv_path)
-    logger.info(f"Virtual env path: {pyenv_path}")
-    logger.info(f"Activation script path: {activate_venv}")
-    logger.info(f"Checking if activation script exists: {os.path.exists(activate_venv)}")
+    # logger.info(f"Virtual env path: {pyenv_path}")
+    # logger.info(f"Activation script path: {activate_venv}")
+    # logger.info(f"Checking if activation script exists: {os.path.exists(activate_venv)}")
 
     if os_is_windows():
         command_list = ["cmd", "/c", f"call {activate_venv} && {command}"]
