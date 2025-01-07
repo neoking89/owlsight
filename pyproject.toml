@@ -23,7 +23,9 @@ dependencies = [
     "beautifulsoup4",
     "jinja2",
     "tqdm",
-    "pydantic"
+    "pydantic",
+    "fastapi",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]
