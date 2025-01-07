@@ -226,7 +226,7 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 Here's an example of what the default configuration looks like:
 
 ```json
-{Schema.get_config_defaults(indented=True)}
+{Schema.get_config_defaults(as_json=True)}
 ```
 
 Configuration files can be saved (`save`) and loaded (`load`) through the main menu.

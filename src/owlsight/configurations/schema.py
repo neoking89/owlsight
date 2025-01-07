@@ -234,17 +234,17 @@ class Schema:
     }
 
     @classmethod
-    def get_config_defaults(cls, indented: bool = False) -> Dict[str, Dict[str, Any]]:
+    def get_config_defaults(cls, as_json: bool = False) -> Union[str, Dict[str, Dict[str, Any]]]:
         """
         Extract default values from schema.
 
         Parameters:
         ----------
-        indented : bool
+        as_json : bool
             Whether to return the default values in a nice format.
         """
         d = {section: {key: value.default for key, value in options.items()} for section, options in cls.CONFIG.items()}
-        if indented:
+        if as_json:
             return json.dumps(d, indent=4)
 
         return d
