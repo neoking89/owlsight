@@ -241,7 +241,12 @@ class Schema:
         Parameters:
         ----------
         as_json : bool
-            Whether to return the default values in a nice format.
+            Whether to return the default values in json format as a string.
+
+        Returns:
+        -------
+        Union[str, Dict[str, Dict[str, Any]]]
+            Default values as a dictionary or json string if `as_json` is True.
         """
         d = {section: {key: value.default for key, value in options.items()} for section, options in cls.CONFIG.items()}
         if as_json:
