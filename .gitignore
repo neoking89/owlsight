@@ -13,7 +13,7 @@
 __pycache__/
 
 # custom
-tmp*.py
+tmp*
 /logo
 /dist
 /build
