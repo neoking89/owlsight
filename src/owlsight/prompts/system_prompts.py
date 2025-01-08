@@ -1,5 +1,6 @@
 import json
 import os
+from typing import List
 
 from owlsight.docs.readme import README
 
@@ -8,12 +9,12 @@ class SystemPrompts:
     """System prompts for different expert roles"""
 
     @classmethod
-    def list_experts(cls) -> list[str]:
+    def list_experts(cls) -> List[str]:
         """
         Returns a list of all available expert prompt keys.
 
         Returns:
-            list[str]: List of expert names (e.g., ['PYTHON_EXPERT', 'DATA_SCIENCE_EXPERT', ...])
+            List[str]: List of expert names (e.g., ['PYTHON_EXPERT', 'DATA_SCIENCE_EXPERT', ...])
 
         Example:
             >>> SystemPrompts.list_experts()
