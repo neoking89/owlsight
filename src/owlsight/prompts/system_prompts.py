@@ -1,6 +1,6 @@
 import json
 import os
-from typing import List
+from typing import List, Dict
 
 from owlsight.docs.readme import README
 
@@ -48,12 +48,12 @@ class SystemPrompts:
 
         return role_line.replace("# ROLE:", "").strip()
 
-    def as_dict(self) -> dict[str, str]:
+    def as_dict(self) -> Dict[str, str]:
         """
         Returns all expert prompts as a dictionary.
 
         Returns:
-            dict[str, str]: Dictionary mapping expert names to their prompt strings
+            Dict[str, str]: Dictionary mapping expert names to their prompt strings
 
         Example:
             >>> prompts = SystemPrompts().as_dict()
