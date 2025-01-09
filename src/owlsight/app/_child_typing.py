@@ -21,10 +21,10 @@ def main():
 
     # 2) Extract the parameters
     sequence = params.get("sequence", [])
-    time_before_exit = float(params.get("time_before_exit", 0.5))
+    time_before_sequence = float(params.get("time_before_sequence", 0.5))
     time_between_keys = float(params.get("time_between_keys", 0.12))
 
-    time.sleep(time_before_exit)
+    time.sleep(time_before_sequence)
 
     controller = Controller()
     key_map = {
