@@ -7,6 +7,9 @@ import re
 from typing import Optional, List, Dict
 from datetime import datetime
 from pathlib import Path
+import subprocess
+import sys
+import json
 
 import requests
 from bs4 import BeautifulSoup
@@ -177,12 +180,12 @@ class OwlDefaultFunctions:
 
         Parameters:
         -----------
-        cache_dir (str, optional): 
+        cache_dir (str, optional):
             The directory path to scan for models. If None, the default cache directory is used.
-        show_task (bool, optional): 
+        show_task (bool, optional):
             If True, also display the tasks associated with each model.
             If used, showing models will take a while longer.
-            
+
         Returns:
         --------
         str:
@@ -192,7 +195,7 @@ class OwlDefaultFunctions:
         cache_dir: Path = Path(cache_dir or HF_HUB_CACHE)
         if not cache_dir.exists():
             return f"Cache directory '{cache_dir}' does not exist."
-            
+
         try:
             hf_api = HfApi()
             cache_info = scan_cache_dir(cache_dir)
@@ -219,10 +222,58 @@ class OwlDefaultFunctions:
 
             output_lines.append(f"\nTotal Cache Size: {cache_info.size_on_disk / (1024*1024):.2f} MB")
             output_lines.append(f"Cache Directory: {cache_dir}")
-            
+
             return "\n".join(output_lines)
         except Exception as e:
             return f"Error accessing Hugging Face cache: {str(e)}"
+
+    def owl_press(
+        self,
+        sequence: List[str],
+        exit_python: bool = True,
+        time_before_sequence: float = 0.5,
+        time_between_keys: float = 0.12,
+    ) -> None:
+        """
+        Simulate typing a sequence of keys and automaticly control the menu inside the Owlsight application.
+
+        The parameters passed to this function, are passed to another Python process that simulates the keystrokes.
+        This is done to avoid blocking the interpreter while the sequence is being typed.
+
+        Parameters
+        ----------
+        sequence : List[str]
+            The sequence of keys to type. Case-sensitive when typing available keys.
+            Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER).
+            Any other character will be typed as is.
+        exit_python : bool, optional
+            If True, type 'exit()' and press ENTER before typing the sequence, default is True.
+            This will return to the mainmenu before typing the sequence.
+        time_before_sequence : float, optional
+            The time to wait before executing the keysequence, default is 0.5 seconds.
+        time_between_keys : float, optional
+            The time to wait between typing each key, default is 0.12 seconds.
+        """
+        if exit_python:
+            sequence.insert(0, "ENTER")
+            sequence.insert(0, "exit()")
+
+        # Path to your _child_typing.py script
+        script_path = Path(__file__).parent / "_child_typing.py"
+
+        params = {
+            "sequence": sequence,
+            "time_before_sequence": time_before_sequence,
+            "time_between_keys": time_between_keys,
+        }
+
+        try:
+            params_json = json.dumps(params)
+            subprocess.Popen([sys.executable, str(script_path), params_json])
+
+        except Exception as e:
+            current_function_name = inspect.currentframe().f_code.co_name
+            print(f"Error starting subprocess from inside {current_function_name}: {e}")
 
     def _get_model_id(self, repo: CachedRepoInfo) -> str:
         """
