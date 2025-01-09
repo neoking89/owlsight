@@ -1,9 +1,7 @@
 # Dockerfile for a CLI application
 # build: docker build -t owlsight .
 # run: docker run -it --rm owlsight
-
-
-FROM python:3.8 AS python38
+FROM python:3.12 AS python
 
 WORKDIR /app
 COPY . /app
