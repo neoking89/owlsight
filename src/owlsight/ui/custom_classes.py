@@ -19,3 +19,23 @@ class MenuItem:
     description: str
     default: Any = None
     choices: Optional[Union[List, Any]] = None
+
+@dataclass
+class AppDTO:
+    """
+    Data transfer object for transferring data between the UI and the backend.
+
+    Attributes
+    return_value_only : bool
+        If True, returns the raw result (string or final value).
+        If False, returns a dict {chosen_label: chosen_value}.
+    start_index : int
+        The index (or startposition) at which to start the selector. Default is 0.
+    last_config_choice : str
+        The key of the last selected config option.
+        This option is added to prevent ambiguity, as some keys might be shared among config options.
+        Eg: "search" might be present in both config:rag and config:huggingface.
+    """
+    return_value_only: bool = False
+    start_index: int = 0
+    last_config_choice: str = ""

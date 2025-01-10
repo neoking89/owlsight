@@ -22,7 +22,7 @@ from prompt_toolkit.application.current import get_app
 from owlsight.configurations.constants import ASSISTENT_PROMPT, MAIN_MENU, CONFIG_DESCRIPTIONS
 from owlsight.configurations.schema import Schema
 from owlsight.ui.constants import BACKGROUND_STYLE, COLOR_CODES, GLOBAL_STYLE, INSTRUCTIONS
-from owlsight.ui.custom_classes import OptionType
+from owlsight.ui.custom_classes import OptionType, AppDTO
 from owlsight.utils.constants import get_prompt_cache
 from owlsight.utils.logger import logger
 
@@ -377,9 +377,7 @@ app = OptionSelectorApp()
 
 def get_user_choice(
     options_dict: Dict[str, Union[None, str, List[Any]]],
-    return_value_only: bool = True,
-    start_index: int = 0,
-    last_config_choice: str = "",
+    app_dto: Optional[AppDTO] = None,
 ) -> Union[str, Dict[str, Any]]:
     """
     Display a styled (yet highlight-free) menu of options. The user uses arrow keys
@@ -393,15 +391,8 @@ def get_user_choice(
         None means a normal single option.
         str means an editable field (the default string).
         list means a toggle field with multiple values.
-    return_value_only : bool
-        If True, returns the raw result (string or final value).
-        If False, returns a dict {chosen_label: chosen_value}.
-    start_index : int
-        The index at which to start the selector. Default is 0.
-    last_config_choice : str
-        The key of the last selected config option.
-        This option is added to prevent ambiguity, as some keys might be shared among config options.
-        Eg: "search" might be present in both config:rag and config:huggingface.
+    app_dto : Optional[AppDTO], optional
+        Data transfer object for transferring data between the UI and the backend, by default None.
 
     Returns
     -------
@@ -410,8 +401,11 @@ def get_user_choice(
         Returns "" if nothing was selected.
     """
     global app
-    app._last_config_choice = last_config_choice
-    selector = Selector(options_dict, start_index)
+    if app_dto is None:
+        app_dto = AppDTO()
+
+    app._last_config_choice = app_dto.last_config_choice
+    selector = Selector(options_dict, app_dto.start_index)
     app.set_selector(selector)
     app.run()
 
@@ -421,10 +415,10 @@ def get_user_choice(
         if opt_type == OptionType.EDITABLE:
             selector.user_inputs[selected_option] = app.buffers[selected_option].text
             result = selector.user_inputs[selected_option]
-            return {selected_option: result} if not return_value_only else result
+            return {selected_option: result} if not app_dto.return_value_only else result
         elif opt_type == OptionType.TOGGLE:
             result = selector.toggle_values[selected_option]
-            return {selected_option: result} if not return_value_only else result
+            return {selected_option: result} if not app_dto.return_value_only else result
         else:
             # SINGLE
             return selected_option
@@ -440,15 +434,27 @@ def get_user_input(
     """
     Helper function: get the user choice from a menu, returning both the chosen value and key.
 
+    Parameters
+    ----------
+    menu : Optional[Dict[str, Union[None, str, List[Any]]]], optional
+        The menu to display, by default None
+    start_index : int, optional
+        The index at which to start the selector in the menu, by default 0
+
     Returns (value, option_key) or (value, None).
     """
     if menu is None:
         menu = MAIN_MENU
 
-    user_choice: Union[str, Dict[str, Any]] = get_user_choice(menu, return_value_only=False, start_index=start_index)
+    app_dto = AppDTO(return_value_only=False, start_index=start_index)
+    user_choice: Union[str, Dict[str, Any]] = get_user_choice(menu, app_dto)
+    
+    # If the user choice is a dict, retyurn the key and value
     if isinstance(user_choice, dict):
         option = list(user_choice.keys())[0]
         return user_choice[option], option
+    
+    # Otherwise, return the value and None
     return user_choice, None
 
 
