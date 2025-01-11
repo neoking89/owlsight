@@ -5,8 +5,18 @@ from typing import List, Dict
 from owlsight.docs.readme import README
 
 
-class Prompt:
+class PromptWriter:
+    """Writes a system prompt to an Owlsight configuration JSON file."""
+
     def __init__(self, prompt: str):
+        """
+        Initialize the PromptWriter with the given prompt.
+
+        Parameters:
+        ------------
+        prompt : str
+            The system prompt to be written to the Owlsight configuration JSON file.
+        """
         self.prompt = prompt
 
     def to(self, target_json: str) -> None:
@@ -59,10 +69,10 @@ class SystemPrompts:
         roles = [f"{role}: {self.get_role_description(role)}" for role in self.list_roles()]
         return "Available Roles:\n" + "\n".join(f"- {role}" for role in roles)
 
-    def __getattr__(self, name: str) -> Prompt:
+    def __getattr__(self, name: str) -> PromptWriter:
         role_key = name.lower()
         if role_key in self.list_roles():
-            return Prompt(getattr(self.__class__, role_key.upper()))
+            return PromptWriter(getattr(self.__class__, role_key.upper()))
         available_roles = ", ".join(self.list_roles())
         raise AttributeError(
             f"'SystemPrompts' object has no attribute '{name}'. Available roles are: {available_roles}"
