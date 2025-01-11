@@ -114,7 +114,7 @@ class OwlDefaultFunctions:
         """
         Save the current python namespace using dill.
         NOTE: This will only save the variables that do not start with '_' or 'owl_'.
-        Also, some complex objects may not be serializable.
+        Also, some complex objects (like from external libraries) may not be serializable.
 
         Parameters
         ----------
