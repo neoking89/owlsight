@@ -23,9 +23,8 @@ dependencies = [
     "beautifulsoup4",
     "jinja2",
     "tqdm",
+    "pynput",
     "pydantic",
-    "fastapi",
-    "uvicorn",
 ]
 
 [project.optional-dependencies]
@@ -36,7 +35,6 @@ dev = [
     "pytest-asyncio<=0.24",
     "ruff",
     "black",
-    "pynput",
 ]
 
 gguf = [
@@ -74,6 +72,7 @@ all = [
     "beautifulsoup4",
     "jinja2",
     "tqdm",
+    "pynput",
     # Optional dependencies
     "llama-cpp-python",
     "onnxruntime-genai",
@@ -81,14 +80,6 @@ all = [
     "sentence-transformers",
     "pytesseract",
     "pillow",
-    # Dev dependencies
-    "build",
-    "twine",
-    "pytest",
-    "pytest-asyncio<=0.24",
-    "ruff",
-    "black",
-    "pynput",
 ]
 
 [tool.pytest.ini_options]
