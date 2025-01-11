@@ -8,7 +8,7 @@ from pynput.keyboard import Key, Controller
 def main():
     # Make sure we have the JSON argument
     if len(sys.argv) < 2:
-        print("No JSON parameters passed to _child_typing.py.")
+        print("No JSON parameters passed to _child_owl_press.py.")
         return
 
     # 1) Parse the JSON from sys.argv[1]
@@ -16,7 +16,7 @@ def main():
     try:
         params = json.loads(params_json)
     except json.JSONDecodeError:
-        print("Invalid JSON passed to _child_typing.py.")
+        print("Invalid JSON passed to _child_owl_press.py.")
         return
 
     # 2) Extract the parameters
