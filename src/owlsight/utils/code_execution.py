@@ -3,6 +3,7 @@ import re
 from typing import Dict, List, Union
 import traceback
 import inspect
+from pathlib import Path
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -221,7 +222,7 @@ class CodeExecutor:
         return max(0, self.max_retries - self._attempts)
 
     @property
-    def python_interpreter_history_file(self) -> str:
+    def python_interpreter_history_file(self) -> Path:
         return get_py_cache()
 
     def _get_nth_attempt(self) -> int:
