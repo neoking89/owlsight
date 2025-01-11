@@ -256,7 +256,7 @@ def show_model_memory(model_name: str) -> Optional[str]:
         return None
 
 
-def _get_hf_model_data(model_info: "ModelInfo") -> Dict[str, str]:
+def _get_hf_model_data(model_info: ModelInfo) -> Dict[str, str]:
     days_difference = calculate_days_ago_created(model_info.created_at)
     model_data = {
         "engagement score": np.round(model_info.engagement_score, 4),
