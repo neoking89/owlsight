@@ -184,7 +184,7 @@ class CodeExecutor:
                     break
                 else:
                     try:
-                        code_obj = compile(text, "<stdin>", "single")
+                        code_obj = compile(text, "<stdin>", "exec")
                         exec(code_obj, namespace)
                     except Exception:
                         print(traceback.format_exc())
