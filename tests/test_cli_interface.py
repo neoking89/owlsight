@@ -4,8 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 sys.path.append("src")
-from owlsight.app.run_app import run, run_code_generation_loop, CommandResult
-from owlsight.configurations.constants import MAIN_MENU
+from owlsight.app.run_app import run_code_generation_loop
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
 
