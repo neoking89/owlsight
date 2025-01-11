@@ -1,0 +1,9 @@
+# .pylintrc
+[MESSAGES CONTROL]
+# Enable only error messages
+enable=E
+disable=W,C,R
+
+[REPORTS]
+# Disable the report summary at the end of the output
+reports=no
