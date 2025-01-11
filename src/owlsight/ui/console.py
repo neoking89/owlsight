@@ -29,7 +29,6 @@ from owlsight.utils.logger import logger
 try:
     from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
 except ImportError:
-
     class NoConsoleScreenBufferError(Exception):
         pass
 
@@ -39,7 +38,6 @@ class HistoryCompleter(Completer):
     A completer that provides suggestions based on previously entered history.
     Caches each FileHistory instance so repeated usage doesn't re-read from disk unnecessarily.
     """
-
     def __init__(self, history: FileHistory) -> None:
         super().__init__()
         self.chat_history = history
@@ -50,8 +48,7 @@ class HistoryCompleter(Completer):
         against previously entered lines in the FileHistory.
         """
         text_so_far = document.text_before_cursor
-        # Converting to a set avoids repeating the same suggestions multiple times
-        unique_history_items = list(set(self.chat_history.get_strings()))
+        unique_history_items = set(self.chat_history.get_strings())
         for item in unique_history_items:
             if item.startswith(text_so_far):
                 yield Completion(item, start_position=-len(text_so_far))
@@ -61,7 +58,6 @@ class Selector:
     """
     A selector that manages a list of options (single, toggle, or editable).
     """
-
     def __init__(self, options_dict: Dict[str, Union[None, str, List[Any]]], start_index: int = 0) -> None:
         self.current_index: int = start_index
         self.options: List[Tuple[str, OptionType]] = []
@@ -70,7 +66,6 @@ class Selector:
         self.toggle_values: Dict[str, Any] = {}
         self.toggle_choices: Dict[str, List[Any]] = {}
 
-        # Parse the dictionary and set up internal structures
         for key, value in options_dict.items():
             if value is None:
                 self.options.append((key, OptionType.ACTION))
@@ -89,7 +84,6 @@ class OptionSelectorApp:
 
     We reuse this single global instance to avoid re-building UI artifacts each time.
     """
-
     def __init__(self) -> None:
         self.selector: Optional[Selector] = None
         self.controls: List[Any] = []
@@ -97,51 +91,36 @@ class OptionSelectorApp:
         self.kb = KeyBindings()
         self.layout: Optional[Layout] = None
         self.application: Optional[Application] = None
-        # In-memory dictionary for caching history objects per editable key
         self.chat_history: Dict[str, FileHistory] = {}
-        # Assign the global style
         self.style = GLOBAL_STYLE
-
-        # Build key bindings only once
         self.build_key_bindings()
         self._last_config_choice = ""
 
     def set_current_description(self) -> None:
         """
-        Set the currently selected option index and show its description.
-        Used for the main title bar text.
+        Set the currently selected option's description (for the title bar).
         """
         current_selection = self.selector.options[self.selector.current_index][0]
         is_main_menu = self.selector.options[-1][0] == list(MAIN_MENU.keys())[-1]
-
         description = ""
         current_config_section = ""
 
         if not is_main_menu:
             current_config_section = self._last_config_choice
             description = CONFIG_DESCRIPTIONS.get(current_config_section, {}).get(current_selection, "")
-            # self._last_config_choice = ""
         else:
             if self.selector.current_index == 0:
                 description = Schema.MENU["assistant"].description
             else:
                 description = Schema.MENU.get(current_selection, {}).description
-
-        # Return title and description as separate formatted text elements
         return [("class:description", f" {description}")]
 
     def set_current_selection(self) -> List[List[Tuple[str, str]]]:
         """
-        Set the currently selected option index and show its description.
-        Used for the main title bar text.
-        Returns a list of two formatted text tuples: [title, description]
+        Show the currently selected option label (for the title bar).
         """
         current_selection = self.selector.options[self.selector.current_index][0]
-
-        # Format the title based on whether we're in a section
         title = f" Current choice: {current_selection}"
-
-        # Return title and description as separate formatted text elements
         return [("class:title", title)]
 
     def set_selector(self, selector: Selector) -> None:
@@ -153,25 +132,20 @@ class OptionSelectorApp:
         self.buffers.clear()
         self.build_controls()
 
-        # Create a title bar that shows current selection and description
         title_bar = HSplit(
             [
-                # Title window with normal height
                 Window(
                     height=1,
                     content=FormattedTextControl(lambda: self.set_current_selection()),
                     style=BACKGROUND_STYLE,
                 ),
-                # Description window with reduced height and dimmed color
                 Window(
                     height=1,
                     content=FormattedTextControl(lambda: self.set_current_description()),
-                    style="grey",  # Very dim grey for smaller appearance
+                    style="grey",
                 ),
             ]
         )
-
-        # Frame around options
         framed_controls = Frame(
             body=HSplit(self.controls),
             style=BACKGROUND_STYLE,
@@ -179,9 +153,7 @@ class OptionSelectorApp:
             height=None,
             title=INSTRUCTIONS.MAIN_MENU,
         )
-
         self.layout = Layout(HSplit([title_bar, framed_controls]))
-
         try:
             self._initialize_application()
         except NoConsoleScreenBufferError:
@@ -220,38 +192,33 @@ class OptionSelectorApp:
 
     def create_single_option_control(self, i: int, label: str) -> Window:
         """
-        A plain, single (static) option with no highlight except for an arrow.
+        A plain, single (static) option with a simple arrow indicator.
         """
-
         def get_text():
             arrow = self.get_arrow(i)
             return [("", f"{arrow} {label}")]
-
-        control = FormattedTextControl(get_text)
-        return Window(content=control, height=1)
+        return Window(content=FormattedTextControl(get_text), height=1)
 
     def create_toggle_option_control(self, i: int, label: str) -> Window:
         """
-        A toggle option. Only difference from SINGLE is we display the toggle value.
+        A toggle option. Displays the toggle's current value after the label.
         """
-
         def get_text():
             arrow = self.get_arrow(i)
             current_value = self.selector.toggle_values[label]
-            # Apply the "toggle" style for the toggle value
-            return [("class:arrow", f"{arrow} "), ("class:option", f"{label}: "), ("class:toggle", f"{current_value}")]
-
-        control = FormattedTextControl(get_text)
-        return Window(content=control, height=1)
+            return [
+                ("class:arrow", f"{arrow} "),
+                ("class:option", f"{label}: "),
+                ("class:toggle", f"{current_value}")
+            ]
+        return Window(content=FormattedTextControl(get_text), height=1)
 
     def create_editable_option_control(self, i: int, label: str) -> VSplit:
         """
-        A combined prompt (arrow + label) next to a TextArea for user input.
-        Chat history for each label is cached in self.chat_history.
+        A combined label + TextArea for user input. Each label has its own FileHistory.
         """
         if label not in self.chat_history:
             self.chat_history[label] = FileHistory(get_prompt_cache())
-
         completer = HistoryCompleter(self.chat_history[label])
 
         text_area = TextArea(
@@ -269,15 +236,12 @@ class OptionSelectorApp:
         def get_prompt():
             arrow = self.get_arrow(i)
             return [("", f"{arrow} {label} ")]
-
-        prompt_control = FormattedTextControl(get_prompt)
-        prompt_window = Window(content=prompt_control, dont_extend_width=True)
-
+        prompt_window = Window(content=FormattedTextControl(get_prompt), dont_extend_width=True)
         return VSplit([prompt_window, text_area], height=1)
 
     def update_focus(self, app: Application) -> None:
         """
-        Make sure we focus the correct control: if it's EDITABLE, focus the TextArea.
+        Focus the correct control depending on whether it's EDITABLE or not.
         """
         current_option, opt_type = self.selector.options[self.selector.current_index]
         if opt_type == OptionType.EDITABLE:
@@ -289,7 +253,6 @@ class OptionSelectorApp:
         """
         Define how the user navigates with the keyboard and triggers selection.
         """
-
         @self.kb.add("up")
         def move_up(event):
             self.selector.current_index = (self.selector.current_index - 1) % len(self.selector.options)
@@ -308,8 +271,8 @@ class OptionSelectorApp:
             if opt_type == OptionType.TOGGLE:
                 choices = self.selector.toggle_choices[current_option]
                 current_value = self.selector.toggle_values[current_option]
-                current_index = choices.index(current_value)
-                self.selector.toggle_values[current_option] = choices[(current_index - 1) % len(choices)]
+                idx = choices.index(current_value)
+                self.selector.toggle_values[current_option] = choices[(idx - 1) % len(choices)]
             elif opt_type == OptionType.EDITABLE:
                 self.buffers[current_option].buffer.cursor_left()
             self.invalidate()
@@ -320,8 +283,8 @@ class OptionSelectorApp:
             if opt_type == OptionType.TOGGLE:
                 choices = self.selector.toggle_choices[current_option]
                 current_value = self.selector.toggle_values[current_option]
-                current_index = choices.index(current_value)
-                self.selector.toggle_values[current_option] = choices[(current_index + 1) % len(choices)]
+                idx = choices.index(current_value)
+                self.selector.toggle_values[current_option] = choices[(idx + 1) % len(choices)]
             elif opt_type == OptionType.EDITABLE:
                 self.buffers[current_option].buffer.cursor_right()
             self.invalidate()
@@ -345,10 +308,8 @@ class OptionSelectorApp:
         """
         Launch the application (blocking call).
         """
-
         def pre_run():
             self.update_focus(self.application)
-
         self.application.run(pre_run=pre_run)
 
     def _handle_editable_input(self, current_option: str, user_input: str) -> None:
@@ -360,18 +321,16 @@ class OptionSelectorApp:
 
     def _initialize_application(self) -> None:
         """
-        Initialize the prompt_toolkit Application with performance-focused settings,
-        including reusing style and not re-enabling mouse support each time.
+        Initialize the prompt_toolkit Application with performance-focused settings.
         """
         self.application = Application(
             layout=self.layout,
             key_bindings=self.kb,
             style=self.style,
-            mouse_support=False,  # Disabled for faster performance
+            mouse_support=False,
         )
 
 
-# Create a single global OptionSelectorApp instance to avoid repeated init overhead
 app = OptionSelectorApp()
 
 
@@ -383,35 +342,18 @@ def get_user_choice(
     Display a styled (yet highlight-free) menu of options. The user uses arrow keys
     to move up/down and optionally left/right to toggle or move cursor in an editable field.
     Pressing Enter finalizes the selection or input.
-
-    Parameters
-    ----------
-    options_dict : Dict[str, Union[None, str, List[Any]]]
-        Key-value pairs of label -> Union[None, str, List[Any]].
-        None means a normal single option.
-        str means an editable field (the default string).
-        list means a toggle field with multiple values.
-    app_dto : Optional[AppDTO], optional
-        Data transfer object for transferring data between the UI and the backend, by default None.
-
-    Returns
-    -------
-    Union[str, Dict[str, Any]]
-        If the user selects or inputs something, returns either a string or a dict.
-        Returns "" if nothing was selected.
     """
     global app
     if app_dto is None:
         app_dto = AppDTO()
-
     app._last_config_choice = app_dto.last_config_choice
+
     selector = Selector(options_dict, app_dto.start_index)
     app.set_selector(selector)
     app.run()
 
     if selector.selected:
         selected_option, opt_type = selector.options[selector.current_index]
-        # If editable, update from the text buffer
         if opt_type == OptionType.EDITABLE:
             selector.user_inputs[selected_option] = app.buffers[selected_option].text
             result = selector.user_inputs[selected_option]
@@ -420,10 +362,7 @@ def get_user_choice(
             result = selector.toggle_values[selected_option]
             return {selected_option: result} if not app_dto.return_value_only else result
         else:
-            # SINGLE
             return selected_option
-
-    # If we never selected or pressed Enter
     return ""
 
 
@@ -433,28 +372,16 @@ def get_user_input(
 ) -> Tuple[str, Union[str, None]]:
     """
     Helper function: get the user choice from a menu, returning both the chosen value and key.
-
-    Parameters
-    ----------
-    menu : Optional[Dict[str, Union[None, str, List[Any]]]], optional
-        The menu to display, by default None
-    start_index : int, optional
-        The index at which to start the selector in the menu, by default 0
-
     Returns (value, option_key) or (value, None).
     """
     if menu is None:
         menu = MAIN_MENU
-
     app_dto = AppDTO(return_value_only=False, start_index=start_index)
     user_choice: Union[str, Dict[str, Any]] = get_user_choice(menu, app_dto)
-    
-    # If the user choice is a dict, retyurn the key and value
+
     if isinstance(user_choice, dict):
         option = list(user_choice.keys())[0]
         return user_choice[option], option
-    
-    # Otherwise, return the value and None
     return user_choice, None
 
 
@@ -467,14 +394,12 @@ def print_colored(text: str, color: str) -> None:
     if color not in COLOR_CODES:
         valid_colors = ", ".join(COLOR_CODES.keys())
         raise ValueError(f"Invalid color '{color}'. Valid options are: {valid_colors}")
-
     color_code = COLOR_CODES[color]
     reset_code = COLOR_CODES["reset"]
     print(f"{color_code}{text}{reset_code}")
 
 
 if __name__ == "__main__":
-    # Example usage showing no highlight at all (arrow only) with caching optimizations:
     options = {
         "Option 1": None,
         "Custom Input": "Enter text...",
