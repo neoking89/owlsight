@@ -261,7 +261,7 @@ def check_onnx_device(current_device: str = "cuda") -> str:
 
     try:
         input_data = np.random.randn(1, 3).astype(np.float32)
-        X_ortvalue = onnxruntime.OrtValue.ortvalue_from_numpy(input_data, current_device, 0)
-    except Exception as e:
+        _ = onnxruntime.OrtValue.ortvalue_from_numpy(input_data, current_device, 0)
+    except Exception:
         print(f"Error with using Onnx on current device {current_device}:\n{traceback.format_exc()}")
 
