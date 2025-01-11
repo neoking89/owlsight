@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import json
-import pickle
+import dill
 
 import requests
 from bs4 import BeautifulSoup
@@ -112,54 +112,49 @@ class OwlDefaultFunctions:
 
     def owl_save_namespace(self, file_path: str):
         """
-        Save the current namespace to a file using pickle.
+        Save the current python namespace using dill.
+        NOTE: This will only save the variables that do not start with '_' or 'owl_'.
+        Also, some complex objects may not be serializable.
 
         Parameters
         ----------
         file_path : str
-            The path to the file where the namespace will be saved.
+            The path to the file to save the namespace to.
+            the .dill extension will be automaticly added if not present.
         """
-        if not file_path.endswith(".pkl"):
-            file_path += ".pkl"
-
-        # Filter out non-pickleable objects
-        pickleable_globals = {}
+        if not file_path.endswith(".dill"):
+            file_path += ".dill"
 
         global_dict = {key: value for key, value in self.globals_dict.items() if not key.startswith(("_", "owl_"))}
-        
-        for key, value in global_dict.items():
-            try:
-                pickle.dumps(value)
-                pickleable_globals[key] = value
-            except Exception as e:
-                print(f"Skipping non-pickleable object '{key}': {e}")
 
         try:
             with open(file_path, "wb") as file:
-                pickle.dump(pickleable_globals, file)
+                dill.dump(global_dict, file)
             print(f"Namespace successfully saved to {file_path}")
         except Exception as e:
-            print(f"An error occurred while saving the namespace: {e}")
+            print(f"An error occurred while saving: {e}")
 
     def owl_load_namespace(self, file_path: str):
         """
-        Load a namespace from a file using pickle.
+        Load namespace using dill.
 
         Parameters
         ----------
         file_path : str
-            The path to the file from which the namespace will be loaded.
+            The path to the file to load the namespace from.
         """
-        if not file_path.endswith(".pkl"):
-            file_path += ".pkl"
+
+        if not file_path.endswith(".dill"):
+            file_path += ".dill"
         try:
             with open(file_path, "rb") as file:
-                self.globals_dict.update(pickle.load(file))
+                loaded_data = dill.load(file)
+            self.globals_dict.update(loaded_data)
             print(f"Namespace successfully loaded from {file_path}")
         except FileNotFoundError:
             print(f"File not found: {file_path}")
         except Exception as e:
-            print(f"An error occurred while loading the namespace: {e}")
+            print(f"An error occurred while loading: {e}")
 
     def owl_scrape(
         self,
@@ -309,8 +304,8 @@ class OwlDefaultFunctions:
             sequence.insert(0, "ENTER")
             sequence.insert(0, "exit()")
 
-        # Path to your _child_typing.py script
-        script_path = Path(__file__).parent / "_child_typing.py"
+        # Path to your _child_owl_press.py script
+        script_path = Path(__file__).parent / "_child_owl_press.py"
 
         params = {
             "sequence": sequence,
