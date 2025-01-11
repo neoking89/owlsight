@@ -1,10 +1,9 @@
 import os
 import sys
-from typing import Any, List, Union
+from typing import Any, List, Union, Generator
 import venv
 from contextlib import contextmanager
 import subprocess
-import sysconfig
 import tempfile
 from pathlib import Path
 
@@ -13,7 +12,7 @@ from owlsight.utils.logger import logger
 
 
 @contextmanager
-def create_venv(pyenv_path: Union[str, Path]) -> Path:
+def create_venv(pyenv_path: Union[str, Path]) -> Generator[Path, None, None]:
     """
     Context manager to create and manage a Python virtual environment.
     Creates a complete virtual environment with all necessary files.
@@ -25,8 +24,8 @@ def create_venv(pyenv_path: Union[str, Path]) -> Path:
 
     Yields
     ------
-    Path
-        Path to the pip executable within the created virtual environment.
+    Generator[Path, None, None]
+        Generator with Path to the pip executable within the created virtual environment.
     """
     pyenv_path = Path(pyenv_path)
     
