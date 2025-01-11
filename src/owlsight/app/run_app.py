@@ -7,6 +7,7 @@ import os
 from owlsight.configurations.constants import MAIN_MENU
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
 from owlsight.ui.console import get_user_choice, get_user_input
+from owlsight.ui.custom_classes import AppDTO
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.app.handlers import handle_interactive_code_execution
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
@@ -128,7 +129,8 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> st
     selected_config = available_choices[user_choice]
 
     # Get user choice for the nested configuration
-    user_selected_choice = get_user_choice(selected_config, return_value_only=False, last_config_choice=user_choice)
+    app_dto = AppDTO(return_value_only=False, last_config_choice=user_choice)
+    user_selected_choice = get_user_choice(selected_config, app_dto)
 
     if isinstance(user_selected_choice, dict):
         nested_key = next(iter(user_selected_choice))  # Get the first key
