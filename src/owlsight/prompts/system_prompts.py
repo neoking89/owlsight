@@ -5,43 +5,47 @@ from typing import List, Dict
 from owlsight.docs.readme import README
 
 
+class Prompt:
+    def __init__(self, prompt: str):
+        self.prompt = prompt
+
+    def to(self, target_json: str) -> None:
+        """
+        Updates the 'system_prompt' field under the 'model' key in the given Owlsight configuration JSON file.
+
+        Parameters:
+        ------------
+        target_json : str
+            The path to the JSON file to be updated.
+        """
+        if not os.path.isfile(target_json):
+            raise FileNotFoundError(f"File not found: {target_json}")
+
+        try:
+            with open(target_json, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Unable to decode JSON from {target_json}: {e}")
+
+        data["model"]["system_prompt"] = self.prompt
+
+        with open(target_json, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+
+
 class SystemPrompts:
     """System prompts for different expert roles"""
 
     @classmethod
-    def list_experts(cls) -> List[str]:
-        """
-        Returns a list of all available expert prompt keys.
-
-        Returns:
-            List[str]: List of expert names (e.g., ['PYTHON_EXPERT', 'DATA_SCIENCE_EXPERT', ...])
-
-        Example:
-            >>> SystemPrompts.list_experts()
-            ['PYTHON_EXPERT', 'OWLSIGHT_EXPERT', ...]
-        """
-        return [attr for attr in dir(cls) if attr.endswith("_EXPERT") and isinstance(getattr(cls, attr), str)]
+    def list_roles(cls) -> List[str]:
+        return [attr.lower() for attr in dir(cls) if not attr.startswith("_") and isinstance(getattr(cls, attr), str)]
 
     @classmethod
-    def get_expert_description(cls, expert_key: str) -> str:
-        """
-        Returns a brief description of the specified expert prompt.
-
-        Args:
-            expert_key: The expert key (e.g., 'PYTHON_EXPERT')
-
-        Returns:
-            str: Brief description of the expert's role
-
-        Example:
-            >>> SystemPrompts.get_expert_description('PYTHON_EXPERT')
-            'Python programming and problem-solving expert'
-        """
-        prompt = getattr(cls, expert_key, None)
+    def get_role_description(cls, role_key: str) -> str:
+        prompt = getattr(cls, role_key.upper(), None)
         if not prompt:
-            raise ValueError(f"Unknown expert key: {expert_key}")
+            raise ValueError(f"Unknown role key: {role_key}")
 
-        # Extract role from the prompt
         role_line = next((line for line in prompt.split("\n") if line.startswith("# ROLE:")), None)
         if not role_line:
             return "No role description available"
@@ -49,26 +53,23 @@ class SystemPrompts:
         return role_line.replace("# ROLE:", "").strip()
 
     def as_dict(self) -> Dict[str, str]:
-        """
-        Returns all expert prompts as a dictionary.
-
-        Returns:
-            Dict[str, str]: Dictionary mapping expert names to their prompt strings
-
-        Example:
-            >>> prompts = SystemPrompts().as_dict()
-            >>> print(prompts.keys())
-            dict_keys(['PYTHON_EXPERT', 'DATA_SCIENCE_EXPERT', ...])
-        """
-        return {attr: getattr(self, attr) for attr in self.list_experts()}
+        return {attr.lower(): getattr(self, attr.lower()) for attr in self.list_roles()}
 
     def __str__(self) -> str:
-        """Returns a human-readable string listing all available experts and their roles."""
-        experts = [f"{expert}: {self.get_expert_description(expert)}" for expert in self.list_experts()]
-        return "Available Experts:\n" + "\n".join(f"- {expert}" for expert in experts)
+        roles = [f"{role}: {self.get_role_description(role)}" for role in self.list_roles()]
+        return "Available Roles:\n" + "\n".join(f"- {role}" for role in roles)
 
-    PYTHON_EXPERT = """
- # ROLE:
+    def __getattr__(self, name: str) -> Prompt:
+        role_key = name.lower()
+        if role_key in self.list_roles():
+            return Prompt(getattr(self.__class__, role_key.upper()))
+        available_roles = ", ".join(self.list_roles())
+        raise AttributeError(
+            f"'SystemPrompts' object has no attribute '{name}'. Available roles are: {available_roles}"
+        )
+
+    PYTHON = """
+# ROLE:
 You are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.
 
 # TASK:
@@ -81,7 +82,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
 - Always aim to provide the best solution to the user's problem, whether it involves Python or not.
 """.strip()
 
-    OWLSIGHT_EXPERT = f"""
+    OWLSIGHT = f"""
 # ROLE:
 You are an AI assistant specialized in the Owlsight application. Your goal is to guide users through the application's menu system to achieve their desired outcomes.
 
@@ -101,7 +102,7 @@ Documentation:
 - Offer additional tips or suggestions to enhance the user experience.
 """.strip()
 
-    DATA_SCIENCE_EXPERT = """
+    DATA_SCIENCE = """
 # ROLE:
 You are a data science specialist focused on producing production-ready analysis code.
 
@@ -135,7 +136,39 @@ You are a data science specialist focused on producing production-ready analysis
 4. Add docstrings with parameter descriptions
 """.strip()
 
-    DEVOPS_EXPERT = """
+    DATA_ENGINEERING = """
+# ROLE:
+You are a data engineer focused on building and maintaining scalable data pipelines.
+
+# TECHNICAL STACK:
+- Primary: Apache Spark, Kafka, Hadoop
+- Data Storage: SQL, NoSQL, Data Lakes
+- Orchestration: Airflow, Luigi
+
+# MANDATORY WORKFLOW:
+1. Data Ingestion
+   - Design robust data ingestion pipelines
+   - Ensure data quality and integrity
+   - Handle schema evolution
+
+2. Data Transformation
+   - Implement efficient data transformation processes
+   - Optimize for performance and scalability
+   - Maintain data lineage
+
+3. Data Storage
+   - Choose appropriate storage solutions
+   - Implement data partitioning and indexing
+   - Ensure data security and compliance
+
+# CODE REQUIREMENTS:
+1. All data transformations must be reproducible
+2. Include data validation checks
+3. Use type hints for all functions
+4. Add docstrings with parameter descriptions
+""".strip()
+
+    DEVOPS = """
 # ROLE:
 You are a DevOps engineer specializing in automated, secure, and scalable infrastructure deployment.
 
@@ -178,7 +211,7 @@ You are a DevOps engineer specializing in automated, secure, and scalable infras
 4. Specify resource requirements
 """.strip()
 
-    UI_UX_EXPERT = """
+    UI_UX = """
 # ROLE:
 You are a UI/UX specialist focused on creating accessible, performant, and user-centered interfaces.
 
@@ -225,7 +258,7 @@ You are a UI/UX specialist focused on creating accessible, performant, and user-
 4. List accessibility features
 """.strip()
 
-    SECURITY_EXPERT = """
+    SECURITY = """
 # ROLE:
 You are a security specialist focused on identifying and mitigating application vulnerabilities.
 
@@ -274,7 +307,7 @@ You are a security specialist focused on identifying and mitigating application 
 4. Provide incident response steps
 """.strip()
 
-    DATABASE_EXPERT = """
+    DATABASE = """
 # ROLE:
 You are a database specialist focused on scalable, performant data storage solutions.
 
@@ -323,7 +356,7 @@ You are a database specialist focused on scalable, performant data storage solut
 4. Provide recovery steps
 """.strip()
 
-    PERFORMANCE_TUNING_EXPERT = """
+    PERFORMANCE_TUNING = """
 # ROLE:
 You are a performance optimization specialist focused on system-wide efficiency improvements.
 
@@ -372,7 +405,7 @@ You are a performance optimization specialist focused on system-wide efficiency 
 4. Specify resource requirements
 """.strip()
 
-    TESTING_QA_EXPERT = """
+    TESTING_QA = """
 # ROLE:
 You are a testing specialist focused on creating comprehensive, maintainable test suites.
 
@@ -405,29 +438,3 @@ You are a testing specialist focused on creating comprehensive, maintainable tes
 3. Document test prerequisites and assumptions
 4. Include examples of mocking/stubbing
 """.strip()
-
-
-def write_system_prompt_to_config(system_prompt: str, target_json: str) -> None:
-    """
-    Updates the 'system_prompt' field under the 'model' key in the given Owlsight configuration JSON file.
-
-    Parameters:
-    ------------
-    system_prompt : str
-        The system prompt to be written to the JSON file.
-    target_json : str
-        The path to the JSON file to be updated.
-    """
-    if not os.path.isfile(target_json):
-        raise FileNotFoundError(f"File not found: {target_json}")
-
-    try:
-        with open(target_json, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Unable to decode JSON from {target_json}: {e}")
-
-    data["model"]["system_prompt"] = system_prompt
-
-    with open(target_json, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
