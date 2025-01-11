@@ -195,6 +195,8 @@ class TextGenerationManager:
         """
         Save the configuration to a file.
         """
+        # set all the values to legimitate default values before saving the config
+        self.config_manager.set("huggingface.select_model", "")
         self.config_manager.save(path)
 
     def load_config(self, path: str):
