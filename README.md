@@ -210,6 +210,13 @@ These are:
   Display all Hugging Face models currently loaded in the cache directory. Shows model names, sizes, and last modified dates.
   * `cache_dir`: Optional path to custom cache directory. If None, uses default Hugging Face cache.
   * `show_task`: If True, also displays the task associated with each model (may take longer to load).
+* **owl_save_namespace(file_path: str)**
+  Save the current namespace to a Python file using dill.
+  - *file_path*: The path to the Python file to save the namespace to.
+* **owl_load_namespace(file_path: str)**
+  Load a namespace from a Python file using dill.
+  - *file_path*: The path to the Python file to load the namespace from.
+
 
 ## Configurations
 
@@ -393,8 +400,7 @@ for token in processor.generate_stream(question):
 - System Prompt is now an empty string as default.
 - Several small bugfixes and improvements.
 
-**2.0.1 (stable)**
-
+2.0.2 (stable)
 - Upgraded UI with new color scheme and improved readability. Description of the current choice is now displayed above the menu.
 - Removed `onnx__tokenizer` from `TextGenerationProcessorOnnx` constructor, so that only *model_id* is needed as constructor argument.
 - Added `get_max_context_length` method to all `TextGenerationProcessor` classes, which returns the maximum context length of the loaded model.
