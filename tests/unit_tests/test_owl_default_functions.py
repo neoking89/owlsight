@@ -3,9 +3,6 @@ import tempfile
 import os
 from pathlib import Path
 
-
-import sys
-sys.path.append("src")
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.custom_classes import SingletonDict
 
@@ -60,6 +57,20 @@ def test_method_naming_convention(owl_instance: OwlDefaultFunctions):
     ]
     for method in methods:
         assert method.startswith("owl_"), f"Method {method} does not follow owl_ naming convention"
+
+
+def test_owl_press_executed_succesfully(owl_instance: OwlDefaultFunctions):
+    """Test that owl_press executes."""
+    # Create a sequence with a deliberate delay
+    sequence = ["test", "ENTER"]
+
+    executed_succesfully = owl_instance.owl_press(
+        sequence=sequence,
+        exit_python=False,
+    )
+
+    assert executed_succesfully
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
