@@ -279,7 +279,7 @@ class OwlDefaultFunctions:
         exit_python: bool = True,
         time_before_sequence: float = 0.5,
         time_between_keys: float = 0.12,
-    ) -> None:
+    ) -> bool:
         """
         Simulate typing a sequence of keys and automaticly control the menu inside the Owlsight application.
 
@@ -290,7 +290,7 @@ class OwlDefaultFunctions:
         ----------
         sequence : List[str]
             The sequence of keys to type. Case-sensitive when typing available keys.
-            Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER).
+            Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), SLEEP:[float] (sleep for time seconds).
             Any other character will be typed as is.
         exit_python : bool, optional
             If True, type 'exit()' and press ENTER before typing the sequence, default is True.
@@ -299,6 +299,11 @@ class OwlDefaultFunctions:
             The time to wait before executing the keysequence, default is 0.5 seconds.
         time_between_keys : float, optional
             The time to wait between typing each key, default is 0.12 seconds.
+
+        Returns
+        -------
+        bool
+            True if the subprocess was started successfully, False otherwise.
         """
         if exit_python:
             sequence.insert(0, "ENTER")
@@ -316,10 +321,12 @@ class OwlDefaultFunctions:
         try:
             params_json = json.dumps(params)
             subprocess.Popen([sys.executable, str(script_path), params_json])
+            return True
 
         except Exception as e:
             current_function_name = inspect.currentframe().f_code.co_name
             print(f"Error starting subprocess from inside {current_function_name}: {e}")
+            return False
 
     def _get_model_id(self, repo: CachedRepoInfo) -> str:
         """
