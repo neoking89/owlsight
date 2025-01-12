@@ -25,6 +25,7 @@ dependencies = [
     "tqdm",
     "pynput",
     "pydantic",
+    "dill",
 ]
 
 [project.optional-dependencies]
