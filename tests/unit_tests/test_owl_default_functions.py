@@ -2,7 +2,9 @@ import pytest
 import tempfile
 import os
 from pathlib import Path
+import sys
 
+sys.path.append("src")
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.custom_classes import SingletonDict
 
