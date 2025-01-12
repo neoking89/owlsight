@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+"""
+This script is being executed as child process by the owl_press function
+"""
+
 from typing import List
 import time
 import sys
