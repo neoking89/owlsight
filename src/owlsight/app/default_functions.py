@@ -324,8 +324,7 @@ class OwlDefaultFunctions:
         }
 
         try:
-            params_json = json.dumps(params)
-            subprocess.Popen([sys.executable, str(script_path), params_json])
+            self._start_child_process_owl_press(script_path, params)
             return True
 
         except Exception as e:
@@ -357,6 +356,10 @@ class OwlDefaultFunctions:
                 if str(file).endswith(".gguf"):
                     return file
         return repo.repo_id
+
+    def _start_child_process_owl_press(self, script_path: Path, params: Dict) -> None:
+        params_json = json.dumps(params)
+        subprocess.Popen([sys.executable, str(script_path), params_json])
 
 
 def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> list:

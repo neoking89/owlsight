@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import sys
 
+from unittest.mock import patch, Mock
+
 sys.path.append("src")
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.custom_classes import SingletonDict
@@ -61,17 +63,27 @@ def test_method_naming_convention(owl_instance: OwlDefaultFunctions):
         assert method.startswith("owl_"), f"Method {method} does not follow owl_ naming convention"
 
 
-def test_owl_press_executed_succesfully(owl_instance: OwlDefaultFunctions):
-    """Test that owl_press executes."""
-    # Create a sequence with a deliberate delay
-    sequence = ["test", "ENTER"]
+def test_owl_press_executed_successfully(owl_instance: OwlDefaultFunctions):
+    """Test that owl_press executes successfully with mocked subprocess."""
+    # Create mock so that _start_child_process_owl_press does not actually press the keys
+    mock_start_process = Mock(return_value=None)
+    
+    # Patch the method
+    with patch.object(owl_instance, "_start_child_process_owl_press", mock_start_process):
+        # Create a test sequence
+        sequence = ["test", "ENTER"]
 
-    executed_succesfully = owl_instance.owl_press(
-        sequence=sequence,
-        exit_python=False,
-    )
+        # Execute owl_press
+        executed_successfully = owl_instance.owl_press(
+            sequence=sequence,
+            exit_python_from_interpreter=False,
+        )
 
-    assert executed_succesfully
+        # Assert method was called once
+        mock_start_process.assert_called_once()
+
+        # Assert return value
+        assert executed_successfully is True
 
 
 if __name__ == "__main__":
