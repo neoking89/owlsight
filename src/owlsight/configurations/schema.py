@@ -44,6 +44,12 @@ class Schema:
                 default="",
                 choices=None,
             ),
+            "sequence_on_loading": MenuItem(
+                type=OptionType.EDITABLE,
+                description="A list of key sequences to execute when loading the configuration. Uses owl_press functionality.",
+                default=[],
+                choices=None,
+            ),
         },
         "model": {
             "model_id": MenuItem(

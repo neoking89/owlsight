@@ -5,9 +5,7 @@ import ast
 
 from owlsight.configurations.constants import CONFIG_DEFAULTS
 from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
-from owlsight.processors.helper_functions import (
-    select_processor_type, warn_processor_not_loaded
-)
+from owlsight.processors.helper_functions import select_processor_type, warn_processor_not_loaded
 from owlsight.ui.console import get_user_choice
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.rag.python_lib_search import search_python_libs
@@ -16,6 +14,7 @@ from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache
+from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.logger import logger
 
 
@@ -203,9 +202,10 @@ class TextGenerationManager:
         """
         Load the configuration from a file.
         """
-        loading_succesful = self.config_manager.load(path)
-        if loading_succesful:
+        config_sucesfully_loaded = self.config_manager.load(path)
+        if config_sucesfully_loaded:
             self.load_model_processor(reload=self.processor is not None)
+            self._execute_sequence_on_loading()
 
     def load_model_processor(self, reload=False) -> Union[None, Exception]:
         """
@@ -283,3 +283,14 @@ class TextGenerationManager:
         Get the value of a key in the configuration.
         """
         return self.config_manager.get(key, default)
+
+    def _execute_sequence_on_loading(self):
+        """
+        Execute the keystrokes from sequence_on_loading if it is not an empty list in the configuration.
+        """
+        sequence = self.config_manager.get("main.sequence_on_loading", None)
+        if sequence and isinstance(sequence, list):
+            try:
+                OwlDefaultFunctions({}).owl_press(sequence, exit_python_from_interpreter=False)
+            except Exception as e:
+                logger.error(f"Error executing main.sequence_on_loading: {e}")
