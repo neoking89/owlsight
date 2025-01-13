@@ -67,7 +67,6 @@ def setup_processor() -> Tuple[TextGenerationProcessorOnnx, AutoTokenizer]:
         pytest.skip(f"Processor initialization failed: {e}")
 
 
-@pytest.mark.slow  # Mark as slow test
 def test_gguf_generate_response(setup_processor):
     """Test that the GGUF processor generates a valid response."""
     processor, _ = setup_processor
@@ -82,7 +81,6 @@ def test_gguf_generate_response(setup_processor):
     assert len(response) > 0, "Generated response should not be empty."
 
 
-@pytest.mark.slow
 def test_gguf_token_count_within_tolerance(setup_processor):
     """Test that the GGUF generated token count is within the acceptable range."""
     processor, tokenizer = setup_processor
@@ -109,7 +107,6 @@ def test_gguf_token_count_within_tolerance(setup_processor):
     )
 
 
-@pytest.mark.slow
 def test_gguf_prompt_tokens_exclusion(setup_processor):
     """Test that the GGUF response excludes prompt tokens when counting new tokens."""
     processor, tokenizer = setup_processor
