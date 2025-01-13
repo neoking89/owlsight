@@ -276,7 +276,7 @@ class OwlDefaultFunctions:
     def owl_press(
         self,
         sequence: List[str],
-        exit_python: bool = True,
+        exit_python_from_interpreter: bool = True,
         time_before_sequence: float = 0.5,
         time_between_keys: float = 0.12,
     ) -> bool:
@@ -292,9 +292,9 @@ class OwlDefaultFunctions:
             The sequence of keys to type. Case-sensitive when typing available keys.
             Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), SLEEP:[float] (sleep for time seconds).
             Any other character will be typed as is.
-        exit_python : bool, optional
+        exit_python_from_interpreter : bool, optional
             If True, type 'exit()' and press ENTER before typing the sequence, default is True.
-            This will return to the mainmenu before typing the sequence.
+            Assuming owl_press is called from the interpreter, this will return to the mainmenu before typing the sequence.
         time_before_sequence : float, optional
             The time to wait before executing the keysequence, default is 0.5 seconds.
         time_between_keys : float, optional
@@ -305,7 +305,12 @@ class OwlDefaultFunctions:
         bool
             True if the subprocess was started successfully, False otherwise.
         """
-        if exit_python:
+        if not isinstance(sequence, list):
+            raise TypeError("sequence must be a list")
+        if not all(isinstance(item, str) for item in sequence):
+            raise TypeError("sequence must contain only strings")
+
+        if exit_python_from_interpreter:
             sequence.insert(0, "ENTER")
             sequence.insert(0, "exit()")
 
