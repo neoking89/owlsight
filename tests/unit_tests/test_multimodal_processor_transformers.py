@@ -110,6 +110,9 @@ def test_generate(case, test_data, media_model_mappings):
         assert isinstance(result, case["expected_type"])
         assert len(result) > 0
 
+    except pytesseract.TesseractNotFoundError:
+        pytest.skip(f"Tesseract is not installed. Skipping {case['task']} test or install it to run this test.")
+
     finally:
         # Clean up temporary file
         if test_file.exists():
