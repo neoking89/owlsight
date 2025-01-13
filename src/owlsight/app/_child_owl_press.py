@@ -37,12 +37,6 @@ def execute_key_sequence(sequence: List[str], time_before_sequence: float, time_
     -------
     None
     """
-    # validation
-    if not isinstance(sequence, list):
-        raise TypeError("sequence must be a list")
-    if not all(isinstance(item, str) for item in sequence):
-        raise TypeError("sequence must contain only strings")
-
     time.sleep(time_before_sequence)
 
     controller = Controller()
