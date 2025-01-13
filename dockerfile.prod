@@ -1,0 +1,33 @@
+# build: docker build -t owlsight . -f dockerfile.prod
+# run: docker run -it --rm owlsight
+FROM python:3.12-slim
+# FROM python:3.12 AS python
+
+# Set the working directory inside the container to /app
+WORKDIR /app
+
+# Copy the application code and files from the current directory to /app in the container
+COPY . /app
+
+# Install build dependencies, specificly needed for llama-cpp-python
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        libpython3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Pre-install setuptools-scm so the environment variable is recognized
+RUN pip install --no-cache-dir setuptools-scm
+
+# Provide a fallback version, e.g., "0.1.0"
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.1.0
+
+# Install Python dependencies
+RUN pip install --no-cache-dir .[all,dev]
+
+# Run tests
+RUN pytest -vvv
+
+# Define the default command for the CLI application
+CMD ["owlsight"]

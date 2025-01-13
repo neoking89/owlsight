@@ -1,0 +1,30 @@
+# Dockerfile for running tests with different Python versions
+# Usage: docker build --build-arg BASE_IMAGE=python:3.12-slim -t owlsight-test -f dockerfile.test .
+
+# Base image for the specific OS and Python version
+ARG BASE_IMAGE=python:3.9-slim
+FROM ${BASE_IMAGE} AS base
+
+# Install build dependencies for llama-cpp-python
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        libpython3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+
+WORKDIR /app
+COPY . /app
+
+# Pre-install setuptools-scm
+RUN pip install --no-cache-dir setuptools-scm
+
+# Provide fallback version
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.1.0
+
+# Install all dependencies
+RUN pip install --no-cache-dir .[all,dev]
+
+# Run tests
+CMD ["pytest", "-vvv"]
