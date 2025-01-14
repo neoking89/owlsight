@@ -216,6 +216,11 @@ These are:
   Display all Hugging Face models currently loaded in the cache directory. Shows model names, sizes, and last modified dates.
   * `cache_dir`: Optional path to custom cache directory. If None, uses default Hugging Face cache.
   * `show_task`: If True, also displays the task associated with each model (may take longer to load).
+* **owl_save_namespace(file_path: str)**
+  Save all variables in the current namespace to a file, using the "dill" library.
+  - *file_path*: The path to the file to save the namespace to.
+* **owl_load_namespace(file_path: str)**
+  Load all variables from a file into the current namespace, using the "dill" library.
 
 ## Configurations
 
@@ -304,7 +309,8 @@ for token in processor.generate_stream(question):
 - System Prompt is now an empty string as default.
 - Several small bugfixes and improvements.
 
-2.0.2 (stable)
+**2.0.2 (stable)**
+
 - Upgraded UI with new color scheme and improved readability. Description of the current choice is now displayed above the menu.
 - Removed `onnx__tokenizer` from `TextGenerationProcessorOnnx` constructor, so that only *model_id* is needed as constructor argument.
 - Added `get_max_context_length` method to all `TextGenerationProcessor` classes, which returns the maximum context length of the loaded model.
@@ -312,6 +318,13 @@ for token in processor.generate_stream(question):
 - Added `track_model_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
 - Added possibility to pass complete directories as argument to mediatypes, like so: [[image:directory/containing/images]]
 - Add owl_models() function to python interpreter for displaying all Huggingface models in the cache directory.
+
+**2.?**
+
+- Add `owl_save_namespace` `owl_load_namespace` functions to save and load all variables inside the Python interpreter. This 
+is useful if you want to save any code created by a model. Or load a namespace from a previous session.
+- Added `main:sequence_on_loading` to the configuration json. This allows execution of a sequence of keys on loading a config through the `load` option in the Owlsight main-menu.
+TIP: above option can be used to load a sequence of different models as "agents", where every config can be threaded as a different agent with their own role. In theory, every action in Owlsight can be automated through this option.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
