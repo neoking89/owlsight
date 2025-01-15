@@ -1,0 +1,70 @@
+{
+  "main": {
+    "max_retries_on_error": 3,
+    "prompt_retry_on_error": true,
+    "prompt_code_execution": true,
+    "track_model_usage": false,
+    "extra_index_url": "",
+    "sequence_on_loading": [
+      "U",
+      "U",
+      "U",
+      "U",
+      "U",
+      "Write a function in python that sums 2 numbers. Call it: 'sum_two_numbers'. Just give me the code without any explanation.",
+      "ENTER",
+      "ENTER",
+      "ENTER",
+      "ENTER",
+      "SLEEP:30",
+      "ENTER",
+      "SLEEP:2",
+      "ENTER",
+      "ENTER",
+      "ENTER",
+      "D",
+      "D",
+      "D",
+      "D",
+      "D",
+      "configs/llama.json",
+      "ENTER"
+    ]
+  },
+  "model": {
+    "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
+    "apply_chat_history": false,
+    "system_prompt": "",
+    "transformers__device": null,
+    "transformers__quantization_bits": null,
+    "transformers__stream": true,
+    "transformers__model_kwargs": {},
+    "gguf__filename": "qwen2.5-coder-7b-instruct-q6_k.gguf",
+    "gguf__verbose": true,
+    "gguf__n_ctx": 16384,
+    "gguf__n_gpu_layers": 0,
+    "gguf__n_batch": 8,
+    "gguf__n_cpu_threads": 8,
+    "onnx__model_dir": "",
+    "onnx__verbose": false,
+    "onnx__n_cpu_threads": 8
+  },
+  "generate": {
+    "stopwords": [],
+    "max_new_tokens": 2048,
+    "temperature": 0.0,
+    "generation_kwargs": {}
+  },
+  "rag": {
+    "active": false,
+    "target_library": "",
+    "top_k": 10,
+    "search": ""
+  },
+  "huggingface": {
+    "search": "",
+    "top_k": 10,
+    "select_model": "",
+    "task": "text-generation"
+  }
+}

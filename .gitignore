@@ -6,7 +6,6 @@
 
 # Ignore all .pyc files
 *.pyc
-*.json
 *.pkl
 
 # Also ignore the __pycache__ directories where .pyc files are stored
@@ -25,5 +24,4 @@ build.bat
 .egg-info/*
 src/owlsight.egg-info/*
 build_commands.txt
-speech_control.py
 TODO
