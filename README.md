@@ -210,6 +210,13 @@ These are:
   Display all Hugging Face models currently loaded in the cache directory. Shows model names, sizes, and last modified dates.
   * `cache_dir`: Optional path to custom cache directory. If None, uses default Hugging Face cache.
   * `show_task`: If True, also displays the task associated with each model (may take longer to load).
+* **owl_press(sequence: List[str], exit_python_from_interpreter: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12)**
+)**
+  Press a sequence of keys in the terminal. This can be used to automate tasks or keypresses.
+  - *sequence*: A list of keys to press. Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds).
+  - *exit_python_from_interpreter*: If True, exit the Python interpreter after pressing the sequence.
+  - *time_before_sequence*: Time to wait before pressing the first key.
+  - *time_between_keys*: Time to wait between pressing each key.
 * **owl_save_namespace(file_path: str)**
   Save all variables in the current namespace to a file, using the "dill" library.
   - *file_path*: The path to the file to save the namespace to.
@@ -414,7 +421,7 @@ for token in processor.generate_stream(question):
 
 - Add `owl_save_namespace` `owl_load_namespace` functions to save and load all variables inside the Python interpreter. This 
 is useful if you want to save any code created by a model. Or load a namespace from a previous session.
-- `ProcessorMemoryContext` can be used as a context_manager to clean up resources from `TextGenerationProcessor`, like the model,from memory after usage.
+- `ProcessorMemoryContext` can be used as a context_manager to clean up resources from `TextGenerationProcessor`, like the model, from memory after usage.
 - Added `main:sequence_on_loading` to the configuration json. This allows execution of a sequence of keys on loading a config through the `load` option in the Owlsight main-menu.
 TIP: above option can be used to load a sequence of different models as "agents", where every config can be threaded as a different agent with their own role. In theory, every action in Owlsight can be automated through this option.
 
