@@ -22,28 +22,28 @@ pytesseract.pytesseract.tesseract_cmd = find_tesseract_installation()
 TEST_CASES = [
     {
         "task": "image-to-text",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Statue_of_Liberty%2C_NY.jpg",
+        "path": "tests/data/image-to-text.jpg",
         "question": None,
         "expected_type": list,
         "media_type": "image",
     },
     {
         "task": "visual-question-answering",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/VW_K%C3%A4fer_Baujahr_1966.jpg/420px-VW_K%C3%A4fer_Baujahr_1966.jpg",
+        "path": "tests/data/visual-question-answering.jpg",
         "question": "What color is the car?",
         "expected_type": list,
         "media_type": "image",
     },
     {
         "task": "automatic-speech-recognition",
-        "url": "https://www2.cs.uic.edu/~i101/SoundFiles/gettysburg10.wav",
+        "path": "tests/data/automatic-speech-recognition.wav",
         "question": None,
         "expected_type": dict,
         "media_type": "audio",
     },
     {
         "task": "document-question-answering",
-        "url": "https://vt-vtwa-assets.varsitytutors.com/vt-vtwa/uploads/problem_question_image/image/19791/table.jpg",
+        "path": "tests/data/document-question-answering.jpg",
         "question": "What is the total number of students?",
         "expected_type": list,
         "media_type": "image",
@@ -55,13 +55,12 @@ TEST_CASES = [
 def test_data():
     """Download and cache test data."""
     cached_data = {}
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
-    }
     for case in TEST_CASES:
-        response = requests.get(case["url"], headers=headers, timeout=10)
-        response.raise_for_status()
-        cached_data[case["task"]] = response.content
+        try:
+            with open(case["path"], "rb") as f:
+                cached_data[case["task"]] = f.read()
+        except Exception as e:
+            raise e
     return cached_data
 
 
