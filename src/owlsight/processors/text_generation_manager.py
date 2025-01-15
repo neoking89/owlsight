@@ -12,7 +12,7 @@ from owlsight.rag.python_lib_search import search_python_libs
 from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.utils.helper_functions import convert_to_real_type
-from owlsight.utils.deep_learning import free_memory, track_measure_usage
+from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.logger import logger
@@ -243,7 +243,7 @@ class TextGenerationManager:
 
                 # Inmediately overwrite the processor with a new instance to save memory
                 self.processor = None
-                free_memory()
+                free_cuda_memory()
 
                 self.processor = processor_type(**processor_kwargs)
                 self.processor.chat_history = old_chat_history
