@@ -14,8 +14,8 @@ from owlsight.utils.logger import logger
 CURRENT_RAM_PCT = psutil.virtual_memory().percent
 
 
-def free_memory():
-    """Free up memory and reset stats."""
+def free_cuda_memory():
+    """Free up CUDA memory and reset CUDA memory stats."""
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -25,7 +25,7 @@ def free_memory():
 def print_memory_stats(device: torch.device):
     """Print two different measures of GPU memory usage."""
     print(f"Max memory allocated: {torch.cuda.max_memory_allocated(device) / 1e9:.2f} GB")
-    print(f"Max memory reserved: { torch.cuda.max_memory_reserved(device) / 1e9:.2f} GB")
+    print(f"Max memory reserved: {torch.cuda.max_memory_reserved(device) / 1e9:.2f} GB")
 
 
 def calculate_model_size(model) -> float:
@@ -264,4 +264,3 @@ def check_onnx_device(current_device: str = "cuda") -> str:
         _ = onnxruntime.OrtValue.ortvalue_from_numpy(input_data, current_device, 0)
     except Exception:
         print(f"Error with using Onnx on current device {current_device}:\n{traceback.format_exc()}")
-
