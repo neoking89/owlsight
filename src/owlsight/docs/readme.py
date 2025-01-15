@@ -323,6 +323,7 @@ for token in processor.generate_stream(question):
 
 - Add `owl_save_namespace` `owl_load_namespace` functions to save and load all variables inside the Python interpreter. This 
 is useful if you want to save any code created by a model. Or load a namespace from a previous session.
+- `ProcessorMemoryContext` can be used as a context_manager to clean up resources from `TextGenerationProcessor`, like the model, from memory after usage.
 - Added `main:sequence_on_loading` to the configuration json. This allows execution of a sequence of keys on loading a config through the `load` option in the Owlsight main-menu.
 TIP: above option can be used to load a sequence of different models as "agents", where every config can be threaded as a different agent with their own role. In theory, every action in Owlsight can be automated through this option.
 
