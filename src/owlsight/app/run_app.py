@@ -24,7 +24,7 @@ from owlsight.utils.constants import (
     get_prompt_cache,
     get_py_cache,
 )
-from owlsight.utils.deep_learning import free_memory
+from owlsight.utils.deep_learning import free_cuda_memory
 from owlsight.rag.python_lib_search import search_python_libs
 from owlsight.processors.helper_functions import warn_processor_not_loaded
 from owlsight.utils.logger import logger
@@ -229,5 +229,5 @@ def run(manager: TextGenerationManager) -> None:
         run_code_generation_loop(code_executor, manager)
 
     logger.info(f"Removing temporary directory: {temp_dir}")
-    free_memory()
+    free_cuda_memory()
     force_delete(temp_dir)
