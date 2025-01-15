@@ -56,11 +56,8 @@ def test_data():
     """Download and cache test data."""
     cached_data = {}
     for case in TEST_CASES:
-        try:
-            with open(case["path"], "rb") as f:
-                cached_data[case["task"]] = f.read()
-        except Exception as e:
-            raise e
+        with open(case["path"], "rb") as f:
+            cached_data[case["task"]] = f.read()
     return cached_data
 
 
