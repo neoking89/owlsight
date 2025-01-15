@@ -2,7 +2,7 @@ import psutil
 import os
 
 
-from owlsight.processors.model_memory import ProcessorMemoryManager
+from owlsight.processors.memory_context import ProcessorMemoryContext
 from owlsight.processors.text_generation_processors import (
     TextGenerationProcessorTransformers,
     TextGenerationProcessorOnnx,
@@ -31,7 +31,7 @@ def test_transformers_memory_management():
     )
     
     # Test with context manager
-    with ProcessorMemoryManager(processor) as managed_processor:
+    with ProcessorMemoryContext(processor) as managed_processor:
         # Generate some text to ensure model is loaded
         _ = managed_processor.generate("Test input", max_new_tokens=10)
         
@@ -52,7 +52,7 @@ def test_onnx_memory_management():
         task="text-generation",
     )
     
-    with ProcessorMemoryManager(processor) as managed_processor:
+    with ProcessorMemoryContext(processor) as managed_processor:
         # Generate some text to ensure model is loaded
         _ = managed_processor.generate("Test input", max_new_tokens=20)
         
@@ -74,7 +74,7 @@ def test_gguf_memory_management():
         gguf__n_gpu_layers=0,  # CPU only
     )
     
-    with ProcessorMemoryManager(processor) as managed_processor:
+    with ProcessorMemoryContext(processor) as managed_processor:
         # Generate some text to ensure model is loaded
         _ = managed_processor.generate("Test input", max_new_tokens=10)
         
@@ -96,7 +96,7 @@ def test_processor_cleanup_on_exception():
     )
     
     try:
-        with ProcessorMemoryManager(processor) as managed_processor:
+        with ProcessorMemoryContext(processor) as managed_processor:
             # Generate some text to ensure model is loaded
             _ = managed_processor.generate("Test input", max_new_tokens=10)
             raise ValueError("Test exception")
