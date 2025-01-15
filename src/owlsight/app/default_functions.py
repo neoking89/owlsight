@@ -290,7 +290,7 @@ class OwlDefaultFunctions:
         ----------
         sequence : List[str]
             The sequence of keys to type. Case-sensitive when typing available keys.
-            Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), SLEEP:[float] (sleep for time seconds).
+            Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds).
             Any other character will be typed as is.
         exit_python_from_interpreter : bool, optional
             If True, type 'exit()' and press ENTER before typing the sequence, default is True.
@@ -315,7 +315,7 @@ class OwlDefaultFunctions:
             sequence.insert(0, "exit()")
 
         # Path to your _child_owl_press.py script
-        script_path = Path(__file__).parent / "_child_owl_press.py"
+        script_path = Path(__file__).parent / "_child_process_owl_press.py"
 
         params = {
             "sequence": sequence,
