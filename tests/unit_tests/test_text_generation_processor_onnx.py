@@ -10,7 +10,6 @@ from transformers import AutoTokenizer
 sys.path.append("src")
 from owlsight.processors.text_generation_processors import TextGenerationProcessorOnnx
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -67,7 +66,7 @@ def setup_processor() -> Tuple[TextGenerationProcessorOnnx, AutoTokenizer]:
         pytest.skip(f"Processor initialization failed: {e}")
 
 
-def test_gguf_generate_response(setup_processor):
+def test_gguf_generate_response(setup_processor: Tuple[TextGenerationProcessorOnnx, AutoTokenizer]):
     """Test that the GGUF processor generates a valid response."""
     processor, _ = setup_processor
     prompt = "test prompt"
@@ -81,7 +80,7 @@ def test_gguf_generate_response(setup_processor):
     assert len(response) > 0, "Generated response should not be empty."
 
 
-def test_gguf_token_count_within_tolerance(setup_processor):
+def test_gguf_token_count_within_tolerance(setup_processor: Tuple[TextGenerationProcessorOnnx, AutoTokenizer]):
     """Test that the GGUF generated token count is within the acceptable range."""
     processor, tokenizer = setup_processor
     prompt = "test prompt"
@@ -107,7 +106,7 @@ def test_gguf_token_count_within_tolerance(setup_processor):
     )
 
 
-def test_gguf_prompt_tokens_exclusion(setup_processor):
+def test_gguf_prompt_tokens_exclusion(setup_processor: Tuple[TextGenerationProcessorOnnx, AutoTokenizer]):
     """Test that the GGUF response excludes prompt tokens when counting new tokens."""
     processor, tokenizer = setup_processor
     prompt = "test prompt"
@@ -125,7 +124,7 @@ def test_gguf_prompt_tokens_exclusion(setup_processor):
     assert len(response_tokens) > len(prompt_tokens), "Response tokens should exceed prompt tokens."
 
 
-def test_get_max_context_length(setup_processor):
+def test_get_max_context_length(setup_processor: Tuple[TextGenerationProcessorOnnx, AutoTokenizer]):
     """Test that the GGUF processor can retrieve the maximum context length."""
     processor, _ = setup_processor
     max_context_length = processor.get_max_context_length()
