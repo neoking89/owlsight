@@ -20,9 +20,9 @@ from .processors.text_generation_processors import (
 from .processors.multimodal_processors import MultiModalProcessorTransformers
 from .rag.core import (
     search_documents,
-    HashingVectorizerSearch,
-    TfidfSearch,
-    SentenceTransformerSearch,
+    HashingVectorizerSearchEngine,
+    TFIDFSearchEngine,
+    SentenceTransformerSearchEngine,
 )
 from .app.default_functions import OwlDefaultFunctions, search_bing, is_url
 from .hugging_face.core import get_model_data
@@ -43,9 +43,9 @@ __all__ = [
     "MultiModalProcessorTransformers",
     "search_python_libs",
     "search_documents",
-    "HashingVectorizerSearch",
-    "TfidfSearch",
-    "SentenceTransformerSearch",
+    "HashingVectorizerSearchEngine",
+    "TFIDFSearchEngine",
+    "SentenceTransformerSearchEngine",
     "OwlDefaultFunctions",
     "search_bing",
     "is_url",

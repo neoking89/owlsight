@@ -111,7 +111,7 @@ class SearchEngine(ABC):
         pass
 
 
-class TfidfSearch(SearchEngine, CacheMixin):
+class TFIDFSearchEngine(SearchEngine, CacheMixin):
     """TF-IDF based search implementation."""
 
     def __init__(
@@ -155,7 +155,7 @@ class TfidfSearch(SearchEngine, CacheMixin):
         ]
 
 
-class HashingVectorizerSearch(SearchEngine, CacheMixin):
+class HashingVectorizerSearchEngine(SearchEngine, CacheMixin):
     """Hashing Vectorizer based search implementation."""
 
     def __init__(
@@ -200,7 +200,7 @@ class HashingVectorizerSearch(SearchEngine, CacheMixin):
         ]
 
 
-class SentenceTransformerSearch(SearchEngine, CacheMixin):
+class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
     """Sentence Transformer based search implementation."""
 
     def __init__(
@@ -346,7 +346,7 @@ class EnsembleSearchEngine:
         cache_dir_suffix : Optional[str], default None
             Suffix to append to cache directory. Required if cache_dir is specified
         init_arguments : Optional[Dict[str, Dict]], default None
-            Dictionary containing initialization arguments for each search method
+            Dictionary containing initialization arguments for each SearchEngine
             Example: {SearchMethod.TFIDF: {"ngram_range": (1, 2)}}
         """
         self.documents = documents
@@ -371,13 +371,13 @@ class EnsembleSearchEngine:
 
             if method == SearchMethod.TFIDF:
                 engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.TFIDF, {}))
-                engine = TfidfSearch(**engine_kwargs)
+                engine = TFIDFSearchEngine(**engine_kwargs)
             elif method == SearchMethod.SENTENCE_TRANSFORMER:
                 engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.SENTENCE_TRANSFORMER, {}))
-                engine = SentenceTransformerSearch(**engine_kwargs)
+                engine = SentenceTransformerSearchEngine(**engine_kwargs)
             elif method == SearchMethod.HASHING:
                 engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.HASHING, {}))
-                engine = HashingVectorizerSearch(**engine_kwargs)
+                engine = HashingVectorizerSearchEngine(**engine_kwargs)
             else:
                 raise ValueError(f"Unknown search method: {method}")
             
