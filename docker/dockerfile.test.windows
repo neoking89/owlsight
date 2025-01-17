@@ -1,19 +1,33 @@
+# docker build -t owlsight-test-windows -f docker/dockerfile.test.windows .
+# docker run --rm owlsight-test-windows
+
 # Use a more stable base image
 FROM python:3.11-windowsservercore-ltsc2022
 
 # Set the working directory
 WORKDIR /app
 
+# Install Visual Studio Build Tools
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+RUN Invoke-WebRequest -UseBasicParsing -Uri https://aka.ms/vs/17/release/vs_buildtools.exe -OutFile vs_buildtools.exe; \
+    Start-Process -Wait -FilePath vs_buildtools.exe -ArgumentList "--quiet", "--wait", "--norestart", "--nocache", \
+    "--installPath", "C:\BuildTools", \
+    "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", \
+    "--add", "Microsoft.VisualStudio.Component.Windows10SDK.19041"; \
+    Remove-Item -Force vs_buildtools.exe
+
+# Set environment variables for building C++ extensions
+ENV DISTUTILS_USE_SDK=1 \
+    MSSdk=1
+
 # Copy the current directory contents into the container
 COPY . /app
-
-RUN pip install llama-cpp-python
 
 # Upgrade pip to the latest version
 RUN python -m pip install --upgrade pip
 
-# Install build tools to work with llama-cpp-python
-RUN pip install --no-cache-dir windows-build-tools
+# Install llama-cpp-python with the required build tools
+RUN pip install --no-cache-dir llama-cpp-python
 
 # Pre-install setuptools-scm
 RUN pip install --no-cache-dir setuptools-scm
