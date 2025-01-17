@@ -2,13 +2,15 @@ import pytest
 import tempfile
 import os
 from pathlib import Path
-import sys
 
 from unittest.mock import patch, Mock
+from pynput.keyboard import Controller
+import sys
 
 sys.path.append("src")
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.custom_classes import SingletonDict
+from owlsight.app._child_process_owl_press import KEY_MAP, execute_key_sequence
 
 
 @pytest.fixture
@@ -64,10 +66,10 @@ def test_method_naming_convention(owl_instance: OwlDefaultFunctions):
 
 
 def test_owl_press_executed_successfully(owl_instance: OwlDefaultFunctions):
-    """Test that owl_press executes successfully with mocked subprocess."""
+    """Test that owl_press executes successfully with mocked subprocess and returns True."""
     # Create mock so that _start_child_process_owl_press does not actually press the keys
     mock_start_process = Mock(return_value=None)
-    
+
     # Patch the method
     with patch.object(owl_instance, "_start_child_process_owl_press", mock_start_process):
         # Create a test sequence
@@ -84,6 +86,17 @@ def test_owl_press_executed_successfully(owl_instance: OwlDefaultFunctions):
 
         # Assert return value
         assert executed_successfully is True
+
+
+def test_owl_press_keys_executed_successfully(owl_instance: OwlDefaultFunctions):
+    """Test that owl_press executes successfully with mocked key presses."""
+    with patch.object(Controller, "press") as mock_press, patch.object(Controller, "release") as mock_release:
+        for key_string, key in KEY_MAP.items():
+            # Call the method that triggers the key press
+            execute_key_sequence([key_string], time_before_sequence=0, time_between_keys=0)
+            # Assert that the press and release methods were called with the correct key
+            mock_press.assert_called_with(key)
+            mock_release.assert_called_with(key)
 
 
 if __name__ == "__main__":
