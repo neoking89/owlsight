@@ -477,18 +477,3 @@ class EnsembleSearchEngine:
         # Combine all entries
         return "\n".join(context_parts)
 
-
-# if __name__ == "__main__":
-#     import time
-
-#     start = time.time()
-#     documents = PythonDocumentationProcessor.get_documents("pandas", cache_dir=".rag_cache")
-#     results = search_documents(
-#         documents=documents,
-#         query="create DataFrame from list",
-#         top_k=700,
-#         cache_dir=".rag_cache",
-#         cache_dir_suffix="pandas",
-#     )
-#     print(results)
-#     print(f"Time taken: {time.time() - start:.2f} seconds")
