@@ -224,12 +224,21 @@ class LibraryInfoExtractor(CacheMixin):
                     if name.startswith("_"):
                         continue
 
-                    if inspect.isclass(obj) or inspect.isfunction(
-                            obj) or inspect.ismethod(obj):
-                        doc = inspect.getdoc(obj)
-                        if doc:
-                            full_name = f"{prefix}.{name}" if prefix else name
-                            yield full_name, {"doc": doc, "obj": obj}
+                    # Check if the object is part of the library
+                    if getattr(obj, '__module__', '').startswith(self.library_name):
+                        if inspect.isclass(obj):
+                            # If it's a class, include its methods
+                            for class_name, class_obj in inspect.getmembers(obj):
+                                if inspect.ismethod(class_obj) or inspect.isfunction(class_obj):
+                                    doc = inspect.getdoc(class_obj)
+                                    if doc:
+                                        full_name = f"{prefix}.{name}.{class_name}" if prefix else f"{name}.{class_name}"
+                                        yield full_name, {"doc": doc, "obj": class_obj}
+                        elif inspect.isfunction(obj) or inspect.ismethod(obj):
+                            doc = inspect.getdoc(obj)
+                            if doc:
+                                full_name = f"{prefix}.{name}" if prefix else name
+                                yield full_name, {"doc": doc, "obj": obj}
                 except Exception:
                     continue
         except Exception:
