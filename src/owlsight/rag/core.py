@@ -1,6 +1,7 @@
 import re
 from typing import Dict, List, Optional, Literal
 from abc import ABC, abstractmethod
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -8,13 +9,13 @@ import torch
 from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
+import faiss
 
 from owlsight.rag.custom_classes import CacheMixin, SearchMethod, SearchResult
 from owlsight.rag.helper_functions import _get_signature
 from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
-
 
 
 SENTENCETRANSFORMER_DEFAULT_MODEL = "Alibaba-NLP/gte-base-en-v1.5"
@@ -126,7 +127,7 @@ class TFIDFSearchEngine(SearchEngine, CacheMixin):
         if cache_dir_suffix:
             cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}"
 
-        CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
+        CacheMixin.__init__(self, cache_dir, cache_dir_suffix, faiss_mode=False)
         self.documents = documents
         self.doc_list = list(documents.values())
         self.obj_names = list(documents.keys())
@@ -171,7 +172,7 @@ class HashingVectorizerSearchEngine(SearchEngine, CacheMixin):
         if cache_dir_suffix:
             cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}"
 
-        CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
+        CacheMixin.__init__(self, cache_dir, cache_dir_suffix, faiss_mode=False)
         self.documents = documents
         self.doc_list = list(documents.values())
         self.obj_names = list(documents.keys())
@@ -241,7 +242,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
             )
 
         super().__init__()
-        CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
+        CacheMixin.__init__(self, cache_dir, cache_dir_suffix, faiss_mode=True)
         from sentence_transformers import SentenceTransformer
 
         self.documents = documents
@@ -250,61 +251,35 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         self.model_name = model_name
         self.device = device or get_best_device()
         self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
-        self.embeddings = None
+        self.vector_store = None
         self._pooling_strategy = pooling_strategy
 
     def create_index(self) -> None:
-        self.embeddings = self.load_data()
-        if self.embeddings is None:
-            embeddings_list = []
-            for text in tqdm(self.doc_list, desc="Creating embeddings"):
-                if not text or not isinstance(text, str):
-                    continue
-                try:
-                    if self._pooling_strategy:
-                        text = self.split_and_clean_text(text)
-                    embedding = self.model.encode(text, convert_to_tensor=True)
-                    # apply mean or max pooling to get one fixed-size embedding
-                    if self._pooling_strategy == "mean":
-                        embedding = torch.mean(embedding, dim=0)
-                    elif self._pooling_strategy == "max":
-                        embedding = torch.max(embedding, dim=0)[0]
-                    embeddings_list.append(embedding)
-                except Exception as e:
-                    logger.error(f"Error encoding text: {str(e)}")
-                    continue
-
-            if not embeddings_list:
-                raise ValueError("No valid embeddings created")
-
-            self.embeddings = torch.stack(embeddings_list)
-            self.save_data(self.embeddings)
+        self.vector_store = self.load_data()
+        if self.vector_store is None:
+            embeddings = self._create_embeddings()
+            self.vector_store = self.save_data(embeddings.numpy())
 
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
-        if self.embeddings is None:
-            raise RuntimeError("Index not created. Call create_index() first.")
+        if self.vector_store is None:
+            raise RuntimeError("Index6 not created. Call create_index() first.")
 
-        if len(self.embeddings) == 0:
-            return []
+        if not isinstance(self.vector_store, faiss.Index):
+            raise TypeError("Invalid vector store type. Expected faiss.Index")
 
         try:
-            query_embedding = self.model.encode(query, convert_to_tensor=True)
-            query_embedding = query_embedding.to(self.embeddings.device)
-            query_embedding = query_embedding.view(1, -1)
-            embeddings = self.embeddings.view(len(self.embeddings), -1)
-            similarities = torch.nn.functional.cosine_similarity(query_embedding, embeddings)
+            query_embedding = self.model.encode(query, convert_to_tensor=True).numpy()
+            self.process_data_for_faiss(query_embedding)
             k = min(top_k, len(self.doc_list))
-            top_values, top_indices = torch.topk(similarities, k)
-            top_values = top_values.cpu().numpy()
-            top_indices = top_indices.cpu().numpy()
+            similarity_scores, indices = self.vector_store.search(query_embedding.reshape(1, -1), k)
 
             return [
                 SearchResult(document=self.doc_list[idx], document_name=self.obj_names[idx], score=float(score))
-                for idx, score in zip(top_indices, top_values)
+                for idx, score in zip(indices.flatten(), similarity_scores.flatten())
             ]
 
         except Exception as e:
-            logger.error(f"Error in search: {str(e)}")
+            logger.error(f"Error in search: {traceback.format_exc()}")
             return []
 
     @staticmethod
@@ -319,6 +294,31 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         if pooling_strategy not in pooling_choices:
             raise ValueError(f"Invalid pooling strategy: {pooling_strategy}. Pooling choices: {pooling_choices}")
         self._pooling_strategy = pooling_strategy
+
+    def _create_embeddings(self) -> torch.Tensor:
+        embeddings_list = []
+        for text in tqdm(self.doc_list, desc="Creating embeddings"):
+            if not text or not isinstance(text, str):
+                continue
+            try:
+                if self._pooling_strategy:
+                    text = self.split_and_clean_text(text)
+                embedding = self.model.encode(text, convert_to_tensor=True)
+                # apply mean or max pooling to get one fixed-size embedding
+                if self._pooling_strategy == "mean":
+                    embedding = torch.mean(embedding, dim=0)
+                elif self._pooling_strategy == "max":
+                    embedding = torch.max(embedding, dim=0)[0]
+                embeddings_list.append(embedding)
+            except Exception as e:
+                logger.error(f"Error encoding text: {str(e)}")
+                continue
+
+        if not embeddings_list:
+            raise ValueError("No valid embeddings created")
+
+        embeddings = torch.stack(embeddings_list)
+        return embeddings
 
 
 class EnsembleSearchEngine:
@@ -380,7 +380,7 @@ class EnsembleSearchEngine:
                 engine = HashingVectorizerSearchEngine(**engine_kwargs)
             else:
                 raise ValueError(f"Unknown search method: {method}")
-            
+
             self.engines[method] = engine
             engine.create_index()
 
@@ -454,6 +454,7 @@ class EnsembleSearchEngine:
             Formatted context string
         """
         from owlsight.rag.python_lib_search import LibraryInfoExtractor
+
         context_parts = []
 
         for _, row in results.iterrows():
@@ -476,4 +477,3 @@ class EnsembleSearchEngine:
 
         # Combine all entries
         return "\n".join(context_parts)
-
