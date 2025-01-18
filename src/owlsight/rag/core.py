@@ -1,6 +1,7 @@
 import re
 from typing import Dict, List, Optional, Literal
 from abc import ABC, abstractmethod
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -11,13 +12,10 @@ from tqdm import tqdm
 
 from owlsight.rag.custom_classes import CacheMixin, SearchMethod, SearchResult
 from owlsight.rag.helper_functions import _get_signature
+from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
-
-
-
-SENTENCETRANSFORMER_DEFAULT_MODEL = "Alibaba-NLP/gte-base-en-v1.5"
 
 
 def search_documents(
@@ -27,6 +25,7 @@ def search_documents(
     tfidf_weight: float = 0.3,
     sentence_transformer_weight: float = 0.7,
     sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
+    sentence_transformer_batch_size: int = 64,
     cache_dir: Optional[str] = None,
     cache_dir_suffix: Optional[str] = None,
 ) -> pd.DataFrame:
@@ -47,6 +46,8 @@ def search_documents(
         Weight for the Sentence Transformer search method
     sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
         Sentence Transformer model to use
+    sentence_transformer_batch_size : int, default 64
+        Batch size to use for Sentence Transformer embeddings.
     cache_dir : Optional[str],
         Directory for caching the embeddings and documentation
     cache_dir_suffix : Optional[str],
@@ -82,11 +83,11 @@ def search_documents(
             SearchMethod.SENTENCE_TRANSFORMER: {
                 "pooling_strategy": "mean",
                 "model_name": sentence_transformer_model,
+                "batch_size": sentence_transformer_batch_size,
             }
         },
     )
 
-    # Perform search
     results = engine.search(query, top_k=top_k)
 
     return results
@@ -103,12 +104,10 @@ class SearchEngine(ABC):
     @abstractmethod
     def create_index(self) -> None:
         """Create search index."""
-        pass
 
     @abstractmethod
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
         """Perform search operation."""
-        pass
 
 
 class TFIDFSearchEngine(SearchEngine, CacheMixin):
@@ -211,6 +210,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         device: Optional[str] = None,
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
+        batch_size: int = 64,
     ):
         """
         Initialize the Sentence Transformer search engine.
@@ -233,6 +233,8 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
             Directory for caching search results
         cache_dir_suffix : Optional[str], default None
             Suffix to append to cache directory. Required if cache_dir is specified
+        batch_size : int, default 32
+            Batch size for embedding creation
         """
         self._check_pooling_strategy(pooling_strategy)
         if cache_dir_suffix:
@@ -250,35 +252,87 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         self.model_name = model_name
         self.device = device or get_best_device()
         self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
+        self.batch_size = batch_size
         self.embeddings = None
         self._pooling_strategy = pooling_strategy
 
     def create_index(self) -> None:
+        """Create search index with optimized batch processing."""
         self.embeddings = self.load_data()
-        if self.embeddings is None:
+        if self.embeddings is not None:
+            return
+
+        # Pre-filter valid texts and prepare them
+        valid_texts = []
+
+        for text in self.doc_list:
+            if text and isinstance(text, str):
+                if self._pooling_strategy:
+                    sentences = self.split_and_clean_text(text)
+                    if sentences:  # Only add if we have valid sentences
+                        valid_texts.append(sentences if self._pooling_strategy else text)
+                else:
+                    valid_texts.append(text)
+
+        if not valid_texts:
+            raise ValueError("No valid texts found for embedding creation")
+
+        try:
+            # Batch encode all texts at once
+   
             embeddings_list = []
-            for text in tqdm(self.doc_list, desc="Creating embeddings"):
-                if not text or not isinstance(text, str):
-                    continue
-                try:
-                    if self._pooling_strategy:
-                        text = self.split_and_clean_text(text)
-                    embedding = self.model.encode(text, convert_to_tensor=True)
-                    # apply mean or max pooling to get one fixed-size embedding
-                    if self._pooling_strategy == "mean":
-                        embedding = torch.mean(embedding, dim=0)
-                    elif self._pooling_strategy == "max":
-                        embedding = torch.max(embedding, dim=0)[0]
-                    embeddings_list.append(embedding)
-                except Exception as e:
-                    logger.error(f"Error encoding text: {str(e)}")
-                    continue
+            if self.cache_dir and self.cache_dir_suffix:
+                logger.info("Embeddings will be cached in %s", self.get_full_cache_path())
+
+            for i in tqdm(range(0, len(valid_texts), self.batch_size), desc="Creating embeddings"):
+                batch_texts = valid_texts[i : i + self.batch_size]
+
+                # Handle both single texts and lists of sentences
+                if self._pooling_strategy:
+                    # Flatten the list of sentences for batch processing
+                    flat_sentences = [sent for doc in batch_texts for sent in doc]
+                    if not flat_sentences:
+                        continue
+
+                    # Encode flattened sentences
+                    batch_embeddings = self.model.encode(
+                        flat_sentences, convert_to_tensor=True, show_progress_bar=False
+                    )
+
+                    # Reshape embeddings back to document structure
+                    start_idx = 0
+                    doc_embeddings = []
+                    for doc in batch_texts:
+                        if not doc:  # Skip empty documents
+                            continue
+                        doc_size = len(doc)
+                        doc_embedding = batch_embeddings[start_idx : start_idx + doc_size]
+                        start_idx += doc_size
+
+                        # Apply pooling per document
+                        if self._pooling_strategy == "mean":
+                            doc_embedding = torch.mean(doc_embedding, dim=0)
+                        else:  # max pooling
+                            doc_embedding = torch.max(doc_embedding, dim=0)[0]
+                        doc_embeddings.append(doc_embedding)
+
+                    if doc_embeddings:
+                        embeddings_list.append(torch.stack(doc_embeddings))
+                else:
+                    # Direct encoding for single texts
+                    batch_embeddings = self.model.encode(batch_texts, convert_to_tensor=True, show_progress_bar=False)
+                    embeddings_list.append(batch_embeddings)
 
             if not embeddings_list:
-                raise ValueError("No valid embeddings created")
+                raise ValueError("No embeddings were created")
 
-            self.embeddings = torch.stack(embeddings_list)
+            # Concatenate all batches
+            self.embeddings = torch.cat(embeddings_list, dim=0)
             self.save_data(self.embeddings)
+
+        except Exception as e:
+            logger.error(f"Error in batch embedding creation: {str(e)}")
+            raise ValueError("Failed to create embeddings") from e
 
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
         if self.embeddings is None:
@@ -304,7 +358,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
             ]
 
         except Exception as e:
-            logger.error(f"Error in search: {str(e)}")
+            logger.error(f"Error in search: {traceback.format_exc()}")
             return []
 
     @staticmethod
@@ -380,7 +434,7 @@ class EnsembleSearchEngine:
                 engine = HashingVectorizerSearchEngine(**engine_kwargs)
             else:
                 raise ValueError(f"Unknown search method: {method}")
-            
+
             self.engines[method] = engine
             engine.create_index()
 
@@ -454,6 +508,7 @@ class EnsembleSearchEngine:
             Formatted context string
         """
         from owlsight.rag.python_lib_search import LibraryInfoExtractor
+
         context_parts = []
 
         for _, row in results.iterrows():
@@ -463,7 +518,7 @@ class EnsembleSearchEngine:
                 signature = _get_signature(obj)
             except Exception as e:
                 logger.warning(f"Error getting object info: {str(e)}")
-                signature = "(Unable to retrieve signature)"
+                signature = ""
 
             # Format header with name, signature, and score
             header = f"{row['document_name']}{signature}"
@@ -476,4 +531,3 @@ class EnsembleSearchEngine:
 
         # Combine all entries
         return "\n".join(context_parts)
-
