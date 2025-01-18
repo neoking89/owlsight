@@ -3,7 +3,7 @@
 # Importing functions to make them accessible from the package's root
 from .processors.helper_functions import select_processor_type
 from .multimodal.tesseract import setup_tesseract
-from .rag.python_lib_search import search_python_libs
+from .rag.python_lib_search import PythonLibSearcher
 from .utils.deep_learning import (
     get_best_device,
     check_gpu_and_cuda,
@@ -41,7 +41,7 @@ __all__ = [
     "TextGenerationProcessorTransformers",
     "TextGenerationProcessorGGUF",
     "MultiModalProcessorTransformers",
-    "search_python_libs",
+    "PythonLibSearcher",
     "search_documents",
     "HashingVectorizerSearchEngine",
     "TFIDFSearchEngine",
