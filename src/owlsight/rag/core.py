@@ -18,79 +18,95 @@ from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
 
 
-def search_documents(
-    query: str,
-    documents: Dict[str, str],
-    top_k: int = 20,
-    tfidf_weight: float = 0.3,
-    sentence_transformer_weight: float = 0.7,
-    sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
-    sentence_transformer_batch_size: int = 64,
-    cache_dir: Optional[str] = None,
-    cache_dir_suffix: Optional[str] = None,
-) -> pd.DataFrame:
+class DocumentSearcher:
     """
-    Search documents using an ensemble of TFIDF and Sentence Transformer methods.
-
-    Parameters
-    ----------
-    query : str
-        The search query
-    documents : Dict[str, str]
-        A dictionary with object names as keys and documentation as values
-    top_k : int, default 20
-        Number of top results to return
-    tfidf_weight : float, default 0.3
-        Weight for the TFIDF search method
-    sentence_transformer_weight : float, default 0.7
-        Weight for the Sentence Transformer search method
-    sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
-        Sentence Transformer model to use
-    sentence_transformer_batch_size : int, default 64
-        Batch size to use for Sentence Transformer embeddings.
-    cache_dir : Optional[str],
-        Directory for caching the embeddings and documentation
-    cache_dir_suffix : Optional[str],
-        Suffix to add to the cache directory.
-        This needs to be specified if cache_dir is provided.
-        If specified, the cache directory will be cache_dir/cache_dir_suffix
-
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the search results with columns:
-        - document info: Information about a given document, like title, name, etc.
-        - document: Documentation text
-        - method: Search method used
-        - score: Raw similarity score
-        - weighted_score: Score weighted by method
-        - aggregated_score: Combined score across methods
+    A class for searching documents using an ensemble of TFIDF and Sentence Transformer methods.
     """
-    # Configure search methods weights
-    methods_weights = {
-        SearchMethod.TFIDF: tfidf_weight,
-        SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
-    }
 
-    # Initialize ensemble search engine
-    engine = EnsembleSearchEngine(
-        documents=documents,
-        methods_weights=methods_weights,
-        cache_dir=cache_dir,
-        cache_dir_suffix=cache_dir_suffix,
-        init_arguments={
-            SearchMethod.SENTENCE_TRANSFORMER: {
-                "pooling_strategy": "mean",
-                "model_name": sentence_transformer_model,
-                "batch_size": sentence_transformer_batch_size,
-            }
-        },
-    )
+    def __init__(
+        self,
+        documents: Dict[str, str],
+        sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
+        sentence_transformer_batch_size: int = 64,
+        cache_dir: Optional[str] = None,
+        cache_dir_suffix: Optional[str] = None,
+    ):
+        """
+        Initialize the DocumentSearcher.
 
-    results = engine.search(query, top_k=top_k)
+        Parameters
+        ----------
+        documents : Dict[str, str]
+            A dictionary with object names as keys and documentation as values
+        sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
+            Sentence Transformer model to use
+        sentence_transformer_batch_size : int, default 64
+            Batch size to use for Sentence Transformer embeddings.
+        cache_dir : Optional[str],
+            Directory for caching the embeddings and documentation
+        cache_dir_suffix : Optional[str],
+            Suffix to add to the cache directory.
+            This needs to be specified if cache_dir is provided.
+            If specified, the cache directory will be cache_dir/cache_dir_suffix
+        """
+        self.documents = documents
+        self.sentence_transformer_model = sentence_transformer_model
+        self.sentence_transformer_batch_size = sentence_transformer_batch_size
+        self.cache_dir = cache_dir
+        self.cache_dir_suffix = cache_dir_suffix
 
-    return results
+        # Initialize ensemble search engine
+        self.engine = EnsembleSearchEngine(
+            documents=self.documents,
+            cache_dir=self.cache_dir,
+            cache_dir_suffix=self.cache_dir_suffix,
+            init_arguments={
+                SearchMethod.SENTENCE_TRANSFORMER: {
+                    "pooling_strategy": "mean",
+                    "model_name": self.sentence_transformer_model,
+                    "batch_size": self.sentence_transformer_batch_size,
+                }
+            },
+        )
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 20,
+        sentence_transformer_weight: float = 0.7,
+        tfidf_weight: float = 0.3,
+    ) -> pd.DataFrame:
+        """
+        Search documents using the configured ensemble methods.
+
+        Parameters
+        ----------
+        query : str
+            The search query
+        top_k : int, default 20
+            Number of top results to return
+        tfidf_weight : Optional[float], default None
+            Weight for the TFIDF search method.
+        sentence_transformer_weight : Optional[float], default None
+            Weight for the Sentence Transformer search method. If None, uses the weight from initialization
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame containing the search results with columns:
+            - document info: Information about a given document, like title, name, etc.
+            - document: Documentation text
+            - method: Search method used
+            - score: Raw similarity score
+            - weighted_score: Score weighted by method
+            - aggregated_score: Combined score across methods
+        """
+        method_weights = {
+            SearchMethod.TFIDF: tfidf_weight,
+            SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
+        }
+        results = self.engine.search(query, top_k=top_k, method_weights=method_weights)
+        return results
 
 
 class SearchEngine(ABC):
@@ -279,7 +295,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
 
         try:
             # Batch encode all texts at once
-   
+
             embeddings_list = []
             if self.cache_dir and self.cache_dir_suffix:
                 logger.info("Embeddings will be cached in %s", self.get_full_cache_path())
@@ -381,9 +397,12 @@ class EnsembleSearchEngine:
     def __init__(
         self,
         documents: Dict[str, str],
-        methods_weights: Dict[SearchMethod, float],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
+        search_methods: List[SearchMethod] = [
+            SearchMethod.TFIDF,
+            SearchMethod.SENTENCE_TRANSFORMER,
+        ],
         init_arguments: Optional[Dict[str, Dict]] = None,
     ):
         """
@@ -393,64 +412,40 @@ class EnsembleSearchEngine:
         -----------
         documents : Dict[str, str]
             Dictionary containing document names and content
-        methods_weights : Dict[SearchMethod, float]
-            Dictionary containing search methods and their corresponding weights
         cache_dir : Optional[str], default None
             Directory for caching search results
         cache_dir_suffix : Optional[str], default None
             Suffix to append to cache directory. Required if cache_dir is specified
+        search_methods : List[SearchMethod], default [SearchMethod.TFIDF, SearchMethod.SENTENCE_TRANSFORMER]
+            List of search methods to use. These get linked to the corresponding SearchEngine classes.
         init_arguments : Optional[Dict[str, Dict]], default None
             Dictionary containing initialization arguments for each SearchEngine
             Example: {SearchMethod.TFIDF: {"ngram_range": (1, 2)}}
         """
         self.documents = documents
-        self._methods_weights = methods_weights
         self.cache_dir = cache_dir
         self.cache_dir_suffix = cache_dir_suffix
+        self.search_methods: List[SearchMethod] = search_methods
         self.engines: Dict[SearchMethod, SearchEngine] = {}
         self.engine_init_arguments = init_arguments or {}
         self._initialize_engines()
 
-    @property
-    def methods_weights(self) -> Dict[SearchMethod, float]:
-        """Get the current method weights."""
-        return self._methods_weights
-
-    @methods_weights.setter
-    def methods_weights(self, weights: Dict[SearchMethod, float]):
-        """
-        Set new method weights. Only initializes engines for methods with weight > 0.
-        Does not recompute embeddings for existing engines.
-        """
-        self._methods_weights = weights
-        # Initialize any new engines that weren't initialized before
-        self._initialize_engines()
-
     def _initialize_engines(self) -> None:
         """Initialize search engines based on specified methods and weights."""
-        for method, weight in self._methods_weights.items():
-            # Skip if weight is 0 and engine doesn't exist
-            if weight <= 0 and method not in self.engines:
-                continue
-
-            # Skip if engine already exists
-            if method in self.engines:
-                continue
-
+        for method in self.search_methods:
             engine_kwargs = {
                 "documents": self.documents,
                 "cache_dir": self.cache_dir,
                 "cache_dir_suffix": self.cache_dir_suffix or "",
             }
 
+            engine_kwargs.update(self.engine_init_arguments.get(method, {}))
+
             if method == SearchMethod.TFIDF:
-                engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.TFIDF, {}))
                 engine = TFIDFSearchEngine(**engine_kwargs)
             elif method == SearchMethod.SENTENCE_TRANSFORMER:
-                engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.SENTENCE_TRANSFORMER, {}))
                 engine = SentenceTransformerSearchEngine(**engine_kwargs)
             elif method == SearchMethod.HASHING:
-                engine_kwargs.update(self.engine_init_arguments.get(SearchMethod.HASHING, {}))
                 engine = HashingVectorizerSearchEngine(**engine_kwargs)
             else:
                 raise ValueError(f"Unknown search method: {method}")
@@ -458,17 +453,44 @@ class EnsembleSearchEngine:
             self.engines[method] = engine
             engine.create_index()
 
-    def search(self, query: str, top_k: int = 5) -> pd.DataFrame:
-        """Perform ensemble search across all initialized engines and return detailed method scores."""
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        method_weights: Optional[Dict[SearchMethod, float]] = None,
+    ) -> pd.DataFrame:
+        """
+        Perform ensemble search across all initialized engines and return detailed method scores.
+
+        Parameters:
+        -----------
+        query : str
+            Search query string
+        top_k : int, default 5
+            Number of top results to return
+        method_weights : Optional[Dict[SearchMethod, float]], default None
+            Dictionary containing weights for each search method
+            Example: {SearchMethod.TFIDF: 0.5, SearchMethod.SENTENCE_TRANSFORMER: 0.5}
+
+        Returns:
+        --------
+        pd.DataFrame
+            DataFrame containing the search results with columns:
+            - document info: Information about a given document, like title, name, etc.
+            - document: Documentation text
+            - method: Search method used
+            - score: Raw similarity score
+        """
         index_name = "document_name"
         all_results = []
+        method_weights = method_weights or {}
 
         for method, engine in self.engines.items():
-            weight = self._methods_weights.get(method, 0)
-            # Skip search if weight is 0
+            weight = method_weights.get(method, 0)
+            # Skip search if weight is 0 or negative
             if weight <= 0:
                 continue
-                
+
             results = engine.search(query, top_k=top_k)
 
             for result in results:
