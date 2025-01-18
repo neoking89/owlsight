@@ -144,7 +144,21 @@ class TextGenerationManager:
                         logger.error("No prompt provided. Please provide a prompt in the 'search' field.")
                         return
                     top_k = self.config_manager.get("rag.top_k", CONFIG_DEFAULTS[outer_key]["top_k"])
-                    context = search_python_libs(library, search, top_k, cache_dir=get_pickle_cache())
+                    sentence_transformer_weight = self.config_manager.get("rag.sentence_transformer_weight", 0.0)
+                    if sentence_transformer_weight > 0.0:
+                        logger.warning(
+                            "Using sentence transformer for semantic search. Creating embeddings for the library can take some time!"
+                        )
+                    tfidf_weight = 1 - sentence_transformer_weight
+                    logger.info(f"Using TFIDF weight: {tfidf_weight}, Sentence Transformer weight: {sentence_transformer_weight}")
+                    context = search_python_libs(
+                        library,
+                        search,
+                        top_k,
+                        cache_dir=get_pickle_cache(),
+                        tfidf_weight=tfidf_weight,
+                        sentence_transformer_weight=sentence_transformer_weight,
+                    )
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
         elif outer_key == "huggingface":
             if inner_key == "search":
