@@ -19,7 +19,7 @@ from .processors.text_generation_processors import (
 )
 from .processors.multimodal_processors import MultiModalProcessorTransformers
 from .rag.core import (
-    search_documents,
+    DocumentSearcher,
     HashingVectorizerSearchEngine,
     TFIDFSearchEngine,
     SentenceTransformerSearchEngine,
@@ -42,7 +42,7 @@ __all__ = [
     "TextGenerationProcessorGGUF",
     "MultiModalProcessorTransformers",
     "PythonLibSearcher",
-    "search_documents",
+    "DocumentSearcher",
     "HashingVectorizerSearchEngine",
     "TFIDFSearchEngine",
     "SentenceTransformerSearchEngine",

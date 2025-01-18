@@ -394,7 +394,7 @@ for token in processor.generate_stream(question):
 **1.4.1**
 
 - improve RAG capabilities in the API, added **SentenceTransformerSearchEngine**, **TFIDFSearchEngine** and **HashingVectorizerSearchEngine** as classes.
-- Added **search_documents** to offer a general RAG solution for documents.
+- Added **DocumentSearcher** to offer a general RAG solution for documents.
 - Added caching possibility to all RAG solutions in the API (*cache_dir* & *cache_dir_suffix*), where documents, embeddings etc. get pickled. This can save a big amount of time if amount of documents is large.
 
 **2.0.1beta**
