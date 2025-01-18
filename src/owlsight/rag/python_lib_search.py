@@ -141,7 +141,6 @@ class PythonLibSearcher:
         if engine_key not in self._engine_cache:
             self._engine_cache[engine_key] = EnsembleSearchEngine(
                 documents=documents,
-                methods_weights=methods_weights,
                 cache_dir=cache_dir,
                 cache_dir_suffix=library,
                 init_arguments={
@@ -156,7 +155,7 @@ class PythonLibSearcher:
         engine: EnsembleSearchEngine = self._engine_cache[engine_key]
         # Update weights without recreating the engine
         engine.methods_weights = methods_weights
-        results = engine.search(query, top_k=top_k)
+        results = engine.search(query, top_k=top_k, method_weights=methods_weights)
         results["document_name"] = results["document_name"].apply(lambda x: f"{library}.{x}")
 
         if return_context:
