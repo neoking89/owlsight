@@ -135,12 +135,10 @@ class OptionSelectorApp:
         title_bar = HSplit(
             [
                 Window(
-                    height=1,
                     content=FormattedTextControl(lambda: self.set_current_selection()),
                     style=BACKGROUND_STYLE,
                 ),
                 Window(
-                    height=1,
                     content=FormattedTextControl(lambda: self.set_current_description()),
                     style="grey",
                 ),
@@ -150,7 +148,6 @@ class OptionSelectorApp:
             body=HSplit(self.controls),
             style=BACKGROUND_STYLE,
             width=None,
-            height=None,
             title=INSTRUCTIONS.MAIN_MENU,
         )
         self.layout = Layout(HSplit([title_bar, framed_controls]))
@@ -196,8 +193,8 @@ class OptionSelectorApp:
         """
         def get_text():
             arrow = self.get_arrow(i)
-            return [("", f"{arrow} {label}")]
-        return Window(content=FormattedTextControl(get_text), height=1)
+            return f"{arrow} {label}"
+        return Window(content=FormattedTextControl(get_text))
 
     def create_toggle_option_control(self, i: int, label: str) -> Window:
         """
@@ -211,7 +208,7 @@ class OptionSelectorApp:
                 ("class:option", f"{label}: "),
                 ("class:toggle", f"{current_value}")
             ]
-        return Window(content=FormattedTextControl(get_text), height=1)
+        return Window(content=FormattedTextControl(get_text))
 
     def create_editable_option_control(self, i: int, label: str) -> VSplit:
         """
@@ -226,7 +223,6 @@ class OptionSelectorApp:
             multiline=True,
             wrap_lines=True,
             focus_on_click=True,
-            height=1,
             history=self.chat_history[label],
             auto_suggest=AutoSuggestFromHistory(),
             completer=completer,
@@ -237,7 +233,7 @@ class OptionSelectorApp:
             arrow = self.get_arrow(i)
             return [("", f"{arrow} {label} ")]
         prompt_window = Window(content=FormattedTextControl(get_prompt), dont_extend_width=True)
-        return VSplit([prompt_window, text_area], height=1)
+        return VSplit([prompt_window, text_area])
 
     def update_focus(self, app: Application) -> None:
         """
