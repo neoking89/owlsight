@@ -7,9 +7,8 @@ import pandas as pd
 
 from owlsight.rag.core import EnsembleSearchEngine
 from owlsight.rag.custom_classes import CacheMixin, SearchMethod
+from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.utils.logger import logger
-
-
 
 
 class PythonDocumentationProcessor:
@@ -57,11 +56,20 @@ class PythonDocumentationProcessor:
 
 
 def search_python_libs(
-    library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, return_context: bool = True
+    library: str,
+    query: str,
+    top_k: int = 5,
+    cache_dir: Optional[str] = None,
+    return_context: bool = True,
+    tfidf_weight: float = 1.0,
+    sentence_transformer_weight: float = 0.0,
+    sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
+    sentence_transformer_batch_size: int = 64,
 ) -> Union[pd.DataFrame, str]:
     """
     Get search results for Python library documentation with optional formatted context.
-    This context can be added to the output of a chatbot or search interface.
+    This context can be added to the output of a chatbot.
+    Or it can be used as search engine within python libraries.
 
     Parameters:
     -----------
@@ -75,6 +83,16 @@ def search_python_libs(
         Directory for caching search results
     return_context : bool, default True
         If True, returns formatted context string instead of DataFrame
+    tfidf_weight : float, default 1.0
+        Weight for the TFIDF search method
+    sentence_transformer_weight : float, default 0.0
+        Weight for the Sentence Transformer search method.
+        If more than 0, next to TFIDF, the sentence transformer method will be used.
+        NOTE: Using this can lead to more accurate search results, but also much slower processing since the embeddings need to be computed first.
+    sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
+        Sentence Transformer model to use
+    sentence_transformer_batch_size : int, default 64
+        Batch size to use for Sentence Transformer embeddings
 
     Returns:
     --------
@@ -83,12 +101,23 @@ def search_python_libs(
         Otherwise returns DataFrame with search results
     """
     documents = PythonDocumentationProcessor.get_documents(library, cache_dir=cache_dir)
+    methods_weights = {
+        SearchMethod.TFIDF: tfidf_weight,
+        SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
+    }
 
     engine = EnsembleSearchEngine(
         documents=documents,
-        methods_weights={SearchMethod.TFIDF: 1.0},
+        methods_weights=methods_weights,
         cache_dir=cache_dir,
         cache_dir_suffix=library,
+        init_arguments={
+            SearchMethod.SENTENCE_TRANSFORMER: {
+                "pooling_strategy": "mean",
+                "model_name": sentence_transformer_model,
+                "batch_size": sentence_transformer_batch_size,
+            }
+        },
     )
 
     results = engine.search(query, top_k=top_k)
@@ -103,18 +132,14 @@ def search_python_libs(
 class LibraryInfoExtractor(CacheMixin):
     """Extracts documentation from Python libraries."""
 
-    def __init__(self,
-                 library_name: str,
-                 cache_dir: Optional[str] = None,
-                 cache_dir_suffix: Optional[str] = None):
+    def __init__(self, library_name: str, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None):
         """Initialize the extractor."""
         super().__init__(cache_dir, cache_dir_suffix)
         self.library_name = library_name
         try:
             self.library = importlib.import_module(library_name)
         except ImportError as e:
-            raise ImportError(
-                f"Could not import library {library_name}: {str(e)}")
+            raise ImportError(f"Could not import library {library_name}: {str(e)}")
 
     @staticmethod
     def import_from_string(path: str) -> Any:
@@ -152,15 +177,10 @@ class LibraryInfoExtractor(CacheMixin):
 
         return unique_docs
 
-    def _extract_library_info_as_generator(
-            self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
+    def _extract_library_info_as_generator(self) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
         """Extract documentation from the library."""
 
-        def explore_module(
-                module,
-                prefix="",
-                visited=None
-        ) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
+        def explore_module(module, prefix="", visited=None) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
             if visited is None:
                 visited = set()
 
@@ -184,26 +204,22 @@ class LibraryInfoExtractor(CacheMixin):
 
                 try:
                     # Try to import the module
-                    sub_module = importlib.import_module(
-                        f"{module.__name__}.{name}")
+                    sub_module = importlib.import_module(f"{module.__name__}.{name}")
 
                     # Extract info from current module
-                    for item in self._extract_info_from_module(
-                            sub_module, full_name):
+                    for item in self._extract_info_from_module(sub_module, full_name):
                         yield item
 
                     # If it's a package, explore it recursively
                     if is_pkg:
-                        yield from explore_module(sub_module, full_name,
-                                                  visited)
+                        yield from explore_module(sub_module, full_name, visited)
 
                 except (ImportError, AttributeError, ModuleNotFoundError):
                     # Silently skip problematic imports
                     continue
                 except Exception as e:
                     # Log other unexpected errors but continue processing
-                    logger.error(
-                        f"Unexpected error exploring {full_name}: {str(e)}")
+                    logger.error(f"Unexpected error exploring {full_name}: {str(e)}")
                     continue
 
         try:
@@ -212,9 +228,7 @@ class LibraryInfoExtractor(CacheMixin):
             logger.error(f"Error exploring {self.library_name}: {str(e)}")
 
     def _extract_info_from_module(
-            self,
-            module: Any,
-            prefix: str = ""
+        self, module: Any, prefix: str = ""
     ) -> Generator[Tuple[str, Dict[str, Any]], None, None]:
         """Extract documentation from a specific module."""
         try:
@@ -225,14 +239,16 @@ class LibraryInfoExtractor(CacheMixin):
                         continue
 
                     # Check if the object is part of the library
-                    if getattr(obj, '__module__', '').startswith(self.library_name):
+                    if getattr(obj, "__module__", "").startswith(self.library_name):
                         if inspect.isclass(obj):
                             # If it's a class, include its methods
                             for class_name, class_obj in inspect.getmembers(obj):
                                 if inspect.ismethod(class_obj) or inspect.isfunction(class_obj):
                                     doc = inspect.getdoc(class_obj)
                                     if doc:
-                                        full_name = f"{prefix}.{name}.{class_name}" if prefix else f"{name}.{class_name}"
+                                        full_name = (
+                                            f"{prefix}.{name}.{class_name}" if prefix else f"{name}.{class_name}"
+                                        )
                                         yield full_name, {"doc": doc, "obj": class_obj}
                         elif inspect.isfunction(obj) or inspect.ismethod(obj):
                             doc = inspect.getdoc(obj)
