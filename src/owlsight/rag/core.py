@@ -404,17 +404,37 @@ class EnsembleSearchEngine:
             Example: {SearchMethod.TFIDF: {"ngram_range": (1, 2)}}
         """
         self.documents = documents
-        self.methods_weights = methods_weights
+        self._methods_weights = methods_weights
         self.cache_dir = cache_dir
         self.cache_dir_suffix = cache_dir_suffix
         self.engines: Dict[SearchMethod, SearchEngine] = {}
         self.engine_init_arguments = init_arguments or {}
         self._initialize_engines()
 
+    @property
+    def methods_weights(self) -> Dict[SearchMethod, float]:
+        """Get the current method weights."""
+        return self._methods_weights
+
+    @methods_weights.setter
+    def methods_weights(self, weights: Dict[SearchMethod, float]):
+        """
+        Set new method weights. Only initializes engines for methods with weight > 0.
+        Does not recompute embeddings for existing engines.
+        """
+        self._methods_weights = weights
+        # Initialize any new engines that weren't initialized before
+        self._initialize_engines()
+
     def _initialize_engines(self) -> None:
         """Initialize search engines based on specified methods and weights."""
-        for method, weight in self.methods_weights.items():
-            if weight <= 0:
+        for method, weight in self._methods_weights.items():
+            # Skip if weight is 0 and engine doesn't exist
+            if weight <= 0 and method not in self.engines:
+                continue
+
+            # Skip if engine already exists
+            if method in self.engines:
                 continue
 
             engine_kwargs = {
@@ -444,7 +464,11 @@ class EnsembleSearchEngine:
         all_results = []
 
         for method, engine in self.engines.items():
-            weight = self.methods_weights[method]
+            weight = self._methods_weights.get(method, 0)
+            # Skip search if weight is 0
+            if weight <= 0:
+                continue
+                
             results = engine.search(query, top_k=top_k)
 
             for result in results:
@@ -480,15 +504,10 @@ class EnsembleSearchEngine:
         final_df = df_methods.merge(df_agg, on=index_name).sort_values("aggregated_score", ascending=False)
 
         # Reorder columns
-        # Get method columns (they'll be between document and aggregated_score)
         method_columns = [
             col for col in final_df.columns if col not in ["document_name", "document", "aggregated_score"]
         ]
-
-        # Create final column order
         column_order = ["document_name", "document"] + method_columns + ["aggregated_score"]
-
-        # Reorder columns
         final_df = final_df[column_order]
 
         return final_df
