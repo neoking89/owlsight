@@ -4,6 +4,7 @@ import os
 from typing import Any, Dict, List, Union
 import json
 
+from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.hugging_face.constants import HUGGINGFACE_TASKS
 from owlsight.processors.custom_classes import GGUF_Utils
 from owlsight.ui.custom_classes import MenuItem, OptionType
@@ -184,6 +185,12 @@ class Schema:
                 description="Number of most matching RAG results to return, based on `search` query",
                 default=10,
                 choices=list(range(1, 51)),
+            ),
+            "sentence_transformer_weight": MenuItem(
+                type=OptionType.TOGGLE,
+                description=f"Weight for embedding model, which is {SENTENCETRANSFORMER_DEFAULT_MODEL}. TFIDF-weight is 1 - `sentence_transformer_weight`",
+                default=0.0,
+                choices=[round(x * 0.05, 2) for x in range(21)],
             ),
             "search": MenuItem(
                 type=OptionType.EDITABLE,
