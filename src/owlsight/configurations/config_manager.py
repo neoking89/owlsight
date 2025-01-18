@@ -4,11 +4,11 @@ import os
 import traceback
 from copy import deepcopy
 
-from owlsight.configurations.constants import CONFIG_DEFAULTS
-from owlsight.utils.logger import logger
-from owlsight.configurations.constants import CONFIG_CHOICES
+from owlsight.configurations.constants import CONFIG_DEFAULTS, CONFIG_CHOICES, CONFIG_TYPES
 from owlsight.utils.helper_functions import flatten_dict
 from owlsight.utils.validations import validate_key_is_nested_one_layer
+from owlsight.ui.custom_classes import OptionType
+from owlsight.utils.logger import logger
 
 
 class ConfigManager:
@@ -163,7 +163,7 @@ class ConfigManager:
         if not isinstance(path, str) or not path:
             logger.error(f"{err_msg} Invalid file path provided.")
             return False
-        
+
         if not path.endswith(".json"):
             logger.error(f"{err_msg} Configuration file must be a valid JSON file, ending with '.json'.")
             return False
@@ -174,10 +174,13 @@ class ConfigManager:
             logger.error(f"{err_msg} Directory does not exist: '{directory}'")
             return False
 
+        # filter out options that are None
+        filtered_config = _remove_action_optiontypes_from_config(self._config, CONFIG_TYPES)
+
         try:
             with open(path, "w") as f:
                 json.dump(
-                    self._config,
+                    filtered_config,
                     f,
                     indent=4,
                 )
@@ -338,3 +341,19 @@ def _prepare_toggle_choices(current_val: Any, possible_vals: List[Any]) -> List[
         possible_vals = possible_vals[index:] + possible_vals[:index]
 
     return possible_vals
+
+
+def _remove_action_optiontypes_from_config(config: dict, config_types: dict) -> dict:
+    """
+    Remove keys from the config dictionary if their type in config_types is OptionType.ACTION.
+    Only keeps keys that are defined in config_types and are not ACTION type.
+    """
+    filtered_config = {}
+    for outer_key in config_types.keys():
+        filtered_config[outer_key] = {}
+        # Only process keys that exist in both config and config_types
+        for inner_key, inner_value in config.get(outer_key, {}).items():
+            # Only keep the key if it's defined in config_types and is not an ACTION type
+            if inner_key in config_types.get(outer_key, {}) and config_types[outer_key][inner_key] != OptionType.ACTION:
+                filtered_config[outer_key][inner_key] = inner_value
+    return filtered_config
