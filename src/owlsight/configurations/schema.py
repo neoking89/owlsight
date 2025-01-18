@@ -15,6 +15,7 @@ class Schema:
 
     CONFIG = {
         "main": {
+            "back": MenuItem(type=OptionType.ACTION, description="Main settings for the application"),
             "max_retries_on_error": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Maximum number of retries for Python code error recovery. This parameter is only used when `prompt_retry_on_error` is set to True.",
@@ -53,6 +54,7 @@ class Schema:
             ),
         },
         "model": {
+            "back": MenuItem(type=OptionType.ACTION, description="Settings for model loading and configuration"),
             "model_id": MenuItem(
                 type=OptionType.EDITABLE,
                 description="Model identifier or path. The most important parameter in the configuration, as this will load the model to be used",
@@ -142,6 +144,7 @@ class Schema:
             ),
         },
         "generate": {
+            "back": MenuItem(type=OptionType.ACTION, description="Settings for model generation"),
             "stopwords": MenuItem(
                 type=OptionType.EDITABLE,
                 description="Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop",
@@ -168,6 +171,7 @@ class Schema:
             ),
         },
         "rag": {
+            "back": MenuItem(type=OptionType.ACTION, description="Use RAG for python libraries with a combination of TFIDF and an optional embedding model"),
             "active": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown",
@@ -200,27 +204,28 @@ class Schema:
             ),
         },
         "huggingface": {
+            "back": MenuItem(type=OptionType.ACTION, description="Connect with the Hugging Face Hub for model search and loading"),
             "search": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Search for a model on the Huggingface Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf'",
+                description="Search for a model on the Hugging Face Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf'",
                 default="",
                 choices=None,
             ),
             "top_k": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Top number of huggingface results to return. The results will be sorted by highest score first",
+                description="Top number of Hugging Face results to return. The results will be sorted by highest score first",
                 default=10,
                 choices=list(range(1, 51)),
             ),
             "select_model": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Select and load a model from the HuggingFace Hub by toggling through the options found by `search`",
+                description="Select and load a model from the Hugging Face Hub by toggling through the options found by `search`",
                 default="",
                 choices=None,
             ),
             "task": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Task for huggingface. When using `search`, the results will be filtered directly by chosen task",
+                description="Filter Hugging Face models by task. When using `search`, the results will be filtered directly by chosen task",
                 default=None,
                 choices=HUGGINGFACE_TASKS,
             ),
