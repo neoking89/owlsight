@@ -1,16 +1,19 @@
 import pytest
-import sys
 import re
 import json
 from copy import deepcopy
 from unittest.mock import patch, mock_open
 
+import sys; sys.path.append("src")
 from owlsight.configurations.constants import CONFIG_DEFAULTS
-
-sys.path.append("src")
-from owlsight.configurations.config_manager import ConfigManager, DottedDict, _prepare_toggle_choices
+from owlsight.configurations.config_manager import (
+    ConfigManager,
+    DottedDict,
+    _prepare_toggle_choices,
+    _remove_action_optiontypes_from_config,
+)
 from owlsight.configurations.schema import Schema
-
+from owlsight.ui.custom_classes import OptionType
 
 @pytest.fixture(scope="function", autouse=True)
 def defaults():
@@ -201,6 +204,104 @@ def test_config_choices_should_return_right_types(config_manager):
     for section, choices in config_manager.config_choices.items():
         for key, value in choices.items():
             assert type(value) in type_choices, f"In key '{key}', Expected type {type_choices}, got {type(value)}"
+
+
+def test_remove_action_optiontypes_empty_config():
+    """Test removing action types from an empty config."""
+    config = {}
+    config_types = {"section1": {"key1": OptionType.ACTION}}
+    result = _remove_action_optiontypes_from_config(config, config_types)
+    assert result == {"section1": {}}, "Empty config should result in empty sections"
+
+
+def test_remove_action_optiontypes_no_action_types():
+    """Test when there are no action types to remove."""
+    config = {
+        "section1": {"key1": "value1", "key2": "value2"},
+        "section2": {"key3": "value3"}
+    }
+    config_types = {
+        "section1": {"key1": OptionType.TOGGLE, "key2": OptionType.EDITABLE},
+        "section2": {"key3": OptionType.TOGGLE}
+    }
+    result = _remove_action_optiontypes_from_config(config, config_types)
+    assert result == config, "Config without action types should remain unchanged"
+
+
+def test_remove_action_optiontypes_with_action_types():
+    """Test removing action type items from config."""
+    config = {
+        "section1": {"key1": "value1", "key2": "value2", "key3": "value3"},
+        "section2": {"key4": "value4", "key5": "value5"}
+    }
+    config_types = {
+        "section1": {
+            "key1": OptionType.ACTION,
+            "key2": OptionType.TOGGLE,
+            "key3": OptionType.ACTION
+        },
+        "section2": {
+            "key4": OptionType.EDITABLE,
+            "key5": OptionType.ACTION
+        }
+    }
+    expected = {
+        "section1": {"key2": "value2"},
+        "section2": {"key4": "value4"}
+    }
+    result = _remove_action_optiontypes_from_config(config, config_types)
+    assert result == expected, "Action type items should be removed"
+
+
+def test_remove_action_optiontypes_missing_sections():
+    """Test handling of sections present in config but not in config_types."""
+    config = {
+        "section1": {"key1": "value1"},
+        "section2": {"key2": "value2"},
+        "section3": {"key3": "value3"}
+    }
+    config_types = {
+        "section1": {"key1": OptionType.TOGGLE},
+        "section2": {"key2": OptionType.ACTION}
+    }
+    expected = {
+        "section1": {"key1": "value1"},
+        "section2": {}
+    }
+    result = _remove_action_optiontypes_from_config(config, config_types)
+    assert result == expected, "Should only process sections defined in config_types"
+
+
+def test_remove_action_optiontypes_missing_keys():
+    """Test handling of keys present in config but not in config_types."""
+    config = {
+        "section1": {"key1": "value1", "key2": "value2", "key3": "value3"}
+    }
+    config_types = {
+        "section1": {"key1": OptionType.ACTION, "key2": OptionType.TOGGLE}
+    }
+    expected = {
+        "section1": {"key2": "value2"}
+    }
+    result = _remove_action_optiontypes_from_config(config, config_types)
+    assert result == expected, "Should only process keys defined in config_types"
+
+
+def test_remove_action_optiontypes_real_config():
+    """Test with actual config structure from Schema."""
+    config = Schema.get_config_defaults()
+    config_types = Schema.get_config_types()
+    result = _remove_action_optiontypes_from_config(config, config_types)
+    
+    # Verify no ACTION type items remain
+    for section, items in result.items():
+        for key in items.keys():
+            assert config_types[section][key] != OptionType.ACTION, f"Found ACTION type in {section}.{key}"
+            
+    # Verify structure is maintained
+    assert isinstance(result, dict), "Result should be a dictionary"
+    assert all(isinstance(v, dict) for v in result.values()), "All sections should be dictionaries"
+
 
 if __name__ == "__main__":
     pytest.main(["-vv", "-s", __file__])
