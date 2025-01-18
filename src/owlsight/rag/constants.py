@@ -1,0 +1,1 @@
+SENTENCETRANSFORMER_DEFAULT_MODEL = "Alibaba-NLP/gte-base-en-v1.5"
