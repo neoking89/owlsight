@@ -171,7 +171,10 @@ class Schema:
             ),
         },
         "rag": {
-            "back": MenuItem(type=OptionType.ACTION, description="Use RAG for python libraries with a combination of TFIDF and an optional embedding model"),
+            "back": MenuItem(
+                type=OptionType.ACTION,
+                description="Use RAG for installed python libraries with a combination of TFIDF and an optional embedding model",
+            ),
             "active": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown",
@@ -204,7 +207,9 @@ class Schema:
             ),
         },
         "huggingface": {
-            "back": MenuItem(type=OptionType.ACTION, description="Connect with the Hugging Face Hub for model search and loading"),
+            "back": MenuItem(
+                type=OptionType.ACTION, description="Connect with the Hugging Face Hub for model search and loading"
+            ),
             "search": MenuItem(
                 type=OptionType.EDITABLE,
                 description="Search for a model on the Hugging Face Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf'",
@@ -292,6 +297,11 @@ class Schema:
             section: {key: value.description for key, value in options.items()}
             for section, options in cls.CONFIG.items()
         }
+
+    @classmethod
+    def get_config_types(cls) -> Dict[str, Dict[str, OptionType]]:
+        """Extract types from config schema."""
+        return {section: {key: value.type for key, value in options.items()} for section, options in cls.CONFIG.items()}
 
     @classmethod
     def get_main_menu(cls) -> Dict[str, Union[str, None, List]]:
