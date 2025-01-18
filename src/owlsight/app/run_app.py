@@ -25,7 +25,7 @@ from owlsight.utils.constants import (
     get_py_cache,
 )
 from owlsight.utils.deep_learning import free_cuda_memory
-from owlsight.rag.python_lib_search import search_python_libs
+from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.processors.helper_functions import warn_processor_not_loaded
 from owlsight.utils.logger import logger
 
@@ -185,7 +185,8 @@ def process_user_question(user_choice: str, code_executor: CodeExecutor, manager
 The following context is documentation from the python library {library_to_rag}.
 Use this information to help generate a code snippet that answers the question.
 """
-        context = search_python_libs(
+        searcher = PythonLibSearcher()
+        context = searcher.search(
             library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=get_pickle_cache()
         )
         ctx_to_add += context

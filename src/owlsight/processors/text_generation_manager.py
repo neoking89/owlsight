@@ -8,7 +8,7 @@ from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGene
 from owlsight.processors.helper_functions import select_processor_type, warn_processor_not_loaded
 from owlsight.ui.console import get_user_choice
 from owlsight.configurations.config_manager import ConfigManager
-from owlsight.rag.python_lib_search import search_python_libs
+from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.utils.helper_functions import convert_to_real_type
@@ -151,7 +151,8 @@ class TextGenerationManager:
                         )
                     tfidf_weight = 1 - sentence_transformer_weight
                     logger.info(f"Using TFIDF weight: {tfidf_weight}, Sentence Transformer weight: {sentence_transformer_weight}")
-                    context = search_python_libs(
+                    searcher = PythonLibSearcher()
+                    context = searcher.search(
                         library,
                         search,
                         top_k,
