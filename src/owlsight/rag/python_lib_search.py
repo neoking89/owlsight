@@ -55,78 +55,139 @@ class PythonDocumentationProcessor:
         return docs_with_names
 
 
-def search_python_libs(
-    library: str,
-    query: str,
-    top_k: int = 5,
-    cache_dir: Optional[str] = None,
-    return_context: bool = True,
-    tfidf_weight: float = 1.0,
-    sentence_transformer_weight: float = 0.0,
-    sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
-    sentence_transformer_batch_size: int = 64,
-) -> Union[pd.DataFrame, str]:
+class PythonLibSearcher:
     """
-    Get search results for Python library documentation with optional formatted context.
-    This context can be added to the output of a chatbot.
-    Or it can be used as search engine within python libraries.
-
-    Parameters:
-    -----------
-    library : str
-        Name of the Python library to search
-    query : str
-        Search query string
-    top_k : int, default 5
-        Number of top results to return
-    cache_dir : Optional[str], default None
-        Directory for caching search results
-    return_context : bool, default True
-        If True, returns formatted context string instead of DataFrame
-    tfidf_weight : float, default 1.0
-        Weight for the TFIDF search method
-    sentence_transformer_weight : float, default 0.0
-        Weight for the Sentence Transformer search method.
-        If more than 0, next to TFIDF, the sentence transformer method will be used.
-        NOTE: Using this can lead to more accurate search results, but also much slower processing since the embeddings need to be computed first.
-    sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
-        Sentence Transformer model to use
-    sentence_transformer_batch_size : int, default 64
-        Batch size to use for Sentence Transformer embeddings
-
-    Returns:
-    --------
-    Union[pd.DataFrame, str]
-        If return_context is True, returns formatted context string
-        Otherwise returns DataFrame with search results
+    A singleton class for searching Python library documentation with caching capabilities.
+    Maintains document and engine caches throughout the owlsight session.
     """
-    documents = PythonDocumentationProcessor.get_documents(library, cache_dir=cache_dir)
-    methods_weights = {
-        SearchMethod.TFIDF: tfidf_weight,
-        SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
-    }
+    _instance = None
+    _document_cache = {}  # Cache for library documents
+    _engine_cache = {}    # Cache for search engines
 
-    engine = EnsembleSearchEngine(
-        documents=documents,
-        methods_weights=methods_weights,
-        cache_dir=cache_dir,
-        cache_dir_suffix=library,
-        init_arguments={
-            SearchMethod.SENTENCE_TRANSFORMER: {
-                "pooling_strategy": "mean",
-                "model_name": sentence_transformer_model,
-                "batch_size": sentence_transformer_batch_size,
-            }
-        },
-    )
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
-    results = engine.search(query, top_k=top_k)
-    results["document_name"] = results["document_name"].apply(lambda x: f"{library}.{x}")
+    def __init__(self):
+        # Initialize only once
+        if not hasattr(self, '_initialized'):
+            self._initialized = True
 
-    if return_context:
-        return engine.generate_context(results)
+    def _get_engine_key(self, library: str, model: str, batch_size: int) -> str:
+        """Generate a unique cache key for the search engine configuration."""
+        return f"{library}_{model}_{batch_size}"
 
-    return results
+    def search(
+        self,
+        library: str,
+        query: str,
+        top_k: int = 5,
+        cache_dir: Optional[str] = None,
+        return_context: bool = True,
+        tfidf_weight: float = 1.0,
+        sentence_transformer_weight: float = 0.0,
+        sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
+        sentence_transformer_batch_size: int = 64,
+    ) -> Union[pd.DataFrame, str]:
+        """
+        Search Python library documentation with caching for documents and search engines.
+        
+        Parameters:
+        -----------
+        library : str
+            Name of the Python library to search
+        query : str
+            Search query string
+        top_k : int, default 5
+            Number of top results to return
+        cache_dir : Optional[str], default None
+            Directory for caching search results
+        return_context : bool, default True
+            If True, returns formatted context string instead of DataFrame
+        tfidf_weight : float, default 1.0
+            Weight for the TFIDF search method
+        sentence_transformer_weight : float, default 0.0
+            Weight for the Sentence Transformer search method
+        sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
+            Sentence Transformer model to use
+        sentence_transformer_batch_size : int, default 64
+            Batch size to use for Sentence Transformer embeddings
+
+        Returns:
+        --------
+        Union[pd.DataFrame, str]
+            If return_context is True, returns formatted context string
+            Otherwise returns DataFrame with search results
+        """
+        # Get documents from cache or load them
+        if library not in self._document_cache:
+            self._document_cache[library] = PythonDocumentationProcessor.get_documents(library, cache_dir=cache_dir)
+        documents = self._document_cache[library]
+
+        # Configure search methods
+        methods_weights = {
+            SearchMethod.TFIDF: tfidf_weight,
+            SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
+        }
+
+        # Get or create search engine
+        engine_key = self._get_engine_key(
+            library,
+            sentence_transformer_model,
+            sentence_transformer_batch_size
+        )
+
+        if engine_key not in self._engine_cache:
+            self._engine_cache[engine_key] = EnsembleSearchEngine(
+                documents=documents,
+                methods_weights=methods_weights,
+                cache_dir=cache_dir,
+                cache_dir_suffix=library,
+                init_arguments={
+                    SearchMethod.SENTENCE_TRANSFORMER: {
+                        "pooling_strategy": "mean",
+                        "model_name": sentence_transformer_model,
+                        "batch_size": sentence_transformer_batch_size,
+                    }
+                },
+            )
+        
+        engine: EnsembleSearchEngine = self._engine_cache[engine_key]
+        # Update weights without recreating the engine
+        engine.methods_weights = methods_weights
+        results = engine.search(query, top_k=top_k)
+        results["document_name"] = results["document_name"].apply(lambda x: f"{library}.{x}")
+
+        if return_context:
+            return engine.generate_context(results)
+
+        return results
+
+    def clear_cache(self, library: Optional[str] = None):
+        """
+        Clear the document and engine caches.
+        
+        Parameters:
+        -----------
+        library : Optional[str]
+            If provided, only clear caches for the specified library.
+            If None, clear all caches.
+        """
+        if library is None:
+            self._document_cache.clear()
+            self._engine_cache.clear()
+        else:
+            if library in self._document_cache:
+                del self._document_cache[library]
+            
+            # Remove any engine that was created for this library
+            keys_to_remove = [
+                key for key in self._engine_cache.keys()
+                if key.startswith(f"{library}_")
+            ]
+            for key in keys_to_remove:
+                del self._engine_cache[key]
 
 
 class LibraryInfoExtractor(CacheMixin):
