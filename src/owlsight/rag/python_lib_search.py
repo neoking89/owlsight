@@ -60,9 +60,10 @@ class PythonLibSearcher:
     A singleton class for searching Python library documentation with caching capabilities.
     Maintains document and engine caches throughout the owlsight session.
     """
+
     _instance = None
     _document_cache = {}  # Cache for library documents
-    _engine_cache = {}    # Cache for search engines
+    _engine_cache = {}  # Cache for search engines
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -71,7 +72,7 @@ class PythonLibSearcher:
 
     def __init__(self):
         # Initialize only once
-        if not hasattr(self, '_initialized'):
+        if not hasattr(self, "_initialized"):
             self._initialized = True
 
     def _get_engine_key(self, library: str, model: str, batch_size: int) -> str:
@@ -92,7 +93,7 @@ class PythonLibSearcher:
     ) -> Union[pd.DataFrame, str]:
         """
         Search Python library documentation with caching for documents and search engines.
-        
+
         Parameters:
         -----------
         library : str
@@ -132,15 +133,12 @@ class PythonLibSearcher:
         }
 
         # Get or create search engine
-        engine_key = self._get_engine_key(
-            library,
-            sentence_transformer_model,
-            sentence_transformer_batch_size
-        )
+        engine_key = self._get_engine_key(library, sentence_transformer_model, sentence_transformer_batch_size)
 
         if engine_key not in self._engine_cache:
             self._engine_cache[engine_key] = EnsembleSearchEngine(
                 documents=documents,
+                search_methods=list(methods_weights.keys()),
                 cache_dir=cache_dir,
                 cache_dir_suffix=library,
                 init_arguments={
@@ -151,7 +149,7 @@ class PythonLibSearcher:
                     }
                 },
             )
-        
+
         engine: EnsembleSearchEngine = self._engine_cache[engine_key]
         # Update weights without recreating the engine
         engine.methods_weights = methods_weights
@@ -166,7 +164,7 @@ class PythonLibSearcher:
     def clear_cache(self, library: Optional[str] = None):
         """
         Clear the document and engine caches.
-        
+
         Parameters:
         -----------
         library : Optional[str]
@@ -179,12 +177,9 @@ class PythonLibSearcher:
         else:
             if library in self._document_cache:
                 del self._document_cache[library]
-            
+
             # Remove any engine that was created for this library
-            keys_to_remove = [
-                key for key in self._engine_cache.keys()
-                if key.startswith(f"{library}_")
-            ]
+            keys_to_remove = [key for key in self._engine_cache.keys() if key.startswith(f"{library}_")]
             for key in keys_to_remove:
                 del self._engine_cache[key]
 
