@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Optional, Literal
+from typing import Dict, List, Optional, Literal, Any
 from abc import ABC, abstractmethod
 import traceback
 
@@ -19,8 +19,40 @@ from owlsight.utils.logger import logger
 
 
 class DocumentSearcher:
-    """
-    A generic class for searching documents using an ensemble of TFIDF and Sentence Transformer methods.
+    """Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
+
+    This class provides document search capability by combining traditional TF-IDF 
+    with modern neural embeddings. The idea behind this is two-fold:
+    - TFIDF can capture relevant words an embedding model was not trained on.
+    - Embeddings can capture context better than TFIDF.
+
+    Parameters
+    ----------
+    documents : Dict[str, str]
+        Dictionary mapping document IDs to their content
+    sentence_transformer_model : str, default='Alibaba-NLP/gte-base-en-v1.5'
+        Name or path of the Sentence Transformer model
+    sentence_transformer_batch_size : int, default=64
+        Batch size for computing embeddings
+    cache_dir : str, optional
+        Directory to cache embeddings and results
+    cache_dir_suffix : str, optional
+        Suffix for cache directory name
+
+    Notes
+    -----
+    - Uses both TF-IDF and neural embeddings for robust search
+    - Has caching capabilities in pickled files
+    - Supports batch processing for efficient embedding computation
+
+    Examples
+    --------
+    >>> docs = {
+    ...     "doc1": "Python is a programming language",
+    ...     "doc2": "Machine learning is fascinating"
+    ... }
+    >>> searcher = DocumentSearcher(docs, cache_dir="document_cache", cache_dir_suffix="programming")
+    >>> results = searcher.search("python programming", top_k=3)
     """
 
     def __init__(
@@ -30,25 +62,7 @@ class DocumentSearcher:
         sentence_transformer_batch_size: int = 64,
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
-    ):
-        """
-        Initialize the DocumentSearcher.
-
-        Parameters
-        ----------
-        documents : Dict[str, str]
-            A dictionary with object names as keys and documentation as values
-        sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
-            Sentence Transformer model to use
-        sentence_transformer_batch_size : int, default 64
-            Batch size to use for Sentence Transformer embeddings.
-        cache_dir : Optional[str],
-            Directory for caching the embeddings and documentation
-        cache_dir_suffix : Optional[str],
-            Suffix to add to the cache directory.
-            This needs to be specified if cache_dir is provided.
-            If specified, the cache directory will be cache_dir/cache_dir_suffix
-        """
+    ) -> None:
         self.documents = documents
         self.sentence_transformer_model = sentence_transformer_model
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
@@ -110,7 +124,18 @@ class DocumentSearcher:
 
 
 class SearchEngine(ABC):
-    """Abstract base class for search engines."""
+    """Abstract base class for all search engine implementations.
+
+    This class defines the interface that all search engines must implement.
+    Subclasses should implement create_index() and search() methods.
+
+    Methods
+    -------
+    create_index()
+        Create search index from documents
+    search(query: str, top_k: int = 3)
+        Search documents using the query
+    """
 
     @property
     def cls_name(self) -> str:
@@ -119,23 +144,67 @@ class SearchEngine(ABC):
 
     @abstractmethod
     def create_index(self) -> None:
-        """Create search index."""
+        """Create search index from documents."""
 
     @abstractmethod
     def search(self, query: str, top_k: int = 3) -> List[SearchResult]:
-        """Perform search operation."""
+        """Search documents using the query.
+
+        Parameters
+        ----------
+        query : str
+            Search query text
+        top_k : int, default=3
+            Number of top results to return
+
+        Returns
+        -------
+        List[SearchResult]
+            List of search results, ordered by relevance
+        """
 
 
 class TFIDFSearchEngine(SearchEngine, CacheMixin):
-    """TF-IDF based search implementation."""
+    """Search engine using TF-IDF (Term Frequency-Inverse Document Frequency).
+
+    This search engine uses traditional TF-IDF vectorization for keyword-based search,
+    making it effective for finding documents with specific terms.
+
+    Parameters
+    ----------
+    documents : Dict[str, str]
+        Dictionary mapping document IDs to their content
+    cache_dir : str, optional
+        Directory to cache TF-IDF matrices
+    cache_dir_suffix : str, optional
+        Suffix for cache directory name
+    **tfidf_kwargs
+        Additional arguments passed to sklearn.feature_extraction.text.TfidfVectorizer
+
+    Notes
+    -----
+    - Fast and memory-efficient
+    - Good for exact keyword matching
+    - Supports n-grams and custom tokenization
+    - Caches TF-IDF matrices for better performance
+
+    Examples
+    --------
+    >>> docs = {
+    ...     "doc1": "Python programming basics",
+    ...     "doc2": "Advanced Python concepts"
+    ... }
+    >>> engine = TFIDFSearchEngine(docs, ngram_range=(1, 2))
+    >>> results = engine.search("python basics", top_k=1)
+    """
 
     def __init__(
         self,
         documents: Dict[str, str],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
-        **tfidf_kwargs,
-    ):
+        **tfidf_kwargs: Any,
+    ) -> None:
         super().__init__()
         check_invalid_input_parameters(TfidfVectorizer.__init__, tfidf_kwargs)
         if cache_dir_suffix:
@@ -171,14 +240,48 @@ class TFIDFSearchEngine(SearchEngine, CacheMixin):
 
 
 class HashingVectorizerSearchEngine(SearchEngine, CacheMixin):
-    """Hashing Vectorizer based search implementation."""
+    """Search engine using Hashing Vectorizer for memory-efficient search.
+
+    This search engine uses feature hashing for vectorization, making it memory-efficient
+    and suitable for large document collections.
+
+    Parameters
+    ----------
+    documents : Dict[str, str]
+        Dictionary mapping document IDs to their content
+    cache_dir : str, optional
+        Directory to cache hash matrices
+    cache_dir_suffix : str, optional
+        Suffix for cache directory name
+    **hashing_kwargs
+        Additional arguments passed to sklearn.feature_extraction.text.HashingVectorizer
+
+    Notes
+    -----
+    - Memory-efficient, suitable for large datasets
+    - No inverse transform capability
+    - Constant memory usage regardless of vocabulary size
+    - Small chance of hash collisions
+
+    Examples
+    --------
+    >>> docs = {
+    ...     "doc1": "Large text document...",
+    ...     "doc2": "Another large document..."
+    ... }
+    >>> engine = HashingVectorizerSearchEngine(
+    ...     docs,
+    ...     n_features=(2**16)
+    ... )
+    >>> results = engine.search("specific terms", top_k=1)
+    """
 
     def __init__(
         self,
         documents: Dict[str, str],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
-        **hashing_kwargs,
+        **hashing_kwargs: Any,
     ):
         """Initialize the HashingVectorizer search engine."""
         super().__init__()
@@ -216,7 +319,51 @@ class HashingVectorizerSearchEngine(SearchEngine, CacheMixin):
 
 
 class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
-    """Sentence Transformer based search implementation."""
+    """Search engine using Sentence Transformer embeddings.
+
+    This search engine uses neural embeddings to find semantically similar documents,
+    making it effective for concept-based search rather than just keyword matching.
+
+    Parameters
+    ----------
+    documents : Dict[str, str]
+        Dictionary mapping document IDs to their content
+    model_name : str, default='Alibaba-NLP/gte-base-en-v1.5'
+        Name or path of the Sentence Transformer model
+    pooling_strategy : {'mean', 'max', None}, default='mean'
+        Strategy for pooling sentence embeddings:
+        - 'mean': Average embeddings (better for context)
+        - 'max': Maximum values (better for key concepts)
+        - None: No pooling (for single-sentence documents)
+    device : str, optional
+        Device to run model on ('cpu', 'cuda', etc.)
+    cache_dir : str, optional
+        Directory to cache embeddings
+    cache_dir_suffix : str, optional
+        Suffix for cache directory name
+    batch_size : int, default=64
+        Batch size for computing embeddings
+
+    Notes
+    -----
+    - Provides semantic search capability
+    - Automatically handles sentence splitting and pooling
+    - Supports GPU acceleration
+    - Caches embeddings for better performance
+
+    Examples
+    --------
+    >>> docs = {
+    ...     "doc1": "Python is great for machine learning",
+    ...     "doc2": "Deep learning revolutionized AI"
+    ... }
+    >>> engine = SentenceTransformerSearchEngine(
+    ...     docs,
+    ...     model_name='all-MiniLM-L6-v2',
+    ...     pooling_strategy='mean'
+    ... )
+    >>> results = engine.search("AI and ML", top_k=1)
+    """
 
     def __init__(
         self,
@@ -273,7 +420,14 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         self._pooling_strategy = pooling_strategy
 
     def create_index(self) -> None:
-        """Create search index with optimized batch processing."""
+        """Create search index by computing embeddings for all documents.
+
+        This method:
+        1. Splits documents into sentences
+        2. Computes embeddings in batches
+        3. Applies pooling if specified
+        4. Caches results for future use
+        """
         self.embeddings = self.load_data()
         if self.embeddings is not None:
             return
