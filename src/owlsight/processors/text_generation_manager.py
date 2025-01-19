@@ -150,7 +150,9 @@ class TextGenerationManager:
                             "Using sentence transformer for semantic search. Creating embeddings for the library can take some time!"
                         )
                     tfidf_weight = 1 - sentence_transformer_weight
-                    logger.info(f"Using TFIDF weight: {tfidf_weight}, Sentence Transformer weight: {sentence_transformer_weight}")
+                    logger.info(
+                        f"Using weights for search: TFIDF weight = {tfidf_weight:.2f}, Sentence Transformer weight = {sentence_transformer_weight:.2f}."
+                    )
                     searcher = PythonLibSearcher()
                     context = searcher.search(
                         library,
