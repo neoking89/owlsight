@@ -85,10 +85,10 @@ class DocumentSearcher:
             The search query
         top_k : int, default 20
             Number of top results to return
-        tfidf_weight : Optional[float], default None
+        tfidf_weight : float, default 0.3
             Weight for the TFIDF search method.
-        sentence_transformer_weight : Optional[float], default None
-            Weight for the Sentence Transformer search method. If None, uses the weight from initialization
+        sentence_transformer_weight : float, default 0.7
+            Weight for the Sentence Transformer search method.
 
         Returns
         -------
