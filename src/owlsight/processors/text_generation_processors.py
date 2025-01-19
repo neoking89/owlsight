@@ -421,45 +421,58 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
 
 
 class TextGenerationProcessorOnnx(TextGenerationProcessor):
-    """Text generation processor using ONNX Runtime with HuggingFace Hub support."""
+    """Text generation processor using ONNX Runtime optimized models.
 
+    This processor enables text generation using ONNX-optimized models,
+    which can run on both CPU and GPU. Supports both local models and models from
+    Hugging Face Hub.
+
+    Parameters
+    ----------
+    model_id : str
+        Path to local ONNX model or Hugging Face model ID
+    onnx__verbose : bool, default=False
+        Enable verbose ONNX Runtime logging
+    onnx__n_cpu_threads : int, default=8
+        Number of CPU threads for computation
+    onnx__model_dir : str, optional
+        Specific model directory when multiple valid ones exist
+    token : str, optional
+        Hugging Face token for private models
+    apply_chat_history : bool, default=False
+        Whether to maintain conversation history
+    system_prompt : str, optional
+        System prompt prepended to all inputs
+
+    Notes
+    -----
+    - ONNX models typically offer better CPU performance than PyTorch
+    - Thread count affects CPU performance significantly
+    - Models must be ONNX-optimized versions of transformers models
+
+    Examples
+    --------
+    >>> # Load local ONNX model
+    >>> processor = TextGenerationProcessorOnnx("path/to/model")
+    >>> 
+    >>> # Load from Hugging Face
+    >>> processor = TextGenerationProcessorOnnx(
+    ...     "onnx-community/Llama-2-7B-Instruct-ONNX",
+    ...     onnx__n_cpu_threads=12
+    ... )
+    """
+    
     def __init__(
         self,
         model_id: str,
         onnx__verbose: bool = False,
-        onnx__n_cpu_threads: int = GGUF_Utils.get_optimal_n_threads(),
+        onnx__n_cpu_threads: int = 8,
         onnx__model_dir: Optional[str] = None,
         token: Optional[str] = None,
         apply_chat_history: bool = False,
-        system_prompt: str = None,
-        **kwargs,
-    ):
-        """
-        Initialize the ONNX text generation processor.
-
-        Parameters
-        ----------
-        model_id : str
-            The model ID to use for generation.
-            Can be either:
-            - A local path to an ONNX model directory
-            - A HuggingFace Hub model ID (e.g., 'onnx-community/Llama-3.2-3B-Instruct-ONNX')
-        onnx__model_dir : Optional[str]
-            The directory containing the ONNX model.
-            Apply this if there are multiple valid directories in the model repository.
-        onnx__verbose : bool
-            Whether to print verbose logs.
-        onnx__n_cpu_threads : int
-            Number of threads to use for generation.
-        apply_chat_history : bool
-            Whether to save conversation history.
-        system_prompt : str
-            System prompt to prepend to all inputs.
-        cache_dir : Optional[str]
-            Directory to store downloaded models.
-        token : Optional[str]
-            HuggingFace token for private models.
-        """
+        system_prompt: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
         if og is None:
             raise ImportError("ONNX Runtime is disabled. Install with: pip install owlsight[onnx]")
 
@@ -533,28 +546,35 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         buffer_wordsize: int = 10,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """
-        Generate text using the ONNX model.
+        """Generate text response for the given input.
 
         Parameters
         ----------
         input_data : str
-            Input text for generation
-        max_new_tokens : int
+            Input text to generate from
+        max_new_tokens : int, default=512
             Maximum number of tokens to generate
-        temperature : float
-            Generation temperature (0.0 = deterministic)
-        stopwords : Optional[List[str]]
-            List of words to stop generation at
-        buffer_wordsize : int
+        temperature : float, default=0.0
+            Sampling temperature (0.0 = deterministic, higher = more random)
+        stopwords : List[str], optional
+            Words that will stop generation when encountered
+        buffer_wordsize : int, default=10
             Size of word buffer for stopword checking
-        generation_kwargs : Optional[Dict[str, Any]]
-            Additional generation parameters
+        generation_kwargs : Dict[str, Any], optional
+            Additional generation parameters for ONNX Runtime
 
         Returns
         -------
         str
-            Generated text
+            Generated text response
+
+        Examples
+        --------
+        >>> response = processor.generate(
+        ...     "Explain quantum computing:",
+        ...     max_new_tokens=200,
+        ...     temperature=0.7
+        ... )
         """
         generator = self._prepare_generate(input_data, max_new_tokens, temperature, generation_kwargs)
 
@@ -600,24 +620,28 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         temperature: float = 0.0,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Stream generated text token by token.
+        """Stream generated text tokens one by one.
 
         Parameters
         ----------
         input_data : str
-            Input text for generation
-        max_new_tokens : int
+            Input text to generate from
+        max_new_tokens : int, default=512
             Maximum number of tokens to generate
-        temperature : float
-            Generation temperature (0.0 = deterministic)
-        generation_kwargs : Optional[Dict[str, Any]]
-            Additional generation parameters
+        temperature : float, default=0.0
+            Sampling temperature (0.0 = deterministic, higher = more random)
+        generation_kwargs : Dict[str, Any], optional
+            Additional generation parameters for ONNX Runtime
 
         Yields
         ------
         str
             Generated text tokens
+
+        Examples
+        --------
+        >>> for token in processor.generate_stream("Tell me a story"):
+        ...     print(token, end="", flush=True)
         """
         generator = self._prepare_generate(input_data, max_new_tokens, temperature, generation_kwargs)
         generated_text = ""
@@ -730,10 +754,54 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
 
 class TextGenerationProcessorGGUF(TextGenerationProcessor):
-    """
-    Text generation processor using GGUF models. Uses llama-cpp.Llama class under the hood.
-    """
+    """Text generation processor for GGUF models using llama-cpp.
 
+    This processor enables efficient text generation using GGUF-quantized models,
+    which are optimized for CPU and GPU inference. Supports both local models and
+    models from Hugging Face Hub.
+
+    Parameters
+    ----------
+    model_id : str
+        Path to local GGUF model or Hugging Face model ID
+    gguf__filename : str, optional
+        Specific GGUF file to load when using Hugging Face model ID
+    gguf__verbose : bool, default=False
+        Enable verbose logging from llama-cpp
+    gguf__n_ctx : int, optional
+        Context window size. Larger values allow longer conversations but use more memory
+    gguf__n_gpu_layers : int, default=0
+        Number of layers to offload to GPU. Set >0 for GPU acceleration
+    gguf__n_batch : int, optional
+        Batch size for generation. Increase for faster generation, at the cost of memory.
+    gguf__n_cpu_threads : int, optional
+        The number of CPU threads to use for generation. Increase for much faster generation if multiple cores are available.
+    apply_chat_history : bool, default=False
+        Whether to maintain conversation history
+    system_prompt : str, default=""
+        System prompt prepended to all inputs
+    model_kwargs : Dict[str, Any], optional
+        Additional arguments passed to llama-cpp.Llama
+
+    Notes
+    -----
+    - GPU acceleration requires llama-cpp-python build specifically with CUDA support
+    - Context size (n_ctx) affects memory usage significantly
+    - For optimal performance, adjust n_batch and n_cpu_threads based on hardware
+
+    Examples
+    --------
+    >>> # Load local GGUF model
+    >>> processor = TextGenerationProcessorGGUF("path/to/model.gguf", gguf__n_gpu_layers=20)
+    >>> 
+    >>> # Load from Hugging Face with GPU
+    >>> processor = TextGenerationProcessorGGUF(
+    ...     "TheBloke/Llama-2-7B-GGUF",
+    ...     gguf__filename="llama-2-7b.Q4_K_M.gguf",
+    ...     gguf__n_gpu_layers=32
+    ... )
+    """
+    
     def __init__(
         self,
         model_id: str,
@@ -835,6 +903,35 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         stopwords: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
+        """Generate text response for the given input.
+
+        Parameters
+        ----------
+        input_data : str
+            Input text to generate from
+        max_new_tokens : int, default=512
+            Maximum number of tokens to generate
+        temperature : float, default=0.1
+            Sampling temperature (0.0 = deterministic, higher = more random)
+        stopwords : List[str], optional
+            Words that will stop generation when encountered
+        generation_kwargs : Dict[str, Any], optional
+            Additional generation parameters passed to llama-cpp
+
+        Returns
+        -------
+        str
+            Generated text response
+
+        Examples
+        --------
+        >>> response = processor.generate(
+        ...     "What is Python?",
+        ...     max_new_tokens=100,
+        ...     temperature=0.7,
+        ...     stopwords=["END"]
+        ... )
+        """
         templated_text, _generation_kwargs = self._prepare_generate(
             input_data, max_new_tokens, temperature, stopwords, generation_kwargs
         )
@@ -864,7 +961,30 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         max_new_tokens: int = 512,
         temperature: float = 0.1,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Generator[str, None, None]:
+        """Stream generated text tokens one by one.
+
+        Parameters
+        ----------
+        input_data : str
+            Input text to generate from
+        max_new_tokens : int, default=512
+            Maximum number of tokens to generate
+        temperature : float, default=0.1
+            Sampling temperature (0.0 = deterministic, higher = more random)
+        generation_kwargs : Dict[str, Any], optional
+            Additional generation parameters passed to llama-cpp
+
+        Yields
+        ------
+        str
+            Generated text tokens
+
+        Examples
+        --------
+        >>> for token in processor.generate_stream("Tell me a story"):
+        ...     print(token, end="", flush=True)
+        """
         templated_text, _generation_kwargs = self._prepare_generate(
             input_data, max_new_tokens, temperature, None, generation_kwargs
         )
