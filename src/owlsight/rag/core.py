@@ -20,7 +20,7 @@ from owlsight.utils.logger import logger
 
 class DocumentSearcher:
     """
-    A class for searching documents using an ensemble of TFIDF and Sentence Transformer methods.
+    A generic class for searching documents using an ensemble of TFIDF and Sentence Transformer methods.
     """
 
     def __init__(
@@ -54,19 +54,19 @@ class DocumentSearcher:
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
         self.cache_dir = cache_dir
         self.cache_dir_suffix = cache_dir_suffix
-
-        # Initialize ensemble search engine
+        engine_init_arguments = {
+            SearchMethod.SENTENCE_TRANSFORMER: {
+                "pooling_strategy": "mean",
+                "model_name": self.sentence_transformer_model,
+                "batch_size": self.sentence_transformer_batch_size,
+            }
+        }
         self.engine = EnsembleSearchEngine(
             documents=self.documents,
+            search_methods=[SearchMethod.TFIDF, SearchMethod.SENTENCE_TRANSFORMER],
             cache_dir=self.cache_dir,
             cache_dir_suffix=self.cache_dir_suffix,
-            init_arguments={
-                SearchMethod.SENTENCE_TRANSFORMER: {
-                    "pooling_strategy": "mean",
-                    "model_name": self.sentence_transformer_model,
-                    "batch_size": self.sentence_transformer_batch_size,
-                }
-            },
+            init_arguments=engine_init_arguments,
         )
 
     def search(
@@ -98,7 +98,7 @@ class DocumentSearcher:
             - document: Documentation text
             - method: Search method used
             - score: Raw similarity score
-            - weighted_score: Score weighted by method
+            - weighted_score: Score weighted by method (TFIDF or Sentence Transformer)
             - aggregated_score: Combined score across methods
         """
         method_weights = {
@@ -236,7 +236,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         documents : Dict[str, str]
             Dictionary containing document names and content
         model_name : str
-            Sentence Transformer model name
+            Sentence Transformer model name. Can also be a path to a local model.
         pooling_strategy : Literal["mean", "max", None], default "mean"
             Pooling strategy to use for Sentence Transformer embeddings
             Use "mean" or "max" for mean or max pooling, respectively.
@@ -397,12 +397,9 @@ class EnsembleSearchEngine:
     def __init__(
         self,
         documents: Dict[str, str],
+        search_methods: List[SearchMethod],
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
-        search_methods: List[SearchMethod] = [
-            SearchMethod.TFIDF,
-            SearchMethod.SENTENCE_TRANSFORMER,
-        ],
         init_arguments: Optional[Dict[str, Dict]] = None,
     ):
         """
