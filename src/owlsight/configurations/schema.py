@@ -271,7 +271,10 @@ class Schema:
         Union[str, Dict[str, Dict[str, Any]]]
             Default values as a dictionary or json string if `as_json` is True.
         """
-        d = {section: {key: value.default for key, value in options.items()} for section, options in cls.CONFIG.items()}
+        d = {
+            section: {key: value.default for key, value in options.items() if value.type != OptionType.ACTION}
+            for section, options in cls.CONFIG.items()
+        }
         if as_json:
             return json.dumps(d, indent=4)
 
@@ -326,6 +329,8 @@ class Schema:
                     lines.append("    - back: Return to previous menu")
                     if section in cls.CONFIG:
                         for setting, details in cls.CONFIG[section].items():
+                            if details.type == OptionType.ACTION:
+                                continue
                             choices = details.choices
                             desc = details.description
                             choice_str = f"Options: {', '.join(str(c) for c in choices)}" if choices else ""

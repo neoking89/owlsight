@@ -273,10 +273,10 @@ Main Menu:
     - search: RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True, Type: OptionType.EDITABLE
   - huggingface settings:
     - back: Return to previous menu
-    - search: Search for a model on the Huggingface Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', Type: OptionType.EDITABLE
-    - top_k: Top number of huggingface results to return. The results will be sorted by highest score first, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, Type: OptionType.TOGGLE
-    - select_model: Select and load a model from the HuggingFace Hub by toggling through the options found by `search`, Type: OptionType.TOGGLE
-    - task: Task for huggingface. When using `search`, the results will be filtered directly by chosen task, Options: None, text-generation, text2text-generation, translation, summarization, image-to-text, automatic-speech-recognition, visual-question-answering, document-question-answering, Type: OptionType.TOGGLE
+    - search: Search for a model on the Hugging Face Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', Type: OptionType.EDITABLE
+    - top_k: Top number of Hugging Face results to return. The results will be sorted by highest score first, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, Type: OptionType.TOGGLE
+    - select_model: Select and load a model from the Hugging Face Hub by toggling through the options found by `search`, Type: OptionType.TOGGLE
+    - task: Filter Hugging Face models by task. When using `search`, the results will be filtered directly by chosen task, Options: None, text-generation, text2text-generation, translation, summarization, image-to-text, automatic-speech-recognition, visual-question-answering, document-question-answering, Type: OptionType.TOGGLE
 - save: Save current configuration as JSON-file
 - load: Load a configuration from a JSON-file
 - clear history: Clear cache and chat history
