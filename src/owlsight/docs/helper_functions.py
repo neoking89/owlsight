@@ -108,39 +108,61 @@ def format_docstrings(docstrings: Dict[str, Dict[str, str]]) -> str:
     """Format docstrings into a readable string with proper indentation."""
     output = []
     
+    # Group by type
+    classes = {}
+    functions = {}
     for obj_name, docs in docstrings.items():
-        # Get object type
         if 'methods' in docs:
-            obj_type = "Class"
+            classes[obj_name] = docs
         else:
-            obj_type = "Function"
+            functions[obj_name] = docs
+    
+    # Format classes
+    if classes:
+        output.append("\n### Classes\n")
+        for class_name, docs in classes.items():
+            # Class header with signature
+            sig = docs.get('signature', '')
+            output.append(f"#### {class_name}\n")
+            if sig:
+                output.append("```python")
+                output.append(f"class {class_name}{sig}")
+                output.append("```\n")
             
-        # Object header
-        output.append(f"\n{'='*50}")
-        if docs.get('signature'):
-            output.append(f"{obj_type}: {obj_name}{docs['signature']}")
-        else:
-            output.append(f"{obj_type}: {obj_name}")
-        output.append('='*50)
-        
-        # Main docstring
-        if 'docstring' in docs:
-            output.append("\nDescription:")
-            output.append('-'*11)
-            output.append(docs['docstring'])
-        
-        # Methods
-        if 'methods' in docs and docs['methods']:
-            output.append("\nMethods:")
-            output.append('-'*8)
-            for method_name, method_info in docs['methods'].items():
-                if method_info.get('signature'):
-                    output.append(f"\n  Method: {method_name}{method_info['signature']}")
-                else:
-                    output.append(f"\n  Method: {method_name}")
-                # Indent method docstring
-                if method_info.get('docstring'):
-                    indented_doc = '\n'.join(f"    {line}" for line in method_info['docstring'].split('\n'))
-                    output.append(indented_doc)
+            # Class description
+            if 'docstring' in docs and docs['docstring'].strip():
+                output.append(docs['docstring'].strip() + "\n")
+            
+            # Methods
+            if 'methods' in docs and docs['methods']:
+                output.append("**Methods:**\n")
+                for method_name, method_info in docs['methods'].items():
+                    sig = method_info.get('signature', '')
+                    doc = method_info.get('docstring', '').strip()
+                    
+                    # Only show public methods
+                    if not method_name.startswith('_'):
+                        output.append(f"- `{method_name}{sig}`")
+                        if doc:
+                            # Add first line of docstring only
+                            doc_first_line = doc.split('\n')[0]
+                            output.append(f"  - {doc_first_line}")
+                output.append("")  # Add spacing between classes
+    
+    # Format functions
+    if functions:
+        output.append("\n### Functions\n")
+        for func_name, docs in functions.items():
+            # Function header with signature
+            sig = docs.get('signature', '')
+            output.append(f"#### {func_name}\n")
+            if sig:
+                output.append("```python")
+                output.append(f"def {func_name}{sig}")
+                output.append("```\n")
+            
+            # Function description
+            if 'docstring' in docs and docs['docstring'].strip():
+                output.append(docs['docstring'].strip() + "\n")
     
     return '\n'.join(output)
