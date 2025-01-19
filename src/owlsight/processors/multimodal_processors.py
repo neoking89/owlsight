@@ -19,6 +19,7 @@ try:
 except ImportError:
     logger.warning("Pillow is not installed. Please install it using 'pip install pillow'.")
 
+
 class MediaPreprocessor:
     """
     Handles preprocessing for different media types and integrates with text generation.
@@ -101,6 +102,11 @@ class MediaPreprocessor:
 
 
 class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
+    """
+    MultiModalProcessorTransformers class for multimodal text generation with Hugging Face models.
+    Supports image, audio inputs.
+    """
+
     def __init__(self, model_id: str, task: str, apply_chat_history: bool = False, system_prompt: str = "", **kwargs):
         if task not in HUGGINGFACE_MEDIA_TASKS:
             raise ValueError(

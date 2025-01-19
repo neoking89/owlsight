@@ -50,6 +50,7 @@ except ImportError:
 
 
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
+    """Text generation processor using transformers library."""	
     def __init__(
         self,
         model_id: str,
@@ -65,7 +66,7 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         **kwargs,
     ):
         """
-        Text generation processor using transformers library.
+        Initialize the transformers text generation processor.
 
         Parameters
         ----------
@@ -729,6 +730,10 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
 
 class TextGenerationProcessorGGUF(TextGenerationProcessor):
+    """
+    Text generation processor using GGUF models. Uses llama-cpp.Llama class under the hood.
+    """
+
     def __init__(
         self,
         model_id: str,
@@ -744,8 +749,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         **kwargs,
     ):
         """
-        Text generation processor using GGUF models. Uses llama-cpp.Llama class under the hood.
-
+        Initialize the GGUF text generation processor.
         Parameters
         ----------
         model_id : str
