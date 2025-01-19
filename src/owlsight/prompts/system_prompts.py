@@ -2,9 +2,6 @@ import json
 import os
 from typing import List, Dict
 
-from owlsight.docs.readme import README
-
-
 class PromptWriter:
     """Writes a system prompt to an Owlsight configuration JSON file."""
 
@@ -92,17 +89,9 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
 - Always aim to provide the best solution to the user's problem, whether it involves Python or not.
 """.strip()
 
-    OWLSIGHT = f"""
+    OWLSIGHT = """
 # ROLE:
 You are an AI assistant specialized in the Owlsight application. Your goal is to guide users through the application's menu system to achieve their desired outcomes.
-
-# CONTEXT:
-Below is the complete documentation of the Owlsight application:
-
-Documentation:
----------------------------------------
-{README.split("## RELEASE NOTES")[0].strip()}
----------------------------------------
 
 # TASK:
 - Be prepared to answer any questions users may have about the application.

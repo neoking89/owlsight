@@ -1,7 +1,17 @@
 import sys
+from pathlib import Path
 
 sys.path.append("src")
 from owlsight.configurations.schema import Schema
+import owlsight
+from owlsight.docs.helper_functions import get_init_docstrings, format_docstrings
+
+# Get the path to the owlsight __init__.py file
+init_path = Path(__file__).parent.parent / "__init__.py"
+
+# Get API documentation
+api_docs = get_init_docstrings(str(init_path))
+formatted_api_docs = format_docstrings(api_docs)
 
 README = f"""
 # Owlsight
@@ -228,6 +238,12 @@ These are:
   - *file_path*: The path to the file to save the namespace to.
 * **owl_load_namespace(file_path: str)**
   Load all variables from a file into the current namespace, using the "dill" library.
+
+## API Documentation
+
+The following section details all the objects and functions available in the Owlsight API:
+
+{formatted_api_docs}
 
 ## Configurations
 

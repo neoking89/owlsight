@@ -223,6 +223,742 @@ These are:
 * **owl_load_namespace(file_path: str)**
   Load all variables from a file into the current namespace, using the "dill" library.
 
+## API Documentation
+
+The following section details all the objects and functions available in the Owlsight API:
+
+
+==================================================
+Function: setup_tesseract() -> str
+==================================================
+
+Description:
+-----------
+Initialize Tesseract. Return the path to the Tesseract executable.
+
+==================================================
+Function: get_best_device() -> str
+==================================================
+
+Description:
+-----------
+Check for best device and return the device name.
+
+==================================================
+Function: check_onnx_device(current_device: str = 'cuda') -> str
+==================================================
+
+Description:
+-----------
+Check the current device being used for ONNXRuntime.
+
+Parameters:
+current_device (str): The current device to use. Default is 'cuda'.
+
+==================================================
+Function: check_gpu_and_cuda()
+==================================================
+
+Description:
+-----------
+Checks if a CUDA-capable GPU is available and if CUDA is installed.
+
+==================================================
+Function: calculate_max_parameters_per_dtype()
+==================================================
+
+Description:
+-----------
+Calculate the maximum number of parameters that can be run on the GPU
+for different data types (32-bit, 16-bit, 8-bit, 4-bit).
+
+==================================================
+Function: calculate_memory_for_model(n_bilion_parameters: int, n_bit: int = 32) -> float
+==================================================
+
+Description:
+-----------
+Calculate the memory required for a model in GB.
+
+Parameters:
+n_bilion_parameters (int): The number of parameters in the model in billions.
+n_bit (int): The number of bits used to represent the model parameters. Default is 32. Quantized models use 16/8/4 bits.
+
+==================================================
+Function: calculate_available_vram() -> float
+==================================================
+
+Description:
+-----------
+Calculate the available VRAM on the GPU in GB.
+
+==================================================
+Function: select_processor_type(model_id: str, task: Optional[str] = None) -> Type[ForwardRef('TextGenerationProcessor')]
+==================================================
+
+Description:
+-----------
+Utilityfunction which selects the appropriate TextGenerationProcessor class based on the model ID or directory.
+
+If the model_id is a directory, the function will inspect the contents of the directory
+to decide the processor type. Otherwise, it will use the model_id string to make the decision.
+
+==================================================
+Class: TextGenerationProcessorOnnx(model_id: str, onnx__verbose: bool = False, onnx__n_cpu_threads: int = 8, onnx__model_dir: Optional[str] = None, token: Optional[str] = None, apply_chat_history: bool = False, system_prompt: str = None, **kwargs)
+==================================================
+
+Description:
+-----------
+Text generation processor using ONNX Runtime with HuggingFace Hub support.
+
+Methods:
+--------
+
+  Method: apply_chat_template(self, input_data: str, tokenizer: transformers.tokenization_utils.PreTrainedTokenizer) -> str
+    Apply chat template to the input text.
+    This is used to format the input text before generating a response and should be universal across all models.
+    
+    Parameters
+    ----------
+    input_data : str
+        The input text to apply the template to.
+    tokenizer : PreTrainedTokenizer
+        The tokenizer to use for applying the template.
+    
+    Returns
+    -------
+    str
+        The formatted text with the chat template applied.
+
+  Method: generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, buffer_wordsize: int = 10, generation_kwargs: Optional[Dict[str, Any]] = None) -> str
+    Generate text using the ONNX model.
+    
+    Parameters
+    ----------
+    input_data : str
+        Input text for generation
+    max_new_tokens : int
+        Maximum number of tokens to generate
+    temperature : float
+        Generation temperature (0.0 = deterministic)
+    stopwords : Optional[List[str]]
+        List of words to stop generation at
+    buffer_wordsize : int
+        Size of word buffer for stopword checking
+    generation_kwargs : Optional[Dict[str, Any]]
+        Additional generation parameters
+    
+    Returns
+    -------
+    str
+        Generated text
+
+  Method: generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None)
+    Stream generated text token by token.
+    
+    Parameters
+    ----------
+    input_data : str
+        Input text for generation
+    max_new_tokens : int
+        Maximum number of tokens to generate
+    temperature : float
+        Generation temperature (0.0 = deterministic)
+    generation_kwargs : Optional[Dict[str, Any]]
+        Additional generation parameters
+    
+    Yields
+    ------
+    str
+        Generated text tokens
+
+  Method: get_history(self) -> List[Dict[str, str]]
+    Get complete chat history of inputs and outputs and system prompt.
+    
+    Returns
+    -------
+    List[Dict[str, str]]
+        The chat history including system prompt if present.
+
+  Method: get_max_context_length(self) -> Optional[int]
+    Get maximum context length for the model.
+
+  Method: list_valid_repo_files(repo_id: str) -> List[str]
+
+  Method: pre_validate_model_id(model_id: str, onnx__model_dir: str)
+    Validate the model_id and model_directory before using `snapshot_download`.
+
+  Method: update_history(self, input_data: str, generated_text: str) -> None
+    Update the history with the input and generated text.
+    
+    Parameters
+    ----------
+    input_data : str
+        The input text that was provided.
+    generated_text : str
+        The text that was generated in response.
+
+==================================================
+Class: TextGenerationProcessorTransformers(model_id: str, transformers__device: Optional[str] = None, transformers__quantization_bits: Optional[int] = None, transformers__stream: bool = True, transformers__model_kwargs: Optional[dict] = None, bnb_kwargs: Optional[dict] = None, tokenizer_kwargs: Optional[dict] = None, task: Optional[str] = None, apply_chat_history: bool = False, system_prompt: str = '', **kwargs)
+==================================================
+
+Description:
+-----------
+Text generation processor using transformers library.
+
+Methods:
+--------
+
+  Method: apply_chat_template(self, input_data: str, tokenizer: transformers.tokenization_utils.PreTrainedTokenizer) -> str
+    Apply chat template to the input text.
+    This is used to format the input text before generating a response and should be universal across all models.
+    
+    Parameters
+    ----------
+    input_data : str
+        The input text to apply the template to.
+    tokenizer : PreTrainedTokenizer
+        The tokenizer to use for applying the template.
+    
+    Returns
+    -------
+    str
+        The formatted text with the chat template applied.
+
+  Method: generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str
+    Generate text response.
+
+  Method: generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> Generator[str, NoneType, NoneType]
+    Generate streaming text response.
+
+  Method: get_history(self) -> List[Dict[str, str]]
+    Get complete chat history of inputs and outputs and system prompt.
+    
+    Returns
+    -------
+    List[Dict[str, str]]
+        The chat history including system prompt if present.
+
+  Method: get_max_context_length(self) -> Optional[int]
+    Retrieve the maximum context length of the model.
+    
+    Returns
+    -------
+    int
+        The maximum number of tokens the model can process in a single input.
+
+  Method: pipe_call(self, input_data: Union[str, List[str]], **gen_kwargs) -> Any
+    Call the pipeline with input data and kwargs, supporting batch processing.
+    
+    Parameters:
+    -----------
+        input_data (Union[str, List[str]]): Input text or a list of texts to process.
+        batch_size (Optional[int]): The size of the batches for pipeline processing.
+        **gen_kwargs: Additional keyword arguments passed to the pipeline.
+    
+    Returns:
+        Any: Processed output from the pipeline.
+
+  Method: prepare_generation(self, input_data: str, max_new_tokens: int, temperature: float, stopwords: Optional[List[str]], generation_kwargs: Optional[Dict[str, Any]], streaming: bool = False, apply_chat_template: bool = True) -> Tuple[str, Dict[str, Any]]
+    Prepare generation parameters.
+    
+    Returns:
+    --------
+    Tuple[str, Dict[str, Any]]
+        The input text and generation_kwargs.
+
+  Method: update_history(self, input_data: str, generated_text: str) -> None
+    Update the history with the input and generated text.
+    
+    Parameters
+    ----------
+    input_data : str
+        The input text that was provided.
+    generated_text : str
+        The text that was generated in response.
+
+==================================================
+Class: TextGenerationProcessorGGUF(model_id: str, gguf__filename: str = '', gguf__verbose: bool = False, gguf__n_ctx: Optional[int] = None, gguf__n_gpu_layers: int = 0, gguf__n_batch: Optional[int] = None, gguf__n_cpu_threads: Optional[int] = None, apply_chat_history: bool = False, system_prompt: str = '', model_kwargs: Dict[str, Any] = None, **kwargs)
+==================================================
+
+Description:
+-----------
+Text generation processor using GGUF models. Uses llama-cpp.Llama class under the hood.
+
+Methods:
+--------
+
+  Method: apply_chat_template(self, input_data: str) -> List[Dict[str, str]]
+    Apply chat template to the input text.
+    This is used to format the input text before generating a response and should be universal across all models.
+    
+    Parameters
+    ----------
+    input_data : str
+        The input text to apply the template to.
+    tokenizer : PreTrainedTokenizer
+        The tokenizer to use for applying the template.
+    
+    Returns
+    -------
+    str
+        The formatted text with the chat template applied.
+
+  Method: generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str
+    Generate text based on input data.
+
+  Method: generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, generation_kwargs: Optional[Dict[str, Any]] = None)
+
+  Method: get_history(self) -> List[Dict[str, str]]
+    Get complete chat history of inputs and outputs and system prompt.
+    
+    Returns
+    -------
+    List[Dict[str, str]]
+        The chat history including system prompt if present.
+
+  Method: get_max_context_length(self) -> Optional[int]
+    Retrieve the maximum context length of the model.
+    
+    Returns
+    -------
+    int
+        The maximum number of tokens the model can process in a single input.
+
+  Method: update_history(self, input_data: str, generated_text: str) -> None
+    Update the history with the input and generated text.
+    
+    Parameters
+    ----------
+    input_data : str
+        The input text that was provided.
+    generated_text : str
+        The text that was generated in response.
+
+==================================================
+Class: MultiModalProcessorTransformers(model_id: str, task: str, apply_chat_history: bool = False, system_prompt: str = '', **kwargs)
+==================================================
+
+Description:
+-----------
+MultiModalProcessorTransformers class for multimodal text generation with Hugging Face models.
+Supports image, audio inputs.
+
+Methods:
+--------
+
+  Method: apply_chat_template(self, input_data: str, tokenizer: transformers.tokenization_utils.PreTrainedTokenizer) -> str
+    Apply chat template to the input text.
+    This is used to format the input text before generating a response and should be universal across all models.
+    
+    Parameters
+    ----------
+    input_data : str
+        The input text to apply the template to.
+    tokenizer : PreTrainedTokenizer
+        The tokenizer to use for applying the template.
+    
+    Returns
+    -------
+    str
+        The formatted text with the chat template applied.
+
+  Method: generate(self, input_data: str, media_objects: Dict[str, owlsight.utils.custom_classes.MediaObject], stopwords: Optional[List[str]] = None, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None) -> str
+    Generate text based on input data.
+
+  Method: get_history(self) -> List[Dict[str, str]]
+    Get complete chat history of inputs and outputs and system prompt.
+    
+    Returns
+    -------
+    List[Dict[str, str]]
+        The chat history including system prompt if present.
+
+  Method: get_max_context_length(self)
+    Retrieve the maximum context length of the model.
+    
+    Returns
+    -------
+    int
+        The maximum number of tokens the model can process in a single input.
+
+  Method: preprocess_input(self, input_data: Union[str, bytes, pathlib.Path], question: Optional[str] = None) -> Any
+
+  Method: update_history(self, input_data: str, generated_text: str) -> None
+    Update the history with the input and generated text.
+    
+    Parameters
+    ----------
+    input_data : str
+        The input text that was provided.
+    generated_text : str
+        The text that was generated in response.
+
+==================================================
+Class: PythonLibSearcher(*args, **kwargs)
+==================================================
+
+Description:
+-----------
+A singleton class for searching Python library documentation with caching capabilities.
+Maintains document and engine caches throughout the owlsight session.
+
+Methods:
+--------
+
+  Method: clear_cache(self, library: Optional[str] = None)
+    Clear the document and engine caches.
+    
+    Parameters:
+    -----------
+    library : Optional[str]
+        If provided, only clear caches for the specified library.
+        If None, clear all caches.
+
+  Method: search(self, library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, return_context: bool = True, tfidf_weight: float = 1.0, sentence_transformer_weight: float = 0.0, sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64) -> Union[pandas.core.frame.DataFrame, str]
+    Search Python library documentation with caching for documents and search engines.
+    
+    Parameters:
+    -----------
+    library : str
+        Name of the Python library to search
+    query : str
+        Search query string
+    top_k : int, default 5
+        Number of top results to return
+    cache_dir : Optional[str], default None
+        Directory for caching search results
+    return_context : bool, default True
+        If True, returns formatted context string instead of DataFrame
+    tfidf_weight : float, default 1.0
+        Weight for the TFIDF search method
+    sentence_transformer_weight : float, default 0.0
+        Weight for the Sentence Transformer search method
+    sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
+        Sentence Transformer model to use
+    sentence_transformer_batch_size : int, default 64
+        Batch size to use for Sentence Transformer embeddings
+    
+    Returns:
+    --------
+    Union[pd.DataFrame, str]
+        If return_context is True, returns formatted context string
+        Otherwise returns DataFrame with search results
+
+==================================================
+Class: DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None)
+==================================================
+
+Description:
+-----------
+A generic class for searching documents using an ensemble of TFIDF and Sentence Transformer methods.
+
+Methods:
+--------
+
+  Method: search(self, query: str, top_k: int = 20, sentence_transformer_weight: float = 0.7, tfidf_weight: float = 0.3) -> pandas.core.frame.DataFrame
+    Search documents using the configured ensemble methods.
+    
+    Parameters
+    ----------
+    query : str
+        The search query
+    top_k : int, default 20
+        Number of top results to return
+    tfidf_weight : float, default 0.3
+        Weight for the TFIDF search method.
+    sentence_transformer_weight : float, default 0.7
+        Weight for the Sentence Transformer search method.
+    
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the search results with columns:
+        - document info: Information about a given document, like title, name, etc.
+        - document: Documentation text
+        - method: Search method used
+        - score: Raw similarity score
+        - weighted_score: Score weighted by method (TFIDF or Sentence Transformer)
+        - aggregated_score: Combined score across methods
+
+==================================================
+Class: HashingVectorizerSearchEngine(documents: Dict[str, str], cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, **hashing_kwargs)
+==================================================
+
+Description:
+-----------
+Hashing Vectorizer based search implementation.
+
+Methods:
+--------
+
+  Method: create_index(self) -> None
+    Create search index.
+
+  Method: get_full_cache_path(self) -> pathlib.Path
+    Get full cache path.
+
+  Method: get_suffix_filename(self) -> str
+    Get the suffix filename.
+
+  Method: load_data(self) -> Optional[Any]
+    Load data from cache.
+
+  Method: save_data(self, data: Any)
+    Save data to cache.
+
+  Method: search(self, query: str, top_k: int = 3) -> List[owlsight.rag.custom_classes.SearchResult]
+    Perform search operation.
+
+==================================================
+Class: TFIDFSearchEngine(documents: Dict[str, str], cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, **tfidf_kwargs)
+==================================================
+
+Description:
+-----------
+TF-IDF based search implementation.
+
+Methods:
+--------
+
+  Method: create_index(self) -> None
+    Create search index.
+
+  Method: get_full_cache_path(self) -> pathlib.Path
+    Get full cache path.
+
+  Method: get_suffix_filename(self) -> str
+    Get the suffix filename.
+
+  Method: load_data(self) -> Optional[Any]
+    Load data from cache.
+
+  Method: save_data(self, data: Any)
+    Save data to cache.
+
+  Method: search(self, query: str, top_k: int = 3) -> List[owlsight.rag.custom_classes.SearchResult]
+    Perform search operation.
+
+==================================================
+Class: SentenceTransformerSearchEngine(documents: Dict[str, str], model_name: str = 'Alibaba-NLP/gte-base-en-v1.5', pooling_strategy: Literal['mean', 'max', None] = 'mean', device: Optional[str] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, batch_size: int = 64)
+==================================================
+
+Description:
+-----------
+Sentence Transformer based search implementation.
+
+Methods:
+--------
+
+  Method: create_index(self) -> None
+    Create search index with optimized batch processing.
+
+  Method: get_full_cache_path(self) -> pathlib.Path
+    Get full cache path.
+
+  Method: get_suffix_filename(self) -> str
+    Get the suffix filename.
+
+  Method: load_data(self) -> Optional[Any]
+    Load data from cache.
+
+  Method: save_data(self, data: Any)
+    Save data to cache.
+
+  Method: search(self, query: str, top_k: int = 3) -> List[owlsight.rag.custom_classes.SearchResult]
+    Perform search operation.
+
+  Method: split_and_clean_text(text: str) -> List[str]
+    Split a longer text into sentences and clean them.
+
+==================================================
+Class: OwlDefaultFunctions(globals_dict: owlsight.utils.custom_classes.SingletonDict)
+==================================================
+
+Description:
+-----------
+Define default functions that can be used in the Python interpreter.
+This provides the user with some utility functions to interact with the interpreter.
+Convention is that the functions start with 'owl_' to avoid conflicts with built-in functions.
+
+This class is open for extension, as possibly more useful functions can be added in the future.
+
+Methods:
+--------
+
+  Method: owl_import(self, file_path: str)
+    Import a Python file and load its contents into the current namespace.
+    
+    Parameters
+    ----------
+    file_path : str
+        The path to the Python file to import.
+
+  Method: owl_load_namespace(self, file_path: str)
+    Load namespace using dill.
+    
+    Parameters
+    ----------
+    file_path : str
+        The path to the file to load the namespace from.
+
+  Method: owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> str
+    Returns a string with information about all Hugging Face models currently loaded in the cache directory.
+    Print the output from this function to the console to get a nice overview.
+    
+    Parameters:
+    -----------
+    cache_dir (str, optional):
+        The directory path to scan for models. If None, the default cache directory is used.
+    show_task (bool, optional):
+        If True, also display the tasks associated with each model.
+        If used, showing models will take a while longer.
+    
+    Returns:
+    --------
+    str:
+        A string containing information about all cached models
+
+  Method: owl_press(self, sequence: List[str], exit_python_from_interpreter: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12) -> bool
+    Simulate typing a sequence of keys and automaticly control the menu inside the Owlsight application.
+    
+    The parameters passed to this function, are passed to another Python process that simulates the keystrokes.
+    This is done to avoid blocking the interpreter while the sequence is being typed.
+    
+    Parameters
+    ----------
+    sequence : List[str]
+        The sequence of keys to type. Case-sensitive when typing available keys.
+        Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds).
+        Any other character will be typed as is.
+    exit_python_from_interpreter : bool, optional
+        If True, type 'exit()' and press ENTER before typing the sequence, default is True.
+        Assuming owl_press is called from the interpreter, this will return to the mainmenu before typing the sequence.
+    time_before_sequence : float, optional
+        The time to wait before executing the keysequence, default is 0.5 seconds.
+    time_between_keys : float, optional
+        The time to wait between typing each key, default is 0.12 seconds.
+    
+    Returns
+    -------
+    bool
+        True if the subprocess was started successfully, False otherwise.
+
+  Method: owl_read(self, file_path: str) -> str
+    Read the content of a text file.
+
+  Method: owl_save_namespace(self, file_path: str)
+    Save the current python namespace using dill.
+    NOTE: This will only save the variables that do not start with '_' or 'owl_'.
+    Also, some complex objects (like from external libraries) may not be serializable.
+    
+    Parameters
+    ----------
+    file_path : str
+        The path to the file to save the namespace to.
+        the .dill extension will be automaticly added if not present.
+
+  Method: owl_scrape(self, url_or_terms: str, trim_newlines: Optional[int] = 2, filter_by: Optional[Dict[str, str]] = None, **request_kwargs) -> str
+    Scrape the text content of a webpage and return specific content based on the filter.
+    
+    Parameters
+    ----------
+    url_or_terms : str
+        The URL of the webpage to scrape OR the search term to search Bing for.
+    trim_newlines : int, optional
+        The maximum number of consecutive newlines to allow in the output, default is 2.
+    filter_by : dict, optional
+        Dictionary specifying HTML tag and/or attributes to filter specific content.
+        For example: {'tag': 'div', 'class': 'content'}
+    **request_kwargs
+        Additional keyword arguments to pass to the requests.get function.
+    
+    Returns
+    -------
+    str
+        The filtered text content of the webpage.
+
+  Method: owl_show(self, docs: bool = True)
+    Show all currently active imported objects in the namespace except builtins.
+    
+    Parameters:
+    -----------
+    docs (bool): If True, also display the docstring of each object.
+
+  Method: owl_write(self, file_path: str, content: str)
+    Write content to a text file.
+
+==================================================
+Function: search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> list
+==================================================
+
+==================================================
+Function: is_url(url: str) -> bool
+==================================================
+
+Description:
+-----------
+Check if a string is a valid URL.
+
+Parameters
+----------
+url : str
+    The string to check.
+
+Returns
+-------
+bool
+    True if the string is a valid URL, False otherwise.
+
+==================================================
+Function: get_model_data(model_search: str, top_n_models: int = 10, **kwargs) -> Dict[str, Dict[str, str]]
+==================================================
+
+Description:
+-----------
+Get and display the model data from the HuggingFace Hub in a visually appealing format.
+
+Parameters:
+    model_search: Search term for filtering models
+    top_n_models: Number of top models to display
+    **kwargs: Additional keyword arguments to pass to get_model_list. E.g., task, framework, etc.
+    See `HfApi().list_models()` from `huggingface_hub` package for more details.
+
+Returns:
+    Dictionary containing model information
+
+==================================================
+Class: SystemPrompts()
+==================================================
+
+Description:
+-----------
+System prompts for different expert roles
+
+Methods:
+--------
+
+  Method: as_dict(self) -> Dict[str, str]
+
+==================================================
+Class: PromptWriter(prompt: str)
+==================================================
+
+Description:
+-----------
+Writes a system prompt to an Owlsight configuration JSON file.
+
+Methods:
+--------
+
+  Method: to(self, target_json: str) -> None
+    Updates the 'system_prompt' field under the 'model' key in the given Owlsight configuration JSON file.
+    
+    Parameters:
+    ------------
+    target_json : str
+        The path to the JSON file to be updated.
+
 ## Configurations
 
 Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into five main sections: `main`, `model`,  `generate`, `rag` and `huggingface`. Here's an overview of the application architecture:
