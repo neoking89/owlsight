@@ -233,19 +233,57 @@ The following section details all the objects and functions available in the Owl
 #### TextGenerationProcessorOnnx
 
 ```python
-class TextGenerationProcessorOnnx(model_id: str, onnx__verbose: bool = False, onnx__n_cpu_threads: int = 8, onnx__model_dir: Optional[str] = None, token: Optional[str] = None, apply_chat_history: bool = False, system_prompt: str = None, **kwargs)
+class TextGenerationProcessorOnnx(model_id: str, onnx__verbose: bool = False, onnx__n_cpu_threads: int = 8, onnx__model_dir: Optional[str] = None, token: Optional[str] = None, apply_chat_history: bool = False, system_prompt: Optional[str] = None, **kwargs: Any) -> None
 ```
 
-Text generation processor using ONNX Runtime with HuggingFace Hub support.
+Text generation processor using ONNX Runtime optimized models.
+
+This processor enables text generation using ONNX-optimized models,
+which can run on both CPU and GPU. Supports both local models and models from
+Hugging Face Hub.
+
+Parameters
+----------
+model_id : str
+    Path to local ONNX model or Hugging Face model ID
+onnx__verbose : bool, default=False
+    Enable verbose ONNX Runtime logging
+onnx__n_cpu_threads : int, default=8
+    Number of CPU threads for computation
+onnx__model_dir : str, optional
+    Specific model directory when multiple valid ones exist
+token : str, optional
+    Hugging Face token for private models
+apply_chat_history : bool, default=False
+    Whether to maintain conversation history
+system_prompt : str, optional
+    System prompt prepended to all inputs
+
+Notes
+-----
+- ONNX models typically offer better CPU performance than PyTorch
+- Thread count affects CPU performance significantly
+- Models must be ONNX-optimized versions of transformers models
+
+Examples
+--------
+>>> # Load local ONNX model
+>>> processor = TextGenerationProcessorOnnx("path/to/model")
+>>> 
+>>> # Load from Hugging Face
+>>> processor = TextGenerationProcessorOnnx(
+...     "onnx-community/Llama-2-7B-Instruct-ONNX",
+...     onnx__n_cpu_threads=12
+... )
 
 **Methods:**
 
 - `apply_chat_template(self, input_data: str, tokenizer: transformers.tokenization_utils.PreTrainedTokenizer) -> str`
   - Apply chat template to the input text.
 - `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, buffer_wordsize: int = 10, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
-  - Generate text using the ONNX model.
+  - Generate text response for the given input.
 - `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None)`
-  - Stream generated text token by token.
+  - Stream generated text tokens one by one.
 - `get_history(self) -> List[Dict[str, str]]`
   - Get complete chat history of inputs and outputs and system prompt.
 - `get_max_context_length(self) -> Optional[int]`
@@ -289,15 +327,61 @@ Text generation processor using transformers library.
 class TextGenerationProcessorGGUF(model_id: str, gguf__filename: str = '', gguf__verbose: bool = False, gguf__n_ctx: Optional[int] = None, gguf__n_gpu_layers: int = 0, gguf__n_batch: Optional[int] = None, gguf__n_cpu_threads: Optional[int] = None, apply_chat_history: bool = False, system_prompt: str = '', model_kwargs: Dict[str, Any] = None, **kwargs)
 ```
 
-Text generation processor using GGUF models. Uses llama-cpp.Llama class under the hood.
+Text generation processor for GGUF models using llama-cpp.
+
+This processor enables efficient text generation using GGUF-quantized models,
+which are optimized for CPU and GPU inference. Supports both local models and
+models from Hugging Face Hub.
+
+Parameters
+----------
+model_id : str
+    Path to local GGUF model or Hugging Face model ID
+gguf__filename : str, optional
+    Specific GGUF file to load when using Hugging Face model ID
+gguf__verbose : bool, default=False
+    Enable verbose logging from llama-cpp
+gguf__n_ctx : int, optional
+    Context window size. Larger values allow longer conversations but use more memory
+gguf__n_gpu_layers : int, default=0
+    Number of layers to offload to GPU. Set >0 for GPU acceleration
+gguf__n_batch : int, optional
+    Batch size for generation. Increase for faster generation, at the cost of memory.
+gguf__n_cpu_threads : int, optional
+    The number of CPU threads to use for generation. Increase for much faster generation if multiple cores are available.
+apply_chat_history : bool, default=False
+    Whether to maintain conversation history
+system_prompt : str, default=""
+    System prompt prepended to all inputs
+model_kwargs : Dict[str, Any], optional
+    Additional arguments passed to llama-cpp.Llama
+
+Notes
+-----
+- GPU acceleration requires llama-cpp-python build specifically with CUDA support
+- Context size (n_ctx) affects memory usage significantly
+- For optimal performance, adjust n_batch and n_cpu_threads based on hardware
+
+Examples
+--------
+>>> # Load local GGUF model
+>>> processor = TextGenerationProcessorGGUF("path/to/model.gguf", gguf__n_gpu_layers=20)
+>>> 
+>>> # Load from Hugging Face with GPU
+>>> processor = TextGenerationProcessorGGUF(
+...     "TheBloke/Llama-2-7B-GGUF",
+...     gguf__filename="llama-2-7b.Q4_K_M.gguf",
+...     gguf__n_gpu_layers=32
+... )
 
 **Methods:**
 
 - `apply_chat_template(self, input_data: str) -> List[Dict[str, str]]`
   - Apply chat template to the input text.
 - `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
-  - Generate text based on input data.
-- `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, generation_kwargs: Optional[Dict[str, Any]] = None)`
+  - Generate text response for the given input.
+- `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, generation_kwargs: Optional[Dict[str, Any]] = None) -> Generator[str, NoneType, NoneType]`
+  - Stream generated text tokens one by one.
 - `get_history(self) -> List[Dict[str, str]]`
   - Get complete chat history of inputs and outputs and system prompt.
 - `get_max_context_length(self) -> Optional[int]`
@@ -308,23 +392,59 @@ Text generation processor using GGUF models. Uses llama-cpp.Llama class under th
 #### MultiModalProcessorTransformers
 
 ```python
-class MultiModalProcessorTransformers(model_id: str, task: str, apply_chat_history: bool = False, system_prompt: str = '', **kwargs)
+class MultiModalProcessorTransformers(model_id: str, task: str, apply_chat_history: bool = False, system_prompt: str = '', **kwargs: Any) -> None
 ```
 
-MultiModalProcessorTransformers class for multimodal text generation with Hugging Face models.
-Supports image, audio inputs.
+Multimodal text generation processor using Hugging Face transformers.
+
+This processor handles text generation tasks that involve multiple modalities
+(text, images, audio) using Hugging Face transformer models. It combines
+the MediaPreprocessor for handling media inputs with text generation capabilities.
+
+Parameters
+----------
+model_id : str
+    Identifier for the Hugging Face model to use
+task : str
+    Task type, must be one of HUGGINGFACE_MEDIA_TASKS
+apply_chat_history : bool, default=False
+    Whether to maintain chat history
+system_prompt : str, default=""
+    System prompt to use for generation
+**kwargs : dict
+    Additional arguments passed to TextGenerationProcessorTransformers
+
+Notes
+-----
+- Supports various multimodal tasks (VQA, image captioning, etc.)
+- Handles media preprocessing automatically
+- Integrates with Hugging Face's transformers library
+- Manages memory efficiently for large media files
+
+Examples
+--------
+>>> processor = MultiModalProcessorTransformers(
+...     model_id="dandelin/vilt-b32-finetuned-vqa",
+...     task="visual-question-answering"
+... )
+>>> media_obj = MediaObject(path="image-of-car.jpg", type="image")
+>>> result = processor.generate(
+...     "What color is the car in this image:",
+...     media_objects={"image1": media_obj}
+... )
 
 **Methods:**
 
 - `apply_chat_template(self, input_data: str, tokenizer: transformers.tokenization_utils.PreTrainedTokenizer) -> str`
   - Apply chat template to the input text.
 - `generate(self, input_data: str, media_objects: Dict[str, owlsight.utils.custom_classes.MediaObject], stopwords: Optional[List[str]] = None, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
-  - Generate text based on input data.
+  - Generate text based on input text and media objects.
 - `get_history(self) -> List[Dict[str, str]]`
   - Get complete chat history of inputs and outputs and system prompt.
 - `get_max_context_length(self)`
   - Retrieve the maximum context length of the model.
 - `preprocess_input(self, input_data: Union[str, bytes, pathlib.Path], question: Optional[str] = None) -> Any`
+  - Preprocess media input data for the model.
 - `update_history(self, input_data: str, generated_text: str) -> None`
   - Update the history with the input and generated text.
 
@@ -347,10 +467,43 @@ Maintains document and engine caches throughout the owlsight session.
 #### DocumentSearcher
 
 ```python
-class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None)
+class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None) -> None
 ```
 
-A generic class for searching documents using an ensemble of TFIDF and Sentence Transformer methods.
+Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
+
+This class provides document search capability by combining traditional TF-IDF 
+with modern neural embeddings. The idea behind this is two-fold:
+- TFIDF can capture relevant words an embedding model was not trained on.
+- Embeddings can capture context better than TFIDF.
+
+Parameters
+----------
+documents : Dict[str, str]
+    Dictionary mapping document IDs to their content
+sentence_transformer_model : str, default='Alibaba-NLP/gte-base-en-v1.5'
+    Name or path of the Sentence Transformer model
+sentence_transformer_batch_size : int, default=64
+    Batch size for computing embeddings
+cache_dir : str, optional
+    Directory to cache embeddings and results
+cache_dir_suffix : str, optional
+    Suffix for cache directory name
+
+Notes
+-----
+- Uses both TF-IDF and neural embeddings for robust search
+- Has caching capabilities in pickled files
+- Supports batch processing for efficient embedding computation
+
+Examples
+--------
+>>> docs = {
+...     "doc1": "Python is a programming language",
+...     "doc2": "Machine learning is fascinating"
+... }
+>>> searcher = DocumentSearcher(docs, cache_dir="document_cache", cache_dir_suffix="programming")
+>>> results = searcher.search("python programming", top_k=3)
 
 **Methods:**
 
@@ -360,15 +513,48 @@ A generic class for searching documents using an ensemble of TFIDF and Sentence 
 #### HashingVectorizerSearchEngine
 
 ```python
-class HashingVectorizerSearchEngine(documents: Dict[str, str], cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, **hashing_kwargs)
+class HashingVectorizerSearchEngine(documents: Dict[str, str], cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, **hashing_kwargs: Any)
 ```
 
-Hashing Vectorizer based search implementation.
+Search engine using Hashing Vectorizer for memory-efficient search.
+
+This search engine uses feature hashing for vectorization, making it memory-efficient
+and suitable for large document collections.
+
+Parameters
+----------
+documents : Dict[str, str]
+    Dictionary mapping document IDs to their content
+cache_dir : str, optional
+    Directory to cache hash matrices
+cache_dir_suffix : str, optional
+    Suffix for cache directory name
+**hashing_kwargs
+    Additional arguments passed to sklearn.feature_extraction.text.HashingVectorizer
+
+Notes
+-----
+- Memory-efficient, suitable for large datasets
+- No inverse transform capability
+- Constant memory usage regardless of vocabulary size
+- Small chance of hash collisions
+
+Examples
+--------
+>>> docs = {
+...     "doc1": "Large text document...",
+...     "doc2": "Another large document..."
+... }
+>>> engine = HashingVectorizerSearchEngine(
+...     docs,
+...     n_features=(2**16)
+... )
+>>> results = engine.search("specific terms", top_k=1)
 
 **Methods:**
 
 - `create_index(self) -> None`
-  - Create search index.
+  - Create search index from documents.
 - `get_full_cache_path(self) -> pathlib.Path`
   - Get full cache path.
 - `get_suffix_filename(self) -> str`
@@ -378,20 +564,50 @@ Hashing Vectorizer based search implementation.
 - `save_data(self, data: Any)`
   - Save data to cache.
 - `search(self, query: str, top_k: int = 3) -> List[owlsight.rag.custom_classes.SearchResult]`
-  - Perform search operation.
+  - Search documents using the query.
 
 #### TFIDFSearchEngine
 
 ```python
-class TFIDFSearchEngine(documents: Dict[str, str], cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, **tfidf_kwargs)
+class TFIDFSearchEngine(documents: Dict[str, str], cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, **tfidf_kwargs: Any) -> None
 ```
 
-TF-IDF based search implementation.
+Search engine using TF-IDF (Term Frequency-Inverse Document Frequency).
+
+This search engine uses traditional TF-IDF vectorization for keyword-based search,
+making it effective for finding documents with specific terms.
+
+Parameters
+----------
+documents : Dict[str, str]
+    Dictionary mapping document IDs to their content
+cache_dir : str, optional
+    Directory to cache TF-IDF matrices
+cache_dir_suffix : str, optional
+    Suffix for cache directory name
+**tfidf_kwargs
+    Additional arguments passed to sklearn.feature_extraction.text.TfidfVectorizer
+
+Notes
+-----
+- Fast and memory-efficient
+- Good for exact keyword matching
+- Supports n-grams and custom tokenization
+- Caches TF-IDF matrices for better performance
+
+Examples
+--------
+>>> docs = {
+...     "doc1": "Python programming basics",
+...     "doc2": "Advanced Python concepts"
+... }
+>>> engine = TFIDFSearchEngine(docs, ngram_range=(1, 2))
+>>> results = engine.search("python basics", top_k=1)
 
 **Methods:**
 
 - `create_index(self) -> None`
-  - Create search index.
+  - Create search index from documents.
 - `get_full_cache_path(self) -> pathlib.Path`
   - Get full cache path.
 - `get_suffix_filename(self) -> str`
@@ -401,7 +617,7 @@ TF-IDF based search implementation.
 - `save_data(self, data: Any)`
   - Save data to cache.
 - `search(self, query: str, top_k: int = 3) -> List[owlsight.rag.custom_classes.SearchResult]`
-  - Perform search operation.
+  - Search documents using the query.
 
 #### SentenceTransformerSearchEngine
 
@@ -409,12 +625,55 @@ TF-IDF based search implementation.
 class SentenceTransformerSearchEngine(documents: Dict[str, str], model_name: str = 'Alibaba-NLP/gte-base-en-v1.5', pooling_strategy: Literal['mean', 'max', None] = 'mean', device: Optional[str] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, batch_size: int = 64)
 ```
 
-Sentence Transformer based search implementation.
+Search engine using Sentence Transformer embeddings.
+
+This search engine uses neural embeddings to find semantically similar documents,
+making it effective for concept-based search rather than just keyword matching.
+
+Parameters
+----------
+documents : Dict[str, str]
+    Dictionary mapping document IDs to their content
+model_name : str, default='Alibaba-NLP/gte-base-en-v1.5'
+    Name or path of the Sentence Transformer model
+pooling_strategy : {'mean', 'max', None}, default='mean'
+    Strategy for pooling sentence embeddings:
+    - 'mean': Average embeddings (better for context)
+    - 'max': Maximum values (better for key concepts)
+    - None: No pooling (for single-sentence documents)
+device : str, optional
+    Device to run model on ('cpu', 'cuda', etc.)
+cache_dir : str, optional
+    Directory to cache embeddings
+cache_dir_suffix : str, optional
+    Suffix for cache directory name
+batch_size : int, default=64
+    Batch size for computing embeddings
+
+Notes
+-----
+- Provides semantic search capability
+- Automatically handles sentence splitting and pooling
+- Supports GPU acceleration
+- Caches embeddings for better performance
+
+Examples
+--------
+>>> docs = {
+...     "doc1": "Python is great for machine learning",
+...     "doc2": "Deep learning revolutionized AI"
+... }
+>>> engine = SentenceTransformerSearchEngine(
+...     docs,
+...     model_name='all-MiniLM-L6-v2',
+...     pooling_strategy='mean'
+... )
+>>> results = engine.search("AI and ML", top_k=1)
 
 **Methods:**
 
 - `create_index(self) -> None`
-  - Create search index with optimized batch processing.
+  - Create search index by computing embeddings for all documents.
 - `get_full_cache_path(self) -> pathlib.Path`
   - Get full cache path.
 - `get_suffix_filename(self) -> str`
@@ -424,7 +683,7 @@ Sentence Transformer based search implementation.
 - `save_data(self, data: Any)`
   - Save data to cache.
 - `search(self, query: str, top_k: int = 3) -> List[owlsight.rag.custom_classes.SearchResult]`
-  - Perform search operation.
+  - Search documents using the query.
 - `split_and_clean_text(text: str) -> List[str]`
   - Split a longer text into sentences and clean them.
 

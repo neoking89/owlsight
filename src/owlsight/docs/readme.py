@@ -3,7 +3,6 @@ from pathlib import Path
 
 sys.path.append("src")
 from owlsight.configurations.schema import Schema
-import owlsight
 from owlsight.docs.helper_functions import get_init_docstrings, format_docstrings
 
 # Get the path to the owlsight __init__.py file
