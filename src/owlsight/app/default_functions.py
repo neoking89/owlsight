@@ -362,7 +362,8 @@ class OwlDefaultFunctions:
         subprocess.Popen([sys.executable, str(script_path), params_json])
 
 
-def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> list:
+def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> List[str]:
+    """Search Bing for a term and return a list of URLs."""
     term = "+".join(term.split(" "))
     url = f"https://www.bing.com/search?q={term}"
     response = requests.get(url, **request_kwargs)
