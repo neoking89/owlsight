@@ -49,6 +49,7 @@ onnx = [
 
 search = [
     "sentence-transformers",
+    "tika",
 ]
 
 multimodal = [
@@ -74,6 +75,7 @@ all = [
     "jinja2",
     "tqdm",
     "pynput",
+    "tika",
     # Optional dependencies
     "llama-cpp-python",
     "onnxruntime-genai",
