@@ -21,33 +21,54 @@ except ImportError:
 
 
 class MediaPreprocessor:
+    """Media preprocessing utility for handling various media types.
+
+    This class provides preprocessing capabilities for different media types (images, audio)
+    before passing them to a model. It handles necessary preprocessing for media too.
+
+    Methods
+    -------
+    preprocess_input(media_obj, question=None)
+        Preprocess media input based on its type and task requirements.
+
+    Notes
+    -----
+    - Supports multiple media types: images, audio, documents
+    - Handles format validation and conversion
+    - Integrates with various model pipelines
+    - Memory-efficient processing with proper cleanup
+
+    Examples
+    --------
+    >>> preprocessor = MediaPreprocessor()
+    >>> media_obj = MediaObject(path="image.jpg", type="image")
+    >>> processed = preprocessor.preprocess_input(media_obj)
     """
-    Handles preprocessing for different media types and integrates with text generation.
 
-    This class preprocesses media inputs (images, audio, documents) before passing them
-    to the appropriate model pipeline.
-    """
+    def __init__(self) -> None:
+        """Initialize the media preprocessor."""
+        pass
 
-    def __init__(self):
-        """
-        Initialize preprocessor for specific task.
-        """
-
-    def preprocess_input(self, media_obj: MediaObject, question: Optional[str] = None) -> Any:
-        """
-        Preprocess input data based on task type.
+    def preprocess_input(
+        self, 
+        media_obj: MediaObject, 
+        question: Optional[str] = None
+    ) -> Any:
+        """Preprocess media input based on type and task requirements.
 
         Parameters
         ----------
-        input_data : Union[str, bytes, Path]
-            The input data. Can be a file path, URL, or bytes.
-        question : Optional[str]
-            Question for VQA or document QA tasks.
+        media_obj : MediaObject
+            Media object containing the input data and metadata.
+            Can be image, audio, or document data.
+        question : str, optional
+            Question for visual/audio question-answering tasks.
 
         Returns
         -------
-        Dict[str, Any]
-            Preprocessed data in format expected by the model.
+        Any
+            Preprocessed media data in the format required by the model.
+            Type depends on the media type and model requirements.
         """
         if not isinstance(media_obj, MediaObject):
             raise TypeError("Input data must be a MediaObject instance.")
@@ -102,12 +123,53 @@ class MediaPreprocessor:
 
 
 class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
-    """
-    MultiModalProcessorTransformers class for multimodal text generation with Hugging Face models.
-    Supports image, audio inputs.
+    """Multimodal text generation processor using Hugging Face transformers.
+
+    This processor handles text generation tasks that involve multiple modalities
+    (text, images, audio) using Hugging Face transformer models. It combines
+    the MediaPreprocessor for handling media inputs with text generation capabilities.
+
+    Parameters
+    ----------
+    model_id : str
+        Identifier for the Hugging Face model to use
+    task : str
+        Task type, must be one of HUGGINGFACE_MEDIA_TASKS
+    apply_chat_history : bool, default=False
+        Whether to maintain chat history
+    system_prompt : str, default=""
+        System prompt to use for generation
+    **kwargs : dict
+        Additional arguments passed to TextGenerationProcessorTransformers
+
+    Notes
+    -----
+    - Supports various multimodal tasks (VQA, image captioning, etc.)
+    - Handles media preprocessing automatically
+    - Integrates with Hugging Face's transformers library
+    - Manages memory efficiently for large media files
+
+    Examples
+    --------
+    >>> processor = MultiModalProcessorTransformers(
+    ...     model_id="dandelin/vilt-b32-finetuned-vqa",
+    ...     task="visual-question-answering"
+    ... )
+    >>> media_obj = MediaObject(path="image-of-car.jpg", type="image")
+    >>> result = processor.generate(
+    ...     "What color is the car in this image:",
+    ...     media_objects={"image1": media_obj}
+    ... )
     """
 
-    def __init__(self, model_id: str, task: str, apply_chat_history: bool = False, system_prompt: str = "", **kwargs):
+    def __init__(
+        self,
+        model_id: str,
+        task: str,
+        apply_chat_history: bool = False,
+        system_prompt: str = "",
+        **kwargs: Any,
+    ) -> None:
         if task not in HUGGINGFACE_MEDIA_TASKS:
             raise ValueError(
                 f"Task {task} is not supported for media preprocessing. Should be one of {HUGGINGFACE_MEDIA_TASKS}.\nPerhaps we should set the right task for the model in 'config:huggingface:task' inside the CLI?"
@@ -127,6 +189,34 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
         temperature: float = DEFAULT_TEMPERATURE,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
+        """
+        Generate text based on input text and media objects.
+
+        Parameters
+        ----------
+        input_data : str
+            Text prompt or question
+        media_objects : Dict[str, MediaObject]
+            Dictionary mapping media references to MediaObject instances
+        stopwords : List[str], optional
+            List of words to stop generation at
+        max_new_tokens : int, default=DEFAULT_MAX_TOKENS
+            Maximum number of tokens to generate
+        temperature : float, default=DEFAULT_TEMPERATURE
+            Sampling temperature for generation
+        generation_kwargs : dict, optional
+            Additional generation parameters
+
+        Returns
+        -------
+        str
+            Generated text incorporating information from media inputs
+
+        Notes
+        -----
+        - Automatically handles preprocessing
+        - A directory of files can also be provided.
+        """
         # First prepare the generation parameters
         input_data, generate_kwargs = self.text_processor.prepare_generation(
             input_data=input_data,
@@ -159,7 +249,25 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
         self.update_history(str(input_data), response.strip())
         return response
 
-    def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:
+    def preprocess_input(
+        self,
+        input_data: Union[str, bytes, Path],
+        question: Optional[str] = None
+    ) -> Any:
+        """Preprocess media input data for the model.
+
+        Parameters
+        ----------
+        input_data : Union[str, bytes, Path]
+            Raw input data to preprocess
+        question : str, optional
+            Question for question-answering tasks
+
+        Returns
+        -------
+        Any
+            Preprocessed input in the format required by the model
+        """
         processed = self.media_preprocessor.preprocess_input(input_data, question)
         return processed
 
