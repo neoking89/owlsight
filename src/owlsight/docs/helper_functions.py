@@ -129,9 +129,29 @@ def format_docstrings(docstrings: Dict[str, Dict[str, str]]) -> str:
                 output.append(f"class {class_name}{sig}")
                 output.append("```\n")
             
-            # Class description
+            # Class description and handle Examples section
             if 'docstring' in docs and docs['docstring'].strip():
-                output.append(docs['docstring'].strip() + "\n")
+                docstring = docs['docstring'].strip()
+                sections = docstring.split('\n\n')
+                
+                for section in sections:
+                    if section.startswith('Examples'):
+                        # Format the Examples section
+                        output.append("**Examples:**\n")
+                        output.append("```python")
+                        # Remove 'Examples' header and any leading/trailing whitespace
+                        example_code = section.replace('Examples', '').strip()
+                        # Remove common indentation from example code
+                        example_lines = example_code.split('\n')
+                        if example_lines:
+                            min_indent = min(len(line) - len(line.lstrip()) 
+                                          for line in example_lines if line.strip())
+                            example_code = '\n'.join(line[min_indent:] if line.strip() else line 
+                                                   for line in example_lines)
+                        output.append(example_code)
+                        output.append("```\n")
+                    else:
+                        output.append(section + "\n")
             
             # Methods
             if 'methods' in docs and docs['methods']:
@@ -149,7 +169,7 @@ def format_docstrings(docstrings: Dict[str, Dict[str, str]]) -> str:
                             output.append(f"  - {doc_first_line}")
                 output.append("")  # Add spacing between classes
     
-    # Format functions
+    # Format functions with similar Examples handling
     if functions:
         output.append("\n### Functions\n")
         for func_name, docs in functions.items():
@@ -161,8 +181,28 @@ def format_docstrings(docstrings: Dict[str, Dict[str, str]]) -> str:
                 output.append(f"def {func_name}{sig}")
                 output.append("```\n")
             
-            # Function description
+            # Function description and handle Examples section
             if 'docstring' in docs and docs['docstring'].strip():
-                output.append(docs['docstring'].strip() + "\n")
+                docstring = docs['docstring'].strip()
+                sections = docstring.split('\n\n')
+                
+                for section in sections:
+                    if section.startswith('Examples'):
+                        # Format the Examples section
+                        output.append("**Examples:**\n")
+                        output.append("```python")
+                        # Remove 'Examples' header and any leading/trailing whitespace
+                        example_code = section.replace('Examples', '').strip()
+                        # Remove common indentation from example code
+                        example_lines = example_code.split('\n')
+                        if example_lines:
+                            min_indent = min(len(line) - len(line.lstrip()) 
+                                          for line in example_lines if line.strip())
+                            example_code = '\n'.join(line[min_indent:] if line.strip() else line 
+                                                   for line in example_lines)
+                        output.append(example_code)
+                        output.append("```\n")
+                    else:
+                        output.append(section + "\n")
     
     return '\n'.join(output)

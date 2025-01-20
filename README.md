@@ -265,7 +265,9 @@ Notes
 - Thread count affects CPU performance significantly
 - Models must be ONNX-optimized versions of transformers models
 
-Examples
+**Examples:**
+
+```python
 --------
 >>> # Load local ONNX model
 >>> processor = TextGenerationProcessorOnnx("path/to/model")
@@ -275,6 +277,7 @@ Examples
 ...     "onnx-community/Llama-2-7B-Instruct-ONNX",
 ...     onnx__n_cpu_threads=12
 ... )
+```
 
 **Methods:**
 
@@ -362,7 +365,9 @@ Notes
 - Context size (n_ctx) affects memory usage significantly
 - For optimal performance, adjust n_batch and n_cpu_threads based on hardware
 
-Examples
+**Examples:**
+
+```python
 --------
 >>> # Load local GGUF model
 >>> processor = TextGenerationProcessorGGUF("path/to/model.gguf", gguf__n_gpu_layers=20)
@@ -373,6 +378,7 @@ Examples
 ...     gguf__filename="llama-2-7b.Q4_K_M.gguf",
 ...     gguf__n_gpu_layers=32
 ... )
+```
 
 **Methods:**
 
@@ -421,7 +427,9 @@ Notes
 - Integrates with Hugging Face's transformers library
 - Manages memory efficiently for large media files
 
-Examples
+**Examples:**
+
+```python
 --------
 >>> processor = MultiModalProcessorTransformers(
 ...     model_id="dandelin/vilt-b32-finetuned-vqa",
@@ -432,6 +440,7 @@ Examples
 ...     "What color is the car in this image:",
 ...     media_objects={"image1": media_obj}
 ... )
+```
 
 **Methods:**
 
@@ -496,7 +505,9 @@ Notes
 - Has caching capabilities in pickled files
 - Supports batch processing for efficient embedding computation
 
-Examples
+**Examples:**
+
+```python
 --------
 >>> docs = {
 ...     "doc1": "Python is a programming language",
@@ -504,6 +515,7 @@ Examples
 ... }
 >>> searcher = DocumentSearcher(docs, cache_dir="document_cache", cache_dir_suffix="programming")
 >>> results = searcher.search("python programming", top_k=3)
+```
 
 **Methods:**
 
@@ -539,7 +551,9 @@ Notes
 - Constant memory usage regardless of vocabulary size
 - Small chance of hash collisions
 
-Examples
+**Examples:**
+
+```python
 --------
 >>> docs = {
 ...     "doc1": "Large text document...",
@@ -550,6 +564,7 @@ Examples
 ...     n_features=(2**16)
 ... )
 >>> results = engine.search("specific terms", top_k=1)
+```
 
 **Methods:**
 
@@ -595,7 +610,9 @@ Notes
 - Supports n-grams and custom tokenization
 - Caches TF-IDF matrices for better performance
 
-Examples
+**Examples:**
+
+```python
 --------
 >>> docs = {
 ...     "doc1": "Python programming basics",
@@ -603,6 +620,7 @@ Examples
 ... }
 >>> engine = TFIDFSearchEngine(docs, ngram_range=(1, 2))
 >>> results = engine.search("python basics", top_k=1)
+```
 
 **Methods:**
 
@@ -657,7 +675,9 @@ Notes
 - Supports GPU acceleration
 - Caches embeddings for better performance
 
-Examples
+**Examples:**
+
+```python
 --------
 >>> docs = {
 ...     "doc1": "Python is great for machine learning",
@@ -669,6 +689,7 @@ Examples
 ...     pooling_strategy='mean'
 ... )
 >>> results = engine.search("AI and ML", top_k=1)
+```
 
 **Methods:**
 
@@ -826,8 +847,10 @@ to decide the processor type. Otherwise, it will use the model_id string to make
 #### search_bing
 
 ```python
-def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> list
+def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> List[str]
 ```
+
+Search Bing for a term and return a list of URLs.
 
 #### is_url
 
