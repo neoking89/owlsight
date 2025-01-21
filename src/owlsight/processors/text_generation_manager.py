@@ -11,6 +11,7 @@ from owlsight.configurations.config_manager import ConfigManager
 from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
+from owlsight.ui.custom_classes import AppDTO
 from owlsight.utils.helper_functions import convert_to_real_type
 from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache
@@ -197,7 +198,7 @@ class TextGenerationManager:
                             "back": None,
                             "Choose a GGUF model": gguf_list,
                         }
-                        gguf__filename = get_user_choice(gguf_menu)
+                        gguf__filename = get_user_choice(gguf_menu, app_dto=AppDTO(return_value_only=True))
                         if gguf__filename:
                             self.config_manager.set("model.gguf__filename", gguf__filename)
                             self.load_model_processor(reload=self.processor is not None)
