@@ -43,10 +43,14 @@ class DocumentReader:
     ...     process_content(content)
     """
 
-    def __init__(self, supported_extensions: Optional[List[str]] = None, 
-                 ignore_patterns: Optional[List[str]] = None,
-                 ocr_enabled: bool = True, 
-                 timeout: int = 5):  # Default timeout of 5 seconds
+    def __init__(
+        self,
+        supported_extensions: Optional[List[str]] = None,
+        ignore_patterns: Optional[List[str]] = None,
+        ocr_enabled: bool = True,
+        timeout: int = 5,
+        text_only: bool = True,
+    ):  # Default timeout of 5 seconds
         """
         Initialize the DocumentReader.
 
@@ -62,11 +66,15 @@ class DocumentReader:
             Whether to enable OCR for image files
         timeout : int, default=5
             Timeout in seconds for Tika processing
+        text_only : bool, default=True
+            Whether to request only text content from Tika.
+            If False, will request both text and metadata.
         """
         self.supported_extensions = supported_extensions
         self.ignore_patterns = ignore_patterns or []
         self.ocr_enabled = ocr_enabled
         self.timeout = timeout
+        self.text_only = text_only
 
     def should_ignore_file(self, filepath: str) -> bool:
         """
@@ -87,16 +95,15 @@ class DocumentReader:
 
         # Convert to relative path for pattern matching
         filepath = os.path.normpath(filepath)
-        
+
         for pattern in self.ignore_patterns:
             if fnmatch.fnmatch(filepath, pattern):
                 return True
             # Handle directory wildcards (e.g., '**/test/')
-            if '**' in pattern:
+            if "**" in pattern:
                 parts = filepath.split(os.sep)
-                pattern_parts = pattern.split('/')
-                if any(fnmatch.fnmatch('/'.join(parts[i:]), '/'.join(pattern_parts)) 
-                      for i in range(len(parts))):
+                pattern_parts = pattern.split("/")
+                if any(fnmatch.fnmatch("/".join(parts[i:]), "/".join(pattern_parts)) for i in range(len(parts))):
                     return True
         return False
 
@@ -137,12 +144,12 @@ class DocumentReader:
             Extracted text content if successful, None otherwise
         """
         try:
-            # Parse the file using Tika with timeout
-            parsed = parser.from_file(filepath, requestOptions={
-                "timeout": self.timeout,
-                "socketTimeout": self.timeout,
-                "connectionTimeout": self.timeout
-            })
+            # Parse the file using Tika with timeout, requesting only text content
+            parsed = parser.from_file(
+                filepath,
+                service="text" if self.text_only else "all",
+                requestOptions={"timeout": self.timeout},
+            )
 
             if parsed.get("status") != 200:
                 logger.warning(f"Failed to parse {filepath}. Status: {parsed.get('status')}")
@@ -208,4 +215,3 @@ class DocumentReader:
                 content = self.read_file(filepath)
                 if content:
                     yield filepath, content
-
