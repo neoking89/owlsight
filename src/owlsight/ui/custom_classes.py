@@ -27,7 +27,7 @@ class AppDTO:
 
     Attributes
     return_value_only : bool
-        If True, returns the raw result (string or final value).
+        If True, returns the raw result (string or chosen_value).
         If False, returns a dict {chosen_label: chosen_value}.
     start_index : int
         The index (or startposition) at which to start the selector. Default is 0.
