@@ -4,13 +4,15 @@ import builtins
 import inspect
 import traceback
 import re
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union, Iterable
 from datetime import datetime
 from pathlib import Path
 import subprocess
 import sys
 import json
 import dill
+import logging
+from owlsight.rag.document_reader import DocumentReader
 
 import requests
 from bs4 import BeautifulSoup
@@ -31,8 +33,10 @@ class OwlDefaultFunctions:
 
     def __init__(self, globals_dict: SingletonDict):
         # Add check to make sure every function starts with 'owl_'
-        self.globals_dict = globals_dict
         self._check_method_naming_convention()
+
+        self.globals_dict = globals_dict
+        self._document_reader = None
 
     def _check_method_naming_convention(self):
         """Check if all methods in the class start with 'owl_'."""
@@ -42,15 +46,106 @@ class OwlDefaultFunctions:
             if not name.startswith("owl_"):
                 raise ValueError(f"Method '{name}' does not follow the 'owl_' naming convention!")
 
-    def owl_read(self, file_path: str) -> str:
+    def _get_document_reader(self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None) -> DocumentReader:
         """
-        Read the content of a text file.
+        Lazy initialization of DocumentReader to prevent overhead.
+        Returns an instance of DocumentReader, creating it if it doesn't exist.
+        """
+        if self._document_reader is None:
+            self._document_reader = DocumentReader(
+                ocr_enabled=False,
+                timeout=timeout,
+                ignore_patterns=ignore_patterns
+            )
+        return self._document_reader
+
+    def owl_read(
+        self,
+        path: Union[str, Path, Iterable[Union[str, Path]]],
+        recursive: bool = False,
+        ignore_patterns: Optional[List[str]] = None,
+        timeout: int = 5,
+    ) -> Union[str, Dict[str, str]]:
+        """
+        Read content from files using DocumentReader with fallback to basic file reading.
+
+        Parameters
+        ----------
+        path : str, Path, or Iterable of str/Path
+            Can be:
+            - A single file path
+            - A directory path
+            - An iterable of file paths
+        recursive : bool, default=False
+            Whether to recursively read content from subdirectories, given path is a directory
+        ignore_patterns : Optional[List[str]], default=None
+            List of gitignore-style patterns to exclude
+            Example: ["*.txt", "*.log"]
+        timeout : int, default=5
+            Timeout in seconds for Tika processing
+
+        Returns
+        -------
+        Union[str, Dict[str, str]]
+            - For single file: returns the content as string
+            - For directory or multiple files: returns dict mapping filepath to content
         """
         try:
-            with open(file_path, "r") as file:
-                return file.read()
-        except FileNotFoundError:
-            return f"File not found: {file_path}"
+            reader = self._get_document_reader(timeout=timeout, ignore_patterns=ignore_patterns)
+
+            # handle directory
+            if isinstance(path, (str, Path)):
+                path = Path(path)
+                if path.is_dir():
+                    results = {}
+                    try:
+                        for filepath, content in reader.read_directory(str(path), recursive=recursive):
+                            results[filepath] = content
+                        return results
+                    except Exception as e:
+                        logging.error(f"DocumentReader failed to read directory {path}: {str(e)}")
+                        return f"Error reading directory {path}: {str(e)}"
+                else:
+                    # Handle single file
+                    try:
+                        content = reader.read_file(str(path))
+                        if content is not None:
+                            return content
+                    except Exception as e:
+                        logging.warning(
+                            f"DocumentReader failed, falling back to basic file reading for {path}: {str(e)}"
+                        )
+                        # Fallback to original behavior
+                        try:
+                            with open(path, "r") as file:
+                                return file.read()
+                        except FileNotFoundError:
+                            return f"File not found: {path}"
+                        except Exception as e:
+                            return f"Error reading file {path}: {str(e)}"
+            else:
+                # Handle iterable of files
+                results = {}
+                for file_path in path:
+                    file_path = Path(file_path)
+                    try:
+                        content = reader.read_file(str(file_path))
+                        if content is not None:
+                            results[str(file_path)] = content
+                        else:
+                            # Fallback to basic file reading
+                            try:
+                                with open(file_path, "r") as file:
+                                    results[str(file_path)] = file.read()
+                            except Exception as e:
+                                results[str(file_path)] = f"Error reading file: {str(e)}"
+                    except Exception as e:
+                        results[str(file_path)] = f"Error reading file: {str(e)}"
+                return results
+
+        except Exception as e:
+            logging.error(f"Critical error in owl_read: {str(e)}")
+            return f"Critical error: {str(e)}"
 
     def owl_import(self, file_path: str):
         """
@@ -257,7 +352,7 @@ class OwlDefaultFunctions:
                         model_info = hf_api.model_info(repo.repo_id, expand=["pipeline_tag"])
                         task = model_info.pipeline_tag
                         output_lines.append(f"Task: {task}")
-                    output_lines.append(f"Size: {repo.size_on_disk / (1024*1024):.2f} MB")
+                    output_lines.append(f"Size: {repo.size_on_disk / (1024 * 1024):.2f} MB")
                     output_lines.append(f"Last Modified: {last_modified}")
                     output_lines.append(f"Location: {repo.repo_path}")
                     model_id = self._get_model_id(repo)
@@ -266,7 +361,7 @@ class OwlDefaultFunctions:
                 except Exception as e:
                     output_lines.append(f"Error accessing model with id {repo.repo_id}: {str(e)}")
 
-            output_lines.append(f"\nTotal Cache Size: {cache_info.size_on_disk / (1024*1024):.2f} MB")
+            output_lines.append(f"\nTotal Cache Size: {cache_info.size_on_disk / (1024 * 1024):.2f} MB")
             output_lines.append(f"Cache Directory: {cache_dir}")
 
             return "\n".join(output_lines)
