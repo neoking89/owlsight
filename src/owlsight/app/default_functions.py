@@ -111,18 +111,17 @@ class OwlDefaultFunctions:
                         content = reader.read_file(str(path))
                         if content is not None:
                             return content
+                    except Exception:
+                        pass  # Silently fall back to basic file reading
+                    
+                    # Fallback to basic file reading
+                    try:
+                        with open(path, "r", encoding='utf-8') as file:
+                            return file.read()
+                    except FileNotFoundError:
+                        return f"File not found: {path}"
                     except Exception as e:
-                        logging.warning(
-                            f"DocumentReader failed, falling back to basic file reading for {path}: {str(e)}"
-                        )
-                        # Fallback to original behavior
-                        try:
-                            with open(path, "r") as file:
-                                return file.read()
-                        except FileNotFoundError:
-                            return f"File not found: {path}"
-                        except Exception as e:
-                            return f"Error reading file {path}: {str(e)}"
+                        return f"Error reading file {path}: {str(e)}"
             else:
                 # Handle iterable of files
                 results = {}
@@ -132,13 +131,14 @@ class OwlDefaultFunctions:
                         content = reader.read_file(str(file_path))
                         if content is not None:
                             results[str(file_path)] = content
-                        else:
-                            # Fallback to basic file reading
-                            try:
-                                with open(file_path, "r") as file:
-                                    results[str(file_path)] = file.read()
-                            except Exception as e:
-                                results[str(file_path)] = f"Error reading file: {str(e)}"
+                            continue
+                    except Exception:
+                        pass  # Silently fall back to basic file reading
+
+                    # Fallback to basic file reading
+                    try:
+                        with open(file_path, "r", encoding='utf-8') as file:
+                            results[str(file_path)] = file.read()
                     except Exception as e:
                         results[str(file_path)] = f"Error reading file: {str(e)}"
                 return results
