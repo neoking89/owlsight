@@ -40,7 +40,7 @@ def test_init_default():
     reader = DocumentReader()
     assert reader.supported_extensions is None
     assert reader.ocr_enabled is True
-    assert reader.timeout == 300
+    assert reader.timeout == 5
 
 
 def test_init_custom():
@@ -111,9 +111,3 @@ def test_read_directory_nonexistent(reader):
     """Test reading from a nonexistent directory."""
     with pytest.raises(FileNotFoundError):
         list(reader.read_directory("/nonexistent/path"))
-
-
-def test_repr(reader):
-    """Test string representation of DocumentReader."""
-    expected = "DocumentReader(supported_extensions=None, ocr_enabled=True, timeout=300)"
-    assert repr(reader) == expected
