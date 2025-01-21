@@ -338,6 +338,13 @@ def get_user_choice(
     Display a styled (yet highlight-free) menu of options. The user uses arrow keys
     to move up/down and optionally left/right to toggle or move cursor in an editable field.
     Pressing Enter finalizes the selection or input.
+
+    Parameters:
+    ----------
+    options_dict: Dict[str, Union[None, str, List[Any]]]
+        A dictionary of options to display. The value can be None, a string, or a list.
+    app_dto: Optional[AppDTO]
+        An optional DTO to pass in configuration data.
     """
     global app
     if app_dto is None:
