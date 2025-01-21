@@ -338,17 +338,22 @@ for token in processor.generate_stream(question):
 - Added `get_max_context_length` method to all `TextGenerationProcessor` classes, which returns the maximum context length of the loaded model.
 - Moved `transformers__use_fp16` in config:model to `transformers__quantization_bits` as value 16, as it is more clear.
 - Added `track_model_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
-- Added possibility to pass complete directories as argument to mediatypes, like so: [[image:directory/containing/images]]
-- Add owl_models() function to python interpreter for displaying all Huggingface models in the cache directory.
+- Added possibility to pass complete directories as argument to mediatypes to a model in the CLI, like so: [[image:directory/containing/images]]
+- Add `owl_models()` function to python interpreter for displaying all Huggingface models in the cache directory.
 
 **2.?**
 
+- Improved userexperience in the CLI by preventing shrinking of the terminal window if menu is too large.
 - Add `owl_save_namespace` `owl_load_namespace` functions to save and load all variables inside the Python interpreter. This 
 is useful if you want to save any code created by a model. Or load a namespace from a previous session.
 - `ProcessorMemoryContext` can be used as a context_manager to clean up resources from `TextGenerationProcessor`, like the model, from memory after usage.
 - Improved `config:rag` functionality with the new `sentence-transformer-weight` option. This allows to weigh the sentence-transformer part in the RAG model next to the already present TFIDF, improving semantic search capabilities.
+- Add `DocumentSearcher` class to offer a general RAG solution for documents. At its core, uses a combination of TFIDF and Sentence Transformer.
+- Add `DocumentReader` class to read text from a broad range of file formats. This class is build on top of Apache Tika.
+- Improved `owl_read` with the new `DocumentReader` class. As input, you can now pass a directory or a list of files.
 - Added `main:sequence_on_loading` to the configuration json. This allows execution of a sequence of keys on loading a config through the `load` option in the Owlsight main-menu.
 TIP: above option can be used to load a sequence of different models as "agents", where every config can be threaded as a different agent with their own role. In theory, every action in Owlsight can be automated through this option.
+
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
