@@ -12,17 +12,15 @@ This module provides a class that can extract text from various file formats inc
 
 import os
 from pathlib import Path
-from typing import Generator, Tuple, Optional, List
-
-
+from typing import Optional, List, Generator, Tuple
+import logging
+import fnmatch
 from tika import parser
 import tika
 
 from owlsight.utils.logger import logger
 
 # Disable Tika logging
-import logging
-
 tika_logger = logging.getLogger("tika.tika")
 tika_logger.setLevel(logging.ERROR)
 
@@ -45,7 +43,10 @@ class DocumentReader:
     ...     process_content(content)
     """
 
-    def __init__(self, supported_extensions: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 300):
+    def __init__(self, supported_extensions: Optional[List[str]] = None, 
+                 ignore_patterns: Optional[List[str]] = None,
+                 ocr_enabled: bool = True, 
+                 timeout: int = 5):  # Default timeout of 5 seconds
         """
         Initialize the DocumentReader.
 
@@ -54,18 +55,54 @@ class DocumentReader:
         supported_extensions : List[str], optional
             List of file extensions to process. If None, will attempt to process all files.
             Example: ['.pdf', '.doc', '.docx']
+        ignore_patterns : List[str], optional
+            List of gitignore-style patterns to exclude.
+            Example: ['*.pyc', '__pycache__/*', '.venv/**/*']
         ocr_enabled : bool, default=True
             Whether to enable OCR for image files
-        timeout : int, default=300
+        timeout : int, default=5
             Timeout in seconds for Tika processing
         """
         self.supported_extensions = supported_extensions
+        self.ignore_patterns = ignore_patterns or []
         self.ocr_enabled = ocr_enabled
         self.timeout = timeout
 
+    def should_ignore_file(self, filepath: str) -> bool:
+        """
+        Check if a file should be ignored based on gitignore-style patterns.
+
+        Parameters
+        ----------
+        filepath : str
+            Path to the file to check
+
+        Returns
+        -------
+        bool
+            True if the file should be ignored, False otherwise
+        """
+        if not self.ignore_patterns:
+            return False
+
+        # Convert to relative path for pattern matching
+        filepath = os.path.normpath(filepath)
+        
+        for pattern in self.ignore_patterns:
+            if fnmatch.fnmatch(filepath, pattern):
+                return True
+            # Handle directory wildcards (e.g., '**/test/')
+            if '**' in pattern:
+                parts = filepath.split(os.sep)
+                pattern_parts = pattern.split('/')
+                if any(fnmatch.fnmatch('/'.join(parts[i:]), '/'.join(pattern_parts)) 
+                      for i in range(len(parts))):
+                    return True
+        return False
+
     def is_supported_file(self, filepath: str) -> bool:
         """
-        Check if a file is supported based on its extension.
+        Check if a file is supported based on its extension and ignore patterns.
 
         Parameters
         ----------
@@ -77,6 +114,9 @@ class DocumentReader:
         bool
             True if the file should be processed, False otherwise
         """
+        if self.should_ignore_file(filepath):
+            return False
+
         if not self.supported_extensions:
             return True
 
@@ -97,8 +137,12 @@ class DocumentReader:
             Extracted text content if successful, None otherwise
         """
         try:
-            # Parse the file using Tika
-            parsed = parser.from_file(filepath, requestOptions={"timeout": self.timeout})
+            # Parse the file using Tika with timeout
+            parsed = parser.from_file(filepath, requestOptions={
+                "timeout": self.timeout,
+                "socketTimeout": self.timeout,
+                "connectionTimeout": self.timeout
+            })
 
             if parsed.get("status") != 200:
                 logger.warning(f"Failed to parse {filepath}. Status: {parsed.get('status')}")
@@ -156,7 +200,7 @@ class DocumentReader:
             for filename in files:
                 filepath = os.path.join(root, filename)
 
-                # Skip unsupported files
+                # Skip unsupported or ignored files
                 if not self.is_supported_file(filepath):
                     continue
 
@@ -165,16 +209,3 @@ class DocumentReader:
                 if content:
                     yield filepath, content
 
-    def __repr__(self) -> str:
-        """
-        Return string representation of the reader configuration.
-
-        Returns
-        -------
-        str
-            String representation of the DocumentReader instance
-        """
-        return (
-            f"DocumentReader(supported_extensions={self.supported_extensions}, "
-            f"ocr_enabled={self.ocr_enabled}, timeout={self.timeout})"
-        )
