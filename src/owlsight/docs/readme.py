@@ -348,7 +348,8 @@ for token in processor.generate_stream(question):
 - Add `owl_save_namespace` `owl_load_namespace` functions to save and load all variables inside the Python interpreter. This 
 is useful if you want to save any code created by a model. Or load a namespace from a previous session.
 - `ProcessorMemoryContext` can be used as a context_manager to clean up resources from `TextGenerationProcessor`, like the model, from memory after usage.
-- Improved `config:rag` functionality with the new `sentence-transformer-weight` option. This allows to weigh the sentence-transformer part in the RAG model next to the already present TFIDF, improving semantic search capabilities.
+- Improved `config:rag` functionality with the new `sentence_transformer_weight` option. This allows to weigh the sentence-transformer part in the RAG model next to the already present TFIDF, improving semantic search capabilities.
+- Improved `config:rag` functionality with the new `sentence_transformer_name_or_path` option. This allows to specify the name or path to a sentence-transformer model, which is used for embedding.
 - Add `DocumentSearcher` class to offer a general RAG solution for documents. At its core, uses a combination of TFIDF and Sentence Transformer.
 - Add `DocumentReader` class to read text from a broad range of file formats. This class is build on top of Apache Tika.
 - Improved `owl_read` with the new `DocumentReader` class. As input, you can now pass a directory or a list of files.

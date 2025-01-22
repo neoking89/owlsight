@@ -179,7 +179,7 @@ class Schema:
         "rag": {
             "back": MenuItem(
                 type=OptionType.ACTION,
-                description="Use RAG for installed python libraries with a combination of TFIDF and an optional embedding model",
+                description="Use RAG for installed python libraries with a combination of TFIDF and an optional embedding model. Default weights are TFIDF-weight=1, embedding-weight=0",
             ),
             "active": MenuItem(
                 type=OptionType.TOGGLE,
@@ -201,9 +201,15 @@ class Schema:
             ),
             "sentence_transformer_weight": MenuItem(
                 type=OptionType.TOGGLE,
-                description=f"Weight for embedding model, which is {SENTENCETRANSFORMER_DEFAULT_MODEL}. TFIDF-weight is 1 - `sentence_transformer_weight`",
+                description="Weight for the embedding model. TFIDF-weight is 1 - `sentence_transformer_weight`",
                 default=0.0,
                 choices=[round(x * 0.05, 2) for x in range(21)],
+            ),
+            "sentence_transformer_name_or_path": MenuItem(
+                type=OptionType.EDITABLE,
+                description="Name or path to a sentence-transformer model, which is used for embedding",
+                default=SENTENCETRANSFORMER_DEFAULT_MODEL,
+                choices=None,
             ),
             "search": MenuItem(
                 type=OptionType.EDITABLE,
