@@ -63,7 +63,16 @@ class PythonLibSearcher:
 
     _instance = None
     _document_cache = {}  # Cache for library documents
-    _engine_cache = {}  # Cache for search engines
+    _engine_cache = {}  # Cache for search engines, max size 2
+
+    def _add_to_engine_cache(self, key, value, max_size=5):
+        """
+        Add a value to the engine cache. Cache size is constrained to a limited number of items.
+        """
+        if len(self._engine_cache) >= max_size:
+            # remove the oldest item
+            self._engine_cache.pop(next(iter(self._engine_cache)))
+        self._engine_cache[key] = value
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -75,10 +84,6 @@ class PythonLibSearcher:
         if not hasattr(self, "_initialized"):
             self._initialized = True
 
-    def _get_engine_key(self, library: str, model: str, batch_size: int) -> str:
-        """Generate a unique cache key for the search engine configuration."""
-        return f"{library}_{model}_{batch_size}"
-
     def search(
         self,
         library: str,
@@ -89,7 +94,6 @@ class PythonLibSearcher:
         tfidf_weight: float = 1.0,
         sentence_transformer_weight: float = 0.0,
         sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
-        sentence_transformer_batch_size: int = 64,
     ) -> Union[pd.DataFrame, str]:
         """
         Search Python library documentation with caching for documents and search engines.
@@ -112,8 +116,6 @@ class PythonLibSearcher:
             Weight for the Sentence Transformer search method
         sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
             Sentence Transformer model to use
-        sentence_transformer_batch_size : int, default 64
-            Batch size to use for Sentence Transformer embeddings
 
         Returns:
         --------
@@ -133,26 +135,10 @@ class PythonLibSearcher:
         }
 
         # Get or create search engine
-        engine_key = self._get_engine_key(library, sentence_transformer_model, sentence_transformer_batch_size)
-
-        if engine_key not in self._engine_cache:
-            self._engine_cache[engine_key] = EnsembleSearchEngine(
-                documents=documents,
-                search_methods=list(methods_weights.keys()),
-                cache_dir=cache_dir,
-                cache_dir_suffix=library,
-                init_arguments={
-                    SearchMethod.SENTENCE_TRANSFORMER: {
-                        "pooling_strategy": "mean",
-                        "model_name": sentence_transformer_model,
-                        "batch_size": sentence_transformer_batch_size,
-                    }
-                },
-            )
-
-        engine: EnsembleSearchEngine = self._engine_cache[engine_key]
-        # Update weights without recreating the engine
-        engine.methods_weights = methods_weights
+        engine_key = self._get_engine_key(library, sentence_transformer_model)
+        engine, methods_weights = self._get_or_create_engine(
+            engine_key, documents, methods_weights, cache_dir, library, sentence_transformer_model
+        )
         results = engine.search(query, top_k=top_k, method_weights=methods_weights)
         results["document_name"] = results["document_name"].apply(lambda x: f"{library}.{x}")
 
@@ -182,6 +168,67 @@ class PythonLibSearcher:
             keys_to_remove = [key for key in self._engine_cache.keys() if key.startswith(f"{library}_")]
             for key in keys_to_remove:
                 del self._engine_cache[key]
+
+    def _get_engine_key(self, library: str, model: str) -> str:
+        """Generate a unique cache key for the search engine configuration."""
+        return f"{library}_{model}"
+
+    def _create_search_engine(
+        self,
+        documents: Dict[str, str],
+        methods_weights: Dict[SearchMethod, float],
+        cache_dir: str,
+        library: str,
+        sentence_transformer_model: str,
+    ) -> Tuple[EnsembleSearchEngine, Dict[SearchMethod, float]]:
+        try:
+            engine = EnsembleSearchEngine(
+                documents=documents,
+                search_methods=list(methods_weights.keys()),
+                cache_dir=cache_dir,
+                cache_dir_suffix=library,
+                init_arguments={
+                    SearchMethod.SENTENCE_TRANSFORMER: {
+                        "pooling_strategy": "mean",
+                        "model_name": sentence_transformer_model,
+                        "batch_size": 64,
+                    }
+                },
+            )
+            return engine, methods_weights
+        except Exception as e:
+            logger.error(
+                f"Failed to load sentence transformer model '{sentence_transformer_model}'. "
+                f"Falling back to TF-IDF only."
+            )
+            logger.error(str(e))
+            # Remove sentence transformer from methods and adjust weights to use only TF-IDF
+            methods_weights = {SearchMethod.TFIDF: 1.0}
+            engine = EnsembleSearchEngine(
+                documents=documents,
+                search_methods=[SearchMethod.TFIDF],
+                cache_dir=cache_dir,
+                cache_dir_suffix=library,
+            )
+            return engine, methods_weights
+
+    def _get_or_create_engine(
+        self,
+        engine_key: str,
+        documents: Dict[str, str],
+        methods_weights: Dict[SearchMethod, float],
+        cache_dir: str,
+        library: str,
+        sentence_transformer_model: str,
+    ) -> Tuple[EnsembleSearchEngine, Dict[SearchMethod, float]]:
+        if engine_key not in self._engine_cache:
+            engine, updated_weights = self._create_search_engine(
+                documents, methods_weights, cache_dir, library, sentence_transformer_model
+            )
+            self._add_to_engine_cache(engine_key, engine)
+            return engine, updated_weights
+
+        return self._engine_cache[engine_key], methods_weights
 
 
 class LibraryInfoExtractor(CacheMixin):
