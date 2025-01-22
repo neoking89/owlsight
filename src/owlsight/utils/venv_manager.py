@@ -165,7 +165,11 @@ def get_pip_path(pyenv_path: Union[str, Path]) -> Path:
         The path to the pip executable.
     """
     pyenv_path = Path(pyenv_path)
-    return pyenv_path / ('Scripts' if os_is_windows() else 'bin') / ('pip.exe' if os_is_windows() else 'pip')
+    pip_path = pyenv_path / ('Scripts' if os_is_windows() else 'bin') / ('pip3.exe' if os_is_windows() else 'pip3')
+    if not pip_path.exists():
+        raise FileNotFoundError(f"Could not find pip executable at {pip_path}")
+    
+    return pip_path
 
 
 def get_temp_dir(suffix: str) -> Path:
