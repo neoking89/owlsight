@@ -52,6 +52,12 @@ class Schema:
                 default=[],
                 choices=None,
             ),
+            "python_compile_mode": MenuItem(
+                type=OptionType.TOGGLE,
+                description="The compilation mode for Python code execution in the Python Interpreter (main menu). 'exec' to compile a module, 'single' for interactive statement, 'eval' for expression.",
+                default="exec",
+                choices=["exec", "single", "eval"],
+            ),
         },
         "model": {
             "back": MenuItem(type=OptionType.ACTION, description="Settings for model loading and configuration"),

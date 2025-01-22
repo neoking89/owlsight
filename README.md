@@ -905,6 +905,7 @@ Main Menu:
     - track_model_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
     - extra_index_url: Additional URL for Python package installation. Useful for example when installing python packages (through pip) from private repositories, Type: OptionType.EDITABLE
     - sequence_on_loading: A list of key sequences to execute when loading the configuration. Uses owl_press functionality., Type: OptionType.EDITABLE
+    - python_compile_mode: The compilation mode for Python code execution in the Python Interpreter (main menu). 'exec' to compile a module, 'single' for interactive statement, 'eval' for expression., Options: exec, single, eval, Type: OptionType.TOGGLE
   - model settings:
     - back: Return to previous menu
     - model_id: Model identifier or path. The most important parameter in the configuration, as this will load the model to be used, Type: OptionType.EDITABLE
@@ -957,7 +958,8 @@ Here's an example of what the default configuration looks like:
         "prompt_code_execution": true,
         "track_model_usage": false,
         "extra_index_url": "",
-        "sequence_on_loading": []
+        "sequence_on_loading": [],
+        "python_compile_mode": "exec"
     },
     "model": {
         "model_id": "",
@@ -1087,6 +1089,7 @@ for token in processor.generate_stream(question):
 **2.?**
 
 - Improved userexperience in the CLI by preventing shrinking of the terminal window if menu is too large.
+- In the EDITABLE optiontype fields, multiple lines are now possible.
 - Add `owl_save_namespace` `owl_load_namespace` functions to save and load all variables inside the Python interpreter. This 
 is useful if you want to save any code created by a model. Or load a namespace from a previous session.
 - `ProcessorMemoryContext` can be used as a context_manager to clean up resources from `TextGenerationProcessor`, like the model, from memory after usage.
