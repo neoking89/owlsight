@@ -46,17 +46,17 @@ class Schema:
                 default="",
                 choices=None,
             ),
-            "sequence_on_loading": MenuItem(
-                type=OptionType.EDITABLE,
-                description="A list of key sequences to execute when loading the configuration. Uses owl_press functionality.",
-                default=[],
-                choices=None,
-            ),
             "python_compile_mode": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Compile mode in the Python Interpreter (main menu): 'exec' for code blocks, 'single' for direct execution",
                 default="exec",
                 choices=["exec", "single"],
+            ),
+            "sequence_on_loading": MenuItem(
+                type=OptionType.EDITABLE,
+                description="A list of key sequences to execute when loading the configuration. Uses owl_press functionality.",
+                default=[],
+                choices=None,
             ),
         },
         "model": {
