@@ -125,6 +125,7 @@ class ConfigManager:
             "target_library": self._get_basic_choice("rag", "target_library"),
             "top_k": self._get_toggle_choice("rag", "top_k"),
             "sentence_transformer_weight": self._get_toggle_choice("rag", "sentence_transformer_weight"),
+            "sentence_transformer_name_or_path": self._get_basic_choice("rag", "sentence_transformer_name_or_path"),
             "search": self._get_basic_choice("rag", "search"),
         }
 

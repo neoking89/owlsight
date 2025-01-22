@@ -470,7 +470,7 @@ Maintains document and engine caches throughout the owlsight session.
 
 - `clear_cache(self, library: Optional[str] = None)`
   - Clear the document and engine caches.
-- `search(self, library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, return_context: bool = True, tfidf_weight: float = 1.0, sentence_transformer_weight: float = 0.0, sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64) -> Union[pandas.core.frame.DataFrame, str]`
+- `search(self, library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, return_context: bool = True, tfidf_weight: float = 1.0, sentence_transformer_weight: float = 0.0, sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5') -> Union[pandas.core.frame.DataFrame, str]`
   - Search Python library documentation with caching for documents and search engines.
 
 #### DocumentSearcher
@@ -904,8 +904,8 @@ Main Menu:
     - prompt_code_execution: Whether to prompt before executing code. Set this to True to avoid direct Python code execution!, Options: False, True, Type: OptionType.TOGGLE
     - track_model_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
     - extra_index_url: Additional URL for Python package installation. Useful for example when installing python packages (through pip) from private repositories, Type: OptionType.EDITABLE
+    - python_compile_mode: Compile mode in the Python Interpreter (main menu): 'exec' for code blocks, 'single' for direct execution, Options: exec, single, Type: OptionType.TOGGLE
     - sequence_on_loading: A list of key sequences to execute when loading the configuration. Uses owl_press functionality., Type: OptionType.EDITABLE
-    - python_compile_mode: The compilation mode for Python code execution in the Python Interpreter (main menu). 'exec' to compile a module, 'single' for interactive statement, 'eval' for expression., Options: exec, single, eval, Type: OptionType.TOGGLE
   - model settings:
     - back: Return to previous menu
     - model_id: Model identifier or path. The most important parameter in the configuration, as this will load the model to be used, Type: OptionType.EDITABLE
@@ -935,7 +935,8 @@ Main Menu:
     - active: Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown, Options: False, True, Type: OptionType.TOGGLE
     - target_library: Target python library for to use for RAG. If the library is not installed in the active environment, a warning will be showed with available options, Type: OptionType.EDITABLE
     - top_k: Number of most matching RAG results to return, based on `search` query, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, Type: OptionType.TOGGLE
-    - sentence_transformer_weight: Weight for embedding model, which is Alibaba-NLP/gte-base-en-v1.5. TFIDF-weight is 1 - `sentence_transformer_weight`, Options: 0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, Type: OptionType.TOGGLE
+    - sentence_transformer_weight: Weight for the embedding model. TFIDF-weight is 1 - `sentence_transformer_weight`, Options: 0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, Type: OptionType.TOGGLE
+    - sentence_transformer_name_or_path: Name or path to a sentence-transformer model, which is used for embedding, Type: OptionType.EDITABLE
     - search: RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True, Type: OptionType.EDITABLE
   - huggingface settings:
     - back: Return to previous menu
@@ -958,8 +959,8 @@ Here's an example of what the default configuration looks like:
         "prompt_code_execution": true,
         "track_model_usage": false,
         "extra_index_url": "",
-        "sequence_on_loading": [],
-        "python_compile_mode": "exec"
+        "python_compile_mode": "exec",
+        "sequence_on_loading": []
     },
     "model": {
         "model_id": "",
@@ -990,6 +991,7 @@ Here's an example of what the default configuration looks like:
         "target_library": "",
         "top_k": 10,
         "sentence_transformer_weight": 0.0,
+        "sentence_transformer_name_or_path": "Alibaba-NLP/gte-base-en-v1.5",
         "search": ""
     },
     "huggingface": {
@@ -1093,7 +1095,8 @@ for token in processor.generate_stream(question):
 - Add `owl_save_namespace` `owl_load_namespace` functions to save and load all variables inside the Python interpreter. This 
 is useful if you want to save any code created by a model. Or load a namespace from a previous session.
 - `ProcessorMemoryContext` can be used as a context_manager to clean up resources from `TextGenerationProcessor`, like the model, from memory after usage.
-- Improved `config:rag` functionality with the new `sentence-transformer-weight` option. This allows to weigh the sentence-transformer part in the RAG model next to the already present TFIDF, improving semantic search capabilities.
+- Improved `config:rag` functionality with the new `sentence_transformer_weight` option. This allows to weigh the sentence-transformer part in the RAG model next to the already present TFIDF, improving semantic search capabilities.
+- Improved `config:rag` functionality with the new `sentence_transformer_name_or_path` option. This allows to specify the name or path to a sentence-transformer model, which is used for embedding.
 - Add `DocumentSearcher` class to offer a general RAG solution for documents. At its core, uses a combination of TFIDF and Sentence Transformer.
 - Add `DocumentReader` class to read text from a broad range of file formats. This class is build on top of Apache Tika.
 - Improved `owl_read` with the new `DocumentReader` class. As input, you can now pass a directory or a list of files.
