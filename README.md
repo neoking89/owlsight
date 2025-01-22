@@ -522,6 +522,38 @@ Notes
 - `search(self, query: str, top_k: int = 20, sentence_transformer_weight: float = 0.7, tfidf_weight: float = 0.3) -> pandas.core.frame.DataFrame`
   - Search documents using the configured ensemble methods.
 
+#### DocumentReader
+
+```python
+class DocumentReader(supported_extensions: Optional[List[str]] = None, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5, text_only: bool = True)
+```
+
+A class for reading text content from files using Apache Tika.
+
+Supports a wide variety of file formats and provides streaming capabilities
+for processing large directories.
+
+**Examples:**
+
+```python
+--------
+>>> reader = DocumentReader()
+>>> for filename, content in reader.read_directory("path/to/docs"):
+...     print(f"Processing {filename}...")
+...     process_content(content)
+```
+
+**Methods:**
+
+- `is_supported_file(self, filepath: str) -> bool`
+  - Check if a file is supported based on its extension and ignore patterns.
+- `read_directory(self, directory: str, recursive: bool = True) -> Generator[Tuple[str, str], NoneType, NoneType]`
+  - Read all supported files in a directory and yield their content.
+- `read_file(self, filepath: str) -> Optional[str]`
+  - Read and extract text content from a single file.
+- `should_ignore_file(self, filepath: str) -> bool`
+  - Check if a file should be ignored based on gitignore-style patterns.
+
 #### HashingVectorizerSearchEngine
 
 ```python
@@ -904,7 +936,7 @@ Main Menu:
     - prompt_code_execution: Whether to prompt before executing code. Set this to True to avoid direct Python code execution!, Options: False, True, Type: OptionType.TOGGLE
     - track_model_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
     - extra_index_url: Additional URL for Python package installation. Useful for example when installing python packages (through pip) from private repositories, Type: OptionType.EDITABLE
-    - python_compile_mode: Compile mode in the Python Interpreter (main menu): 'exec' for code blocks, 'single' for direct execution, Options: exec, single, Type: OptionType.TOGGLE
+    - python_compile_mode: Compile mode in the Python Interpreter (main menu): 'exec' is suited for defining code blocks, 'single' for direct execution, Options: exec, single, Type: OptionType.TOGGLE
     - sequence_on_loading: A list of key sequences to execute when loading the configuration. Uses owl_press functionality., Type: OptionType.EDITABLE
   - model settings:
     - back: Return to previous menu
