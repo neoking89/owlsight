@@ -344,6 +344,7 @@ for token in processor.generate_stream(question):
 **2.?**
 
 - Improved userexperience in the CLI by preventing shrinking of the terminal window if menu is too large.
+- In the EDITABLE optiontype fields, multiple lines are now possible.
 - Add `owl_save_namespace` `owl_load_namespace` functions to save and load all variables inside the Python interpreter. This 
 is useful if you want to save any code created by a model. Or load a namespace from a previous session.
 - `ProcessorMemoryContext` can be used as a context_manager to clean up resources from `TextGenerationProcessor`, like the model, from memory after usage.
