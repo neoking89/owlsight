@@ -24,6 +24,7 @@ from .rag.core import (
     TFIDFSearchEngine,
     SentenceTransformerSearchEngine,
 )
+from .rag.document_reader import DocumentReader
 from .app.default_functions import OwlDefaultFunctions, search_bing, is_url
 from .hugging_face.core import get_model_data
 from .prompts.system_prompts import SystemPrompts, PromptWriter
@@ -43,6 +44,7 @@ __all__ = [
     "MultiModalProcessorTransformers",
     "PythonLibSearcher",
     "DocumentSearcher",
+    "DocumentReader",
     "HashingVectorizerSearchEngine",
     "TFIDFSearchEngine",
     "SentenceTransformerSearchEngine",
