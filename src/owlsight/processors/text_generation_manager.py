@@ -9,6 +9,7 @@ from owlsight.processors.helper_functions import select_processor_type, warn_pro
 from owlsight.ui.console import get_user_choice
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.rag.python_lib_search import PythonLibSearcher
+from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.ui.custom_classes import AppDTO
@@ -146,7 +147,15 @@ class TextGenerationManager:
                         return
                     top_k = self.config_manager.get("rag.top_k", CONFIG_DEFAULTS[outer_key]["top_k"])
                     sentence_transformer_weight = self.config_manager.get("rag.sentence_transformer_weight", 0.0)
+                    sentence_transformer_name_or_path = self.config_manager.get(
+                        "rag.sentence_transformer_name_or_path", SENTENCETRANSFORMER_DEFAULT_MODEL
+                    )
                     if sentence_transformer_weight > 0.0:
+                        if not sentence_transformer_name_or_path:
+                            logger.error(
+                                "No sentence transformer provided. Please provide a valid name or path to a sentence transformer in the 'sentence_transformer_name_or_path' field."
+                            )
+                            return
                         logger.warning(
                             "Using sentence transformer for semantic search. Creating embeddings for the library can take some time!"
                         )
@@ -162,6 +171,7 @@ class TextGenerationManager:
                         cache_dir=get_pickle_cache(),
                         tfidf_weight=tfidf_weight,
                         sentence_transformer_weight=sentence_transformer_weight,
+                        sentence_transformer_model=sentence_transformer_name_or_path,
                     )
                     print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
         elif outer_key == "huggingface":
