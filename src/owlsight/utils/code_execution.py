@@ -37,11 +37,33 @@ class CodeExecutor:
         pyenv_path: str,
         pip_path: str,
         temp_dir: str,
+        python_compile_mode: str = "exec",
     ):
+        """
+        Initialize CodeExecutor.
+
+        Parameters:
+        ----------
+        manager : TextGenerationManager
+            The TextGenerationManager instance.
+        pyenv_path : str
+            The path to the Python environment.
+        pip_path : str
+            The path to the pip executable.
+        temp_dir : str
+            The temporary directory for code execution.
+        python_compile_mode : str
+            The compilation mode for code execution. Defaults to 'exec'.
+            The mode must be 'exec' to compile a module, 'single' to compile a
+            single (interactive) statement, or 'eval' to compile an expression.
+        """
+        self._validate_python_compile_mode(python_compile_mode)
+
         self.manager = manager
         self.temp_dir = temp_dir
         self.globals_dict = SingletonDict()
         self._attempts = 0
+        self.python_compile_mode = python_compile_mode
 
         self._init_python_properties(pyenv_path, pip_path)
         self._fill_globals_dict()
@@ -184,7 +206,7 @@ class CodeExecutor:
                     break
                 else:
                     try:
-                        code_obj = compile(text, "<stdin>", "exec")
+                        code_obj = compile(text, "<stdin>", self.python_compile_mode)
                         exec(code_obj, namespace)
                     except Exception:
                         print(traceback.format_exc())
@@ -289,6 +311,11 @@ class CodeExecutor:
             return "" if to_string else []
 
         self.globals_dict["owl_history"] = owl_history
+
+    def _validate_python_compile_mode(self, python_compile_mode: str) -> None:
+        modes = ["exec", "single", "eval"]
+        if python_compile_mode not in modes:
+            raise ValueError(f"python_compile_mode must be one of {', '.join(modes)}")
 
 
 def execute_code_with_feedback(

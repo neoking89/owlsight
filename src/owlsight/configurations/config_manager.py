@@ -18,6 +18,9 @@ class ConfigManager:
     Most important to know, is that there are 2 different configurations:
     - self._config: the true configuration that is used in the application backend.
     - config_choices: the configuration that presented in the UI, where the user can toggle between choices.
+
+    Also:
+    For options to become available in the UI, they need to be defined in one of the create...choices() methods.
     """
 
     _instance = None
@@ -78,6 +81,8 @@ class ConfigManager:
             "prompt_retry_on_error": self._get_toggle_choice("main", "prompt_retry_on_error"),
             "track_model_usage": self._get_toggle_choice("main", "track_model_usage"),
             "extra_index_url": self._get_basic_choice("main", "extra_index_url"),
+            # "sequence_on_loading": self._get_basic_choice("main", "sequence_on_loading"),
+            "python_compile_mode": self._get_toggle_choice("main", "python_compile_mode"),
         }
 
     def _create_model_choices(self) -> Dict[str, Any]:
