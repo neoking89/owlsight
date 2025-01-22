@@ -54,9 +54,9 @@ class Schema:
             ),
             "python_compile_mode": MenuItem(
                 type=OptionType.TOGGLE,
-                description="The compilation mode for Python code execution in the Python Interpreter (main menu). 'exec' to compile a module, 'single' for interactive statement, 'eval' for expression.",
+                description="Compile mode in the Python Interpreter (main menu): 'exec' for code blocks, 'single' for direct execution",
                 default="exec",
-                choices=["exec", "single", "eval"],
+                choices=["exec", "single"],
             ),
         },
         "model": {
