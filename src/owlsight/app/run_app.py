@@ -109,6 +109,8 @@ def handle_special_commands(
         manager.load_config(user_choice)
         return CommandResult.CONTINUE
     elif user_choice == "python":
+        python_compile_mode = manager.get_config_key("main.python_compile_mode", "exec")
+        code_executor.python_compile_mode = python_compile_mode
         handle_interactive_code_execution(code_executor)
         return CommandResult.CONTINUE
     elif user_choice == "clear history":
