@@ -2,17 +2,19 @@
 # Usage: docker build --build-arg BASE_IMAGE=python:3.12-slim -t owlsight-test -f dockerfile.test.linux .
 
 # Base image for the specific OS and Python version
-ARG BASE_IMAGE=python:3.9-slim
+ARG BASE_IMAGE=python:3.11-slim
 FROM ${BASE_IMAGE} AS base
 
-# Install build dependencies for llama-cpp-python
+# Install build dependencies for llama-cpp-python and X11-related packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
-        libpython3-dev && \
+        libpython3-dev \
+        xvfb \
+        x11-utils \
+        libx11-6 && \
     rm -rf /var/lib/apt/lists/*
-
 
 WORKDIR /app
 COPY . /app
@@ -26,5 +28,41 @@ ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.1.0
 # Install all dependencies
 RUN pip install --no-cache-dir .[all,dev]
 
-# Run tests
-CMD ["pytest", "-vvv"]
+# Set up virtual framebuffer
+ENV DISPLAY=:99
+
+# Run tests with Xvfb
+CMD Xvfb :99 -screen 0 1024x768x16 & \
+    sleep 1 && \
+    pytest -vvv
+
+
+# # Dockerfile for running tests with different Python versions
+# # Usage: docker build --build-arg BASE_IMAGE=python:3.12-slim -t owlsight-test -f dockerfile.test.linux .
+
+# # Base image for the specific OS and Python version
+# ARG BASE_IMAGE=python:3.9-slim
+# FROM ${BASE_IMAGE} AS base
+
+# # Install build dependencies for llama-cpp-python
+# RUN apt-get update && \
+#     apt-get install -y --no-install-recommends \
+#         build-essential \
+#         cmake \
+#         libpython3-dev && \
+#     rm -rf /var/lib/apt/lists/*
+
+# WORKDIR /app
+# COPY . /app
+
+# # Pre-install setuptools-scm
+# RUN pip install --no-cache-dir setuptools-scm
+
+# # Provide fallback version
+# ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.1.0
+
+# # Install all dependencies
+# RUN pip install --no-cache-dir .[all,dev]
+
+# # Run tests
+# CMD ["pytest", "-vvv"]
