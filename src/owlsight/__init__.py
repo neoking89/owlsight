@@ -26,7 +26,7 @@ from .rag.core import (
 from .rag.document_reader import DocumentReader
 from .app.default_functions import OwlDefaultFunctions, search_bing, is_url
 from .hugging_face.core import get_model_data
-from .prompts.system_prompts import ExpertPrompts, PromptWriter
+from .prompts.system_prompts import ExpertPrompts, AgentPrompts, PromptWriter
 
 __all__ = [
     "setup_tesseract",
@@ -52,5 +52,6 @@ __all__ = [
     "is_url",
     "get_model_data",
     "ExpertPrompts",
+    "AgentPrompts",
     "PromptWriter",
 ]
