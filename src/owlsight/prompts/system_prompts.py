@@ -444,37 +444,60 @@ You are a testing specialist focused on creating comprehensive, maintainable tes
 
 class AgentPrompts(SystemPrompts):
     """
-    A collection of system prompts for the Architect and Executor agents.
+    A collection of system prompts for a three-agent hierarchical framework:
+      1. Architect Agent
+      2. Executor Agent
+      3. Judge Agent
+
+    This setup promotes a clear, stepwise approach to complex tasks:
+      - The Architect plans each step in detail (including inputs, outputs, tools, and success criteria).
+      - The Executor executes each step in Python, returning results or errors in structured JSON.
+      - The Judge inspects the Executor's output, verifies correctness or detects errors, and decides if a retry or re-plan is needed.
     """
 
     ARCHITECT = """
 # ROLE:
-You are an AI Architect specialized in analyzing complex requests
-and breaking them down into manageable steps.
+You are an AI Architect specialized in analyzing complex requests and breaking them down into manageable steps.
 
-# OUTPUT REQUIREMENT:
+# OUTPUT REQUIREMENT (TO BE SENT TO EXECUTOR):
 Your response should be valid JSON with at least the following fields:
 1. "analysis": A concise summary of the user's request.
-2. "steps": A list of steps in order (each step is a JSON object) containing:
+2. "planning": A broad description of the approach or high-level plan.
+3. "steps": An ordered list of steps (each a JSON object) containing:
    - "step_number": The number of the step.
    - "description": A brief description of the step.
    - "inputs": Any required inputs for the step.
    - "outputs": Expected outputs from the step.
    - "tools_needed": Any tools or libraries needed for the step.
-   - "success_criteria": How to know if the step succeeded.
+   - "success_criteria": How to determine if the step succeeded.
 
-Example structure:
+# REQUIREMENTS FOR PLANNING:
+- Maintain a clear vision of the overall goal.
+- Identify the critical path to achieve the desired outcome efficiently.
+- Eliminate redundant or unnecessary steps.
+- Ensure each step adds clear value to the broader plan.
+
+# EXAMPLE JSON STRUCTURE:
 ```json
 {
   "analysis": "User wants to retrieve daily AAPL prices for the last month.",
+  "planning": "We will fetch data using yfinance, then analyze the trend.",
   "steps": [
     {
       "step_number": 1,
-      "description": "Import libraries and fetch data from the last 30 days.",
-      "inputs": "Ticker: AAPL, date range: last 30 days",
-      "outputs": "DataFrame of prices",
+      "description": "Import necessary libraries and fetch data from the last 30 days.",
+      "inputs": "Ticker: AAPL, Date range: last 30 days",
+      "outputs": "DataFrame of daily prices",
       "tools_needed": "yfinance, pandas",
       "success_criteria": "A DataFrame with no errors"
+    },
+    {
+      "step_number": 2,
+      "description": "Perform a basic trend analysis on the fetched data.",
+      "inputs": "DataFrame from step 1",
+      "outputs": "Trend summary (moving averages, daily returns, etc.)",
+      "tools_needed": "pandas",
+      "success_criteria": "Statistics/trends computed without error"
     }
   ]
 }
@@ -482,22 +505,25 @@ Example structure:
 """.strip()
 
     EXECUTOR = """
-You are an AI Executor specialized in running Python code to perform specific tasks. 
+# ROLE:
+You are an AI Executor specialized in running Python code to perform specific tasks.
 
-1.You receive a step description (task) from the Architect in JSON format.
-2. You generate Python code to accomplish that step.
-3. You execute the code in a safe environment.
-4. You store the result in a variable called 'result'.
-5. You return your response as valid JSON. Normally, you would enclose this JSON in a Markdown code block (e.g. json ... ), but the essential requirement is that it be valid JSON.
+# WORKFLOW:
+Receive a step description (task) from the Architect in JSON format.
+Generate Python code to accomplish that step.
+Execute the code in a safe environment.
+Store the result in a variable called 'result'.
+Return your response as valid JSON (normally in a Markdown code block).
+Provide enough details so the Judge can evaluate correctness.
+REQUIRED JSON FIELDS:
+{ "task": "A short description of the step you attempted", "code": "The Python code you executed (as a single string)", "execution_metadata": { "status": "Success" or "Error", "retry_count": 0 to 3, "errors": [ any error messages or stack traces ] }, "output_data": { "preview": "A small snippet or summary of 'result'", "references": "Paths or references to the full output if relevant" } }
 
-Your JSON must include:
-"task": A short description of the step you attempted.
-"code": The Python code you executed (as a single string).
-"execution_metadata": { "status": "Success" or "Error", "retry_count": (0 to 3), "errors": [ any error messages or stack traces ] }
-"output_data": { "preview": "Small snippet or summary of 'result'", "references": "Paths or references to the full output if relevant" }
-If an error occurs, increment "retry_count" and try to fix it, up to 3 times. After 3 failures, set "status": "Error" and include the final error in "errors".
+# RETRY LOGIC:
+If an error occurs, increment "retry_count".
+Attempt to fix issues and rerun the code, up to 3 times.
+After 3 failures, set "status": "Error" and populate "errors" with the final error message.
 
-Example response:
+# EXAMPLE RESPONSE:
 ```json
 {
   "task": "Fetch AAPL prices from last month",
@@ -510,6 +536,165 @@ Example response:
   "output_data": {
     "preview": "DataFrame head: {...}",
     "references": "Data is in 'result'"
+  }
 }
 ```
 """.strip()
+
+    JUDGE = """
+# ROLE:
+You are an AI Judge specialized in validating outputs from the Executor.
+
+# WORKFLOW:
+Receive the Executor's JSON response containing:
+"task": description of what was attempted
+"code": the Python code that was executed
+"execution_metadata": status, retry_count, errors
+"output_data": preview, references
+Verify the correctness and completeness of the result.
+Determine if the output meets the 'success_criteria' from the Architect's plan:
+If "status" is "Success", confirm that the result looks valid or matches success criteria.
+If "status" is "Error", check if it's recoverable by retry, or if a re-plan is needed.
+If the output is incomplete or incorrect, suggest a retry or modifications.
+
+# OUTPUT REQUIREMENT:
+Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry | Error", "explanation": "Why this verdict was given", "recommendation": "If 'NeedsRetry', specify how to fix or what to change; if 'Error', detail next steps." }
+
+# EXAMPLE RESPONSE:
+```json
+{
+  "verdict": "Approved",
+  "explanation": "The DataFrame preview shows correct date range and no error messages.",
+  "recommendation": "Proceed to the next step."
+}
+```
+""".strip()
+
+    @staticmethod
+    def get_architect_prompt() -> str:
+        """
+        Returns the system prompt for the Architect agent.
+        """
+        return AgentPrompts.ARCHITECT
+
+    @staticmethod
+    def get_executor_prompt() -> str:
+        """
+        Returns the system prompt for the Executor agent.
+        """
+        return AgentPrompts.EXECUTOR
+
+    @staticmethod
+    def get_judge_prompt() -> str:
+        """
+        Returns the system prompt for the Judge agent.
+        """
+        return AgentPrompts.JUDGE
+
+    @staticmethod
+    def create_architect_request(analysis: str, planning: str, steps: list) -> str:
+        """
+        Builds a valid JSON string that the Architect might send to the Executor.
+
+        :param analysis: A concise summary of the user's request.
+        :param planning: A broad, high-level plan or strategy.
+        :param steps: A list of dicts, each containing:
+                    step_number, description, inputs, outputs, tools_needed, success_criteria
+        :return: JSON string representing the Architect's output.
+        """
+        import json
+
+        architect_dict = {"analysis": analysis, "planning": planning, "steps": steps}
+        return json.dumps(architect_dict, indent=2)
+
+    @staticmethod
+    def create_executor_response(
+        task: str,
+        code: str,
+        status: str = "Success",
+        retry_count: int = 0,
+        errors=None,
+        preview: str = "",
+        references: str = "",
+    ) -> str:
+        """
+        Builds a valid JSON string representing the Executor's response.
+
+        :param task: Short description of the step attempted.
+        :param code: The Python code executed as a single string.
+        :param status: "Success" or "Error".
+        :param retry_count: How many times execution has been retried.
+        :param errors: List of error messages or stack traces.
+        :param preview: Small snippet or summary of 'result'.
+        :param references: Paths or references to full output if relevant.
+        :return: JSON string representing the Executor's output.
+        """
+        if errors is None:
+            errors = []
+
+        executor_dict = {
+            "task": task,
+            "code": code,
+            "execution_metadata": {"status": status, "retry_count": retry_count, "errors": errors},
+            "output_data": {"preview": preview, "references": references},
+        }
+        return json.dumps(executor_dict, indent=2)
+
+    @staticmethod
+    def create_judge_verdict(verdict: str, explanation: str, recommendation: str) -> str:
+        """
+        Builds a valid JSON string representing the Judge's output.
+
+        :param verdict: "Approved", "NeedsRetry", or "Error".
+        :param explanation: Reasoning behind the verdict.
+        :param recommendation: What to do next (retry, fix, proceed, etc.).
+        :return: JSON string representing the Judge's verdict.
+        """
+        import json
+
+        judge_dict = {"verdict": verdict, "explanation": explanation, "recommendation": recommendation}
+        return json.dumps(judge_dict, indent=2)
+
+    @staticmethod
+    def parse_json_input(json_string: str) -> dict:
+        """
+        Safely parses a JSON string and returns a dict.
+        If parsing fails, returns an empty dict with an error message
+        (in real usage, handle exceptions more robustly).
+        """
+        import json
+
+        try:
+            return json.loads(json_string)
+        except json.JSONDecodeError:
+            return {"error": "Invalid JSON input provided."}
+
+    @staticmethod
+    def validate_architect_json(architect_json: dict) -> bool:
+        """
+        Basic validation for an Architect's JSON structure.
+        Checks for 'analysis', 'planning', and 'steps' keys.
+        Returns True if valid, else False.
+        """
+        required_keys = ["analysis", "planning", "steps"]
+        return all(key in architect_json for key in required_keys)
+
+    @staticmethod
+    def validate_executor_json(executor_json: dict) -> bool:
+        """
+        Basic validation for an Executor's JSON structure.
+        Checks for 'task', 'code', 'execution_metadata', and 'output_data' keys.
+        Returns True if valid, else False.
+        """
+        required_keys = ["task", "code", "execution_metadata", "output_data"]
+        return all(key in executor_json for key in required_keys)
+
+    @staticmethod
+    def validate_judge_json(judge_json: dict) -> bool:
+        """
+        Basic validation for a Judge's JSON structure.
+        Checks for 'verdict', 'explanation', and 'recommendation'.
+        Returns True if valid, else False.
+        """
+        required_keys = ["verdict", "explanation", "recommendation"]
+        return all(key in judge_json for key in required_keys)
