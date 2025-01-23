@@ -26,6 +26,7 @@ dependencies = [
     "pynput",
     "pydantic",
     "dill",
+    "tika",
 ]
 
 [project.optional-dependencies]
@@ -49,7 +50,6 @@ onnx = [
 
 search = [
     "sentence-transformers",
-    "tika",
 ]
 
 multimodal = [
