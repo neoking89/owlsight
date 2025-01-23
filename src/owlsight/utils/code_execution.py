@@ -288,7 +288,7 @@ class CodeExecutor:
             self.globals_dict[name] = method
 
         # add owl_history function to globals_dict
-        def owl_history(to_string: bool = False) -> Union[List[dict], str]:
+        def owl_history(to_string: bool = False, get_last_response_only: bool = False) -> Union[List[dict], str]:
             """
             Get the chathistory of the current model.
 
@@ -296,6 +296,8 @@ class CodeExecutor:
             ----------
             to_string : bool, optional
                 If True, returns the history as a formatted string, by default False
+            get_last_response_only : bool, optional
+                If True, returns only the last response from the history, by default False
 
             Returns
             -------
@@ -305,6 +307,8 @@ class CodeExecutor:
             processor = self.manager.get_processor()
             if processor:
                 history = processor.get_history()
+                if get_last_response_only:
+                    return history[-1]["content"] if history else ""
                 if to_string:
                     return _format_history_as_string(history)
                 return history
