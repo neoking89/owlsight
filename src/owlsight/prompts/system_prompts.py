@@ -50,6 +50,11 @@ class PromptWriter:
         with open(target_json, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
+    def __repr__(self) -> str:
+        return f"PromptWriter(prompt='{self.prompt}')"
+
+    def __str__(self) -> str:
+        return self.__repr__()
 
 class SystemPrompts:
     """System prompts for different expert roles"""
@@ -109,6 +114,23 @@ class SystemPrompts:
         return OwlDefaultFunctions(globals_dict).owl_show(docs=True)
 
     def __getattr__(self, name: str) -> PromptWriter:
+        """
+        Get the system prompt for a specific role.
+
+        Parameters
+        ----------
+        name : str
+            The name of the role to get the prompt for.
+
+        Returns
+        -------
+        PromptWriter
+            The system prompt for the specified role.
+
+        Example Usage:
+        >>> expert_prompts = ExpertPrompts()
+        >>> expert_prompts.python
+        """
         role_key = name.lower()
         if role_key in self.list_roles():
             attr = getattr(self.__class__, role_key)
