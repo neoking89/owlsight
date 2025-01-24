@@ -4,7 +4,7 @@ import builtins
 import inspect
 import traceback
 import re
-from typing import Optional, List, Dict, Union, Iterable
+from typing import Optional, List, Dict, Union, Iterable, Any
 from datetime import datetime
 from pathlib import Path
 import subprocess
@@ -31,7 +31,7 @@ class OwlDefaultFunctions:
     This class is open for extension, as possibly more useful functions can be added in the future.
     """
 
-    def __init__(self, globals_dict: SingletonDict):
+    def __init__(self, globals_dict: Union[SingletonDict, Dict[str, Any]]):
         # Add check to make sure every function starts with 'owl_'
         self._check_method_naming_convention()
 
