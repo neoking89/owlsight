@@ -166,33 +166,41 @@ class OwlDefaultFunctions:
         except Exception:
             print(f"Error importing module:\n{traceback.format_exc()}")
 
-    def owl_show(self, docs: bool = True):
+    def owl_show(self, docs: bool = True) -> str:
         """
         Show all currently active imported objects in the namespace except builtins.
 
         Parameters:
         -----------
         docs (bool): If True, also display the docstring of each object.
+
+        Returns:
+        --------
+        str: A string representation of the active objects and their information.
         """
         current_globals = self.globals_dict
         active_objects = {name: obj for name, obj in current_globals.items() if name not in dir(builtins)}
 
+        output = []
         brackets = "#" * 50
-        print("Active imported objects:")
-        print(brackets)
+        output.append("Active imported objects:")
+        output.append(brackets)
         for name, obj in active_objects.items():
             if not name.startswith("_"):
                 obj_type = type(obj).__name__
-                print(f"{name} ({obj_type})")
+                output.append(f"{name} ({obj_type})")
 
-                # Optionally display the docstring if available
                 if docs:
                     docstring = obj.__doc__
                     if docstring:
-                        print(f"Doc: {docstring.strip()}")
+                        output.append(f"Doc: {docstring.strip()}")
                     else:
-                        print("Doc: No documentation available")
-                print(brackets)
+                        output.append("Doc: No documentation available")
+                output.append(brackets)
+
+        result = "\n".join(output)
+        print(result)
+        return result
 
     def owl_write(self, file_path: str, content: str):
         """
