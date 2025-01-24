@@ -1,19 +1,27 @@
 import json
 import os
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional
 
 from owlsight.app.default_functions import OwlDefaultFunctions
+from owlsight.utils.custom_classes import SingletonDict
 
 
 class PromptWriter:
-    """Writes a system prompt to an Owlsight configuration JSON file."""
+    """
+    Writes a system prompt to an Owlsight configuration JSON file.
+
+    Parameters
+    ----------
+    prompt : str
+        The system prompt to be written to the Owlsight configuration JSON file.
+    """
 
     def __init__(self, prompt: str):
         """
         Initialize the PromptWriter with the given prompt.
 
-        Parameters:
-        ------------
+        Parameters
+        ----------
         prompt : str
             The system prompt to be written to the Owlsight configuration JSON file.
         """
@@ -23,8 +31,8 @@ class PromptWriter:
         """
         Updates the 'system_prompt' field under the 'model' key in the given Owlsight configuration JSON file.
 
-        Parameters:
-        ------------
+        Parameters
+        ----------
         target_json : str
             The path to the JSON file to be updated.
         """
@@ -48,17 +56,31 @@ class SystemPrompts:
 
     @classmethod
     def list_roles(cls) -> List[str]:
-        """List all available role keys."""
+        """
+        List all available role keys.
+
+        Returns
+        -------
+        List[str]
+            List of available role keys.
+        """
         roles = []
         for attr in dir(cls):
-            if not attr.startswith('_'):
+            if not attr.startswith("_"):
                 value = getattr(cls, attr)
                 if isinstance(value, (str, property)):
                     roles.append(attr)
         return roles
 
     def as_dict(self) -> Dict[str, str]:
-        """Return a dictionary of role keys and their descriptions."""
+        """
+        Return a dictionary of role keys and their descriptions.
+
+        Returns
+        -------
+        Dict[str, str]
+            Dictionary mapping role keys to their descriptions.
+        """
         result = {}
         for role in self.list_roles():
             attr = getattr(self.__class__, role)
@@ -68,12 +90,23 @@ class SystemPrompts:
                 result[role] = attr
         return result
 
-    def show_available_tools(self, globals_dict: Optional[Dict[str, Any]] = None) -> str:
-        """Show all currently active imported objects in the namespace except builtins."""
-        if globals_dict is None:
-            globals_dict = {}
-        return OwlDefaultFunctions(globals_dict).owl_show(docs=True)
+    def show_available_tools(self, globals_dict: Optional[SingletonDict] = None) -> str:
+        """
+        Show all currently active imported objects in the namespace except builtins.
 
+        Parameters
+        ----------
+        globals_dict : Optional[SingletonDict], optional
+            Dictionary of global variables, by default None
+
+        Returns
+        -------
+        str
+            String representation of available tools.
+        """
+        if globals_dict is None:
+            globals_dict = SingletonDict()
+        return OwlDefaultFunctions(globals_dict).owl_show(docs=True)
 
     def __getattr__(self, name: str) -> PromptWriter:
         role_key = name.lower()
@@ -469,6 +502,15 @@ class AgentPrompts(SystemPrompts):
     """
 
     def __init__(self, available_information: str = ""):
+        """
+        Initialize the AgentPrompts with available information for the Architect.
+
+        Parameters
+        ----------
+        available_information : str, optional
+            Any information available to the Architect at the start.
+            This information can be seen as "current state", by default ""
+        """
         self.available_information = available_information
 
     @property
@@ -539,13 +581,14 @@ Can you please provide more specific instructions?
 You are an AI Executor specialized in running Python code to perform specific tasks.
 
 # WORKFLOW:
-Receive a step description (task) from the Architect in JSON format.
-Generate Python code to accomplish that step.
-Execute the code in a safe environment.
-Store the result in a variable called 'result'.
-Return your response as valid JSON (normally in a Markdown code block).
-Provide enough details so the Judge can evaluate correctness.
-REQUIRED JSON FIELDS:
+1. Receive a step description (task) from the Architect in JSON format.
+2. Generate Python code to accomplish that step.
+3. Store the result in a variable called 'result'.
+4. Think carefully and step-by-step how you will implement the code to achieve the task.
+5. Return your response as valid JSON (normally in a Markdown code block).
+6. Provide enough details so the Judge can evaluate correctness.
+
+# REQUIRED JSON FIELDS:
 { "task": "A short description of the step you attempted", "code": "The Python code you executed (as a single string)", "execution_metadata": { "status": "Success" or "Error", "retry_count": 0 to 3, "errors": [ any error messages or stack traces ] }, "output_data": { "preview": "A small snippet or summary of 'result'", "references": "Paths or references to the full output if relevant" } }
 
 # RETRY LOGIC:
@@ -578,16 +621,16 @@ After 3 failures, set "status": "Error" and populate "errors" with the final err
 You are an AI Judge specialized in validating outputs from the Executor.
 
 # WORKFLOW:
-Receive the Executor's JSON response containing:
+1. Receive the Executor's JSON response containing:
 "task": description of what was attempted
 "code": the Python code that was executed
 "execution_metadata": status, retry_count, errors
 "output_data": preview, references
-Verify the correctness and completeness of the result.
-Determine if the output meets the 'success_criteria' from the Architect's plan:
-If "status" is "Success", confirm that the result looks valid or matches success criteria.
-If "status" is "Error", check if it's recoverable by retry, or if a re-plan is needed.
-If the output is incomplete or incorrect, suggest a retry or modifications.
+2. Verify the correctness and completeness of the result.
+3. Determine if the output meets the 'success_criteria' from the Architect's plan:
+a. If "status" is "Success", confirm that the result looks valid or matches success criteria.
+b. If "status" is "Error", check if it's recoverable by retry, or if a re-plan is needed.
+c. If the output is incomplete or incorrect, suggest a retry or modifications.
 
 # OUTPUT REQUIREMENT:
 Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry | Error", "explanation": "Why this verdict was given", "recommendation": "If 'NeedsRetry', specify how to fix or what to change; if 'Error', detail next steps." }
@@ -606,6 +649,11 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
     def get_architect_prompt() -> str:
         """
         Returns the system prompt for the Architect agent.
+
+        Returns
+        -------
+        str
+            System prompt for the Architect agent.
         """
         return AgentPrompts.architect
 
@@ -613,6 +661,11 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
     def get_executor_prompt() -> str:
         """
         Returns the system prompt for the Executor agent.
+
+        Returns
+        -------
+        str
+            System prompt for the Executor agent.
         """
         return AgentPrompts.executor
 
@@ -620,6 +673,11 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
     def get_judge_prompt() -> str:
         """
         Returns the system prompt for the Judge agent.
+
+        Returns
+        -------
+        str
+            System prompt for the Judge agent.
         """
         return AgentPrompts.judge
 
@@ -628,11 +686,25 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
         """
         Builds a valid JSON string that the Architect might send to the Executor.
 
-        :param analysis: A concise summary of the user's request.
-        :param planning: A broad, high-level plan or strategy.
-        :param steps: A list of dicts, each containing:
-                    step_number, description, inputs, outputs, tools_needed, success_criteria
-        :return: JSON string representing the Architect's output.
+        Parameters
+        ----------
+        analysis : str
+            A concise summary of the user's request.
+        planning : str
+            A broad, high-level plan or strategy.
+        steps : list
+            A list of dicts, each containing:
+            - step_number: The step number
+            - description: Brief description of the step
+            - inputs: Required inputs for the step
+            - outputs: Expected outputs from the step
+            - tools_needed: Tools or libraries needed
+            - success_criteria: Success determination criteria
+
+        Returns
+        -------
+        str
+            JSON string representing the Architect's output.
         """
         import json
 
@@ -652,14 +724,27 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
         """
         Builds a valid JSON string representing the Executor's response.
 
-        :param task: Short description of the step attempted.
-        :param code: The Python code executed as a single string.
-        :param status: "Success" or "Error".
-        :param retry_count: How many times execution has been retried.
-        :param errors: List of error messages or stack traces.
-        :param preview: Small snippet or summary of 'result'.
-        :param references: Paths or references to full output if relevant.
-        :return: JSON string representing the Executor's output.
+        Parameters
+        ----------
+        task : str
+            Short description of the step attempted.
+        code : str
+            The Python code executed as a single string.
+        status : str, optional
+            Execution status, by default "Success"
+        retry_count : int, optional
+            Number of execution retries, by default 0
+        errors : list, optional
+            List of error messages or stack traces, by default None
+        preview : str, optional
+            Small snippet or summary of 'result', by default ""
+        references : str, optional
+            Paths or references to full output if relevant, by default ""
+
+        Returns
+        -------
+        str
+            JSON string representing the Executor's output.
         """
         if errors is None:
             errors = []
@@ -677,10 +762,19 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
         """
         Builds a valid JSON string representing the Judge's output.
 
-        :param verdict: "Approved", "NeedsRetry", or "Error".
-        :param explanation: Reasoning behind the verdict.
-        :param recommendation: What to do next (retry, fix, proceed, etc.).
-        :return: JSON string representing the Judge's verdict.
+        Parameters
+        ----------
+        verdict : str
+            One of: "Approved", "NeedsRetry", or "Error"
+        explanation : str
+            Reasoning behind the verdict.
+        recommendation : str
+            What to do next (retry, fix, proceed, etc.).
+
+        Returns
+        -------
+        str
+            JSON string representing the Judge's verdict.
         """
         import json
 
@@ -691,8 +785,16 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
     def parse_json_input(json_string: str) -> dict:
         """
         Safely parses a JSON string and returns a dict.
-        If parsing fails, returns an empty dict with an error message
-        (in real usage, handle exceptions more robustly).
+
+        Parameters
+        ----------
+        json_string : str
+            JSON string to parse.
+
+        Returns
+        -------
+        dict
+            Parsed JSON as dictionary. Returns dict with error message if parsing fails.
         """
         import json
 
@@ -705,8 +807,16 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
     def validate_architect_json(architect_json: dict) -> bool:
         """
         Basic validation for an Architect's JSON structure.
-        Checks for 'analysis', 'planning', and 'steps' keys.
-        Returns True if valid, else False.
+
+        Parameters
+        ----------
+        architect_json : dict
+            JSON structure to validate.
+
+        Returns
+        -------
+        bool
+            True if valid (contains required keys), False otherwise.
         """
         required_keys = ["analysis", "planning", "steps"]
         return all(key in architect_json for key in required_keys)
@@ -715,8 +825,16 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
     def validate_executor_json(executor_json: dict) -> bool:
         """
         Basic validation for an Executor's JSON structure.
-        Checks for 'task', 'code', 'execution_metadata', and 'output_data' keys.
-        Returns True if valid, else False.
+
+        Parameters
+        ----------
+        executor_json : dict
+            JSON structure to validate.
+
+        Returns
+        -------
+        bool
+            True if valid (contains required keys), False otherwise.
         """
         required_keys = ["task", "code", "execution_metadata", "output_data"]
         return all(key in executor_json for key in required_keys)
@@ -725,8 +843,16 @@ Return valid JSON indicating your judgement: { "verdict": "Approved | NeedsRetry
     def validate_judge_json(judge_json: dict) -> bool:
         """
         Basic validation for a Judge's JSON structure.
-        Checks for 'verdict', 'explanation', and 'recommendation'.
-        Returns True if valid, else False.
+
+        Parameters
+        ----------
+        judge_json : dict
+            JSON structure to validate.
+
+        Returns
+        -------
+        bool
+            True if valid (contains required keys), False otherwise.
         """
         required_keys = ["verdict", "explanation", "recommendation"]
         return all(key in judge_json for key in required_keys)
