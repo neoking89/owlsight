@@ -470,7 +470,7 @@ Maintains document and engine caches throughout the owlsight session.
 
 - `clear_cache(self, library: Optional[str] = None)`
   - Clear the document and engine caches.
-- `search(self, library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, return_context: bool = True, tfidf_weight: float = 1.0, sentence_transformer_weight: float = 0.0, sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5') -> Union[pandas.core.frame.DataFrame, str]`
+- `search(self, library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, as_context: bool = True, tfidf_weight: float = 1.0, sentence_transformer_weight: float = 0.0, sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5') -> Union[pandas.core.frame.DataFrame, str]`
   - Search Python library documentation with caching for documents and search engines.
 
 #### DocumentSearcher
