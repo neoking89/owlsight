@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Optional, Literal, Any, Tuple
+from typing import Dict, List, Optional, Literal, Any, Tuple, Union
 from abc import ABC, abstractmethod
 import traceback
 
@@ -141,7 +141,7 @@ class DocumentSearcher:
 
             # Split document into sentences
             sentences = SentenceTransformerSearchEngine.split_and_clean_text(doc_text)
-            
+
             # Handle documents with no proper sentences
             if not sentences:
                 split_docs[f"{doc_name}__split0"] = doc_text
@@ -155,28 +155,73 @@ class DocumentSearcher:
             # Create chunks with overlap
             chunk_idx = 0
             start_idx = 0
-            
+
             while start_idx < len(sentences):
                 # Get chunk of n_sentences (or remaining sentences)
                 end_idx = min(start_idx + n_sentences, len(sentences))
                 chunk = sentences[start_idx:end_idx]
-                
+
                 # Join sentences into a single string
                 chunk_text = " ".join(chunk)
-                
+
                 # Create new document name with chunk index
                 new_doc_name = f"{doc_name}__split{chunk_idx}"
                 split_docs[new_doc_name] = chunk_text
                 chunk_idx += 1
-                
+
                 # Move start index forward by (n_sentences - n_overlap)
                 start_idx += n_sentences - n_overlap
-                
+
                 # If we can't form another complete chunk, append the remaining sentences
                 if len(sentences) - start_idx < n_sentences:
                     split_docs[new_doc_name] = " ".join(chunk)
 
         return split_docs
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 20,
+        sentence_transformer_weight: float = 0.7,
+        tfidf_weight: float = 0.3,
+        as_context: bool = False
+    ) -> Union[pd.DataFrame, str]:
+        """
+        Search documents using the configured ensemble methods.
+
+        Parameters
+        ----------
+        query : str
+            The search query
+        top_k : int, default 20
+            Number of top results to return
+        tfidf_weight : float, default 0.3
+            Weight for the TFIDF search method.
+        sentence_transformer_weight : float, default 0.7
+            Weight for the Sentence Transformer search method.
+        as_context : bool, default False
+            If True, format the DataFrame as string, focussing on being passed as context for LLMs.
+
+        Returns
+        -------
+        Union[pd.DataFrame, str]
+            DataFrame containing the search results or a formatted string if `as_context` is True.
+        """
+        method_weights = {
+            SearchMethod.TFIDF: tfidf_weight,
+            SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
+        }
+        results = self.engine.search(query, top_k=top_k, method_weights=method_weights)
+        
+        if as_context:
+            context_parts = []
+            for _, row in results.iterrows():
+                header = f"{row['document_name']}"
+                entry = ["=" * 80, header, "-" * 40, "Content:", row["document"].strip()]
+                context_parts.append("\n".join(entry))
+            return "".join(context_parts)
+        
+        return results
 
     def _handle_split_documents(self, documents: Dict[str, str]) -> Dict[str, str]:
         """Handle document splitting based on instance configuration.
@@ -205,45 +250,6 @@ class DocumentSearcher:
                 n_overlap=self.split_documents_n_overlap,
             )
         return documents
-
-    def search(
-        self,
-        query: str,
-        top_k: int = 20,
-        sentence_transformer_weight: float = 0.7,
-        tfidf_weight: float = 0.3,
-    ) -> pd.DataFrame:
-        """
-        Search documents using the configured ensemble methods.
-
-        Parameters
-        ----------
-        query : str
-            The search query
-        top_k : int, default 20
-            Number of top results to return
-        tfidf_weight : float, default 0.3
-            Weight for the TFIDF search method.
-        sentence_transformer_weight : float, default 0.7
-            Weight for the Sentence Transformer search method.
-
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame containing the search results with columns:
-            - document info: Information about a given document, like title, name, etc.
-            - document: Documentation text
-            - method: Search method used
-            - score: Raw similarity score
-            - weighted_score: Score weighted by method (TFIDF or Sentence Transformer)
-            - aggregated_score: Combined score across methods
-        """
-        method_weights = {
-            SearchMethod.TFIDF: tfidf_weight,
-            SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
-        }
-        results = self.engine.search(query, top_k=top_k, method_weights=method_weights)
-        return results
 
 
 class SearchEngine(ABC):
