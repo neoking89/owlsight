@@ -166,14 +166,15 @@ class OwlDefaultFunctions:
         except Exception:
             print(f"Error importing module:\n{traceback.format_exc()}")
 
-    def owl_show(self, docs: bool = True) -> str:
+    def owl_show(self, docs: bool = True, return_str: bool = False) -> str:
         """
         Show all currently active imported objects in the namespace except builtins.
 
         Parameters:
         -----------
         docs (bool): If True, also display the docstring of each object.
-
+        return_str (bool): If True, return a string representation of the active objects and their information.
+        
         Returns:
         --------
         str: A string representation of the active objects and their information.
@@ -200,11 +201,12 @@ class OwlDefaultFunctions:
 
         result = "\n".join(output)
         print(result)
-        return result
+        if return_str:
+            return result
 
     def owl_write(self, file_path: str, content: str):
         """
-        Write content to a text file.
+        Write content to a (text) file.
         """
         try:
             with open(file_path, "w") as file:
