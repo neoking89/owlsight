@@ -58,6 +58,10 @@ pip install owlsight[all]
 
 It is recommended to use the `all` option, as this will install all dependencies and allow you to use all features of Owlsight.
 
+NOTE: some libraries like llama-cpp-python and pytorch can be highly dependant on user-specific configurations.
+From owlsight, these libraries are installed without any additional configurations.
+You might need to reinstall them after installing Owlsight with settings that match your requirements.
+
 ## Usage
 
 After installation, launch Owlsight in the terminal by running the following command:
@@ -743,7 +747,7 @@ Notes
 #### OwlDefaultFunctions
 
 ```python
-class OwlDefaultFunctions(globals_dict: owlsight.utils.custom_classes.SingletonDict)
+class OwlDefaultFunctions(globals_dict: Union[owlsight.utils.custom_classes.SingletonDict, Dict[str, Any]])
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -768,15 +772,15 @@ This class is open for extension, as possibly more useful functions can be added
   - Save the current python namespace using dill.
 - `owl_scrape(self, url_or_terms: str, trim_newlines: Optional[int] = 2, filter_by: Optional[Dict[str, str]] = None, **request_kwargs) -> str`
   - Scrape the text content of a webpage and return specific content based on the filter.
-- `owl_show(self, docs: bool = True)`
+- `owl_show(self, docs: bool = True) -> str`
   - Show all currently active imported objects in the namespace except builtins.
 - `owl_write(self, file_path: str, content: str)`
   - Write content to a text file.
 
-#### SystemPrompts
+#### ExpertPrompts
 
 ```python
-class SystemPrompts()
+class ExpertPrompts()
 ```
 
 System prompts for different expert roles
@@ -784,6 +788,52 @@ System prompts for different expert roles
 **Methods:**
 
 - `as_dict(self) -> Dict[str, str]`
+  - Return a dictionary of role keys and their descriptions.
+- `show_available_tools(self, globals_dict: Optional[owlsight.utils.custom_classes.SingletonDict] = None) -> str`
+  - Show all currently active imported objects in the namespace except builtins.
+
+#### AgentPrompts
+
+```python
+class AgentPrompts(available_information: str = '')
+```
+
+A collection of system prompts for a three-agent hierarchical framework:
+  1. Architect Agent
+  2. Executor Agent
+  3. Judge Agent
+
+This setup promotes a clear, stepwise approach to complex tasks:
+  - The Architect plans each step in detail (including inputs, outputs, tools, and success criteria).
+  - The Executor executes each step in Python, returning results or errors in structured JSON.
+  - The Judge inspects the Executor's output, verifies correctness or detects errors, and decides if a retry or re-plan is needed.
+
+**Methods:**
+
+- `as_dict(self) -> Dict[str, str]`
+  - Return a dictionary of role keys and their descriptions.
+- `create_architect_request(analysis: str, planning: str, steps: list) -> str`
+  - Builds a valid JSON string that the Architect might send to the Executor.
+- `create_executor_response(task: str, code: str, status: str = 'Success', retry_count: int = 0, errors=None, preview: str = '', references: str = '') -> str`
+  - Builds a valid JSON string representing the Executor's response.
+- `create_judge_verdict(verdict: str, explanation: str, recommendation: str) -> str`
+  - Builds a valid JSON string representing the Judge's output.
+- `get_architect_prompt() -> str`
+  - Returns the system prompt for the Architect agent.
+- `get_executor_prompt() -> str`
+  - Returns the system prompt for the Executor agent.
+- `get_judge_prompt() -> str`
+  - Returns the system prompt for the Judge agent.
+- `parse_json_input(json_string: str) -> dict`
+  - Safely parses a JSON string and returns a dict.
+- `show_available_tools(self, globals_dict: Optional[owlsight.utils.custom_classes.SingletonDict] = None) -> str`
+  - Show all currently active imported objects in the namespace except builtins.
+- `validate_architect_json(architect_json: dict) -> bool`
+  - Basic validation for an Architect's JSON structure.
+- `validate_executor_json(executor_json: dict) -> bool`
+  - Basic validation for an Executor's JSON structure.
+- `validate_judge_json(judge_json: dict) -> bool`
+  - Basic validation for a Judge's JSON structure.
 
 #### PromptWriter
 
@@ -792,6 +842,11 @@ class PromptWriter(prompt: str)
 ```
 
 Writes a system prompt to an Owlsight configuration JSON file.
+
+Parameters
+----------
+prompt : str
+    The system prompt to be written to the Owlsight configuration JSON file.
 
 **Methods:**
 
