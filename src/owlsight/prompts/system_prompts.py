@@ -111,7 +111,7 @@ class SystemPrompts:
         """
         if globals_dict is None:
             globals_dict = SingletonDict()
-        return OwlDefaultFunctions(globals_dict).owl_show(docs=True)
+        return OwlDefaultFunctions(globals_dict).owl_show(docs=True, return_str=True)
 
     def __getattr__(self, name: str) -> PromptWriter:
         """
