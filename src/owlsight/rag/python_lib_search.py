@@ -90,7 +90,7 @@ class PythonLibSearcher:
         query: str,
         top_k: int = 5,
         cache_dir: Optional[str] = None,
-        return_context: bool = True,
+        as_context: bool = True,
         tfidf_weight: float = 1.0,
         sentence_transformer_weight: float = 0.0,
         sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
@@ -108,7 +108,7 @@ class PythonLibSearcher:
             Number of top results to return
         cache_dir : Optional[str], default None
             Directory for caching search results
-        return_context : bool, default True
+        as_context : bool, default True
             If True, returns formatted context string instead of DataFrame
         tfidf_weight : float, default 1.0
             Weight for the TFIDF search method
@@ -120,7 +120,7 @@ class PythonLibSearcher:
         Returns:
         --------
         Union[pd.DataFrame, str]
-            If return_context is True, returns formatted context string
+            If as_context is True, returns formatted context string
             Otherwise returns DataFrame with search results
         """
         # Get documents from cache or load them
@@ -142,7 +142,7 @@ class PythonLibSearcher:
         results = engine.search(query, top_k=top_k, method_weights=methods_weights)
         results["document_name"] = results["document_name"].apply(lambda x: f"{library}.{x}")
 
-        if return_context:
+        if as_context:
             return engine.generate_context(results)
 
         return results
