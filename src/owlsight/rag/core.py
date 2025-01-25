@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Optional, Literal, Any
+from typing import Dict, List, Optional, Literal, Any, Tuple
 from abc import ABC, abstractmethod
 import traceback
 
@@ -21,10 +21,18 @@ from owlsight.utils.logger import logger
 class DocumentSearcher:
     """Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
 
-    This class provides document search capability by combining traditional TF-IDF 
+    This class provides document search capability by combining traditional TF-IDF
     with modern neural embeddings. The idea behind this is two-fold:
     - TFIDF can capture relevant words an embedding model was not trained on.
     - Embeddings can capture context better than TFIDF.
+
+    Order in __init__is like so:
+    [splitting in chunks (optional)]
+    [TF-IDF]
+    [Sentence Transformer: create embeddings and cache as .pkl files]
+
+    And then use the `search` method to combine the results:
+    [Combine TF-IDF and Sentence Transformer results]
 
     Parameters
     ----------
@@ -34,6 +42,15 @@ class DocumentSearcher:
         Name or path of the Sentence Transformer model
     sentence_transformer_batch_size : int, default=64
         Batch size for computing embeddings
+    split_documents_n_sentences : int, optional
+        Number of sentences to split each document into.
+        If None, no splitting is done per document
+        If not None, splitting is done per document.
+        Also, documents will be split into chunks of size `split_documents_n_sentences` so that
+        the number of sentences is equal to `split_documents_n_sentences`.
+    split_documents_n_overlap : int, default=1
+        Only applies if `split_documents_n_sentences` is not None.
+        Number of sentences to overlap between adjacent chunks.
     cache_dir : str, optional
         Directory to cache embeddings and results
     cache_dir_suffix : str, optional
@@ -60,9 +77,15 @@ class DocumentSearcher:
         documents: Dict[str, str],
         sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
         sentence_transformer_batch_size: int = 64,
+        split_documents_n_sentences: Optional[int] = None,
+        split_documents_n_overlap: int = 1,
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ) -> None:
+        self.split_documents_n_sentences = split_documents_n_sentences
+        self.split_documents_n_overlap = split_documents_n_overlap
+        documents = self._handle_split_documents(documents)
+
         self.documents = documents
         self.sentence_transformer_model = sentence_transformer_model
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
@@ -82,6 +105,106 @@ class DocumentSearcher:
             cache_dir_suffix=self.cache_dir_suffix,
             init_arguments=engine_init_arguments,
         )
+
+    @staticmethod
+    def split_documents(
+        documents: Dict[str, str],
+        n_sentences: int = 3,
+        n_overlap: int = 0,
+    ) -> Dict[str, str]:
+        """Split documents into chunks of n sentences with overlap.
+
+        Parameters
+        ----------
+        documents : Dict[str, str]
+            Dictionary of documents to split, where keys are document names and values are document texts.
+        n_sentences : int, default=3
+            Number of sentences per chunk
+        n_overlap : int, default=1
+            Number of sentences to overlap between chunks
+
+        Returns
+        -------
+        Dict[str, str]
+            Dictionary with new document names as keys and sentence chunks as values.
+            New document names follow the pattern: [document_name]__split[n]
+        """
+        if n_overlap >= n_sentences:
+            raise ValueError("n_overlap must be less than n_sentences")
+
+        split_docs = {}
+        for doc_name, doc_text in documents.items():
+            # Handle empty documents
+            if not doc_text.strip():
+                split_docs[f"{doc_name}__split0"] = ""
+                continue
+
+            # Split document into sentences
+            sentences = SentenceTransformerSearchEngine.split_and_clean_text(doc_text)
+            
+            # Handle documents with no proper sentences
+            if not sentences:
+                split_docs[f"{doc_name}__split0"] = doc_text
+                continue
+
+            # If document is shorter than chunk size, keep it as one chunk
+            if len(sentences) <= n_sentences:
+                split_docs[f"{doc_name}__split0"] = " ".join(sentences)
+                continue
+
+            # Create chunks with overlap
+            chunk_idx = 0
+            start_idx = 0
+            
+            while start_idx < len(sentences):
+                # Get chunk of n_sentences (or remaining sentences)
+                end_idx = min(start_idx + n_sentences, len(sentences))
+                chunk = sentences[start_idx:end_idx]
+                
+                # Join sentences into a single string
+                chunk_text = " ".join(chunk)
+                
+                # Create new document name with chunk index
+                new_doc_name = f"{doc_name}__split{chunk_idx}"
+                split_docs[new_doc_name] = chunk_text
+                chunk_idx += 1
+                
+                # Move start index forward by (n_sentences - n_overlap)
+                start_idx += n_sentences - n_overlap
+                
+                # If we can't form another complete chunk, append the remaining sentences
+                if len(sentences) - start_idx < n_sentences:
+                    split_docs[new_doc_name] = " ".join(chunk)
+
+        return split_docs
+
+    def _handle_split_documents(self, documents: Dict[str, str]) -> Dict[str, str]:
+        """Handle document splitting based on instance configuration.
+
+        Parameters
+        ----------
+        documents : Dict[str, str]
+            Input documents to potentially split
+
+        Returns
+        -------
+        Dict[str, str]
+            Documents after potential splitting
+
+        Raises
+        ------
+        ValueError
+            If split_documents_n_overlap is greater than or equal to split_documents_n_sentences
+        """
+        if self.split_documents_n_sentences is not None:
+            if self.split_documents_n_overlap >= self.split_documents_n_sentences:
+                raise ValueError("split_documents_n_overlap must be less than split_documents_n_sentences")
+            documents = self.split_documents(
+                documents,
+                n_sentences=self.split_documents_n_sentences,
+                n_overlap=self.split_documents_n_overlap,
+            )
+        return documents
 
     def search(
         self,
