@@ -49,7 +49,7 @@ class Schema:
             "python_compile_mode": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Compile mode in the Python Interpreter (main menu): 'exec' is suited for defining code blocks, 'single' for direct execution",
-                default="exec",
+                default="single",
                 choices=["exec", "single"],
             ),
             "sequence_on_loading": MenuItem(
