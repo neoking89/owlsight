@@ -328,7 +328,7 @@ for token in processor.generate_stream(question):
 - Added **MultiModalProcessorTransformers** for non text-input based models. This class can be used for models which require additional input like images, audio or video and works with models from the Huggingface Hub based on the Pytorch framework.
 - Introduced new double-square brackets syntax for passing mediatypes in the prompt.
 - Improved logging with clearer color coding and more detailed information.
-- System Prompt is now an empty string as default.
+- System Prompt in config:modelis now an empty string as default.
 - Several small bugfixes and improvements.
 
 **2.0.2 (stable)**
@@ -341,7 +341,7 @@ for token in processor.generate_stream(question):
 - Added possibility to pass complete directories as argument to mediatypes to a model in the CLI, like so: [[image:directory/containing/images]]
 - Add `owl_models()` function to python interpreter for displaying all Huggingface models in the cache directory.
 
-**2.?**
+**2.2.0**
 
 - Improved userexperience in the CLI by preventing shrinking of the terminal window if menu is too large.
 - In the EDITABLE optiontype fields, multiple lines are now possible.

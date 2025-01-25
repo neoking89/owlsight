@@ -743,7 +743,7 @@ Notes
 #### OwlDefaultFunctions
 
 ```python
-class OwlDefaultFunctions(globals_dict: owlsight.utils.custom_classes.SingletonDict)
+class OwlDefaultFunctions(globals_dict: Union[owlsight.utils.custom_classes.SingletonDict, Dict[str, Any]])
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -768,15 +768,15 @@ This class is open for extension, as possibly more useful functions can be added
   - Save the current python namespace using dill.
 - `owl_scrape(self, url_or_terms: str, trim_newlines: Optional[int] = 2, filter_by: Optional[Dict[str, str]] = None, **request_kwargs) -> str`
   - Scrape the text content of a webpage and return specific content based on the filter.
-- `owl_show(self, docs: bool = True)`
+- `owl_show(self, docs: bool = True) -> str`
   - Show all currently active imported objects in the namespace except builtins.
 - `owl_write(self, file_path: str, content: str)`
   - Write content to a text file.
 
-#### SystemPrompts
+#### ExpertPrompts
 
 ```python
-class SystemPrompts()
+class ExpertPrompts()
 ```
 
 System prompts for different expert roles
@@ -784,6 +784,9 @@ System prompts for different expert roles
 **Methods:**
 
 - `as_dict(self) -> Dict[str, str]`
+  - Return a dictionary of role keys and their descriptions.
+- `show_available_tools(self, globals_dict: Optional[owlsight.utils.custom_classes.SingletonDict] = None) -> str`
+  - Show all currently active imported objects in the namespace except builtins.
 
 #### PromptWriter
 
@@ -792,6 +795,11 @@ class PromptWriter(prompt: str)
 ```
 
 Writes a system prompt to an Owlsight configuration JSON file.
+
+Parameters
+----------
+prompt : str
+    The system prompt to be written to the Owlsight configuration JSON file.
 
 **Methods:**
 
@@ -1107,7 +1115,7 @@ for token in processor.generate_stream(question):
 - Added **MultiModalProcessorTransformers** for non text-input based models. This class can be used for models which require additional input like images, audio or video and works with models from the Huggingface Hub based on the Pytorch framework.
 - Introduced new double-square brackets syntax for passing mediatypes in the prompt.
 - Improved logging with clearer color coding and more detailed information.
-- System Prompt is now an empty string as default.
+- System Prompt in config:modelis now an empty string as default.
 - Several small bugfixes and improvements.
 
 **2.0.2 (stable)**
@@ -1120,7 +1128,7 @@ for token in processor.generate_stream(question):
 - Added possibility to pass complete directories as argument to mediatypes to a model in the CLI, like so: [[image:directory/containing/images]]
 - Add `owl_models()` function to python interpreter for displaying all Huggingface models in the cache directory.
 
-**2.?**
+**2.2.0**
 
 - Improved userexperience in the CLI by preventing shrinking of the terminal window if menu is too large.
 - In the EDITABLE optiontype fields, multiple lines are now possible.
