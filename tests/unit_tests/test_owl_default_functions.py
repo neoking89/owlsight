@@ -8,16 +8,9 @@ import sys
 from pynput.keyboard import Controller
 
 from owlsight.app.default_functions import OwlDefaultFunctions
-from owlsight.utils.custom_classes import SingletonDict
 from owlsight.app._child_process_owl_press import KEY_MAP, execute_key_sequence
 
 sys.path.append("src")
-
-
-@pytest.fixture
-def owl_instance():
-    globals_dict = SingletonDict()
-    return OwlDefaultFunctions(globals_dict)
 
 
 @pytest.fixture
@@ -66,7 +59,6 @@ def test_method_naming_convention(owl_instance: OwlDefaultFunctions):
         assert method.startswith("owl_"), f"Method {method} does not follow owl_ naming convention"
 
 
-# @pytest.mark.skipif(os_is_windows() is False, reason="Keyboard tests only run on Windows")
 def test_owl_press_executed_successfully(owl_instance: OwlDefaultFunctions):
     """Test that owl_press executes successfully with mocked subprocess and returns True."""
     # Create mock so that _start_child_process_owl_press does not actually press the keys
@@ -89,8 +81,6 @@ def test_owl_press_executed_successfully(owl_instance: OwlDefaultFunctions):
         # Assert return value
         assert executed_successfully is True
 
-
-# @pytest.mark.skipif(os_is_windows() is False, reason="Keyboard tests only run on Windows")
 def test_owl_press_keys_executed_successfully(owl_instance: OwlDefaultFunctions):
     """Test that owl_press executes successfully with mocked key presses."""
     with patch.object(Controller, "press") as mock_press, patch.object(Controller, "release") as mock_release:

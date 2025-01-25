@@ -1,16 +1,27 @@
 import json
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
+
+from owlsight.app.default_functions import OwlDefaultFunctions
+from owlsight.utils.custom_classes import SingletonDict
+
 
 class PromptWriter:
-    """Writes a system prompt to an Owlsight configuration JSON file."""
+    """
+    Writes a system prompt to an Owlsight configuration JSON file.
+
+    Parameters
+    ----------
+    prompt : str
+        The system prompt to be written to the Owlsight configuration JSON file.
+    """
 
     def __init__(self, prompt: str):
         """
         Initialize the PromptWriter with the given prompt.
 
-        Parameters:
-        ------------
+        Parameters
+        ----------
         prompt : str
             The system prompt to be written to the Owlsight configuration JSON file.
         """
@@ -20,8 +31,8 @@ class PromptWriter:
         """
         Updates the 'system_prompt' field under the 'model' key in the given Owlsight configuration JSON file.
 
-        Parameters:
-        ------------
+        Parameters
+        ----------
         target_json : str
             The path to the JSON file to be updated.
         """
@@ -39,43 +50,103 @@ class PromptWriter:
         with open(target_json, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
+    def __repr__(self) -> str:
+        return f"PromptWriter(prompt='{self.prompt}')"
+
+    def __str__(self) -> str:
+        return self.__repr__()
 
 class SystemPrompts:
     """System prompts for different expert roles"""
 
     @classmethod
     def list_roles(cls) -> List[str]:
-        return [attr.lower() for attr in dir(cls) if not attr.startswith("_") and isinstance(getattr(cls, attr), str)]
+        """
+        List all available role keys.
 
-    @classmethod
-    def get_role_description(cls, role_key: str) -> str:
-        prompt = getattr(cls, role_key.upper(), None)
-        if not prompt:
-            raise ValueError(f"Unknown role key: {role_key}")
-
-        role_line = next((line for line in prompt.split("\n") if line.startswith("# ROLE:")), None)
-        if not role_line:
-            return "No role description available"
-
-        return role_line.replace("# ROLE:", "").strip()
+        Returns
+        -------
+        List[str]
+            List of available role keys.
+        """
+        roles = []
+        for attr in dir(cls):
+            if not attr.startswith("_"):
+                value = getattr(cls, attr)
+                if isinstance(value, (str, property)):
+                    roles.append(attr)
+        return roles
 
     def as_dict(self) -> Dict[str, str]:
-        return {attr.lower(): getattr(self, attr.lower()) for attr in self.list_roles()}
+        """
+        Return a dictionary of role keys and their descriptions.
 
-    def __str__(self) -> str:
-        roles = [f"{role}: {self.get_role_description(role)}" for role in self.list_roles()]
-        return "Available Roles:\n" + "\n".join(f"- {role}" for role in roles)
+        Returns
+        -------
+        Dict[str, str]
+            Dictionary mapping role keys to their descriptions.
+        """
+        result = {}
+        for role in self.list_roles():
+            attr = getattr(self.__class__, role)
+            if isinstance(attr, property):
+                result[role] = attr.fget(self)
+            else:
+                result[role] = attr
+        return result
+
+    def show_available_tools(self, globals_dict: Optional[SingletonDict] = None) -> str:
+        """
+        Show all currently active imported objects in the namespace except builtins.
+
+        Parameters
+        ----------
+        globals_dict : Optional[SingletonDict], optional
+            Dictionary of global variables, by default None
+
+        Returns
+        -------
+        str
+            String representation of available tools.
+        """
+        if globals_dict is None:
+            globals_dict = SingletonDict()
+        return OwlDefaultFunctions(globals_dict).owl_show(docs=True)
 
     def __getattr__(self, name: str) -> PromptWriter:
+        """
+        Get the system prompt for a specific role.
+
+        Parameters
+        ----------
+        name : str
+            The name of the role to get the prompt for.
+
+        Returns
+        -------
+        PromptWriter
+            The system prompt for the specified role.
+
+        Example Usage:
+        >>> expert_prompts = ExpertPrompts()
+        >>> expert_prompts.python
+        """
         role_key = name.lower()
         if role_key in self.list_roles():
-            return PromptWriter(getattr(self.__class__, role_key.upper()))
+            attr = getattr(self.__class__, role_key)
+            if isinstance(attr, property):
+                content = attr.fget(self)
+            else:
+                content = attr
+            return PromptWriter(content)
         available_roles = ", ".join(self.list_roles())
         raise AttributeError(
-            f"'SystemPrompts' object has no attribute '{name}'. Available roles are: {available_roles}"
+            f"'{self.__class__.__name__}' object has no attribute '{name}'. Available roles are: {available_roles}"
         )
 
-    PYTHON = """
+
+class ExpertPrompts(SystemPrompts):
+    python = """
 # ROLE:
 You are an advanced problem-solving AI with expert-level knowledge in various programming languages, particularly Python.
 
@@ -89,7 +160,7 @@ You are an advanced problem-solving AI with expert-level knowledge in various pr
 - Always aim to provide the best solution to the user's problem, whether it involves Python or not.
 """.strip()
 
-    OWLSIGHT = """
+    owlsight = """
 # ROLE:
 You are an AI assistant specialized in the Owlsight application. Your goal is to guide users through the application's menu system to achieve their desired outcomes.
 
@@ -101,7 +172,7 @@ You are an AI assistant specialized in the Owlsight application. Your goal is to
 - Offer additional tips or suggestions to enhance the user experience.
 """.strip()
 
-    DATA_SCIENCE = """
+    data_science = """
 # ROLE:
 You are a data science specialist focused on producing production-ready analysis code.
 
@@ -135,7 +206,7 @@ You are a data science specialist focused on producing production-ready analysis
 4. Add docstrings with parameter descriptions
 """.strip()
 
-    DATA_ENGINEERING = """
+    data_engineering = """
 # ROLE:
 You are a data engineer focused on building and maintaining scalable data pipelines.
 
@@ -167,7 +238,7 @@ You are a data engineer focused on building and maintaining scalable data pipeli
 4. Add docstrings with parameter descriptions
 """.strip()
 
-    DEVOPS = """
+    devops = """
 # ROLE:
 You are a DevOps engineer specializing in automated, secure, and scalable infrastructure deployment.
 
@@ -210,7 +281,7 @@ You are a DevOps engineer specializing in automated, secure, and scalable infras
 4. Specify resource requirements
 """.strip()
 
-    UI_UX = """
+    ui_ux = """
 # ROLE:
 You are a UI/UX specialist focused on creating accessible, performant, and user-centered interfaces.
 
@@ -257,7 +328,7 @@ You are a UI/UX specialist focused on creating accessible, performant, and user-
 4. List accessibility features
 """.strip()
 
-    SECURITY = """
+    security = """
 # ROLE:
 You are a security specialist focused on identifying and mitigating application vulnerabilities.
 
@@ -306,7 +377,7 @@ You are a security specialist focused on identifying and mitigating application 
 4. Provide incident response steps
 """.strip()
 
-    DATABASE = """
+    database = """
 # ROLE:
 You are a database specialist focused on scalable, performant data storage solutions.
 
@@ -355,7 +426,7 @@ You are a database specialist focused on scalable, performant data storage solut
 4. Provide recovery steps
 """.strip()
 
-    PERFORMANCE_TUNING = """
+    performance_tuning = """
 # ROLE:
 You are a performance optimization specialist focused on system-wide efficiency improvements.
 
@@ -404,7 +475,7 @@ You are a performance optimization specialist focused on system-wide efficiency 
 4. Specify resource requirements
 """.strip()
 
-    TESTING_QA = """
+    testing_qa = """
 # ROLE:
 You are a testing specialist focused on creating comprehensive, maintainable test suites.
 

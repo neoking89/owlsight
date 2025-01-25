@@ -4,6 +4,8 @@ from typing import List, Optional, Dict, Any, Union
 from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.configurations.config_manager import ConfigManager
+from owlsight.utils.custom_classes import SingletonDict
+from owlsight.app.default_functions import OwlDefaultFunctions
 
 
 class MockTextGenerationProcessor(TextGenerationProcessor):
@@ -34,14 +36,6 @@ class MockTextGenerationProcessor(TextGenerationProcessor):
 
 
 @pytest.fixture
-def mock_text_generator(request):
-    mock_responses = getattr(request, "param", "Default mock response")
-    if isinstance(mock_responses, list) and len(mock_responses) == 1:
-        mock_responses = mock_responses[0]
-    return MockTextGenerationProcessor("mock-model", apply_chat_history=True, mock_responses=mock_responses)
-
-
-@pytest.fixture
 def config_manager():
     return ConfigManager()
 
@@ -49,6 +43,7 @@ def config_manager():
 @pytest.fixture
 def text_generation_manager(config_manager):
     return TextGenerationManager(config_manager=config_manager)
+
 
 @pytest.fixture
 def media_model_mappings():
@@ -58,3 +53,9 @@ def media_model_mappings():
         "automatic-speech-recognition": "facebook/wav2vec2-base-960h",
         "document-question-answering": "microsoft/layoutlm-base-uncased",
     }
+
+
+@pytest.fixture
+def owl_instance():
+    globals_dict = SingletonDict()
+    return OwlDefaultFunctions(globals_dict)

@@ -1,6 +1,5 @@
 # __init__.py
 
-# Importing functions to make them accessible from the package's root
 from .processors.helper_functions import select_processor_type
 from .multimodal.tesseract import setup_tesseract
 from .rag.python_lib_search import PythonLibSearcher
@@ -27,7 +26,7 @@ from .rag.core import (
 from .rag.document_reader import DocumentReader
 from .app.default_functions import OwlDefaultFunctions, search_bing, is_url
 from .hugging_face.core import get_model_data
-from .prompts.system_prompts import SystemPrompts, PromptWriter
+from .prompts.system_prompts import ExpertPrompts, PromptWriter
 
 __all__ = [
     "setup_tesseract",
@@ -52,6 +51,6 @@ __all__ = [
     "search_bing",
     "is_url",
     "get_model_data",
-    "SystemPrompts",
+    "ExpertPrompts",
     "PromptWriter",
 ]
