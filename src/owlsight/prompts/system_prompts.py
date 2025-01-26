@@ -96,6 +96,8 @@ class SystemPrompts:
                 result[role] = attr
         return result
 
+    # TODO: exclude all owlsight modules except those starting with owl_
+    # TODO: include just defined variables. Empphasize these with a special tag (like "just defined") and mention this tag in # TASK in the prompt
     def show_available_tools(self, globals_dict: Optional[SingletonDict] = None) -> str:
         """
         Show all currently active imported objects in the namespace except builtins.
