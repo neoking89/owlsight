@@ -58,6 +58,10 @@ pip install owlsight[all]
 
 It is recommended to use the `all` option, as this will install all dependencies and allow you to use all features of Owlsight.
 
+NOTE: some libraries like llama-cpp-python and pytorch can be highly dependant on user-specific configurations.
+From owlsight, these libraries are installed without any additional configurations.
+You might need to reinstall them after installing Owlsight with settings that match your requirements.
+
 ## Usage
 
 After installation, launch Owlsight in the terminal by running the following command:
@@ -769,6 +773,7 @@ Notes
 
 ```python
 class OwlDefaultFunctions(globals_dict: Union[owlsight.utils.custom_classes.SingletonDict, Dict[str, Any]])
+class OwlDefaultFunctions(globals_dict: Union[owlsight.utils.custom_classes.SingletonDict, Dict[str, Any]])
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -799,8 +804,10 @@ This class is open for extension, as possibly more useful functions can be added
   - Write content to a (text) file.
 
 #### ExpertPrompts
+#### ExpertPrompts
 
 ```python
+class ExpertPrompts()
 class ExpertPrompts()
 ```
 
@@ -820,6 +827,11 @@ class PromptWriter(prompt: str)
 ```
 
 Writes a system prompt to an Owlsight configuration JSON file.
+
+Parameters
+----------
+prompt : str
+    The system prompt to be written to the Owlsight configuration JSON file.
 
 Parameters
 ----------

@@ -73,6 +73,10 @@ pip install owlsight[all]
 
 It is recommended to use the `all` option, as this will install all dependencies and allow you to use all features of Owlsight.
 
+NOTE: some libraries like llama-cpp-python and pytorch can be highly dependant on user-specific configurations.
+From owlsight, these libraries are installed without any additional configurations.
+You might need to reinstall them after installing Owlsight with settings that match your requirements.
+
 ## Usage
 
 After installation, launch Owlsight in the terminal by running the following command:
