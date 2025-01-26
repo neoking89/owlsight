@@ -84,9 +84,11 @@ class DocumentSearcher:
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ) -> None:
-        self.cache_dir = cache_dir
         self.documents = documents
-        self._handle_cache_and_documents(cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap)
+        self.cache_dir = cache_dir
+        self.cache_dir_suffix = cache_dir_suffix
+
+        self._handle_cache_and_documents(self.cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap)
         self.split_documents_n_sentences = split_documents_n_sentences
         self.split_documents_n_overlap = split_documents_n_overlap
 
