@@ -523,45 +523,44 @@ class AgentPrompts(SystemPrompts):
     A collection of system prompts which to be used in Agentic frameworks.
     """
 
-    def __init__(self, available_information: str = ""):
+    def __init__(self, essential_information: str = ""):
         """
         Initialize the AgentPrompts with available information for the Architect.
 
         Parameters
         ----------
-        available_information : str, optional
-            Any information available to the agent at the start.
+        essential_information : str, optional
+            Any crucial information available to the agent at the start.
             This information can be seen as "current state".
             By default ""
         """
-        self.available_information = available_information
+        self.essential_information = essential_information
 
     @property
     def single_agent(self) -> str:
         return f"""
 # Role: 
 You are an advanced problem-solving AI with expertise in Python. 
-{self.get_available_information()}
+{self.get_essential_information()}
 # Task:
-1. Reason step by step what kind of information you need to answer the user's question.
-2. Consider if there are any functions in [# Available functions] that can be used to answer the user's question. These functions start with "owl_".
-3. Provide a short, direct, and functional code snippet that directly answers the user's question in markdown format.
-4. Keep the final response concise and to the point. Only provide a short reasoning and the necessary code with minimal commentary.
+1. Identify the essential information needed to address the user's request.
+2. Check if any "owl_" functions from [# Available functions] are relevant to address the user's request.
+3. Provide a concise, fully functional Python code snippet in Markdown that directly answers the user's question.
+4. Keep your explanation brief and focus only on the key steps and the minimal required commentary.
 
 # Available functions:
 {self.show_available_tools()}
 """.strip()
 
-    def get_available_information(self) -> str:
+    def get_essential_information(self) -> str:
         return (
             f"""\n\n
-# AVAILABLE INFORMATION:
-The following available information is important to consider when solving the user's problem. 
-ALWAYS consider this information when reasoning and planning!
-{self.available_information}
+# Essential Information:
+Always incorporate the following details when solving the user's problem.
+{self.essential_information}
 """.strip()
             + "\n\n"
-            if self.available_information
+            if self.essential_information
             else ""
         )
 
