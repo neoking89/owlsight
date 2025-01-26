@@ -84,12 +84,6 @@ class DocumentSearcher:
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ) -> None:
-        if not documents and not cache_dir:
-            raise ValueError("documents must not be empty if cache_dir is not provided")
-
-        self.sentence_transformer_model = sentence_transformer_model
-        self.sentence_transformer_batch_size = sentence_transformer_batch_size
-
         self.cache_dir = cache_dir
         self.documents = documents
         self._handle_cache_and_documents(cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap)
@@ -97,6 +91,8 @@ class DocumentSearcher:
         self.split_documents_n_sentences = split_documents_n_sentences
         self.split_documents_n_overlap = split_documents_n_overlap
 
+        self.sentence_transformer_model = sentence_transformer_model
+        self.sentence_transformer_batch_size = sentence_transformer_batch_size
         engine_init_arguments = {
             SearchMethod.SENTENCE_TRANSFORMER: {
                 "pooling_strategy": "mean",
@@ -294,6 +290,9 @@ class DocumentSearcher:
         return cache_dir_suffix
 
     def _handle_cache_and_documents(self, cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap):
+        if not self.documents and not self.cache_dir:
+            raise ValueError("documents must not be empty if cache_dir is not provided")
+
         if self.cache_dir and cache_dir_suffix:
             self.cache_dir_suffix = self._create_unique_cache_dir_suffix(
                 cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap
