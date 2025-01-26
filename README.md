@@ -233,7 +233,7 @@ The following section details all the objects and functions available in the Owl
 #### TextGenerationProcessorOnnx
 
 ```python
-class TextGenerationProcessorOnnx(model_id: str, onnx__verbose: bool = False, onnx__n_cpu_threads: int = 8, onnx__model_dir: Optional[str] = None, token: Optional[str] = None, apply_chat_history: bool = False, system_prompt: Optional[str] = None, **kwargs: Any) -> None
+class TextGenerationProcessorOnnx(model_id: str, onnx__verbose: bool = False, onnx__n_cpu_threads: int = 8, onnx__model_dir: Optional[str] = None, token: Optional[str] = None, apply_chat_history: bool = False, system_prompt: Optional[str] = None, model_kwargs: Optional[dict] = None, **kwargs: Any) -> None
 ```
 
 Text generation processor using ONNX Runtime optimized models.
@@ -258,6 +258,9 @@ apply_chat_history : bool, default=False
     Whether to maintain conversation history
 system_prompt : str, optional
     System prompt prepended to all inputs
+model_kwargs : dict, optional
+    Additional keyword arguments to pass to the model.
+    Default is None.
 
 Notes
 -----
@@ -271,7 +274,7 @@ Notes
 --------
 >>> # Load local ONNX model
 >>> processor = TextGenerationProcessorOnnx("path/to/model")
->>> 
+>>>
 >>> # Load from Hugging Face
 >>> processor = TextGenerationProcessorOnnx(
 ...     "onnx-community/Llama-2-7B-Instruct-ONNX",
@@ -300,7 +303,7 @@ Notes
 #### TextGenerationProcessorTransformers
 
 ```python
-class TextGenerationProcessorTransformers(model_id: str, transformers__device: Optional[str] = None, transformers__quantization_bits: Optional[int] = None, transformers__stream: bool = True, transformers__model_kwargs: Optional[dict] = None, bnb_kwargs: Optional[dict] = None, tokenizer_kwargs: Optional[dict] = None, task: Optional[str] = None, apply_chat_history: bool = False, system_prompt: str = '', **kwargs)
+class TextGenerationProcessorTransformers(model_id: str, transformers__device: Optional[str] = None, transformers__quantization_bits: Optional[int] = None, transformers__stream: bool = True, bnb_kwargs: Optional[dict] = None, tokenizer_kwargs: Optional[dict] = None, task: Optional[str] = None, apply_chat_history: bool = False, model_kwargs: Optional[dict] = None, system_prompt: str = '', **kwargs)
 ```
 
 Text generation processor using transformers library.
@@ -356,8 +359,10 @@ apply_chat_history : bool, default=False
     Whether to maintain conversation history
 system_prompt : str, default=""
     System prompt prepended to all inputs
-model_kwargs : Dict[str, Any], optional
-    Additional arguments passed to llama-cpp.Llama
+model_kwargs : Optional[Dict[str, Any]]
+    Additional arguments passed for the model.
+    These get passed to `transformers.pipeline` function as `model_kwargs` argument.
+    Default is None.
 
 Notes
 -----
@@ -371,7 +376,7 @@ Notes
 --------
 >>> # Load local GGUF model
 >>> processor = TextGenerationProcessorGGUF("path/to/model.gguf", gguf__n_gpu_layers=20)
->>> 
+>>>
 >>> # Load from Hugging Face with GPU
 >>> processor = TextGenerationProcessorGGUF(
 ...     "TheBloke/Llama-2-7B-GGUF",
@@ -476,15 +481,23 @@ Maintains document and engine caches throughout the owlsight session.
 #### DocumentSearcher
 
 ```python
-class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None) -> None
+class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, split_documents_n_sentences: Optional[int] = None, split_documents_n_overlap: int = 1, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None) -> None
 ```
 
 Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
 
-This class provides document search capability by combining traditional TF-IDF 
+This class provides document search capability by combining traditional TF-IDF
 with modern neural embeddings. The idea behind this is two-fold:
 - TFIDF can capture relevant words an embedding model was not trained on.
 - Embeddings can capture context better than TFIDF.
+
+Order in __init__is like so:
+[splitting in chunks (optional)]
+[TF-IDF]
+[Sentence Transformer: create embeddings and cache as .pkl files]
+
+And then use the `search` method to combine the results:
+[Combine TF-IDF and Sentence Transformer results]
 
 Parameters
 ----------
@@ -494,10 +507,20 @@ sentence_transformer_model : str, default='Alibaba-NLP/gte-base-en-v1.5'
     Name or path of the Sentence Transformer model
 sentence_transformer_batch_size : int, default=64
     Batch size for computing embeddings
+split_documents_n_sentences : int, optional
+    Number of sentences to split each document into.
+    If None, no splitting is done per document
+    If not None, splitting is done per document.
+    Also, documents will be split into chunks of size `split_documents_n_sentences` so that
+    the number of sentences is equal to `split_documents_n_sentences`.
+split_documents_n_overlap : int, default=1
+    Only applies if `split_documents_n_sentences` is not None.
+    Number of sentences to overlap between adjacent chunks.
 cache_dir : str, optional
     Directory to cache embeddings and results
 cache_dir_suffix : str, optional
-    Suffix for cache directory name
+    Suffix for cache directory name.
+    Recommended is to use a name which is unique and descriptive to the documents.
 
 Notes
 -----
@@ -519,8 +542,10 @@ Notes
 
 **Methods:**
 
-- `search(self, query: str, top_k: int = 20, sentence_transformer_weight: float = 0.7, tfidf_weight: float = 0.3) -> pandas.core.frame.DataFrame`
+- `search(self, query: str, top_k: int = 20, sentence_transformer_weight: float = 0.7, tfidf_weight: float = 0.3, as_context: bool = False) -> Union[pandas.core.frame.DataFrame, str]`
   - Search documents using the configured ensemble methods.
+- `split_documents(documents: Dict[str, str], n_sentences: int = 3, n_overlap: int = 0) -> Dict[str, str]`
+  - Split documents into chunks of n sentences with overlap.
 
 #### DocumentReader
 
@@ -768,10 +793,10 @@ This class is open for extension, as possibly more useful functions can be added
   - Save the current python namespace using dill.
 - `owl_scrape(self, url_or_terms: str, trim_newlines: Optional[int] = 2, filter_by: Optional[Dict[str, str]] = None, **request_kwargs) -> str`
   - Scrape the text content of a webpage and return specific content based on the filter.
-- `owl_show(self, docs: bool = True) -> str`
+- `owl_show(self, docs: bool = True, return_str: bool = False) -> str`
   - Show all currently active imported objects in the namespace except builtins.
 - `owl_write(self, file_path: str, content: str)`
-  - Write content to a text file.
+  - Write content to a (text) file.
 
 #### ExpertPrompts
 
@@ -842,7 +867,27 @@ current_device (str): The current device to use. Default is 'cuda'.
 def check_gpu_and_cuda()
 ```
 
-Checks if a CUDA-capable GPU is available and if CUDA is installed.
+Checks if a CUDA-capable GPU is available on pytorch and if CUDA is installed.
+
+#### llama_supports_gpu_offload
+
+```python
+def llama_supports_gpu_offload(base_path: str) -> bool
+```
+
+Checks if Llama.cpp supports GPU offload. This is useful for checking if a GPU is available for GGUF models.
+
+Parameters
+----------
+base_path : str
+    Path to the Llama.cpp shared library.
+    Usually something like 'dist-packages/llama_cpp/lib' or 'site-packages/llama_cpp/lib'
+    in the current virtual environment.
+
+Returns:
+    bool: True if Llama.cpp is available on the GPU, False otherwise.
+
+SOURCE: https://stackoverflow.com/questions/78415856/detecting-gpu-availability-in-llama-cpp-python
 
 #### calculate_max_parameters_per_dtype
 
@@ -951,10 +996,10 @@ Main Menu:
     - model_id: Model identifier or path. The most important parameter in the configuration, as this will load the model to be used, Type: OptionType.EDITABLE
     - apply_chat_history: Whether to apply chathistory to the model prompt. All chathistory is saved as default, but when this is True, This history is added to the model prompt, Options: False, True, Type: OptionType.TOGGLE
     - system_prompt: System prompt defining model behavior, Type: OptionType.EDITABLE
+    - model_kwargs: Additional parameters passed during model initialization. For llama-cpp, these get passed to llama_cpp.Llama. For transformers, these get passed to transformers.pipeline, Type: OptionType.EDITABLE
     - transformers__device: Device for transformers model, Options: None, cpu, cuda, mps, Type: OptionType.TOGGLE
     - transformers__quantization_bits: Quantization bits for transformers model, Options: None, 4, 8, 16, Type: OptionType.TOGGLE
     - transformers__stream: Whether to stream input to transformers model, Options: False, True, Type: OptionType.TOGGLE
-    - transformers__model_kwargs: Additional model parameters for transformers model, Type: OptionType.EDITABLE
     - gguf__filename: GGUF model filename, Type: OptionType.EDITABLE
     - gguf__verbose: Verbose output for GGUF model, Options: False, True, Type: OptionType.TOGGLE
     - gguf__n_ctx: Context length for GGUF model, Options: 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, Type: OptionType.TOGGLE
@@ -999,17 +1044,17 @@ Here's an example of what the default configuration looks like:
         "prompt_code_execution": true,
         "track_model_usage": false,
         "extra_index_url": "",
-        "python_compile_mode": "exec",
+        "python_compile_mode": "single",
         "sequence_on_loading": []
     },
     "model": {
         "model_id": "",
         "apply_chat_history": false,
         "system_prompt": "",
+        "model_kwargs": {},
         "transformers__device": null,
         "transformers__quantization_bits": null,
         "transformers__stream": true,
-        "transformers__model_kwargs": {},
         "gguf__filename": "",
         "gguf__verbose": false,
         "gguf__n_ctx": 512,
@@ -1142,6 +1187,12 @@ is useful if you want to save any code created by a model. Or load a namespace f
 - Improved `owl_read` with the new `DocumentReader` class. As input, you can now pass a directory or a list of files.
 - Added `main:sequence_on_loading` to the configuration json. This allows execution of a sequence of keys on loading a config through the `load` option in the Owlsight main-menu.
 TIP: above option can be used to load a sequence of different models as "agents", where every config can be threaded as a different agent with their own role. In theory, every action in Owlsight can be automated through this option.
+
+
+**2.3.0**
+- Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
+- Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
+The advantage is that `model_kwargs` can now also be passed inside `TextGenerationProcessorGGUF` to provide` access all parameters when initializing `Llama` class from llama-cpp-python.
 
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com

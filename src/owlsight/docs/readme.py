@@ -357,6 +357,12 @@ is useful if you want to save any code created by a model. Or load a namespace f
 TIP: above option can be used to load a sequence of different models as "agents", where every config can be threaded as a different agent with their own role. In theory, every action in Owlsight can be automated through this option.
 
 
+**2.3.0**
+- Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
+- Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
+The advantage is that `model_kwargs` can now also be passed inside `TextGenerationProcessorGGUF` to provide` access all parameters when initializing `Llama` class from llama-cpp-python.
+
+
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
 
