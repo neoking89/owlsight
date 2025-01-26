@@ -4,6 +4,7 @@ import functools
 import threading
 import time
 import traceback
+from pathlib import Path
 
 import psutil
 import torch
@@ -39,8 +40,39 @@ def calculate_model_size(model) -> float:
     return size_all_mb
 
 
+def llama_supports_gpu_offload(base_path: str) -> bool:
+    """
+    Checks if Llama.cpp supports GPU offload. This is useful for checking if a GPU is available for GGUF models.
+
+    Parameters
+    ----------
+    base_path : str
+        Path to the Llama.cpp shared library.
+        Usually something like 'dist-packages/llama_cpp/lib' or 'site-packages/llama_cpp/lib'
+        in the current virtual environment.
+
+    Returns:
+        bool: True if Llama.cpp is available on the GPU, False otherwise.
+
+    SOURCE: https://stackoverflow.com/questions/78415856/detecting-gpu-availability-in-llama-cpp-python
+    """
+    base_path = Path(base_path)
+    if not base_path.endswith("llama_cpp/lib"):
+        logger.error("Invalid path to Llama.cpp shared library.")
+        return False
+
+    try:
+        from llama_cpp.llama_cpp import load_shared_library
+
+        lib = load_shared_library("llama", base_path)
+        return bool(lib.llama_supports_gpu_offload())
+    except Exception:
+        logger.error(traceback.format_exc())
+        return False
+
+
 def check_gpu_and_cuda():
-    """Checks if a CUDA-capable GPU is available and if CUDA is installed."""
+    """Checks if a CUDA-capable GPU is available on pytorch and if CUDA is installed."""
     if torch.cuda.is_available():
         gpu = torch.cuda.get_device_name(0)
         logger.info(f"GPU found: {gpu}")
@@ -59,7 +91,7 @@ def check_gpu_and_cuda():
         logger.error("%s", e)
 
     if torch.cuda.is_available():
-        logger.info("CUDA-capable GPU is available for PyTorch. You are all set!")
+        logger.info("CUDA-capable GPU is available for PyTorch.")
     else:
         logger.warning(
             "Cuda is currently unavailable. This could be expected if no GPU is available. If not, please visit 'https://pytorch.org/get-started/locally/' to install a compatible version.\nrun command 'pip uninstall torch torchvision torchaudio' and find run the right version of PyTorch for your CUDA version.",
