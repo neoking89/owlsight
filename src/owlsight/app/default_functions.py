@@ -46,17 +46,13 @@ class OwlDefaultFunctions:
             if not name.startswith("owl_"):
                 raise ValueError(f"Method '{name}' does not follow the 'owl_' naming convention!")
 
-    def _get_document_reader(self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None) -> DocumentReader:
+    def _get_document_reader(self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True) -> DocumentReader:
         """
         Lazy initialization of DocumentReader to prevent overhead.
         Returns an instance of DocumentReader, creating it if it doesn't exist.
         """
         if self._document_reader is None:
-            self._document_reader = DocumentReader(
-                ocr_enabled=False,
-                timeout=timeout,
-                ignore_patterns=ignore_patterns
-            )
+            self._document_reader = DocumentReader(ocr_enabled=ocr_enabled, timeout=timeout, ignore_patterns=ignore_patterns)
         return self._document_reader
 
     def owl_read(
@@ -64,6 +60,7 @@ class OwlDefaultFunctions:
         path: Union[str, Path, Iterable[Union[str, Path]]],
         recursive: bool = False,
         ignore_patterns: Optional[List[str]] = None,
+        ocr_enabled: bool = True,
         timeout: int = 5,
     ) -> Union[str, Dict[str, str]]:
         """
@@ -81,6 +78,8 @@ class OwlDefaultFunctions:
         ignore_patterns : Optional[List[str]], default=None
             List of gitignore-style patterns to exclude
             Example: ["*.txt", "*.log"]
+        ocr_enabled : bool, default=True
+            Whether to enable OCR for image files in tika.
         timeout : int, default=5
             Timeout in seconds for Tika processing
 
@@ -91,7 +90,7 @@ class OwlDefaultFunctions:
             - For directory or multiple files: returns dict mapping filepath to content
         """
         try:
-            reader = self._get_document_reader(timeout=timeout, ignore_patterns=ignore_patterns)
+            reader = self._get_document_reader(timeout=timeout, ignore_patterns=ignore_patterns, ocr_enabled=ocr_enabled)
 
             # handle directory
             if isinstance(path, (str, Path)):
@@ -113,10 +112,10 @@ class OwlDefaultFunctions:
                             return content
                     except Exception:
                         pass  # Silently fall back to basic file reading
-                    
+
                     # Fallback to basic file reading
                     try:
-                        with open(path, "r", encoding='utf-8') as file:
+                        with open(path, "r", encoding="utf-8") as file:
                             return file.read()
                     except FileNotFoundError:
                         return f"File not found: {path}"
@@ -137,7 +136,7 @@ class OwlDefaultFunctions:
 
                     # Fallback to basic file reading
                     try:
-                        with open(file_path, "r", encoding='utf-8') as file:
+                        with open(file_path, "r", encoding="utf-8") as file:
                             results[str(file_path)] = file.read()
                     except Exception as e:
                         results[str(file_path)] = f"Error reading file: {str(e)}"
@@ -166,7 +165,7 @@ class OwlDefaultFunctions:
         except Exception:
             print(f"Error importing module:\n{traceback.format_exc()}")
 
-    def owl_show(self, docs: bool = True, return_str: bool = False) -> str:
+    def owl_show(self, docs: bool = True, return_lst: bool = False) -> List[str]:
         """
         Show all currently active imported objects in the namespace except builtins.
 
@@ -174,7 +173,7 @@ class OwlDefaultFunctions:
         -----------
         docs (bool): If True, also display the docstring of each object.
         return_str (bool): If True, return a string representation of the active objects and their information.
-        
+
         Returns:
         --------
         str: A string representation of the active objects and their information.
@@ -199,14 +198,20 @@ class OwlDefaultFunctions:
                         output.append("Doc: No documentation available")
                 output.append(brackets)
 
-        result = "\n".join(output)
-        print(result)
-        if return_str:
-            return result
+        print("\n".join(output))
+        if return_lst:
+            return output
 
-    def owl_write(self, file_path: str, content: str):
+    def owl_write(self, file_path: str, content: str) -> None:
         """
         Write content to a (text) file.
+
+        Parameters
+        ----------
+        file_path : str
+            The path to the file to write.
+        content : str
+            The content to write to the file.
         """
         try:
             with open(file_path, "w") as file:
