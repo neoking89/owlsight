@@ -773,7 +773,6 @@ Notes
 
 ```python
 class OwlDefaultFunctions(globals_dict: Union[owlsight.utils.custom_classes.SingletonDict, Dict[str, Any]])
-class OwlDefaultFunctions(globals_dict: Union[owlsight.utils.custom_classes.SingletonDict, Dict[str, Any]])
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -792,22 +791,20 @@ This class is open for extension, as possibly more useful functions can be added
   - Returns a string with information about all Hugging Face models currently loaded in the cache directory.
 - `owl_press(self, sequence: List[str], exit_python_from_interpreter: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12) -> bool`
   - Simulate typing a sequence of keys and automaticly control the menu inside the Owlsight application.
-- `owl_read(self, path: Union[str, pathlib.Path, Iterable[Union[str, pathlib.Path]]], recursive: bool = False, ignore_patterns: Optional[List[str]] = None, timeout: int = 5) -> Union[str, Dict[str, str]]`
+- `owl_read(self, path: Union[str, pathlib.Path, Iterable[Union[str, pathlib.Path]]], recursive: bool = False, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5) -> Union[str, Dict[str, str]]`
   - Read content from files using DocumentReader with fallback to basic file reading.
 - `owl_save_namespace(self, file_path: str)`
   - Save the current python namespace using dill.
 - `owl_scrape(self, url_or_terms: str, trim_newlines: Optional[int] = 2, filter_by: Optional[Dict[str, str]] = None, **request_kwargs) -> str`
   - Scrape the text content of a webpage and return specific content based on the filter.
-- `owl_show(self, docs: bool = True, return_str: bool = False) -> str`
+- `owl_show(self, docs: bool = True, return_lst: bool = False) -> List[str]`
   - Show all currently active imported objects in the namespace except builtins.
-- `owl_write(self, file_path: str, content: str)`
+- `owl_write(self, file_path: str, content: str) -> None`
   - Write content to a (text) file.
 
 #### ExpertPrompts
-#### ExpertPrompts
 
 ```python
-class ExpertPrompts()
 class ExpertPrompts()
 ```
 
@@ -820,6 +817,23 @@ System prompts for different expert roles
 - `show_available_tools(self, globals_dict: Optional[owlsight.utils.custom_classes.SingletonDict] = None) -> str`
   - Show all currently active imported objects in the namespace except builtins.
 
+#### AgentPrompts
+
+```python
+class AgentPrompts(essential_information: str = '')
+```
+
+A collection of system prompts which to be used in Agentic frameworks.
+
+**Methods:**
+
+- `as_dict(self) -> Dict[str, str]`
+  - Return a dictionary of role keys and their descriptions.
+- `get_essential_information(self) -> str`
+- `get_single_agent(self) -> str`
+- `show_available_tools(self, globals_dict: Optional[owlsight.utils.custom_classes.SingletonDict] = None) -> str`
+  - Show all currently active imported objects in the namespace except builtins.
+
 #### PromptWriter
 
 ```python
@@ -827,11 +841,6 @@ class PromptWriter(prompt: str)
 ```
 
 Writes a system prompt to an Owlsight configuration JSON file.
-
-Parameters
-----------
-prompt : str
-    The system prompt to be written to the Owlsight configuration JSON file.
 
 Parameters
 ----------
