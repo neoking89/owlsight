@@ -109,7 +109,18 @@ class DocumentSearcher:
 
     @classmethod
     def from_cache(cls, cache_dir: str, cache_dir_suffix: str, **init_kwargs) -> "DocumentSearcher":
-        """Load a DocumentSearcher instance from cache."""
+        """
+        Load a DocumentSearcher instance from earlier cached documents and embeddings.
+        
+        Parameters
+        ----------
+        cache_dir : str
+            Directory containing .pkl files
+        cache_dir_suffix : str
+            Suffix for cache directory name. This is used to identify the correct cache files.
+        **init_kwargs
+            Additional arguments to pass to the DocumentSearcher constructor
+        """
         if not os.path.exists(cache_dir):
             raise FileNotFoundError(f"Cache directory not found: {cache_dir}")
 
@@ -119,7 +130,7 @@ class DocumentSearcher:
 
         if not any(map(lambda file: cache_dir_suffix == file.split("__")[1], pkl_files)):
             raise FileNotFoundError(
-                f"No cache files found in dir {cache_dir} with cache_dir_suffix: {cache_dir_suffix}"
+                f"No cached files found in dir {cache_dir} with cache_dir_suffix: {cache_dir_suffix}"
             )
 
         init_cls = cls(
