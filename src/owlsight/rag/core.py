@@ -85,7 +85,7 @@ class DocumentSearcher:
         cache_dir_suffix: Optional[str] = None,
     ) -> None:
         if not documents and not cache_dir:
-            raise ValueError("documents must not be empty")
+            raise ValueError("documents must not be empty if cache_dir is not provided")
 
         self.sentence_transformer_model = sentence_transformer_model
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
