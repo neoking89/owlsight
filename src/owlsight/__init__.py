@@ -6,6 +6,7 @@ from .rag.python_lib_search import PythonLibSearcher
 from .utils.deep_learning import (
     get_best_device,
     check_gpu_and_cuda,
+    llama_supports_gpu_offload,
     calculate_max_parameters_per_dtype,
     calculate_memory_for_model,
     calculate_available_vram,
@@ -33,6 +34,7 @@ __all__ = [
     "get_best_device",
     "check_onnx_device",
     "check_gpu_and_cuda",
+    "llama_supports_gpu_offload",
     "calculate_max_parameters_per_dtype",
     "calculate_memory_for_model",
     "calculate_available_vram",
