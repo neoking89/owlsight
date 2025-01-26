@@ -1,6 +1,7 @@
 import pytest
 
-from owlsight.rag.core import DocumentSearcher
+from owlsight.rag.core import DocumentSearcher, SearchMethod
+from unittest.mock import patch, MagicMock
 
 
 def test_split_documents_basic():
@@ -84,3 +85,57 @@ def test_split_documents_validation():
     
     with pytest.raises(ValueError):
         DocumentSearcher.split_documents(documents, n_sentences=2, n_overlap=3)
+
+
+def test_document_searcher_init_basic():
+    """Test the basic initialization of DocumentSearcher."""
+    documents = {
+        "doc1": "Python is a programming language",
+        "doc2": "Machine learning is fascinating"
+    }
+    with patch('owlsight.rag.core.EnsembleSearchEngine', new_callable=MagicMock) as mock_engine:
+        searcher = DocumentSearcher(documents)
+        
+        # Check if the EnsembleSearchEngine was called with the expected arguments
+        mock_engine.assert_called_once_with(
+            documents=documents,
+            search_methods=[SearchMethod.TFIDF, SearchMethod.SENTENCE_TRANSFORMER],
+            cache_dir=None,
+            cache_dir_suffix=None,
+            init_arguments={
+                SearchMethod.SENTENCE_TRANSFORMER: {
+                    "pooling_strategy": "mean",
+                    "model_name": searcher.sentence_transformer_model,
+                    "batch_size": searcher.sentence_transformer_batch_size,
+                }
+            }
+        )
+
+
+def test_document_searcher_init_with_cache():
+    """Test initialization of DocumentSearcher with cache directory and suffix."""
+    documents = {
+        "doc1": "Python is a programming language",
+        "doc2": "Machine learning is fascinating"
+    }
+    cache_dir = "test_cache"
+    base_cache_suffix = "test_suffix"
+    expected_cache_suffix = f"{base_cache_suffix}__split_documents_n_sentences=None__split_documents_n_overlap=1"
+    
+    with patch('owlsight.rag.core.EnsembleSearchEngine', new_callable=MagicMock) as mock_engine:
+        searcher = DocumentSearcher(documents, cache_dir=cache_dir, cache_dir_suffix=base_cache_suffix)
+        
+        # Check if the EnsembleSearchEngine was called with the expected arguments
+        mock_engine.assert_called_once_with(
+            documents=documents,
+            search_methods=[SearchMethod.TFIDF, SearchMethod.SENTENCE_TRANSFORMER],
+            cache_dir=cache_dir,
+            cache_dir_suffix=expected_cache_suffix,
+            init_arguments={
+                SearchMethod.SENTENCE_TRANSFORMER: {
+                    "pooling_strategy": "mean",
+                    "model_name": searcher.sentence_transformer_model,
+                    "batch_size": searcher.sentence_transformer_batch_size,
+                }
+            }
+        )
