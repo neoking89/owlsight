@@ -5,30 +5,9 @@
     "prompt_code_execution": true,
     "track_model_usage": false,
     "extra_index_url": "",
+    "python_compile_mode": "single",
     "sequence_on_loading": [
-      "U",
-      "U",
-      "U",
-      "U",
-      "U",
-      "Write a function in python that sums 2 numbers. Call it: 'sum_two_numbers'. Just give me the code without any explanation.",
-      "ENTER",
-      "ENTER",
-      "ENTER",
-      "ENTER",
-      "SLEEP:30",
-      "ENTER",
-      "SLEEP:2",
-      "ENTER",
-      "ENTER",
-      "ENTER",
-      "D",
-      "D",
-      "D",
-      "D",
-      "D",
-      "configs/llama.json",
-      "ENTER"
+      
     ]
   },
   "model": {
@@ -59,6 +38,8 @@
     "active": false,
     "target_library": "",
     "top_k": 10,
+    "sentence_transformer_weight": 0.5,
+    "sentence_transformer_name_or_path": "",
     "search": ""
   },
   "huggingface": {
