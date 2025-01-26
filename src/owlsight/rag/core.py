@@ -1,5 +1,6 @@
 import re
-from typing import Dict, List, Optional, Literal, Any, Tuple, Union
+import os
+from typing import Dict, List, Optional, Literal, Any, Union, Tuple
 from abc import ABC, abstractmethod
 import traceback
 
@@ -54,7 +55,8 @@ class DocumentSearcher:
     cache_dir : str, optional
         Directory to cache embeddings and results
     cache_dir_suffix : str, optional
-        Suffix for cache directory name
+        Suffix for cache directory name.
+        Recommended is to use a name which is unique and descriptive to the documents.
 
     Notes
     -----
@@ -82,15 +84,19 @@ class DocumentSearcher:
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ) -> None:
-        self.split_documents_n_sentences = split_documents_n_sentences
-        self.split_documents_n_overlap = split_documents_n_overlap
-        documents = self._handle_split_documents(documents)
+        if not documents and not cache_dir:
+            raise ValueError("documents must not be empty")
 
-        self.documents = documents
         self.sentence_transformer_model = sentence_transformer_model
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
+
         self.cache_dir = cache_dir
-        self.cache_dir_suffix = cache_dir_suffix
+        self.documents = documents
+        self._handle_cache_and_documents(cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap)
+
+        self.split_documents_n_sentences = split_documents_n_sentences
+        self.split_documents_n_overlap = split_documents_n_overlap
+
         engine_init_arguments = {
             SearchMethod.SENTENCE_TRANSFORMER: {
                 "pooling_strategy": "mean",
@@ -105,6 +111,30 @@ class DocumentSearcher:
             cache_dir_suffix=self.cache_dir_suffix,
             init_arguments=engine_init_arguments,
         )
+
+    @classmethod
+    def from_cache(cls, cache_dir: str, cache_dir_suffix: str, **init_kwargs) -> "DocumentSearcher":
+        """Load a DocumentSearcher instance from cache."""
+        if not os.path.exists(cache_dir):
+            raise FileNotFoundError(f"Cache directory not found: {cache_dir}")
+
+        pkl_files = [f[:-4] for f in os.listdir(cache_dir) if f.endswith(".pkl")]
+        if not pkl_files:
+            raise FileNotFoundError(f"No .pkl files found in cache directory: {cache_dir}")
+
+        if not any(map(lambda file: cache_dir_suffix == file.split("__")[1], pkl_files)):
+            raise FileNotFoundError(
+                f"No cache files found in dir {cache_dir} with cache_dir_suffix: {cache_dir_suffix}"
+            )
+
+        init_cls = cls(
+            documents={},
+            cache_dir=cache_dir,
+            cache_dir_suffix=cache_dir_suffix,
+            **init_kwargs,
+        )
+
+        return init_cls
 
     @staticmethod
     def split_documents(
@@ -184,7 +214,7 @@ class DocumentSearcher:
         top_k: int = 20,
         sentence_transformer_weight: float = 0.7,
         tfidf_weight: float = 0.3,
-        as_context: bool = False
+        as_context: bool = False,
     ) -> Union[pd.DataFrame, str]:
         """
         Search documents using the configured ensemble methods.
@@ -212,7 +242,7 @@ class DocumentSearcher:
             SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
         }
         results = self.engine.search(query, top_k=top_k, method_weights=method_weights)
-        
+
         if as_context:
             context_parts = []
             for _, row in results.iterrows():
@@ -220,10 +250,15 @@ class DocumentSearcher:
                 entry = ["=" * 80, header, "-" * 40, "Content:", row["document"].strip()]
                 context_parts.append("\n".join(entry))
             return "".join(context_parts)
-        
+
         return results
 
-    def _handle_split_documents(self, documents: Dict[str, str]) -> Dict[str, str]:
+    def _handle_split_documents(
+        self,
+        documents: Dict[str, str],
+        split_documents_n_sentences: Optional[int],
+        split_documents_n_overlap: int,
+    ) -> Dict[str, str]:
         """Handle document splitting based on instance configuration.
 
         Parameters
@@ -241,15 +276,43 @@ class DocumentSearcher:
         ValueError
             If split_documents_n_overlap is greater than or equal to split_documents_n_sentences
         """
-        if self.split_documents_n_sentences is not None:
-            if self.split_documents_n_overlap >= self.split_documents_n_sentences:
+        if split_documents_n_sentences is not None:
+            if split_documents_n_overlap >= split_documents_n_sentences:
                 raise ValueError("split_documents_n_overlap must be less than split_documents_n_sentences")
             documents = self.split_documents(
                 documents,
-                n_sentences=self.split_documents_n_sentences,
-                n_overlap=self.split_documents_n_overlap,
+                n_sentences=split_documents_n_sentences,
+                n_overlap=split_documents_n_overlap,
             )
         return documents
+
+    def _create_unique_cache_dir_suffix(
+        self, cache_dir_suffix: str, split_documents_n_sentences: str, split_documents_n_overlap: str
+    ) -> str:
+        """Create unique cache names based on instance configuration"""
+        cache_dir_suffix = f"{cache_dir_suffix}__split_documents_n_sentences={split_documents_n_sentences}__split_documents_n_overlap={split_documents_n_overlap}"
+        return cache_dir_suffix
+
+    def _handle_cache_and_documents(self, cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap):
+        if self.cache_dir and cache_dir_suffix:
+            self.cache_dir_suffix = self._create_unique_cache_dir_suffix(
+                cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap
+            )
+            cache_mixin = CacheMixin(
+                cache_dir=self.cache_dir,
+                cache_dir_suffix=f"cache_dir_suffix={self.cache_dir_suffix}",
+            )
+            if cache_mixin.get_full_cache_path().exists() and not self.documents:
+                self.documents = cache_mixin.load_data()
+            else:
+                self.documents = self._handle_split_documents(
+                    self.documents, split_documents_n_sentences, split_documents_n_overlap
+                )
+                cache_mixin.save_data(self.documents)
+        else:
+            self.documents = self._handle_split_documents(
+                self.documents, split_documents_n_sentences, split_documents_n_overlap
+            )
 
 
 class SearchEngine(ABC):
@@ -530,9 +593,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         """
         self._check_pooling_strategy(pooling_strategy)
         if cache_dir_suffix:
-            cache_dir_suffix = (
-                f"{self.cls_name}__{cache_dir_suffix}____{pooling_strategy}__{model_name.replace('/', '_')}"
-            )
+            cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}____pooling={pooling_strategy}__model={model_name.replace('/', '_')}"
 
         super().__init__()
         CacheMixin.__init__(self, cache_dir, cache_dir_suffix)
@@ -558,6 +619,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         4. Caches results for future use
         """
         self.embeddings = self.load_data()
+        # inmediately return if embeddings are already cached
         if self.embeddings is not None:
             return
 
@@ -843,7 +905,6 @@ class EnsembleSearchEngine:
 
             # Format header with name, signature, and score
             header = f"{row['document_name']}{signature}"
-            # score_info = f"(Relevance Score: {row['score']:.3f})"
 
             # Build context entry
             entry = ["=" * 80, header, "-" * 40, "Documentation:", row["document"].strip(), "\n"]
