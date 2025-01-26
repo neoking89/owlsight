@@ -98,62 +98,28 @@ class SystemPrompts:
 
     def show_available_tools(self, globals_dict: Optional[SingletonDict] = None) -> str:
         """
-        Show available owl_ functions in a clear, categorized format.
+        Show all currently active imported objects in the namespace except builtins.
 
         Parameters
         ----------
-        globals_dict : Optional[SingletonDict]
-            Dictionary of global variables. If None, creates new SingletonDict.
+        globals_dict : Optional[SingletonDict], optional
+            Dictionary of global variables, by default None
 
         Returns
         -------
         str
-            Formatted string of available tools.
+            String representation of available tools.
         """
         if globals_dict is None:
             globals_dict = SingletonDict()
-            
-        # Get tools and their descriptions
         tools = OwlDefaultFunctions(globals_dict).owl_show(docs=True, return_lst=True)
-        
-        # Group tools by category
-        categories = {
-            'file': [],     # File operations (read, write, etc.)
-            'code': [],     # Code operations (execute, etc.) 
-            'system': [],   # System operations (shell, etc.)
-            'other': []     # Uncategorized tools
-        }
-        
-        # Process tools
-        for idx, item in enumerate(tools):
-            if not item.startswith('owl_'):
-                continue
-                
-            name = item.replace('method', 'function')
-            desc = tools[idx + 1]
-            
-            # Categorize based on name/description
-            if any(x in name.lower() for x in ['file', 'read', 'write']):
-                categories['file'].append((name, desc))
-            elif any(x in name.lower() for x in ['code', 'execute', 'eval']):
-                categories['code'].append((name, desc))
-            elif any(x in name.lower() for x in ['shell', 'system', 'run']):
-                categories['system'].append((name, desc))
-            else:
-                categories['other'].append((name, desc))
-        
-        # Format output
-        result = []
-        for category, items in categories.items():
-            if not items:
-                continue
-            result.append(f"\n{category.title()} Operations:")
-            for name, desc in items:
-                # Truncate description if too long
-                short_desc = desc[:100] + '...' if len(desc) > 100 else desc
-                result.append(f"- {name}: {short_desc}")
-                
-        return '\n'.join(result)
+        tools = [
+            (tool.replace("method", "function"), tools[idx + 1])
+            for (idx, tool) in enumerate(tools)
+            if tool.startswith("owl_")
+        ]
+
+        return "\n".join([f"{tool}: {description}" for tool, description in tools])
 
     def __getattr__(self, name: str) -> PromptWriter:
         """
@@ -554,7 +520,7 @@ You are a testing specialist focused on creating comprehensive, maintainable tes
 
 class AgentPrompts(SystemPrompts):
     """
-    A collection of system prompts to be used in Agentic frameworks.
+    A collection of system prompts which to be used in Agentic frameworks.
     """
 
     def __init__(self, available_information: str = ""):
