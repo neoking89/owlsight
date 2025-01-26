@@ -29,8 +29,34 @@ from owlsight.utils.logger import logger
 try:
     from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
 except ImportError:
+
     class NoConsoleScreenBufferError(Exception):
         pass
+
+
+class ItemCompleter(Completer):
+    """
+    A completer that provides a list of items for a specific triggerterm.
+
+    Example:
+        completer = ItemCompleter(["item1", "item2", "item3"], "item")
+        session = PromptSession(completer=completer)
+        session.prompt()
+        session.prompt("Input: ")
+        > "item"
+        [dropdown should appear]
+    """
+
+    def __init__(self, items: List[str], trigger: str, start_position=0):
+        self.items = items
+        self.trigger = trigger
+        self.start_position = start_position
+
+    def get_completions(self, document, complete_event):
+        text_before_cursor = document.text_before_cursor
+        if text_before_cursor.strip().endswith(self.trigger):
+            for item in self.items:
+                yield Completion(item, start_position=self.start_position)
 
 
 class HistoryCompleter(Completer):
@@ -38,6 +64,7 @@ class HistoryCompleter(Completer):
     A completer that provides suggestions based on previously entered history.
     Caches each FileHistory instance so repeated usage doesn't re-read from disk unnecessarily.
     """
+
     def __init__(self, history: FileHistory) -> None:
         super().__init__()
         self.chat_history = history
@@ -58,6 +85,7 @@ class Selector:
     """
     A selector that manages a list of options (single, toggle, or editable).
     """
+
     def __init__(self, options_dict: Dict[str, Union[None, str, List[Any]]], start_index: int = 0) -> None:
         self.current_index: int = start_index
         self.options: List[Tuple[str, OptionType]] = []
@@ -84,6 +112,7 @@ class OptionSelectorApp:
 
     We reuse this single global instance to avoid re-building UI artifacts each time.
     """
+
     def __init__(self) -> None:
         self.selector: Optional[Selector] = None
         self.controls: List[Any] = []
@@ -191,23 +220,23 @@ class OptionSelectorApp:
         """
         A plain, single (static) option with a simple arrow indicator.
         """
+
         def get_text():
             arrow = self.get_arrow(i)
             return f"{arrow} {label}"
+
         return Window(content=FormattedTextControl(get_text))
 
     def create_toggle_option_control(self, i: int, label: str) -> Window:
         """
         A toggle option. Displays the toggle's current value after the label.
         """
+
         def get_text():
             arrow = self.get_arrow(i)
             current_value = self.selector.toggle_values[label]
-            return [
-                ("class:arrow", f"{arrow} "),
-                ("class:option", f"{label}: "),
-                ("class:toggle", f"{current_value}")
-            ]
+            return [("class:arrow", f"{arrow} "), ("class:option", f"{label}: "), ("class:toggle", f"{current_value}")]
+
         return Window(content=FormattedTextControl(get_text))
 
     def create_editable_option_control(self, i: int, label: str) -> VSplit:
@@ -216,14 +245,15 @@ class OptionSelectorApp:
         """
         if label not in self.chat_history:
             self.chat_history[label] = FileHistory(get_prompt_cache())
-        completer = HistoryCompleter(self.chat_history[label])
+        history = self.chat_history[label]
+        completer = HistoryCompleter(history)
 
         text_area = TextArea(
             text=self.selector.user_inputs[label],
             multiline=True,
             wrap_lines=True,
             focus_on_click=True,
-            history=self.chat_history[label],
+            history=history,
             auto_suggest=AutoSuggestFromHistory(),
             completer=completer,
         )
@@ -232,6 +262,7 @@ class OptionSelectorApp:
         def get_prompt():
             arrow = self.get_arrow(i)
             return [("", f"{arrow} {label} ")]
+
         prompt_window = Window(content=FormattedTextControl(get_prompt), dont_extend_width=True)
         return VSplit([prompt_window, text_area])
 
@@ -249,6 +280,7 @@ class OptionSelectorApp:
         """
         Define how the user navigates with the keyboard and triggers selection.
         """
+
         @self.kb.add("up")
         def move_up(event):
             self.selector.current_index = (self.selector.current_index - 1) % len(self.selector.options)
@@ -304,8 +336,10 @@ class OptionSelectorApp:
         """
         Launch the application (blocking call).
         """
+
         def pre_run():
             self.update_focus(self.application)
+
         self.application.run(pre_run=pre_run)
 
     def _handle_editable_input(self, current_option: str, user_input: str) -> None:
