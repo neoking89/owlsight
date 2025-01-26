@@ -76,6 +76,12 @@ class Schema:
             "system_prompt": MenuItem(
                 type=OptionType.EDITABLE, description="System prompt defining model behavior", default="", choices=None
             ),
+            "model_kwargs": MenuItem(
+                type=OptionType.EDITABLE,
+                description="Additional parameters passed during model initialization. For llama-cpp, these get passed to llama_cpp.Llama. For transformers, these get passed to transformers.pipeline",
+                default={},
+                choices=None,
+            ),
             "transformers__device": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Device for transformers model",
@@ -93,12 +99,6 @@ class Schema:
                 description="Whether to stream input to transformers model",
                 default=True,
                 choices=[False, True],
-            ),
-            "transformers__model_kwargs": MenuItem(
-                type=OptionType.EDITABLE,
-                description="Additional model parameters for transformers model",
-                default={},
-                choices=None,
             ),
             "gguf__filename": MenuItem(
                 type=OptionType.EDITABLE, description="GGUF model filename", default="", choices=None

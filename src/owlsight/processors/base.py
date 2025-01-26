@@ -14,6 +14,7 @@ class TextGenerationProcessor(ABC):
         model_id: str,
         apply_chat_history: bool,
         system_prompt: str,
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the text generation processor.
@@ -27,6 +28,8 @@ class TextGenerationProcessor(ABC):
             Whether or not to save the history of inputs and outputs.
         system_prompt : str
             The system prompt to use for generation.
+        model_kwargs : Optional[Dict[str, Any]]
+            Additional keyword arguments for the model. Default is None.
         """
         if not model_id:
             raise ValueError("Model ID cannot be empty.")
@@ -35,6 +38,7 @@ class TextGenerationProcessor(ABC):
         self.apply_chat_history = apply_chat_history
         self.system_prompt = system_prompt
         self.chat_history = []
+        self.model_kwargs = model_kwargs or {}
 
     def apply_chat_template(
         self,

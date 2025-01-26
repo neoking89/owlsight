@@ -50,18 +50,19 @@ except ImportError:
 
 
 class TextGenerationProcessorTransformers(TextGenerationProcessor):
-    """Text generation processor using transformers library."""	
+    """Text generation processor using transformers library."""
+
     def __init__(
         self,
         model_id: str,
         transformers__device: Optional[str] = None,
         transformers__quantization_bits: Optional[int] = None,
         transformers__stream: bool = True,
-        transformers__model_kwargs: Optional[dict] = None,
         bnb_kwargs: Optional[dict] = None,
         tokenizer_kwargs: Optional[dict] = None,
         task: Optional[str] = None,
         apply_chat_history: bool = False,
+        model_kwargs: Optional[dict] = None,
         system_prompt: str = "",
         **kwargs,
     ):
@@ -79,8 +80,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             The number of quantization bits to use for the model. Default is None.
         transformers__stream : bool
             Whether to use streaming generation. Default is True.
-        transformers__model_kwargs : Optional[dict]
-            Additional keyword arguments for the model. Default is None.
         bnb_kwargs : Optional[dict]
             Additional keyword arguments for BitsAndBytesConfig. Default is None.
         tokenizer_kwargs : Optional[dict]
@@ -91,17 +90,20 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             Set to True if you want model to generate responses based on previous inputs.
         system_prompt : str
             The system prompt to prepend to the input text.
+        model_kwargs : Optional[dict]
+            Additional keyword arguments for the model. 
+            These get passed to `transformers.pipeline` function as `model_kwargs` argument.
+            Default is None. 
         """
         if task and task not in SUPPORTED_TASKS:
             raise ValueError(f"Task '{task}' is not supported. Supported tasks are: {list(SUPPORTED_TASKS.keys())}")
 
-        super().__init__(model_id, apply_chat_history, system_prompt)
+        super().__init__(model_id, apply_chat_history, system_prompt, model_kwargs)
 
         # Initialize configuration
         self.transformers__device = transformers__device or get_best_device()
         self.transformers__stream = transformers__stream
         self.transformers__quantization_bits = transformers__quantization_bits
-        self.model_kwargs = transformers__model_kwargs or {}
         self.bnb_kwargs = bnb_kwargs or {}
         self.tokenizer_kwargs = tokenizer_kwargs or {}
         self.task = task or DEFAULT_TASK
@@ -443,6 +445,9 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         Whether to maintain conversation history
     system_prompt : str, optional
         System prompt prepended to all inputs
+    model_kwargs : dict, optional
+        Additional keyword arguments to pass to the model.
+        Default is None.
 
     Notes
     -----
@@ -454,14 +459,14 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
     --------
     >>> # Load local ONNX model
     >>> processor = TextGenerationProcessorOnnx("path/to/model")
-    >>> 
+    >>>
     >>> # Load from Hugging Face
     >>> processor = TextGenerationProcessorOnnx(
     ...     "onnx-community/Llama-2-7B-Instruct-ONNX",
     ...     onnx__n_cpu_threads=12
     ... )
     """
-    
+
     def __init__(
         self,
         model_id: str,
@@ -471,10 +476,12 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         token: Optional[str] = None,
         apply_chat_history: bool = False,
         system_prompt: Optional[str] = None,
+        model_kwargs: Optional[dict] = None,
         **kwargs: Any,
     ) -> None:
         if og is None:
             raise ImportError("ONNX Runtime is disabled. Install with: pip install owlsight[onnx]")
+        logger.warning("model_kwargs is currently ignored for ONNX models")
 
         self.model_id = self._validate_model_id(model_id, onnx__model_dir, token)
         self.transformers_tokenizer = AutoTokenizer.from_pretrained(self.model_id, token=token)
@@ -780,8 +787,10 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         Whether to maintain conversation history
     system_prompt : str, default=""
         System prompt prepended to all inputs
-    model_kwargs : Dict[str, Any], optional
-        Additional arguments passed to llama-cpp.Llama
+    model_kwargs : Optional[Dict[str, Any]]
+        Additional arguments passed for the model.
+        These get passed to `transformers.pipeline` function as `model_kwargs` argument.
+        Default is None.
 
     Notes
     -----
@@ -793,7 +802,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
     --------
     >>> # Load local GGUF model
     >>> processor = TextGenerationProcessorGGUF("path/to/model.gguf", gguf__n_gpu_layers=20)
-    >>> 
+    >>>
     >>> # Load from Hugging Face with GPU
     >>> processor = TextGenerationProcessorGGUF(
     ...     "TheBloke/Llama-2-7B-GGUF",
@@ -801,7 +810,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
     ...     gguf__n_gpu_layers=32
     ... )
     """
-    
+
     def __init__(
         self,
         model_id: str,
@@ -839,10 +848,10 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             Set to True if you want model to generate responses based on previous inputs (eg. chat history).
         system_prompt : str
             The system prompt to prepend to the input text.
-        model_kwargs : Dict[str, Any]
+        model_kwargs : Optional[Dict[str, Any]]
             Additional keyword arguments for the model. These get passed directly to llama-cpp.Llama.__init__.
         """
-        super().__init__(model_id, apply_chat_history, system_prompt)
+        super().__init__(model_id, apply_chat_history, system_prompt, model_kwargs)
 
         if Llama is None:
             raise ImportError(
@@ -861,7 +870,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             "n_batch": n_batch,
             "n_threads": n_cpu_threads,
             "n_threads_batch": GGUF_Utils.get_optimal_n_threads_batch(),
-            **(model_kwargs or {}),
+            **(self.model_kwargs),
         }
 
         check_invalid_input_parameters(Llama.__init__, _model_kwargs)
