@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Union, Optional
 
 
+KB_AUTOCOMPLETE = ("escape", "v")
+
 def get_cache_dir() -> Path:
     """Returns the base directory for storing cached data."""
     data_dir = Path.home() / ".owlsight"

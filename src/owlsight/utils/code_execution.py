@@ -9,6 +9,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.completion import WordCompleter
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.ui.constants import EDIT_CODE_BLOCK_COLOR
@@ -26,7 +27,7 @@ from owlsight.utils.venv_manager import (
     get_lib_path,
     get_python_executable,
 )
-from owlsight.utils.constants import get_py_cache
+from owlsight.utils.constants import get_py_cache, KB_AUTOCOMPLETE
 from owlsight.utils.logger import logger
 
 
@@ -183,12 +184,22 @@ class CodeExecutor:
                         buff.text = suggestions[-1]
                         buff.cursor_position = len(buff.text)
 
+        @bindings.add(*KB_AUTOCOMPLETE)
+        def _(event):
+            "Initialize autocompletion, or select the next completion."
+            buff = event.app.current_buffer
+            if buff.complete_state:
+                buff.complete_next()
+            else:
+                buff.start_completion(select_first=False)
+
         session = PromptSession(
             history=FileHistory(self.python_interpreter_history_file),
             auto_suggest=AutoSuggestFromHistory(),
             enable_history_search=True,
             complete_while_typing=True,
-            key_bindings=bindings,  # Add custom key bindings
+            key_bindings=bindings,
+            completer=WordCompleter(self.globals_dict.keys()),
         )
 
         # Start REPL loop
@@ -196,6 +207,7 @@ class CodeExecutor:
             "Interactive Python interpreter activated.\n"
             "- Use up/down arrows to navigate command history\n"
             "- Use Tab for auto-completion\n"
+            "- Use escape-v for variable completion\n"
             "Type 'exit()' to quit the console."
         )
 
