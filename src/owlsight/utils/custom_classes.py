@@ -135,6 +135,9 @@ class SingletonDict(dict):
             cls._instance = super(SingletonDict, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
+    def get_public_keys(self):
+        return [k for k in self.keys() if not k.startswith("_")]
+
 
 MediaType = Literal["image", "audio", "video"]
 
