@@ -193,7 +193,7 @@ class CodeExecutor:
             else:
                 buff.start_completion(select_first=False)
 
-        global_vars = list(filter(lambda k: not k.startswith("_"), self.globals_dict.keys()))
+        global_vars = self.globals_dict.get_public_keys()
 
         session = PromptSession(
             history=FileHistory(self.python_interpreter_history_file),
