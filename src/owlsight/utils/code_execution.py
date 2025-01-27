@@ -193,13 +193,15 @@ class CodeExecutor:
             else:
                 buff.start_completion(select_first=False)
 
+        global_vars = list(filter(lambda k: not k.startswith("_"), self.globals_dict.keys()))
+
         session = PromptSession(
             history=FileHistory(self.python_interpreter_history_file),
             auto_suggest=AutoSuggestFromHistory(),
             enable_history_search=True,
             complete_while_typing=True,
             key_bindings=bindings,
-            completer=WordCompleter(self.globals_dict.keys()),
+            completer=WordCompleter(global_vars),
         )
 
         # Start REPL loop
