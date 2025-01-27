@@ -1211,6 +1211,7 @@ TIP: above option can be used to load a sequence of different models as "agents"
 
 
 **2.3.0**
+- added `split_documents_n_sentences` and `split_documents_n_overlap` parameters to `DocumentSearcher` class, which can be used to split a long document into smaller chunks before embedding.
 - Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
 - Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
 The advantage is that `model_kwargs` can now also be passed inside `TextGenerationProcessorGGUF` to provide` access all parameters when initializing `Llama` class from llama-cpp-python.
