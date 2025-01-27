@@ -23,7 +23,9 @@ from owlsight.configurations.constants import ASSISTENT_PROMPT, MAIN_MENU, CONFI
 from owlsight.configurations.schema import Schema
 from owlsight.ui.constants import BACKGROUND_STYLE, COLOR_CODES, GLOBAL_STYLE, INSTRUCTIONS
 from owlsight.ui.custom_classes import OptionType, AppDTO
-from owlsight.utils.constants import get_prompt_cache
+from owlsight.utils.constants import get_prompt_cache, KB_AUTOCOMPLETE
+from owlsight.utils.custom_classes import SingletonDict
+from owlsight.prompts.system_prompts import ExpertPrompts
 from owlsight.utils.logger import logger
 
 try:
@@ -32,6 +34,20 @@ except ImportError:
 
     class NoConsoleScreenBufferError(Exception):
         pass
+
+
+class CombinedCompleter(Completer):
+    """
+    A completer that combines multiple completers and provides suggestions based on any of them.
+    """
+
+    def __init__(self, *completers: Completer):
+        self.completers = completers
+
+    def get_completions(self, document, complete_event):
+        for c in self.completers:
+            for completion in c.get_completions(document, complete_event):
+                yield completion
 
 
 class ItemCompleter(Completer):
@@ -123,7 +139,11 @@ class OptionSelectorApp:
         self.chat_history: Dict[str, FileHistory] = {}
         self.style = GLOBAL_STYLE
         self.build_key_bindings()
+
         self._last_config_choice = ""
+        self._global_dict = SingletonDict()
+        self._media_tag_completer = ItemCompleter(items=["audio:", "image:", "role:"], trigger="[[", start_position=0)
+        self._role_completer = ItemCompleter(items=ExpertPrompts.list_roles(), trigger="role:", start_position=0)
 
     def set_current_description(self) -> None:
         """
@@ -246,7 +266,15 @@ class OptionSelectorApp:
         if label not in self.chat_history:
             self.chat_history[label] = FileHistory(get_prompt_cache())
         history = self.chat_history[label]
-        completer = HistoryCompleter(history)
+        history_completer = HistoryCompleter(history)
+        python_code_completer = ItemCompleter(items=self._global_dict.get_public_keys(), trigger="{{", start_position=0)
+
+        completer = CombinedCompleter(
+            history_completer,
+            python_code_completer,
+            self._media_tag_completer,
+            self._role_completer,
+        )
 
         text_area = TextArea(
             text=self.selector.user_inputs[label],
@@ -331,6 +359,15 @@ class OptionSelectorApp:
         @self.kb.add("c-q")
         def exit_(event):
             event.app.exit()
+
+        @self.kb.add(*KB_AUTOCOMPLETE)
+        def _(event):
+            "Initialize autocompletion, or select the next completion."
+            buff = event.app.current_buffer
+            if buff.complete_state:
+                buff.complete_next()
+            else:
+                buff.start_completion(select_first=False)
 
     def run(self) -> None:
         """
