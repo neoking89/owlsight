@@ -1,10 +1,10 @@
 import sys
 sys.path.append("src")
 
-from owlsight.utils.helper_functions import extract_markdown
+from owlsight.utils.helper_functions import parse_markdown
 
 
-def test_extract_markdown():
+def test_parse_markdown():
     # Sample markdown input for Python, Bash, and CMD
     md_string = """
     ```python
@@ -27,5 +27,5 @@ def test_extract_markdown():
         ("cmd", "dir"),
     ]
 
-    result = extract_markdown(md_string)
+    result = parse_markdown(md_string)
     assert result == expected, f"Expected {expected}, but got {result}"

@@ -7,7 +7,7 @@ sys.path.append("src")
 
 import pytest
 
-from owlsight.utils.helper_functions import replace_bracket_placeholders, parse_media_placeholders
+from owlsight.utils.helper_functions import parse_python_placeholders, parse_media_placeholders
 from owlsight.utils.custom_classes import MediaObject
 
 # Fixture for test data
@@ -40,7 +40,7 @@ def test_context():
     ],
 )
 def test_basic_expressions(test_context, test_id, input_string, expected):
-    result = replace_bracket_placeholders(input_string, test_context)
+    result = parse_python_placeholders(input_string, test_context)
     assert result == expected
 
 
@@ -55,7 +55,7 @@ def test_basic_expressions(test_context, test_id, input_string, expected):
     ],
 )
 def test_data_structures(test_context, test_id, input_string, expected):
-    result = replace_bracket_placeholders(input_string, test_context)
+    result = parse_python_placeholders(input_string, test_context)
     assert result == expected
 
 
@@ -68,7 +68,7 @@ def test_data_structures(test_context, test_id, input_string, expected):
     ],
 )
 def test_string_operations(test_context, test_id, input_string, expected):
-    result = replace_bracket_placeholders(input_string, test_context)
+    result = parse_python_placeholders(input_string, test_context)
     assert result == expected
 
 
@@ -81,7 +81,7 @@ def test_string_operations(test_context, test_id, input_string, expected):
     ],
 )
 def test_dict_operations(test_context, test_id, input_string, expected):
-    result = replace_bracket_placeholders(input_string, test_context)
+    result = parse_python_placeholders(input_string, test_context)
     assert result == expected
 
 
@@ -97,7 +97,7 @@ def test_dict_operations(test_context, test_id, input_string, expected):
     ],
 )
 def test_pandas_operations(test_context, test_id, input_string, expected):
-    result = replace_bracket_placeholders(input_string, test_context)
+    result = parse_python_placeholders(input_string, test_context)
     assert result == expected
 
 
@@ -110,7 +110,7 @@ def test_pandas_operations(test_context, test_id, input_string, expected):
     ],
 )
 def test_numpy_operations(test_context, test_id, input_string, expected):
-    result = replace_bracket_placeholders(input_string, test_context)
+    result = parse_python_placeholders(input_string, test_context)
     assert result == expected
 
 
@@ -123,7 +123,7 @@ def test_numpy_operations(test_context, test_id, input_string, expected):
     ],
 )
 def test_date_operations(test_context, test_id, input_string, expected):
-    result = replace_bracket_placeholders(input_string, test_context)
+    result = parse_python_placeholders(input_string, test_context)
     assert result == expected
 
 
@@ -138,7 +138,7 @@ def test_date_operations(test_context, test_id, input_string, expected):
 )
 def test_error_handling(test_id, input_string, expected_error):
     with pytest.raises(expected_error):
-        replace_bracket_placeholders(input_string, {})
+        parse_python_placeholders(input_string, {})
 
 
 @pytest.mark.parametrize(
