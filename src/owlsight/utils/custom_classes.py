@@ -6,9 +6,15 @@ This software is released under the Apache License 2.0.
 from typing import List, Literal, Dict, Union
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional, Any, Dict
+import builtins
+import inspect
+
 
 import torch
 from transformers import StoppingCriteria, AutoTokenizer
+
+from owlsight.prompts.helper_functions import function_to_json_for_tool_calling
 
 
 class StopWordCriteria(StoppingCriteria):
@@ -137,6 +143,41 @@ class SingletonDict(dict):
 
     def get_public_keys(self):
         return [k for k in self.keys() if not k.startswith("_")]
+
+    def get_tools(self, exclude_keys: Optional[List[str]] = None) -> List[str]:
+        """
+        Get a list of available functions which can be used for tool calling out of the global scope.
+        NOTE: ONLY objects that are functions are included.
+
+        Returns
+        -------
+        str
+            String representation of available functions/tools in OPENAI-format.
+        """
+        globals_dict = self._filter_globals(self)
+        if exclude_keys is not None:
+            globals_dict = {k: v for k, v in globals_dict.items() if k not in exclude_keys}
+        tools = [function_to_json_for_tool_calling(v) for v in globals_dict.values() if inspect.isfunction(v)]
+
+        return tools
+
+    def _filter_globals(self, globals_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Filter the globals dictionary to exclude built-in and private objects.
+
+        Parameters
+        ----------
+        globals_dict : dict
+            The globals dictionary to filter.
+
+        Returns
+        -------
+        dict
+            The filtered globals dictionary.
+        """
+        return {
+            key: value for key, value in globals_dict.items() if not key.startswith("_") and key not in dir(builtins)
+        }
 
 
 MediaType = Literal["image", "audio", "video"]
