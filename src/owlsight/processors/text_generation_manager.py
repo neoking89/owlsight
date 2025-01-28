@@ -99,7 +99,7 @@ class TextGenerationManager:
         """
         Update the configuration dynamically. If 'model_id' is updated, reload the processor.
         """
-        value = parse_python_placeholders(deepcopy(value), SingletonDict())
+        value = self._parse_python_placeholders(value)
         if key.endswith(".back"):
             return  # Do not set the "back" key
         try:
@@ -325,3 +325,12 @@ class TextGenerationManager:
                 OwlDefaultFunctions({}).owl_press(sequence, exit_python_from_interpreter=False)
             except Exception as e:
                 logger.error(f"Error executing main.sequence_on_loading: {e}")
+
+    def _parse_python_placeholders(self, value: Any):
+        """
+        Parse python placeholders in the value.
+        """
+        try:
+            return parse_python_placeholders(value, SingletonDict())
+        except Exception:
+            return value
