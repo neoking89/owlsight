@@ -142,8 +142,7 @@ class OptionSelectorApp:
 
         self._last_config_choice = ""
         self._global_dict = SingletonDict()
-        self._media_tag_completer = ItemCompleter(items=["audio:", "image:", "role:"], trigger="[[", start_position=0)
-        self._role_completer = ItemCompleter(items=ExpertPrompts.list_roles(), trigger="role:", start_position=0)
+        self._media_tag_completer = ItemCompleter(items=["audio:", "image:"], trigger="[[", start_position=0)
 
     def set_current_description(self) -> None:
         """
@@ -273,8 +272,7 @@ class OptionSelectorApp:
             history_completer,
             python_code_completer,
             self._media_tag_completer,
-            self._role_completer,
-        )
+)
 
         text_area = TextArea(
             text=self.selector.user_inputs[label],
