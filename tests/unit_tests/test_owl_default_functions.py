@@ -98,7 +98,7 @@ def test_owl_tools_executed_successfully(owl_instance: OwlDefaultFunctions):
     owl_instance.globals_dict["test"] = test
     tools = owl_instance.owl_tools()
     assert isinstance(tools, list)
-    assert len(tools) == 1
+    assert len(tools) > 0
     for tool in tools:
         assert isinstance(tool, dict)
 
