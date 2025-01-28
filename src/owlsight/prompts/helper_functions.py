@@ -1,10 +1,9 @@
 import inspect
-import json
 import re
 from typing import Callable
 
 
-def function_to_json_for_tool_calling(func: Callable) -> str:
+def function_to_json_for_tool_calling(func: Callable) -> dict:
     """
     Converts a Python function into a JSON structure suitable for function-calling
     with an LLM. This function inspects the target function's signature and docstring
@@ -124,7 +123,7 @@ def function_to_json_for_tool_calling(func: Callable) -> str:
     function_json_dict = {"name": func.__name__, "description": short_description, "parameters": parameters_schema}
     final_dict = {"type": "function", "function": function_json_dict}
 
-    return json.dumps(final_dict, indent=2)
+    return final_dict
 
 
 def guess_json_type_from_string(type_str: str) -> str:
