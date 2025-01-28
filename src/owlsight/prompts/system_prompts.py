@@ -1,9 +1,6 @@
 import json
 import os
-from typing import List, Dict, Optional
-
-from owlsight.app.default_functions import OwlDefaultFunctions
-from owlsight.utils.custom_classes import SingletonDict
+from typing import List, Dict
 
 
 class PromptWriter:
@@ -95,33 +92,6 @@ class SystemPrompts:
             else:
                 result[role] = attr
         return result
-
-    # TODO: exclude all owlsight modules except those starting with owl_
-    # TODO: include just defined variables. Empphasize these with a special tag (like "just defined") and mention this tag in # TASK in the prompt
-    def show_available_tools(self, globals_dict: Optional[SingletonDict] = None) -> str:
-        """
-        Show all currently active imported objects in the namespace except builtins.
-
-        Parameters
-        ----------
-        globals_dict : Optional[SingletonDict], optional
-            Dictionary of global variables, by default None
-
-        Returns
-        -------
-        str
-            String representation of available tools.
-        """
-        if globals_dict is None:
-            globals_dict = SingletonDict()
-        tools = OwlDefaultFunctions(globals_dict).owl_show(docs=True, return_lst=True)
-        tools = [
-            (tool.replace("method", "function"), tools[idx + 1])
-            for (idx, tool) in enumerate(tools)
-            if tool.startswith("owl_")
-        ]
-
-        return "\n".join([f"{tool}: {description}" for tool, description in tools])
 
     def __getattr__(self, name: str) -> PromptWriter:
         """
@@ -549,9 +519,6 @@ You are an advanced problem-solving AI with expertise in Python.
 2. Check if any "owl_" functions from [# Available functions] are relevant to address the user's request.
 3. Provide a concise, fully functional Python code snippet in Markdown that directly answers the user's question.
 4. Keep your explanation brief and focus only on the key steps and the minimal required commentary.
-
-# Available functions:
-{self.show_available_tools()}
 """.strip()
 
     def get_essential_information(self) -> str:
