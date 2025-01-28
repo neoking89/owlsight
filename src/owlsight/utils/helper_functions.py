@@ -42,9 +42,6 @@ def parse_python_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
         The evaluated object if the entire string is a single placeholder,
         otherwise the string with placeholders replaced.
     """
-    if not text:
-        return text
-
     def evaluate_expression(expr: str) -> Any:
         try:
             safe_globals = {
