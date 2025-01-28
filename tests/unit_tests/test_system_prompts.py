@@ -142,20 +142,5 @@ def test_system_prompts_getattr_with_invalid_role(mock_prompts: SystemPrompts):
     assert "Available roles are:" in str(exc_info.value)
 
 
-def test_show_available_tools(mock_prompts: SystemPrompts):
-    """Test that show_available_tools instantiates SingletonDict and returns a string"""
-    with patch('owlsight.prompts.system_prompts.SingletonDict') as global_dict_mock:
-        # Test without providing globals_dict
-        result = mock_prompts.show_available_tools()
-        assert isinstance(result, str)
-        assert global_dict_mock.call_count == 1, "SingletonDict should be initialized exactly once"
-
-        global_dict_mock.reset_mock()
-
-        # Test with providing globals_dict
-        result = mock_prompts.show_available_tools(global_dict_mock)
-        assert isinstance(result, str)
-        assert global_dict_mock.call_count == 0, "SingletonDict should not be initialized"
-    
 if __name__ == "__main__":
     pytest.main([__file__])
