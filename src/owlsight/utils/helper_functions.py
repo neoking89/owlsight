@@ -16,15 +16,15 @@ from owlsight.utils.logger import logger
 from owlsight.utils.custom_classes import MediaObject, MediaType
 
 
-def extract_markdown(md_string: str) -> List[Tuple[str, str]]:
+def parse_markdown(md_string: str) -> List[Tuple[str, str]]:
     """
-    Extract language and code blocks from a markdown string.
+    Parses language and code blocks from a markdown string.
     """
     pattern = r"```(\w+)([\s\S]*?)```"
     return [(match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)]
 
 
-def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
+def parse_python_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
     """
     Evaluates expressions inside {{...}} in the given text and replaces them with the result.
     Correctly handles expressions containing braces or other special characters.
@@ -42,6 +42,8 @@ def replace_bracket_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
         The evaluated object if the entire string is a single placeholder,
         otherwise the string with placeholders replaced.
     """
+    if not text:
+        return text
 
     def evaluate_expression(expr: str) -> Any:
         try:
@@ -351,7 +353,7 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
         options_str = match.group("options") or ""
 
         # Process the path first - evaluate any Python expressions
-        processed_path = replace_bracket_placeholders(raw_path, var_dict)
+        processed_path = parse_python_placeholders(raw_path, var_dict)
 
         # Process options
         options: Dict[str, str] = {}
@@ -360,7 +362,7 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
                 if "=" in option:
                     key, value = option.split("=", 1)
                     # Evaluate Python expressions in option values and convert to string
-                    processed_value = str(replace_bracket_placeholders(value.strip(), var_dict))
+                    processed_value = str(parse_python_placeholders(value.strip(), var_dict))
                     options[key.strip()] = processed_value
 
         # Create unique identifier
@@ -379,6 +381,6 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
     processed_text = regex.sub(replace_match, text)
 
     # Then evaluate any remaining Python expressions in the text
-    processed_text = replace_bracket_placeholders(processed_text, var_dict)
+    processed_text = parse_python_placeholders(processed_text, var_dict)
 
     return processed_text, media_objects
