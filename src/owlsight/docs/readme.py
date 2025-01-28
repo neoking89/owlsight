@@ -366,12 +366,16 @@ TIP: above option can be used to load a sequence of different models as "agents"
 - Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
 - Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
 The advantage is that `model_kwargs` can now also be passed inside `TextGenerationProcessorGGUF` to provide` access all parameters when initializing `Llama` class from llama-cpp-python.
-
+- ESC + V can be used inside the Python Interpreter to show the currently defined objects in a dropdown-menu.
+- ESC + V can be used inside the "How can I assist you?"-option after typing the following: "[[", "{{", "role:". This will autocomplete the following:
+"[[" will autocomplete to "role:", "image:", "audio:"
+"{{" will autocomplete any available defined objects from the python-namespace.
+"role:" will autocomplete to any available roles from the `SystemPrompts` class.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
 
-def write_readme(content: str, filename:str):
+def write_readme(content: str, filename: str):
     """
     Write the README content to a file with proper encoding.
 

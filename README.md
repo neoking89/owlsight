@@ -1215,6 +1215,6 @@ TIP: above option can be used to load a sequence of different models as "agents"
 - Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
 - Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
 The advantage is that `model_kwargs` can now also be passed inside `TextGenerationProcessorGGUF` to provide` access all parameters when initializing `Llama` class from llama-cpp-python.
-
+- ESC + V can be used inside the Python Interpreter to show the currently defined objects in a dropdown-menu.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
