@@ -144,7 +144,7 @@ class SingletonDict(dict):
     def get_public_keys(self):
         return [k for k in self.keys() if not k.startswith("_")]
 
-    def get_tools(self, exclude_keys: Optional[List[str]] = None) -> List[str]:
+    def get_tools(self, exclude_keys: Optional[List[str]] = None) -> List[dict]:
         """
         Get a list of available functions which can be used for tool calling out of the global scope.
         NOTE: ONLY objects that are functions are included.
@@ -157,7 +157,7 @@ class SingletonDict(dict):
         globals_dict = self._filter_globals(self)
         if exclude_keys is not None:
             globals_dict = {k: v for k, v in globals_dict.items() if k not in exclude_keys}
-        tools = [function_to_json_for_tool_calling(v) for v in globals_dict.values() if inspect.isfunction(v)]
+        tools = [function_to_json_for_tool_calling(v) for v in globals_dict.values() if inspect.isroutine(v)]
 
         return tools
 
