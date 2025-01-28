@@ -2,20 +2,22 @@ from typing import Any, Optional, Dict, Union
 import traceback
 import pkgutil
 import ast
+from copy import deepcopy
 
 from owlsight.configurations.constants import CONFIG_DEFAULTS
 from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
 from owlsight.processors.helper_functions import select_processor_type, warn_processor_not_loaded
 from owlsight.ui.console import get_user_choice
+from owlsight.ui.custom_classes import AppDTO
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
-from owlsight.ui.custom_classes import AppDTO
-from owlsight.utils.helper_functions import convert_to_real_type
+from owlsight.utils.helper_functions import convert_to_real_type, parse_python_placeholders
 from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache
+from owlsight.utils.custom_classes import SingletonDict
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.logger import logger
 
@@ -97,6 +99,7 @@ class TextGenerationManager:
         """
         Update the configuration dynamically. If 'model_id' is updated, reload the processor.
         """
+        value = parse_python_placeholders(deepcopy(value), SingletonDict())
         if key.endswith(".back"):
             return  # Do not set the "back" key
         try:
