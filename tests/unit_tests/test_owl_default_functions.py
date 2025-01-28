@@ -91,6 +91,16 @@ def test_owl_press_keys_executed_successfully(owl_instance: OwlDefaultFunctions)
             mock_press.assert_called_with(key)
             mock_release.assert_called_with(key)
 
+def test_owl_tools_executed_successfully(owl_instance: OwlDefaultFunctions):
+    """Test that owl_tools returns a list of defined functions as strings."""
+    def test():
+        return 42
+    owl_instance.globals_dict["test"] = test
+    tools = owl_instance.owl_tools()
+    assert isinstance(tools, list)
+    assert len(tools) == 1
+    for tool in tools:
+        assert isinstance(tool, dict)
 
 if __name__ == "__main__":
     pytest.main([__file__])
