@@ -17,7 +17,7 @@ from owlsight.utils.custom_exceptions import ModuleNotFoundInVenvError
 from owlsight.utils.custom_classes import SingletonDict
 from owlsight.utils.subprocess_utils import execute_shell_command
 from owlsight.utils.helper_functions import (
-    extract_markdown,
+    parse_markdown,
     editable_input,
     format_error_message,
 )
@@ -90,7 +90,7 @@ class CodeExecutor:
                     response_with_fixed_code = self._generate_fixed_code_response(
                         original_question, code_block, format_error_message(e)
                     )
-                    extracted_code_blocks = extract_markdown(response_with_fixed_code)
+                    extracted_code_blocks = parse_markdown(response_with_fixed_code)
                     if extracted_code_blocks:
                         code_block = extracted_code_blocks[-1][1]  # Use the LAST extracted block of code
                         logger.info(
@@ -369,7 +369,7 @@ def execute_code_with_feedback(
     results = []
 
     # Extract code blocks with their associated language
-    code_blocks = extract_markdown(response)
+    code_blocks = parse_markdown(response)
     if not code_blocks:
         logger.info("No code blocks found in the response.")
         return results
