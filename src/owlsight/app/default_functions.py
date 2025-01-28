@@ -1,10 +1,9 @@
 import importlib.util
 import os
-import builtins
 import inspect
 import traceback
 import re
-from typing import Optional, List, Dict, Union, Iterable, Any
+from typing import Optional, List, Dict, Union, Iterable
 from datetime import datetime
 from pathlib import Path
 import subprocess
@@ -31,7 +30,7 @@ class OwlDefaultFunctions:
     This class is open for extension, as possibly more useful functions can be added in the future.
     """
 
-    def __init__(self, globals_dict: Union[SingletonDict, Dict[str, Any]]):
+    def __init__(self, globals_dict: Union[SingletonDict]):
         # Add check to make sure every function starts with 'owl_'
         self._check_method_naming_convention()
 
@@ -46,14 +45,24 @@ class OwlDefaultFunctions:
             if not name.startswith("owl_"):
                 raise ValueError(f"Method '{name}' does not follow the 'owl_' naming convention!")
 
-    def _get_document_reader(self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True) -> DocumentReader:
+    def _get_document_reader(
+        self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True
+    ) -> DocumentReader:
         """
         Lazy initialization of DocumentReader to prevent overhead.
         Returns an instance of DocumentReader, creating it if it doesn't exist.
         """
         if self._document_reader is None:
-            self._document_reader = DocumentReader(ocr_enabled=ocr_enabled, timeout=timeout, ignore_patterns=ignore_patterns)
+            self._document_reader = DocumentReader(
+                ocr_enabled=ocr_enabled, timeout=timeout, ignore_patterns=ignore_patterns
+            )
         return self._document_reader
+
+    def owl_tools(self) -> List[str]:
+        """Return a list of available functions which can be used for tool calling out of the global scope."""
+        current_func_name = inspect.currentframe().f_code.co_name
+        tools = self.globals_dict.get_tools(exclude_keys=[current_func_name]).copy()
+        return tools
 
     def owl_read(
         self,
@@ -77,7 +86,7 @@ class OwlDefaultFunctions:
             Whether to recursively read content from subdirectories, given path is a directory
         ignore_patterns : Optional[List[str]], default=None
             List of gitignore-style patterns to exclude
-            Example: ["*.txt", "*.log"]
+            eg. ["*.txt", "*.log"]
         ocr_enabled : bool, default=True
             Whether to enable OCR for image files in tika.
         timeout : int, default=5
@@ -90,7 +99,9 @@ class OwlDefaultFunctions:
             - For directory or multiple files: returns dict mapping filepath to content
         """
         try:
-            reader = self._get_document_reader(timeout=timeout, ignore_patterns=ignore_patterns, ocr_enabled=ocr_enabled)
+            reader = self._get_document_reader(
+                timeout=timeout, ignore_patterns=ignore_patterns, ocr_enabled=ocr_enabled
+            )
 
             # handle directory
             if isinstance(path, (str, Path)):
@@ -165,7 +176,7 @@ class OwlDefaultFunctions:
         except Exception:
             print(f"Error importing module:\n{traceback.format_exc()}")
 
-    def owl_show(self, docs: bool = True, return_lst: bool = False) -> List[str]:
+    def owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]:
         """
         Show all currently active imported objects in the namespace except builtins.
 
@@ -179,27 +190,27 @@ class OwlDefaultFunctions:
         str: A string representation of the active objects and their information.
         """
         current_globals = self.globals_dict
-        active_objects = {name: obj for name, obj in current_globals.items() if name not in dir(builtins)}
+        active_objects = self.globals_dict._filter_globals(current_globals)
 
         output = []
         brackets = "#" * 50
         output.append("Active imported objects:")
         output.append(brackets)
         for name, obj in active_objects.items():
-            if not name.startswith("_"):
-                obj_type = type(obj).__name__
-                output.append(f"{name} ({obj_type})")
+            obj_type = type(obj).__name__
+            output.append(f"{name} ({obj_type})")
 
-                if docs:
-                    docstring = obj.__doc__
-                    if docstring:
-                        output.append(f"Doc: {docstring.strip()}")
-                    else:
-                        output.append("Doc: No documentation available")
-                output.append(brackets)
+            if docs:
+                docstring = obj.__doc__
+                if docstring:
+                    output.append(f"Doc: {docstring.strip()}")
+                else:
+                    output.append("Doc: No documentation available")
+            output.append(brackets)
 
-        print("\n".join(output))
-        if return_lst:
+        output = "\n".join(output)
+        print(output)
+        if return_str:
             return output
 
     def owl_write(self, file_path: str, content: str) -> None:
