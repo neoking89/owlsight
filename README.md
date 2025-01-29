@@ -772,7 +772,7 @@ Notes
 #### OwlDefaultFunctions
 
 ```python
-class OwlDefaultFunctions(globals_dict: Union[owlsight.utils.custom_classes.SingletonDict, Dict[str, Any]])
+class OwlDefaultFunctions(globals_dict: owlsight.utils.custom_classes.SingletonDict)
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -797,8 +797,10 @@ This class is open for extension, as possibly more useful functions can be added
   - Save the current python namespace using dill.
 - `owl_scrape(self, url_or_terms: str, trim_newlines: Optional[int] = 2, filter_by: Optional[Dict[str, str]] = None, **request_kwargs) -> str`
   - Scrape the text content of a webpage and return specific content based on the filter.
-- `owl_show(self, docs: bool = True, return_lst: bool = False) -> List[str]`
+- `owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]`
   - Show all currently active imported objects in the namespace except builtins.
+- `owl_tools(self) -> List[str]`
+  - Return a list of available functions which can be used for tool calling out of the global scope.
 - `owl_write(self, file_path: str, content: str) -> None`
   - Write content to a (text) file.
 
@@ -814,8 +816,6 @@ System prompts for different expert roles
 
 - `as_dict(self) -> Dict[str, str]`
   - Return a dictionary of role keys and their descriptions.
-- `show_available_tools(self, globals_dict: Optional[owlsight.utils.custom_classes.SingletonDict] = None) -> str`
-  - Show all currently active imported objects in the namespace except builtins.
 
 #### AgentPrompts
 
@@ -831,8 +831,6 @@ A collection of system prompts which to be used in Agentic frameworks.
   - Return a dictionary of role keys and their descriptions.
 - `get_essential_information(self) -> str`
 - `get_single_agent(self) -> str`
-- `show_available_tools(self, globals_dict: Optional[owlsight.utils.custom_classes.SingletonDict] = None) -> str`
-  - Show all currently active imported objects in the namespace except builtins.
 
 #### PromptWriter
 
@@ -992,6 +990,26 @@ Parameters:
 
 Returns:
     Dictionary containing model information
+
+#### function_to_json_for_tool_calling
+
+```python
+def function_to_json_for_tool_calling(func: Callable) -> dict
+```
+
+Converts a Python function into a JSON structure suitable for function-calling
+with an LLM. This function inspects the target function's signature and docstring
+(assumed to be in NumPy style) and returns a JSON schema-like definition.
+
+Parameters
+----------
+func : Callable
+    The Python function to be converted.
+
+Returns
+-------
+str
+    A JSON string describing the function's name, short description, and parameter schema.
 
 
 ## Configurations
@@ -1216,5 +1234,8 @@ TIP: above option can be used to load a sequence of different models as "agents"
 - Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
 The advantage is that `model_kwargs` can now also be passed inside `TextGenerationProcessorGGUF` to provide` access all parameters when initializing `Llama` class from llama-cpp-python.
 - ESC + V can be used inside the Python Interpreter to show the currently defined objects in a dropdown-menu.
-
+- ESC + V can be used inside the "How can I assist you?"-option after typing the following: "[[", "{". This will autocomplete the following:
+"[[" will autocomplete to: "image:", "audio:"
+"{" will autocomplete any available defined objects from the python-namespace.
+- Added `owl_tools` function to the Python interpreter. This function can be used to convert all defined functions in the namespace to a dictionary, which can be used for tool/function-calling.
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
