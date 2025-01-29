@@ -2,7 +2,6 @@ from typing import Any, Optional, Dict, Union
 import traceback
 import pkgutil
 import ast
-from copy import deepcopy
 
 from owlsight.configurations.constants import CONFIG_DEFAULTS
 from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
