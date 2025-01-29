@@ -370,7 +370,7 @@ The advantage is that `model_kwargs` can now also be passed inside `TextGenerati
 - ESC + V can be used inside the "How can I assist you?"-option after typing the following: "[[", "{{". This will autocomplete the following:
 "[[" will autocomplete to: "image:", "audio:"
 "{{" will autocomplete any available defined objects from the python-namespace.
-
+- Added `owl_tools` function to the Python interpreter. This function can be used to convert all defined functions in the namespace to a dictionary, which can be used for tool/function-calling.
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
 
