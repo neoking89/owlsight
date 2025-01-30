@@ -25,7 +25,6 @@ from owlsight.ui.constants import BACKGROUND_STYLE, COLOR_CODES, GLOBAL_STYLE, I
 from owlsight.ui.custom_classes import OptionType, AppDTO
 from owlsight.utils.constants import get_prompt_cache, KB_AUTOCOMPLETE
 from owlsight.utils.custom_classes import SingletonDict
-from owlsight.prompts.system_prompts import ExpertPrompts
 from owlsight.utils.logger import logger
 
 try:
@@ -353,15 +352,35 @@ class OptionSelectorApp:
                 self.selector.user_inputs[current_option] = user_input
             event.app.exit()
 
-        @self.kb.add("c-a")  # Ctrl+A
-        def select_all_text(event):
-            """Select all text in the current editable field."""
+        @self.kb.add("c-c")  # Ctrl+C for copy
+        def copy_text(event):
+            """Copy selected text using prompt_toolkit's clipboard."""
             current_option, opt_type = self.selector.options[self.selector.current_index]
             if opt_type == OptionType.EDITABLE:
                 buffer = self.buffers[current_option].buffer
-                buffer.cursor_position = len(buffer.text)
-                buffer.start_selection()
-                buffer.cursor_position = 0
+                if buffer.selection_state:
+                    # Store current selection state
+                    start = buffer.selection_state.original_cursor_position
+                    end = buffer.cursor_position
+                    sel_type = buffer.selection_state.type
+                    
+                    # Copy the selection
+                    data = buffer.copy_selection()
+                    event.app.clipboard.set_data(data)
+                    
+                    # Restore selection
+                    buffer.cursor_position = end
+                    buffer.start_selection(selection_type=sel_type)
+                    buffer.cursor_position = start
+            self.invalidate()
+
+        @self.kb.add("c-y")  # Ctrl+V for paste
+        def paste_text(event):
+            """Paste text using prompt_toolkit's clipboard."""
+            current_option, opt_type = self.selector.options[self.selector.current_index]
+            if opt_type == OptionType.EDITABLE:
+                buffer = self.buffers[current_option].buffer
+                buffer.paste_clipboard_data(event.app.clipboard.get_data())  # Get from prompt_toolkit's clipboard
             self.invalidate()
 
         @self.kb.add("c-q")
@@ -376,6 +395,17 @@ class OptionSelectorApp:
                 buff.complete_next()
             else:
                 buff.start_completion(select_first=False)
+
+        @self.kb.add("c-a")  # Ctrl+A
+        def select_all_text(event):
+            """Select all text in the current editable field."""
+            current_option, opt_type = self.selector.options[self.selector.current_index]
+            if opt_type == OptionType.EDITABLE:
+                buffer = self.buffers[current_option].buffer
+                buffer.cursor_position = len(buffer.text)
+                buffer.start_selection()
+                buffer.cursor_position = 0
+            self.invalidate()
 
     def run(self) -> None:
         """
