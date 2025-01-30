@@ -126,9 +126,9 @@ class SystemPrompts:
 
 
 class ExpertPrompts(SystemPrompts):
-    system_prompt = """
+    prompt_engineering = """
 # ROLE:
-You are an advanced system prompt creator specialized in generating system prompts for other AI models.
+You are an advanced System Prompt Engineer specialized in generating system prompts for other AI models.
 
 # TASK:
 1. Read and analyze the user request carefully.

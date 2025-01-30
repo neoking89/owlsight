@@ -81,8 +81,8 @@ class ConfigManager:
             "prompt_retry_on_error": self._get_toggle_choice("main", "prompt_retry_on_error"),
             "track_model_usage": self._get_toggle_choice("main", "track_model_usage"),
             "extra_index_url": self._get_basic_choice("main", "extra_index_url"),
-            # "sequence_on_loading": self._get_basic_choice("main", "sequence_on_loading"),
             "python_compile_mode": self._get_toggle_choice("main", "python_compile_mode"),
+            "dynamic_system_prompt": self._get_toggle_choice("main", "dynamic_system_prompt"),
         }
 
     def _create_model_choices(self) -> Dict[str, Any]:

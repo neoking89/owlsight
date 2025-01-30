@@ -52,6 +52,12 @@ class Schema:
                 default="single",
                 choices=["exec", "single"],
             ),
+            "dynamic_system_prompt": MenuItem(
+                type=OptionType.TOGGLE,
+                description="On user input, make the model dynamically update the system prompt based on the user's input first.",
+                default=False,
+                choices=[False, True],
+            ),
             "sequence_on_loading": MenuItem(
                 type=OptionType.EDITABLE,
                 description="A list of key sequences to execute when loading the configuration. Uses owl_press functionality.",

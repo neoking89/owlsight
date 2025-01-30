@@ -27,6 +27,7 @@ from owlsight.utils.constants import (
 from owlsight.utils.deep_learning import free_cuda_memory
 from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.processors.helper_functions import warn_processor_not_loaded
+from owlsight.prompts.system_prompts import ExpertPrompts
 from owlsight.utils.logger import logger
 
 
@@ -176,6 +177,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
+    _handle_dynamic_system_prompt(user_choice, manager)
     # Parse media placeholders in the user choice, if present.
     user_question, media_objects = parse_media_placeholders(user_choice, code_executor.globals_dict)
     rag_is_active = manager.get_config_key("rag.active", False)
@@ -234,3 +236,17 @@ def run(manager: TextGenerationManager) -> None:
     logger.info(f"Removing temporary directory: {temp_dir}")
     free_cuda_memory()
     force_delete(temp_dir)
+
+
+def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationManager) -> None:
+    dynamic_system_prompt = manager.get_config_key("main.dynamic_system_prompt", False)
+    if dynamic_system_prompt:
+        prompt_engineer_prompt = ExpertPrompts.prompt_engineering
+        manager.update_config("model.system_prompt", prompt_engineer_prompt)
+        logger.info(
+            "Dynamic system prompt is active. Model will as as Prompt Engineer to create a new system prompt based on user input."
+        )
+        new_system_prompt = manager.generate(user_question)
+        # TODO: handle some kind of parsing of response here?
+        manager.update_config("model.system_prompt", new_system_prompt)
+        manager.update_config("main.dynamic_system_prompt", False)
