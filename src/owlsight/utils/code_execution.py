@@ -193,6 +193,28 @@ class CodeExecutor:
             else:
                 buff.start_completion(select_first=False)
 
+        @bindings.add("c-a")  # Ctrl+A
+        def _(event):
+            """Select all text in the current buffer."""
+            buff = event.app.current_buffer
+            buff.cursor_position = len(buff.text)
+            buff.start_selection()
+            buff.cursor_position = 0
+
+        @bindings.add("c-v")  # Ctrl+V
+        def _(event):
+            """Copy selected text to clipboard."""
+            buff = event.app.current_buffer
+            if buff.selection_state:
+                data = buff.copy_selection()
+                event.app.clipboard.set_data(data)
+
+        @bindings.add("c-y")  # Ctrl+Y
+        def _(event):
+            """Paste text from clipboard."""
+            buff = event.app.current_buffer
+            buff.paste_clipboard_data(event.app.clipboard.get_data())
+
         global_vars = self.globals_dict.get_public_keys()
 
         session = PromptSession(
@@ -209,7 +231,10 @@ class CodeExecutor:
             "Interactive Python interpreter activated.\n"
             "- Use up/down arrows to navigate command history\n"
             "- Use Tab for auto-completion\n"
-            "- Use escape-v for variable completion\n"
+            "- Use Escape+V for variable completion\n"
+            "- Use Ctrl+A to select all\n"
+            "- Use Ctrl+V to copy\n"
+            "- Use Ctrl+Y to paste\n"
             "Type 'exit()' to quit the console."
         )
 
