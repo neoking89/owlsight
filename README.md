@@ -823,7 +823,7 @@ System prompts for different expert roles
 class AgentPrompts(essential_information: str = '')
 ```
 
-A collection of system prompts which to be used in Agentic frameworks.
+A collection of system prompts to be used in Agentic frameworks.
 
 **Methods:**
 
@@ -1029,6 +1029,7 @@ Main Menu:
     - track_model_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
     - extra_index_url: Additional URL for Python package installation. Useful for example when installing python packages (through pip) from private repositories, Type: OptionType.EDITABLE
     - python_compile_mode: Compile mode in the Python Interpreter (main menu): 'exec' is suited for defining code blocks, 'single' for direct execution, Options: exec, single, Type: OptionType.TOGGLE
+    - dynamic_system_prompt: On user input, make the model dynamically update the system prompt based on the user's input first., Options: False, True, Type: OptionType.TOGGLE
     - sequence_on_loading: A list of key sequences to execute when loading the configuration. Uses owl_press functionality., Type: OptionType.EDITABLE
   - model settings:
     - back: Return to previous menu
@@ -1084,6 +1085,7 @@ Here's an example of what the default configuration looks like:
         "track_model_usage": false,
         "extra_index_url": "",
         "python_compile_mode": "single",
+        "dynamic_system_prompt": false,
         "sequence_on_loading": []
     },
     "model": {
@@ -1238,5 +1240,8 @@ The advantage is that `model_kwargs` can now also be passed inside `TextGenerati
 "[[" will autocomplete to: "image:", "audio:"
 "{{" will autocomplete any available defined objects from the python-namespace.
 - Added `owl_tools` function to the Python interpreter. This function can be used to convert all defined functions in the namespace to a dictionary, which can be used for tool/function-calling.
+- Bracket-syntax "{{}}" for augmenting Python expressions can now also be used inside the `config` section of the CLI. For example, in the Python interpreter, we can store a long string inside a variable and pass it to `config:model:system_prompt` directly.
+- Added new option `dynamic_system_prompt` to config:main section. This option can be used to dynamically generate a fitting system prompt first for a given question, before passing it to the model.
+The idea is that this might help the model to give a more focused response to the question.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com

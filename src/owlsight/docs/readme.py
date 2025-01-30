@@ -371,6 +371,9 @@ The advantage is that `model_kwargs` can now also be passed inside `TextGenerati
 "[[" will autocomplete to: "image:", "audio:"
 "{{{{" will autocomplete any available defined objects from the python-namespace.
 - Added `owl_tools` function to the Python interpreter. This function can be used to convert all defined functions in the namespace to a dictionary, which can be used for tool/function-calling.
+- Bracket-syntax "{{{{}}}}" for augmenting Python expressions can now also be used inside the `config` section of the CLI. For example, in the Python interpreter, we can store a long string inside a variable and pass it to `config:model:system_prompt` directly.
+- Added new option `dynamic_system_prompt` to config:main section. This option can be used to dynamically generate a fitting system prompt first for a given question, before passing it to the model.
+The idea is that this might help the model to give a more focused response to the question.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
