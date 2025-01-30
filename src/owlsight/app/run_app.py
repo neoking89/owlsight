@@ -244,7 +244,7 @@ def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationMan
         prompt_engineer_prompt = ExpertPrompts.prompt_engineering
         manager.update_config("model.system_prompt", prompt_engineer_prompt)
         logger.info(
-            "Dynamic system prompt is active. Model will as as Prompt Engineer to create a new system prompt based on user input."
+            "Dynamic system prompt is active. Model will act as Prompt Engineer to create a new system prompt based on user input."
         )
         new_system_prompt = manager.generate(user_question)
         # TODO: handle some kind of parsing of response here?
