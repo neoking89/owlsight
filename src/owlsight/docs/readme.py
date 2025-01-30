@@ -19,23 +19,28 @@ README = f"""
 
 ## Why owlsight?
 
-Picture this: you are someone who dabbles in Python occasionally. Or you are a seasoned Pythonista. You frequently use generative AI to accelerate your workflow, especially for generating code. But often, this involves a tedious process—copying and pasting code between ChatGPT and your IDE, repeatedly switching contexts.
+Picture this: you are someone who dabbles in Python occasionally. Or you frequently use generative AI to accelerate your workflow, especially for generating code. But often, this involves a tedious process—copying and pasting code between ChatGPT and your IDE, repeatedly switching contexts.
 
 What if you could eliminate this friction?
 
-Owlsight brings Python development and generative AI together, streamlining your workflow by integrating them into a single, unified platform. No more toggling between windows, no more manual code transfers. With Owlsight, you get the full power of Python and AI, all in one place—simplifying your process and boosting productivity.
+Owlsight brings Python development and generative AI together, streamlining your workflow by integrating them into a single, unified platform. No more toggling between windows, no more manual code transfers. With Owlsight, you get the full power of Python and AI, all in one place—simplifying your process and boosting productivity. Owlsight has been designed to be a swiss-army knife for Python and AI with a core focus on open-source models, allowing you to execute code directly from model prompts and access this code directly from the Python interpreter.
 
-Generate code directly from model prompts and access this code directly from the Python interpreter. Or augment model-prompts with Python expressions. With this functionality, open-source models do not only generate more accurate responses by executing Python code directly, but they can also solve way more complex problems.
+## Key Features
 
-## Features
+### Interactive Environment
+- **Command-Line Interface**: Choose from multiple commands such as Python, shell, and AI model queries
+- **Python Integration**: Switch to a Python interpreter and use Python expressions in language model queries
+- **Model Flexibility**: Support for models in **pytorch**, **ONNX**, and **GGUF** formats
 
-- **Interactive CLI**: Choose from multiple commands such as Python, shell, and AI model queries.
-- **Python Integration**: Switch to a Python interpreter and use python expressions in language model queries.
-- **Model Flexibility**: Supports models in **pytorch**, **ONNX**, and **GGUF** formats.
-- **Customizable Configuration**: Easily modify model and generation settings.
-- **Retrieval Augmented Generation (RAG)**: Enrich prompts with documentation from Python libraries.
-- **API Access**: Use Owlsight as a library in Python scripts.
-- **Multimodal Support**: Use models that require additional input like images, audio, or video.
+### AI Integration
+- **Huggingface Hub**: Search and download models directly from the CLI
+- **Multimodal Support**: Work with models specialized for images and audio input (transformers-based models)
+- **Retrieval Augmented Generation (RAG)**: Enhance prompts with Python library documentation
+
+### Developer Tools
+- **Customizable Configuration**: Easily modify model settings with intuitive save/load of config files
+- **API Access**: Use Owlsight as a library in Python scripts, accessing the core CLI backend
+- **Advanced Model Settings**: Fine-tune configuration parameters for optimal results
 
 ## Installation
 
@@ -74,7 +79,7 @@ pip install owlsight[all]
 It is recommended to use the `all` option, as this will install all dependencies and allow you to use all features of Owlsight.
 
 NOTE: some libraries like llama-cpp-python and pytorch can be highly dependant on user-specific configurations.
-From owlsight, these libraries are installed without any additional configurations.
+From Owlsight out of the box, these libraries are installed without any additional configurations.
 You might need to reinstall them after installing Owlsight with settings that match your requirements.
 
 ## Usage
@@ -125,7 +130,17 @@ Then, a distinction needs to be made in Owlsight between 3 different, but very s
    - *save*: Provide a valid path to save the current configurations as json. Then press ENTER. This is incredibly useful, as it allows later reuse of the current model with all its respective settings.
    - *load:* Provide a valid path to load configurations from an earlier saved json. Then press ENTER. If on windows, you can directly press ENTER without specifying a path to open up a file dialog window for convenience.
 
-Now, lets start out by loading a model. Go to **config > huggingface** , choose a task like *text-generation* and press ENTER. 
+### Keyboard Shortcuts
+
+When working with the editable option, the following keyboard shortcuts are available:
+
+- **Ctrl+A**: Select all text in the current editable field
+- **Ctrl+C**: Copy selected text
+- **Ctrl+Y**: Paste selected text
+
+### Getting Started
+
+Now, lets start out by loading a model. Go to **config > huggingface**, choose a task like *text-generation* and press ENTER. 
 
 Then, use the *search* option to search for a model. 
 You can first type in keywords before searching, like "llama gguf". This will give you results from the Huggingface modelhub which are related to models in the llama-family in GGUf format.
@@ -150,7 +165,7 @@ You can combine Python variables with language models in Owlsight through specia
 
 ```
 python > a = 42
-How can I assist you? > How much is {{a}} * 5?
+How can I assist you? > How much is {{{{a}}}} * 5?
 ```
 
 ```
@@ -241,6 +256,8 @@ These are:
   - *file_path*: The path to the file to save the namespace to.
 * **owl_load_namespace(file_path: str)**
   Load all variables from a file into the current namespace, using the "dill" library.
+* **owl_tools()**
+  Display a list of available functions in the current namespace, which can be used for tool calling. All functions in the namespace are automatically converted to a fitting JSON-format in OPENAI's format.
 
 ## API Documentation
 
@@ -320,7 +337,7 @@ for token in processor.generate_stream(question):
 **1.4.1**
 
 - improve RAG capabilities in the API, added **SentenceTransformerSearchEngine**, **TFIDFSearchEngine** and **HashingVectorizerSearchEngine** as classes.
-- Added **DocumentSearcher** to offer a general RAG solution for documents.
+- Added **DocumentSearcher** to offer a general RAG solution for documents. At its core, uses a combination of TFIDF and Sentence Transformer.
 - Added caching possibility to all RAG solutions in the API (*cache_dir* & *cache_dir_suffix*), where documents, embeddings etc. get pickled. This can save a big amount of time if amount of documents is large.
 
 **2.0.1beta**
