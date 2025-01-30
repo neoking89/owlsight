@@ -118,7 +118,7 @@ class Schema:
             "gguf__n_ctx": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Context length for GGUF model",
-                default=512,
+                default=2048,
                 choices=[32 * (2**n) for n in range(15)],
             ),
             "gguf__n_gpu_layers": MenuItem(
@@ -166,7 +166,7 @@ class Schema:
             "max_new_tokens": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Maximum amount of tokens to generate",
-                default=512,
+                default=2048,
                 choices=[32 * (2**n) for n in range(15)],
             ),
             "temperature": MenuItem(
