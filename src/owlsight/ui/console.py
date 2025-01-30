@@ -272,7 +272,7 @@ class OptionSelectorApp:
             history_completer,
             python_code_completer,
             self._media_tag_completer,
-)
+        )
 
         text_area = TextArea(
             text=self.selector.user_inputs[label],
@@ -353,7 +353,17 @@ class OptionSelectorApp:
                 self.selector.user_inputs[current_option] = user_input
             event.app.exit()
 
-        @self.kb.add("c-c")
+        @self.kb.add("c-a")  # Ctrl+A
+        def select_all_text(event):
+            """Select all text in the current editable field."""
+            current_option, opt_type = self.selector.options[self.selector.current_index]
+            if opt_type == OptionType.EDITABLE:
+                buffer = self.buffers[current_option].buffer
+                buffer.cursor_position = len(buffer.text)
+                buffer.start_selection()
+                buffer.cursor_position = 0
+            self.invalidate()
+
         @self.kb.add("c-q")
         def exit_(event):
             event.app.exit()
