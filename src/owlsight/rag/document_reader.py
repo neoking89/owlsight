@@ -112,7 +112,7 @@ class DocumentReader:
                     raise FileNotFoundError(f"Tika server jar not found at {tika_server_jar_path}")
                 self.tika_server_jar_path = tika_server_jar_path
             else:
-                zip_files = glob.glob("blobs/tika-server-standard*.zip")
+                zip_files = glob.glob(os.path.join(os.path.dirname(os.path.dirname(__file__)), "blobs", "tika-server-standard*.zip"))
                 if not zip_files:
                     raise RuntimeError(
                         "No internet connection detected and no Tika server zip found in blobs/\n"
