@@ -97,6 +97,9 @@ owlsight = "owlsight.main:main"
 package-dir = { "" = "src" }
 include-package-data = true
 
+[tool.setuptools.package-data]
+owlsight = ["blobs/**/*"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
