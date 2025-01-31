@@ -11,14 +11,26 @@ This module provides a class that can extract text from various file formats inc
 """
 
 import os
+import fnmatch
+import socket
 from pathlib import Path
 from typing import Optional, List, Generator, Tuple
 import logging
-import fnmatch
-from tika import parser
 import tika
+from tika import parser
 
 from owlsight.utils.logger import logger
+
+def _check_internet_connection(host="8.8.8.8", port=53, timeout=3):
+    """
+    Check if there is an internet connection by trying to connect to Google's DNS.
+    """
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+        return True
+    except (socket.timeout, socket.gaierror, OSError):
+        return False
 
 # Disable Tika logging
 tika_logger = logging.getLogger("tika.tika")
@@ -75,6 +87,19 @@ class DocumentReader:
         self.ocr_enabled = ocr_enabled
         self.timeout = timeout
         self.text_only = text_only
+        
+        # Check in case of offline usage
+        self.tika_jar_path = os.environ.get('TIKA_SERVER_JAR')
+        self.is_offline = not _check_internet_connection()
+        
+        if self.is_offline and not self.tika_jar_path:
+            raise RuntimeError(
+                "No internet connection detected and TIKA_SERVER_JAR environment variable is not set. "
+                "For offline usage, please download tika-server.jar and tika-server.jar.md5 from "
+                "https://repo1.maven.org/maven2/org/apache/tika/tika-server-standard/ "
+                "and set TIKA_SERVER_JAR='file:////path/to/tika-server-standard.jar'"
+                "For more information, see https://github.com/chrismattmann/tika-python"
+            )
 
     def should_ignore_file(self, filepath: str) -> bool:
         """

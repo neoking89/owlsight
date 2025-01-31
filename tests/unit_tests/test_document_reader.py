@@ -1,9 +1,11 @@
 """Tests for the DocumentReader class."""
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
+import os
+import socket
 
-from owlsight.rag.document_reader import DocumentReader
+from owlsight.rag.document_reader import DocumentReader, _check_internet_connection
 
 # Test data
 SAMPLE_TEXT = "This is sample text content"
@@ -111,3 +113,62 @@ def test_read_directory_nonexistent(reader):
     """Test reading from a nonexistent directory."""
     with pytest.raises(FileNotFoundError):
         list(reader.read_directory("/nonexistent/path"))
+
+
+@patch('owlsight.rag.document_reader._check_internet_connection')
+def test_init_offline_no_jar(mock_check_internet):
+    """Test DocumentReader initialization in offline mode without TIKA_SERVER_JAR."""
+    # Simulate offline mode
+    mock_check_internet.return_value = False
+    
+    # Ensure TIKA_SERVER_JAR is not set
+    with patch.dict(os.environ, {}, clear=True):
+        with pytest.raises(RuntimeError) as exc_info:
+            DocumentReader()
+        
+        assert "No internet connection detected" in str(exc_info.value)
+        assert "TIKA_SERVER_JAR environment variable is not set" in str(exc_info.value)
+
+
+@patch('owlsight.rag.document_reader._check_internet_connection')
+def test_init_offline_with_jar(mock_check_internet):
+    """Test DocumentReader initialization in offline mode with TIKA_SERVER_JAR set."""
+    # Simulate offline mode
+    mock_check_internet.return_value = False
+    
+    # Set TIKA_SERVER_JAR environment variable
+    with patch.dict(os.environ, {'TIKA_SERVER_JAR': 'file:////tika-server-standard.jar'}):
+        reader = DocumentReader()
+        assert reader.is_offline is True
+        assert reader.tika_jar_path == 'file:////tika-server-standard.jar'
+
+
+@patch('owlsight.rag.document_reader._check_internet_connection')
+def test_init_online(mock_check_internet):
+    """Test DocumentReader initialization in online mode."""
+    # Simulate online mode
+    mock_check_internet.return_value = True
+    
+    # Should work regardless of TIKA_SERVER_JAR being set or not
+    reader = DocumentReader()
+    assert reader.is_offline is False
+    
+    with patch.dict(os.environ, {'TIKA_SERVER_JAR': 'file:////tika-server-standard.jar'}):
+        reader = DocumentReader()
+        assert reader.is_offline is False
+
+
+def test_check_internet_connection():
+    """Test the internet connection check function."""
+    with patch('socket.socket') as mock_socket:
+        # Test successful connection
+        mock_socket.return_value.connect.return_value = None
+        assert _check_internet_connection() is True
+        
+        # Test connection timeout
+        mock_socket.return_value.connect.side_effect = socket.timeout()
+        assert _check_internet_connection() is False
+        
+        # Test connection error
+        mock_socket.return_value.connect.side_effect = socket.gaierror()
+        assert _check_internet_connection() is False
