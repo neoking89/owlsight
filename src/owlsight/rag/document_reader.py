@@ -15,13 +15,20 @@ import fnmatch
 import socket
 from pathlib import Path
 from typing import Optional, List, Generator, Tuple
+import zipfile
 import logging
+import glob
+import hashlib
+
 import tika
 from tika import parser
 
 from owlsight.utils.logger import logger
 
-def _check_internet_connection(host="8.8.8.8", port=53, timeout=3):
+TIKA_SERVER_JAR = None
+
+
+def _has_internet_connection(host="8.8.8.8", port=53, timeout=3):
     """
     Check if there is an internet connection by trying to connect to Google's DNS.
     """
@@ -31,6 +38,7 @@ def _check_internet_connection(host="8.8.8.8", port=53, timeout=3):
         return True
     except (socket.timeout, socket.gaierror, OSError):
         return False
+
 
 # Disable Tika logging
 tika_logger = logging.getLogger("tika.tika")
@@ -62,7 +70,8 @@ class DocumentReader:
         ocr_enabled: bool = True,
         timeout: int = 5,
         text_only: bool = True,
-    ):  # Default timeout of 5 seconds
+        tika_server_jar_path: Optional[str] = None,
+    ):
         """
         Initialize the DocumentReader.
 
@@ -81,25 +90,56 @@ class DocumentReader:
         text_only : bool, default=True
             Whether to request only text content from Tika.
             If False, will request both text and metadata.
+        tika_server_jar_path : str, optional
+            Path to the Tika server JAR file. If not provided, will use the default Tika server.
+            For offline usage, set this to 'file:///path/to/tika-server.jar'
         """
+        global TIKA_SERVER_JAR
         self.supported_extensions = supported_extensions
         self.ignore_patterns = ignore_patterns or []
         self.ocr_enabled = ocr_enabled
         self.timeout = timeout
         self.text_only = text_only
-        
-        # Check in case of offline usage
-        self.tika_jar_path = os.environ.get('TIKA_SERVER_JAR')
-        self.is_offline = not _check_internet_connection()
-        
-        if self.is_offline and not self.tika_jar_path:
-            raise RuntimeError(
-                "No internet connection detected and TIKA_SERVER_JAR environment variable is not set. "
-                "For offline usage, please download tika-server.jar and tika-server.jar.md5 from "
-                "https://repo1.maven.org/maven2/org/apache/tika/tika-server-standard/ "
-                "and set TIKA_SERVER_JAR='file:////path/to/tika-server-standard.jar'"
-                "For more information, see https://github.com/chrismattmann/tika-python"
-            )
+
+        # Handle TIKA_SERVER_JAR configuration
+        self.tika_server_jar_path = None
+
+        if not _has_internet_connection():
+            if tika_server_jar_path:
+                if not tika_server_jar_path.endswith(".jar"):
+                    raise ValueError(f"TIKA_SERVER_JAR must be a .jar file, but got {tika_server_jar_path}")
+                if not os.path.exists(tika_server_jar_path):
+                    raise FileNotFoundError(f"Tika server jar not found at {tika_server_jar_path}")
+                self.tika_server_jar_path = tika_server_jar_path
+            else:
+                zip_files = glob.glob("blobs/tika-server-standard*.zip")
+                if not zip_files:
+                    raise RuntimeError(
+                        "No internet connection detected and no Tika server zip found in blobs/\n"
+                        "Please either:\n"
+                        "1. Download tika-server-standard-*.zip from https://tika.apache.org/download.html\n"
+                        "2. Place it in the blobs/ directory\n"
+                        "3. Set the TIKA_SERVER_JAR environment variable"
+                    )
+
+                # Find latest version
+                zip_files.sort(reverse=True)
+                try:
+                    self.tika_server_jar_path = self._extract_tika_server(zip_files[0])
+                    if not os.path.exists(self.tika_server_jar_path):
+                        raise FileNotFoundError(f"Extracted Tika server not found at {self.tika_server_jar_path}")
+                except Exception as e:
+                    logger.error(f"Tika server extraction failed: {str(e)}")
+                    raise RuntimeError(f"Failed to extract Tika server: {str(e)}")
+
+            if not os.path.exists(self.tika_server_jar_path):
+                logger.error(f"TIKA_SERVER_JAR path invalid: {self.tika_server_jar_path}")
+                raise FileNotFoundError(f"TIKA_SERVER_JAR not found: {self.tika_server_jar_path}")
+
+            TIKA_SERVER_JAR = self.tika_server_jar_path
+            logger.info(f"Using local Tika server: {TIKA_SERVER_JAR}")
+        else:
+            logger.info("Using remote Tika server")
 
     def should_ignore_file(self, filepath: str) -> bool:
         """
@@ -240,3 +280,52 @@ class DocumentReader:
                 content = self.read_file(filepath)
                 if content:
                     yield filepath, content
+
+    def _extract_tika_server(self, zip_path: str) -> str:
+        """Extract Tika server JAR from zip file and validate contents."""
+        extract_dir = Path(zip_path).parent / "extracted"
+        jar_pattern = "**/tika-server*.jar"
+        md5_pattern = "**/tika-server*.jar.md5"
+
+        try:
+            # Create extraction directory
+            extract_dir.mkdir(parents=True, exist_ok=True)
+
+            # Extract zip contents
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.extractall(extract_dir)
+
+            # Find extracted JAR file
+            jar_files = list(extract_dir.glob(jar_pattern))
+            if not jar_files:
+                raise FileNotFoundError(f"No tika-server JAR found in {zip_path}")
+
+            # Find MD5 file if exists
+            md5_files = list(extract_dir.glob(md5_pattern))
+            if md5_files:
+                self._verify_md5(jar_files[0], md5_files[0])
+
+            return str(jar_files[0])
+
+        except zipfile.BadZipFile:
+            raise ValueError(f"Invalid zip file: {zip_path}")
+
+        # finally:
+        #     shutil.rmtree(extract_dir)
+
+    def _verify_md5(self, jar_path: Path, md5_path: Path) -> None:
+        """Verify JAR file against MD5 checksum."""
+        expected_hash = md5_path.read_text().strip()
+        actual_hash = hashlib.md5(jar_path.read_bytes()).hexdigest()
+
+        if actual_hash != expected_hash:
+            raise ValueError(f"MD5 mismatch for {jar_path.name}\nExpected: {expected_hash}\nActual:   {actual_hash}")
+
+
+if __name__ == "__main__":
+    # Create a DocumentReader instance
+    reader = DocumentReader()
+
+    # Read the current directory
+    for filepath, content in reader.read_directory(".", recursive=False):
+        print(f"Found {len(content)} characters in {filepath}")
