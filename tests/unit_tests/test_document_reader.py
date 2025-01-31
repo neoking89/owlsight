@@ -5,6 +5,7 @@ import pytest
 import shutil
 from unittest.mock import patch
 import glob
+from pathlib import Path
 
 from owlsight.rag.document_reader import DocumentReader, _has_internet_connection
 
@@ -103,7 +104,7 @@ def test_read_directory_nonexistent(reader):
 def cleanup_unzipped():
     yield
     # Clean up any unzipped (jar) files
-    for d in glob.glob("*blobs/*"):
+    for d in glob.glob("src/owlsight/blobs/*"):
         if os.path.isdir(d):
             shutil.rmtree(d)
 
@@ -141,3 +142,31 @@ def test_offline_invalid_jar_path(mock_check_internet):
     mock_check_internet.return_value = False
     with pytest.raises(FileNotFoundError):
         DocumentReader(tika_server_jar_path="invalid/path/tika-server.jar")
+
+
+@pytest.mark.asyncio
+async def test_init_no_blobs_with_internet():
+    """Test DocumentReader initialization when blobs directory doesn't exist but internet is available."""
+    # Ensure blobs directory doesn't exist
+    blobs_dir = Path(__file__).parent.parent.parent / "src" / "owlsight" / "blobs"
+    if blobs_dir.exists():
+        temp_dir = Path(__file__).parent / "temp_blobs_backup"
+        shutil.move(str(blobs_dir), str(temp_dir))
+        try:
+            # Mock internet connection check to return True
+            with patch('owlsight.rag.document_reader._has_internet_connection', return_value=True):
+                # Initialize DocumentReader
+                reader = DocumentReader()
+                
+                # Verify reader was initialized correctly
+                assert reader.ocr_enabled is True
+                assert reader.timeout == 5
+                
+                # Test basic functionality
+                with patch('tika.parser.from_file', return_value=SAMPLE_PDF_CONTENT):
+                    content = reader.read_file("test.pdf")
+                    assert content == SAMPLE_TEXT
+        finally:
+            # Restore blobs directory if it existed
+            if temp_dir.exists():
+                shutil.move(str(temp_dir), str(blobs_dir))

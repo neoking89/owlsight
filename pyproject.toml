@@ -57,6 +57,8 @@ multimodal = [
     "pillow",
 ]
 
+offline = []
+
 # Define the "all" option to include everything (base + optional dependencies)
 all = [
     # Base dependencies
@@ -98,7 +100,10 @@ package-dir = { "" = "src" }
 include-package-data = true
 
 [tool.setuptools.package-data]
-owlsight = ["blobs/**/*"]
+"owlsight.offline" = ["blobs/**/*"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["blobs/**/*"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
