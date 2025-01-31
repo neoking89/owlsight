@@ -53,11 +53,9 @@ pip install owlsight
 By default, only the transformers library is installed for working with language models.
 
 To add GGUF functionality:
-
 ```
 pip install owlsight[gguf]
 ```
-
 To add ONNX functionality:
 
 ```
@@ -65,13 +63,17 @@ pip install owlsight[onnx]
 ```
 
 To add multimodal functionality:
-
 ```
 pip install owlsight[multimodal]
 ```
 
-To install all packages:
+When working offline, you can use the offline flag. 
+This will enable access to the tika-server.jar file locally, enabling you to use the DocumentReader class (which includes Apache Tika functionality) without an internet connection.
+```
+pip install owlsight[offline]
+```
 
+To install all packages:
 ```
 pip install owlsight[all]
 ```
