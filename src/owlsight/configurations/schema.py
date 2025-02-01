@@ -54,7 +54,7 @@ class Schema:
             ),
             "dynamic_system_prompt": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Experimental feature: update the system prompt based on user input; best for chat models.",
+                description="Experimental feature: update the system prompt based on user input.",
                 default=False,
                 choices=[False, True],
             ),
