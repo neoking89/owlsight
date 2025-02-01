@@ -246,11 +246,11 @@ These are:
   Display all Hugging Face models currently loaded in the cache directory. Shows model names, sizes, and last modified dates.
   * `cache_dir`: Optional path to custom cache directory. If None, uses default Hugging Face cache.
   * `show_task`: If True, also displays the task associated with each model (may take longer to load).
-* **owl_press(sequence: List[str], exit_python_from_interpreter: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12)**
+* **owl_press(sequence: List[str], exit_python_before_sequence: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12)**
 )**
   Press a sequence of keys in the terminal. This can be used to automate tasks or keypresses.
-  - *sequence*: A list of keys to press. Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds).
-  - *exit_python_from_interpreter*: If True, exit the Python interpreter after pressing the sequence.
+  - *sequence*: A list of keys to press. Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds), 'CTRL+A' (Select all), 'CTRL+C' (Copy), 'CTRL+Y' (Paste), DEL (Delete).
+  - *exit_python_before_sequence*: If True, exit the Python interpreter after pressing the sequence.
   - *time_before_sequence*: Time to wait before pressing the first key.
   - *time_between_keys*: Time to wait between pressing each key.
 * **owl_save_namespace(file_path: str)**
