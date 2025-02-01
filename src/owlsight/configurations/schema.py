@@ -159,7 +159,7 @@ class Schema:
             "back": MenuItem(type=OptionType.ACTION, description="Settings for model generation"),
             "stopwords": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop",
+                description="Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop. Pass these like `['stop', 'word']`",
                 default=[],
                 choices=None,
             ),
@@ -177,7 +177,7 @@ class Schema:
             ),
             "generation_kwargs": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Additional generation parameters, like top_k, top_p, etc",
+                description="Additional generation parameters, like top_k, top_p, etc. Pass these like `{'top_k': 4, 'top_p': 0.9}`",
                 default={},
                 choices=None,
             ),
