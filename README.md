@@ -1070,10 +1070,10 @@ Main Menu:
     - onnx__n_cpu_threads: Number of CPU threads to be used by ONNX model, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, Type: OptionType.TOGGLE
   - generate settings:
     - back: Return to previous menu
-    - stopwords: Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop, Type: OptionType.EDITABLE
+    - stopwords: Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop. Pass these like `['stop', 'word']`, Type: OptionType.EDITABLE
     - max_new_tokens: Maximum amount of tokens to generate, Options: 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, Type: OptionType.TOGGLE
     - temperature: Temperature for model generation, Options: 0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, Type: OptionType.TOGGLE
-    - generation_kwargs: Additional generation parameters, like top_k, top_p, etc, Type: OptionType.EDITABLE
+    - generation_kwargs: Additional generation parameters, like top_k, top_p, etc. Pass these like `{'top_k': 4, 'top_p': 0.9}`, Type: OptionType.EDITABLE
   - rag settings:
     - back: Return to previous menu
     - active: Whether RAG for python libraries is active. If True, the search-results will be implicitly added as context to the modelprompt and when pressing ENTER, search-results will be shown, Options: False, True, Type: OptionType.TOGGLE
@@ -1109,7 +1109,7 @@ Here's an example of what the default configuration looks like:
     },
     "model": {
         "model_id": "",
-        "apply_chat_history": false,
+        "apply_chat_history": true,
         "system_prompt": "",
         "model_kwargs": {},
         "transformers__device": null,
@@ -1128,7 +1128,7 @@ Here's an example of what the default configuration looks like:
     "generate": {
         "stopwords": [],
         "max_new_tokens": 2048,
-        "temperature": 0.0,
+        "temperature": 0.7,
         "generation_kwargs": {}
     },
     "rag": {
