@@ -102,7 +102,7 @@
                                     "type": "array",
                                     "description": "The sequence of keys to type. Case-sensitive when typing available keys. Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds). Any other character will be typed as is."
                                 },
-                                "exit_python_from_interpreter": {
+                                "exit_python_before_sequence": {
                                     "type": "boolean",
                                     "description": "If True, type 'exit()' and press ENTER before typing the sequence, default is True. Assuming owl_press is called from the interpreter, this will return to the mainmenu before typing the sequence."
                                 },

@@ -397,7 +397,7 @@ class OwlDefaultFunctions:
     def owl_press(
         self,
         sequence: List[str],
-        exit_python_from_interpreter: bool = True,
+        exit_python_before_sequence: bool = True,
         time_before_sequence: float = 0.5,
         time_between_keys: float = 0.12,
     ) -> bool:
@@ -411,9 +411,10 @@ class OwlDefaultFunctions:
         ----------
         sequence : List[str]
             The sequence of keys to type. Case-sensitive when typing available keys.
-            Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds).
+            Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds),
+            'CTRL+A' (Select all), 'CTRL+C' (Copy), 'CTRL+Y' (Paste), 'DEL' (Delete)
             Any other character will be typed as is.
-        exit_python_from_interpreter : bool, optional
+        exit_python_before_sequence : bool, optional
             If True, type 'exit()' and press ENTER before typing the sequence, default is True.
             Assuming owl_press is called from the interpreter, this will return to the mainmenu before typing the sequence.
         time_before_sequence : float, optional
@@ -431,7 +432,7 @@ class OwlDefaultFunctions:
         if not all(isinstance(item, str) for item in sequence):
             raise TypeError("sequence must contain only strings")
 
-        if exit_python_from_interpreter:
+        if exit_python_before_sequence:
             sequence.insert(0, "ENTER")
             sequence.insert(0, "exit()")
 
