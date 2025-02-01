@@ -127,7 +127,7 @@ When working with the editable option, the following keyboard shortcuts are avai
 
 ### Getting Started
 
-Now, lets start out by loading a model. Go to **config > huggingface**, choose a task like *text-generation* and press ENTER. 
+Now, lets start out by loading a model. Go to **config** and toggle a few times to the right to reach the **huggingface** section. Choose a task like *text-generation* and press ENTER. 
 
 Then, use the *search* option to search for a model. 
 You can first type in keywords before searching, like "llama gguf". This will give you results from the Huggingface modelhub which are related to models in the llama-family in GGUf format.

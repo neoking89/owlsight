@@ -13,7 +13,7 @@
     twine upload -u __token__ -p %API_TOKEN% dist/* --verbose
 8. If all went well, merge the relasebranch with the mainbranch:
     git checkout main
-    git merge release/v.X.X.X
+    git merge release/vX.X.X
     git push
 
 # TROUBLESHOOTING
