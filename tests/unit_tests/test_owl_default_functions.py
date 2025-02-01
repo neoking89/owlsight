@@ -72,7 +72,7 @@ def test_owl_press_executed_successfully(owl_instance: OwlDefaultFunctions):
         # Execute owl_press
         executed_successfully = owl_instance.owl_press(
             sequence=sequence,
-            exit_python_from_interpreter=False,
+            exit_python_before_sequence=False,
         )
 
         # Assert method was called once
