@@ -38,11 +38,9 @@ pip install owlsight
 By default, only the transformers library is installed for working with language models.
 
 To add GGUF functionality:
-
 ```
 pip install owlsight[gguf]
 ```
-
 To add ONNX functionality:
 
 ```
@@ -50,13 +48,17 @@ pip install owlsight[onnx]
 ```
 
 To add multimodal functionality:
-
 ```
 pip install owlsight[multimodal]
 ```
 
-To install all packages:
+When working offline, you can use the offline flag. 
+This will enable access to the tika-server.jar file locally, enabling you to use the DocumentReader class (which includes Apache Tika functionality) without an internet connection.
+```
+pip install owlsight[offline]
+```
 
+To install all packages:
 ```
 pip install owlsight[all]
 ```
@@ -232,7 +234,7 @@ These are:
 * **owl_press(sequence: List[str], exit_python_before_sequence: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12)**
 )**
   Press a sequence of keys in the terminal. This can be used to automate tasks or keypresses.
-  - *sequence*: A list of keys to press. Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds).
+  - *sequence*: A list of keys to press. Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds), 'CTRL+A' (Select all), 'CTRL+C' (Copy), 'CTRL+Y' (Paste), DEL (Delete).
   - *exit_python_before_sequence*: If True, exit the Python interpreter after pressing the sequence.
   - *time_before_sequence*: Time to wait before pressing the first key.
   - *time_between_keys*: Time to wait between pressing each key.
@@ -571,7 +573,7 @@ Notes
 #### DocumentReader
 
 ```python
-class DocumentReader(supported_extensions: Optional[List[str]] = None, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5, text_only: bool = True)
+class DocumentReader(supported_extensions: Optional[List[str]] = None, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5, text_only: bool = True, tika_server_jar_path: Optional[str] = None)
 ```
 
 A class for reading text content from files using Apache Tika.
@@ -1046,12 +1048,12 @@ Main Menu:
     - track_model_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
     - extra_index_url: Additional URL for Python package installation. Useful for example when installing python packages (through pip) from private repositories, Type: OptionType.EDITABLE
     - python_compile_mode: Compile mode in the Python Interpreter (main menu): 'exec' is suited for defining code blocks, 'single' for direct execution, Options: exec, single, Type: OptionType.TOGGLE
-    - dynamic_system_prompt: On user input, make the model dynamically update the system prompt based on the user's input first., Options: False, True, Type: OptionType.TOGGLE
+    - dynamic_system_prompt: Experimental feature: update the system prompt based on user input., Options: False, True, Type: OptionType.TOGGLE
     - sequence_on_loading: A list of key sequences to execute when loading the configuration. Uses owl_press functionality., Type: OptionType.EDITABLE
   - model settings:
     - back: Return to previous menu
     - model_id: Model identifier or path. The most important parameter in the configuration, as this will load the model to be used, Type: OptionType.EDITABLE
-    - apply_chat_history: Whether to apply chathistory to the model prompt. All chathistory is saved as default, but when this is True, This history is added to the model prompt, Options: False, True, Type: OptionType.TOGGLE
+    - apply_chat_history: Toggle the inclusion of saved chat history in the prompt. Enable for chat models, disable for instruct models., Options: False, True, Type: OptionType.TOGGLE
     - system_prompt: System prompt defining model behavior, Type: OptionType.EDITABLE
     - model_kwargs: Additional parameters passed during model initialization. For llama-cpp, these get passed to llama_cpp.Llama. For transformers, these get passed to transformers.pipeline, Type: OptionType.EDITABLE
     - transformers__device: Device for transformers model, Options: None, cpu, cuda, mps, Type: OptionType.TOGGLE
@@ -1115,7 +1117,7 @@ Here's an example of what the default configuration looks like:
         "transformers__stream": true,
         "gguf__filename": "",
         "gguf__verbose": false,
-        "gguf__n_ctx": 512,
+        "gguf__n_ctx": 2048,
         "gguf__n_gpu_layers": 0,
         "gguf__n_batch": 8,
         "gguf__n_cpu_threads": 8,
@@ -1125,7 +1127,7 @@ Here's an example of what the default configuration looks like:
     },
     "generate": {
         "stopwords": [],
-        "max_new_tokens": 512,
+        "max_new_tokens": 2048,
         "temperature": 0.0,
         "generation_kwargs": {}
     },
@@ -1248,6 +1250,8 @@ TIP: above option can be used to load a sequence of different models as "agents"
 
 
 **2.3.0**
+
+- Added compile mode for the Python interpreter (`config:main:python_compile_mode`), so that user can both execute single lines ("single") or define multiple lines of code ("exec").
 - added `split_documents_n_sentences` and `split_documents_n_overlap` parameters to `DocumentSearcher` class, which can be used to split a long document into smaller chunks before embedding.
 - Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
 - Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
@@ -1258,8 +1262,8 @@ The advantage is that `model_kwargs` can now also be passed inside `TextGenerati
 "{{" will autocomplete any available defined objects from the python-namespace.
 - Added `owl_tools` function to the Python interpreter. This function can be used to convert all defined functions in the namespace to a dictionary, which can be used for tool/function-calling.
 - Bracket-syntax "{{}}" for augmenting Python expressions can now also be used inside the `config` section of the CLI. For example, in the Python interpreter, we can store a long string inside a variable and pass it to `config:model:system_prompt` directly.
-- Added new option `dynamic_system_prompt` to config:main section. This option can be used to dynamically generate a fitting system prompt first for a given question, before passing it to the model.
+- Added new option `dynamic_system_prompt` to config:main section. This option can be used to dynamically generate a fitting system prompt first for a given user input, before passing it to the model.
 The idea is that this might help the model to give a more focused response to the question.
-- Add basic functionality, like select all, copy and paste to editable options. Use CTRL+A, CTRL+C and CTRL+Y respectively.
+- Add basic functionality, like select all, copy and paste. Use CTRL+A, CTRL+C and CTRL+Y respectively. This option applies to all editable fields and the Python Interpreter.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com

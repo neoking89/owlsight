@@ -381,6 +381,8 @@ TIP: above option can be used to load a sequence of different models as "agents"
 
 
 **2.3.0**
+
+- Added compile mode for the Python interpreter (`config:main:python_compile_mode`), so that user can both execute single lines ("single") or define multiple lines of code ("exec").
 - added `split_documents_n_sentences` and `split_documents_n_overlap` parameters to `DocumentSearcher` class, which can be used to split a long document into smaller chunks before embedding.
 - Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
 - Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
@@ -391,9 +393,9 @@ The advantage is that `model_kwargs` can now also be passed inside `TextGenerati
 "{{{{" will autocomplete any available defined objects from the python-namespace.
 - Added `owl_tools` function to the Python interpreter. This function can be used to convert all defined functions in the namespace to a dictionary, which can be used for tool/function-calling.
 - Bracket-syntax "{{{{}}}}" for augmenting Python expressions can now also be used inside the `config` section of the CLI. For example, in the Python interpreter, we can store a long string inside a variable and pass it to `config:model:system_prompt` directly.
-- Added new option `dynamic_system_prompt` to config:main section. This option can be used to dynamically generate a fitting system prompt first for a given question, before passing it to the model.
+- Added new option `dynamic_system_prompt` to config:main section. This option can be used to dynamically generate a fitting system prompt first for a given user input, before passing it to the model.
 The idea is that this might help the model to give a more focused response to the question.
-- Add basic functionality, like select all, copy and paste to editable options. Use CTRL+A, CTRL+C and CTRL+Y respectively.
+- Add basic functionality, like select all, copy and paste. Use CTRL+A, CTRL+C and CTRL+Y respectively. This option applies to all editable fields and the Python Interpreter.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
