@@ -76,7 +76,7 @@ class Schema:
             "apply_chat_history": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Toggle the inclusion of saved chat history in the prompt. Enable for chat models, disable for instruct models.",
-                default=False,
+                default=True,
                 choices=[False, True],
             ),
             "system_prompt": MenuItem(
@@ -172,7 +172,7 @@ class Schema:
             "temperature": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Temperature for model generation",
-                default=0.0,
+                default=0.7,
                 choices=[round(x * 0.05, 2) for x in range(21)],
             ),
             "generation_kwargs": MenuItem(
