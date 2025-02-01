@@ -6,7 +6,6 @@ from typing import List
 import time
 import sys
 import json
-
 from pynput.keyboard import Controller, Key
 
 
@@ -17,40 +16,34 @@ KEY_MAP = {
     "D": Key.down,
     "ENTER": Key.enter,
     " ": Key.space,
+    "DEL": Key.delete,
+    "CTRL+A": (Key.ctrl, 'a'),
+    "CTRL+C": (Key.ctrl, 'c'),
+    "CTRL+Y": (Key.ctrl, 'y')
 }
 
 
 def execute_key_sequence(sequence: List[str], time_before_sequence: float, time_between_keys: float):
-    """
-    Executes a sequence of keys and/or functions with a delay between each key press.
-
-    Parameters:
-    ----------
-    sequence: List[str, callable]
-        A list of keys and/or functions to execute.
-    time_before_sequence: float
-        The time to wait before executing the sequence.
-    time_between_keys: float
-        The time to wait between each key press in the sequence
-
-    Returns:
-    -------
-    None
-    """
     time.sleep(time_before_sequence)
-
     controller = Controller()
-
+    
     for item in sequence:
-        if item in KEY_MAP:
-            controller.tap(KEY_MAP[item])
-        elif item.startswith("SLEEP:"):
+        if item.startswith("SLEEP:"):
             try:
-                sleep_time = float(item.split(":")[1])
-                time.sleep(sleep_time)
-            except (ValueError, IndexError):
-                print(f"Invalid sleep time: {item}. Skipping item.")
-                continue
+                time.sleep(float(item.split(":")[1]))
+            except Exception as e:
+                print(f"Invalid sleep time {item}: ", e)
+            continue
+        
+        if item in KEY_MAP:
+            key = KEY_MAP[item]
+            if isinstance(key, tuple):
+                # Handle modifier combinations
+                modifier, char = key
+                with controller.pressed(modifier):
+                    controller.tap(char)
+            else:
+                controller.tap(key)
         else:
             controller.type(item)
         time.sleep(time_between_keys)
