@@ -54,7 +54,7 @@ class Schema:
             ),
             "dynamic_system_prompt": MenuItem(
                 type=OptionType.TOGGLE,
-                description="On user input, make the model dynamically update the system prompt based on the user's input first.",
+                description="Experimental feature: update the system prompt based on user input; best for chat models.",
                 default=False,
                 choices=[False, True],
             ),
@@ -75,7 +75,7 @@ class Schema:
             ),
             "apply_chat_history": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Whether to apply chathistory to the model prompt. All chathistory is saved as default, but when this is True, This history is added to the model prompt",
+                description="Toggle the inclusion of saved chat history in the prompt. Enable for chat models, disable for instruct models.",
                 default=False,
                 choices=[False, True],
             ),
