@@ -379,14 +379,13 @@ is useful if you want to save any code created by a model. Or load a namespace f
 - Added `main:sequence_on_loading` to the configuration json. This allows execution of a sequence of keys on loading a config through the `load` option in the Owlsight main-menu.
 TIP: above option can be used to load a sequence of different models as "agents", where every config can be threaded as a different agent with their own role. In theory, every action in Owlsight can be automated through this option.
 
-
 **2.3.0**
 
 - Added compile mode for the Python interpreter (`config:main:python_compile_mode`), so that user can both execute single lines ("single") or define multiple lines of code ("exec").
 - added `split_documents_n_sentences` and `split_documents_n_overlap` parameters to `DocumentSearcher` class, which can be used to split a long document into smaller chunks before embedding.
 - Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
 - Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
-The advantage is that `model_kwargs` can now also be passed inside `TextGenerationProcessorGGUF` to provide` access all parameters when initializing `Llama` class from llama-cpp-python.
+The advantage is that `model_kwargs` can now also be passed to other TextGenerationProcessor classes. For example, these parameters when passed to `TextGenerationProcessorGGUF`, are now used to initialize `Llama` class from llama-cpp-python.
 - ESC + V can be used inside the Python Interpreter to show the currently defined objects in a dropdown-menu.
 - ESC + V can be used inside the "How can I assist you?"-option after typing the following: "[[", "{{{{". This will autocomplete the following:
 "[[" will autocomplete to: "image:", "audio:"
