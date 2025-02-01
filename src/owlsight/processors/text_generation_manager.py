@@ -321,7 +321,7 @@ class TextGenerationManager:
         sequence = self.config_manager.get("main.sequence_on_loading", None)
         if sequence and isinstance(sequence, list):
             try:
-                OwlDefaultFunctions({}).owl_press(sequence, exit_python_from_interpreter=False)
+                OwlDefaultFunctions({}).owl_press(sequence, exit_python_before_sequence=False)
             except Exception as e:
                 logger.error(f"Error executing main.sequence_on_loading: {e}")
 
