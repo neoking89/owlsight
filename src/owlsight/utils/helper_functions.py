@@ -384,6 +384,7 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
     return processed_text, media_objects
 
 
+# TODO: extend this function to handle more tags than only "load". also  add key parameter for dictionaries
 def extract_load_tags(text: str) -> List[Union[str, Dict[str, str]]]:
     """
     Extracts load tags from a string and returns a list of either strings or dictionaries.
