@@ -42,7 +42,12 @@ def config_manager():
 
 @pytest.fixture
 def text_generation_manager(config_manager):
-    return TextGenerationManager(config_manager=config_manager)
+    # Reset singleton state before creating new instance
+    TextGenerationManager._reset_instance()
+    manager = TextGenerationManager(config_manager=config_manager)
+    yield manager
+    # Reset singleton state after test is done
+    TextGenerationManager._reset_instance()
 
 
 @pytest.fixture
