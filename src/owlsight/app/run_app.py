@@ -15,8 +15,10 @@ from owlsight.utils.helper_functions import (
     force_delete,
     remove_temp_directories,
     parse_media_tags,
+    extract_load_tags,
     os_is_windows,
 )
+from owlsight.utils.custom_classes import LoadObject
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
 from owlsight.utils.constants import (
     get_cache_dir,
@@ -63,11 +65,23 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             elif command_result == CommandResult.CONTINUE:
                 continue
 
-            if manager.processor is None:
+            user_choice_list = extract_load_tags(user_choice)
+            user_choice_list = [
+                LoadObject(path=item["path"], text_generation_manager=manager) if isinstance(item, dict) else item
+                for item in user_choice_list
+            ]
+            if manager.processor is None and not any(isinstance(item, LoadObject) for item in user_choice_list):
                 warn_processor_not_loaded()
                 continue
             else:
-                response = process_user_question(user_choice, code_executor, manager)
+                for user_choice in user_choice_list:
+                    if isinstance(user_choice, LoadObject):
+                        config_successfully_loaded = user_choice.load_config()
+                        if not config_successfully_loaded:
+                            logger.error(f"Failed to load configuration from {user_choice.path}. Stopping...")
+                            break
+                    else:
+                        _ = process_user_question(user_choice, code_executor, manager)
 
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt received. Restarting...")
