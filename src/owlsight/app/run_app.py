@@ -14,7 +14,7 @@ from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedba
 from owlsight.utils.helper_functions import (
     force_delete,
     remove_temp_directories,
-    parse_media_placeholders,
+    parse_media_tags,
     os_is_windows,
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
@@ -67,7 +67,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
                 warn_processor_not_loaded()
                 continue
             else:
-                process_user_question(user_choice, code_executor, manager)
+                response = process_user_question(user_choice, code_executor, manager)
 
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt received. Restarting...")
@@ -176,10 +176,10 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     get_py_cache()
 
 
-def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
+def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> str:
     _handle_dynamic_system_prompt(user_choice, manager)
     # Parse media placeholders in the user choice, if present.
-    user_question, media_objects = parse_media_placeholders(user_choice, code_executor.globals_dict)
+    user_question, media_objects = parse_media_tags(user_choice, code_executor.globals_dict)
     rag_is_active = manager.get_config_key("rag.active", False)
     library_to_rag = manager.get_config_key("rag.target_library", "")
     if rag_is_active and library_to_rag:
@@ -205,6 +205,8 @@ Use this information to help generate a code snippet that answers the question.
         prompt_code_execution=manager.config_manager.get("main.prompt_code_execution", True),
         prompt_retry_on_error=manager.config_manager.get("main.prompt_retry_on_error", False),
     )
+
+    return response
 
 
 def run(manager: TextGenerationManager) -> None:
