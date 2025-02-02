@@ -396,6 +396,13 @@ The advantage is that `model_kwargs` can now also be passed to other TextGenerat
 The idea is that this might help the model to give a more focused response to the question.
 - Add basic functionality, like select all, copy and paste. Use CTRL+A, CTRL+C and CTRL+Y respectively. This option applies to all editable fields and the Python Interpreter.
 
+**2.4.0**
+
+- Added `[[load:...]]` tag support for dynamic configuration loading during conversations. This can be used in "How can I assist you?" in mainmenu to chain multiple configurations (agents) together, like so:
+"[[load:config-to-model1.json]] Generates a rough draft for the following text: {{{{owl_read("mockup-idea.txt")}}}} [[load:config-to-model2.json]] Validate that the generated draft based on the previous text is relevant and contains all necessary information"
+TIP 1: Combing a sequence of different agents together with above method can lead to complex conversation flows.
+TIP 2: Using above tag in combination with `sequence_on_loading` in the configuration json opens lots of new possibilities to control the application.
+
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
 
