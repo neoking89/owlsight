@@ -41,7 +41,7 @@ class MediaPreprocessor:
     Examples
     --------
     >>> preprocessor = MediaPreprocessor()
-    >>> media_obj = MediaObject(path="image.jpg", type="image")
+    >>> media_obj = MediaObject(path="image.jpg", tag="image")
     >>> processed = preprocessor.preprocess_input(media_obj)
     """
 
@@ -78,14 +78,14 @@ class MediaPreprocessor:
             if isinstance(input_data, (str, Path)):
                 input_data = self._load_from_path_or_url(input_data)
 
-            if media_obj.type == "audio":
+            if media_obj.tag == "audio":
                 return self._preprocess_audio(input_data)
-            elif media_obj.type == "image":
+            elif media_obj.tag == "image":
                 processed = self._preprocess_image(input_data)
                 if question:
                     return {"image": processed, "question": question}
             else:
-                raise ValueError(f"Media type {media_obj.type} is not supported")
+                raise ValueError(f"Media type {media_obj.tag} is not supported")
             return processed
 
         except Exception:
@@ -155,7 +155,7 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
     ...     model_id="dandelin/vilt-b32-finetuned-vqa",
     ...     task="visual-question-answering"
     ... )
-    >>> media_obj = MediaObject(path="image-of-car.jpg", type="image")
+    >>> media_obj = MediaObject(path="image-of-car.jpg", tag="image")
     >>> result = processor.generate(
     ...     "What color is the car in this image:",
     ...     media_objects={"image1": media_obj}
@@ -307,7 +307,7 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
         if isinstance(media_object.path, str) and os.path.isdir(media_object.path):
             return [
                 MediaObject(
-                    type=media_object.type, path=os.path.join(media_object.path, file), options=media_object.options
+                    tag=media_object.tag, path=os.path.join(media_object.path, file), options=media_object.options
                 )
                 for file in os.listdir(media_object.path)
             ]
@@ -319,7 +319,7 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
                     logger.error(f"File not found: '{file}'. Did you provide the complete and correct path?")
                     continue
                 try:
-                    media_obj = MediaObject(type=media_object.type, path=file, options=media_object.options)
+                    media_obj = MediaObject(tag=media_object.tag, path=file, options=media_object.options)
                     lst.append(media_obj)
                 except Exception as e:
                     logger.error(f"Error processing file {file} to a MediaObject: {e}")

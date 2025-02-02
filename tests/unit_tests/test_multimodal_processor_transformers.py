@@ -25,28 +25,28 @@ TEST_CASES = [
         "path": "tests/data/image-to-text.jpg",
         "question": None,
         "expected_type": list,
-        "media_type": "image",
+        "media_tag": "image",
     },
     {
         "task": "visual-question-answering",
         "path": "tests/data/visual-question-answering.jpg",
         "question": "What color is the car?",
         "expected_type": list,
-        "media_type": "image",
+        "media_tag": "image",
     },
     {
         "task": "automatic-speech-recognition",
         "path": "tests/data/automatic-speech-recognition.wav",
         "question": None,
         "expected_type": dict,
-        "media_type": "audio",
+        "media_tag": "audio",
     },
     {
         "task": "document-question-answering",
         "path": "tests/data/document-question-answering.jpg",
         "question": "What is the total number of students?",
         "expected_type": list,
-        "media_type": "image",
+        "media_tag": "image",
     },
 ]
 
@@ -95,7 +95,7 @@ def test_generate(case, test_data, media_model_mappings):
 
     try:
         # Create MediaObject for the test case
-        media_objects = {"__MEDIA_0__": MediaObject(type=case["media_type"], path=str(test_file), options={})}
+        media_objects = {"__MEDIA_0__": MediaObject(tag=case["media_tag"], path=str(test_file), options={})}
 
         # Prepare input text based on whether there's a question
         input_text = f"{case['question']} __MEDIA_0__" if case["question"] else "__MEDIA_0__"
@@ -125,18 +125,18 @@ def test_preprocessing(media_model_mappings):
     test_image.save(buffer, format="PNG")
 
     # Test with bytes
-    media_obj = MediaObject(type="image", path=buffer.getvalue(), options={})
+    media_obj = MediaObject(tag="image", path=buffer.getvalue(), options={})
     result = processor.media_preprocessor.preprocess_input(media_obj=media_obj)
     assert isinstance(result, Image.Image)
 
     # Test with Path
     test_image.save("test_image.png")
-    media_obj = MediaObject(type="image", path=Path("test_image.png"), options={})
+    media_obj = MediaObject(tag="image", path=Path("test_image.png"), options={})
     result = processor.media_preprocessor.preprocess_input(media_obj=media_obj)
     assert isinstance(result, Image.Image)
     # test with invalid media type
     with pytest.raises(ValueError):
-        media_obj = MediaObject(type="invalid", path=Path("test_image.png"), options={})
+        media_obj = MediaObject(tag="invalid", path=Path("test_image.png"), options={})
         processor.media_preprocessor.preprocess_input(media_obj=media_obj)
     Path("test_image.png").unlink()
 
@@ -146,7 +146,7 @@ def test_preprocessing(media_model_mappings):
 
     with pytest.raises(FileNotFoundError):
         # Test with non-existent file
-        media_obj = MediaObject(type="invalid", path="124q51q1q.png", options={})
+        media_obj = MediaObject(tag="invalid", path="124q51q1q.png", options={})
         processor.media_preprocessor.preprocess_input(media_obj=media_obj)
 
 
@@ -156,7 +156,7 @@ def test_audio_preprocessing(test_data, media_model_mappings):
         model_id=media_model_mappings["automatic-speech-recognition"], task="automatic-speech-recognition"
     )
 
-    media_obj = MediaObject(type="audio", path=test_data["automatic-speech-recognition"], options={})
+    media_obj = MediaObject(tag="audio", path=test_data["automatic-speech-recognition"], options={})
     result = processor.media_preprocessor.preprocess_input(media_obj=media_obj)
 
     assert "array" in result
@@ -170,13 +170,13 @@ def test_error_handling(media_model_mappings):
     processor = MultiModalProcessorTransformers(model_id=media_model_mappings["image-to-text"], task="image-to-text")
 
     # Test with non-existent file
-    media_objects = {"__MEDIA_0__": MediaObject(type="image", path="non_existent_file.jpg", options={})}
+    media_objects = {"__MEDIA_0__": MediaObject(tag="image", path="non_existent_file.jpg", options={})}
 
     with pytest.raises(FileNotFoundError):
         processor.generate("__MEDIA_0__", media_objects=media_objects)
 
     # Test with invalid URL
-    media_objects = {"__MEDIA_0__": MediaObject(type="image", path="https://invalid.url/image.jpg", options={})}
+    media_objects = {"__MEDIA_0__": MediaObject(tag="image", path="https://invalid.url/image.jpg", options={})}
 
     with pytest.raises(requests.exceptions.RequestException):
         processor.generate("__MEDIA_0__", media_objects=media_objects)

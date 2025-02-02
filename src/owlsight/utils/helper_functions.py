@@ -13,7 +13,7 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 
 from owlsight.utils.logger import logger
-from owlsight.utils.custom_classes import MediaObject, MediaType
+from owlsight.utils.custom_classes import MediaObject, DoubleBracketsTag
 
 
 def parse_markdown(md_string: str) -> List[Tuple[str, str]]:
@@ -276,9 +276,9 @@ def flatten_dict(d, parent_key="", sep=".") -> dict:
     return flattened
 
 
-def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str, MediaObject]]:
+def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str, MediaObject]]:
     """
-    Parse media syntax patterns [[type:path|option1=value1|...]] in text and evaluate any
+    Parse media syntax patterns [[tag:path|option1=value1|...]] in text and evaluate any
     Python expressions inside {{...}}. Returns the modified text and a dictionary of
     media objects with their options.
 
@@ -300,13 +300,13 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
     --------
     >>> var_dict = {"folder": "images", "filename": "cat.jpg"}
     >>> text = "Analyze this: [[image:{{folder}}/{{filename}}|width=512]]"
-    >>> result, media_objects = parse_media_placeholders(text, var_dict)
+    >>> result, media_objects = parse_media_tags(text, var_dict)
     >>> print(result)
     'Analyze this: __MEDIA_0__'
     >>> print(media_objects)
     {
         '__MEDIA_0__': MediaObject(
-            type='image',
+            tag='image',
             path='images/cat.jpg',
             options={'width': '512'}
         )
@@ -314,12 +314,12 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
     """
 
     def validate_media_syntax(text: str) -> None:
-        # Check for valid media types
-        invalid_types = re.findall(r"\[\[(\w+):", text)
-        valid_types = {"image", "audio", "video"}
-        for t in invalid_types:
-            if t not in valid_types:
-                raise ValueError(f"Invalid media type: {t}. Must be one of {valid_types}")
+        # Check for valid media tags
+        invalid_tags = re.findall(r"\[\[(\w+):", text)
+        valid_tags = {"image", "audio", "video"}
+        for t in invalid_tags:
+            if t not in valid_tags:
+                raise ValueError(f"Invalid media tag: {t}. Must be one of {valid_tags}")
 
         # Check for missing paths
         if re.search(r"\[\[\w+:\s*(\||\]\])", text):
@@ -334,7 +334,7 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
     validate_media_syntax(text)
 
     pattern = r"""\[\[
-        (?P<type>image|audio|video):  # Media type
+        (?P<tag>image|audio|video):  # Media tag
         (?P<path>[^\|\]]+)            # Path (anything until | or ])
         (?:\|(?P<options>[^\]]+))?    # Optional options after |
         \]\]"""
@@ -345,7 +345,7 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
     def replace_match(match) -> str:
         nonlocal replacement_count
 
-        media_type: MediaType = match.group("type")  # type: ignore
+        media_tag: DoubleBracketsTag = match.group("tag")  # type: ignore
         raw_path = match.group("path")
         options_str = match.group("options") or ""
 
@@ -367,7 +367,7 @@ def parse_media_placeholders(text: str, var_dict: Dict[str, Any]) -> Tuple[str, 
         replacement_count += 1
 
         # Store media object information using the MediaObject class
-        media_objects[identifier] = MediaObject(type=media_type, path=processed_path, options=options)
+        media_objects[identifier] = MediaObject(tag=media_tag, path=processed_path, options=options)
 
         return identifier
 

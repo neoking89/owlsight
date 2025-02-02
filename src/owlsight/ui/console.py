@@ -24,7 +24,7 @@ from owlsight.configurations.schema import Schema
 from owlsight.ui.constants import BACKGROUND_STYLE, COLOR_CODES, GLOBAL_STYLE, INSTRUCTIONS
 from owlsight.ui.custom_classes import OptionType, AppDTO
 from owlsight.utils.constants import get_prompt_cache, KB_AUTOCOMPLETE
-from owlsight.utils.custom_classes import SingletonDict
+from owlsight.utils.custom_classes import SingletonDict, _AVAILBLE_DB_TAGS
 from owlsight.utils.logger import logger
 
 try:
@@ -141,7 +141,7 @@ class OptionSelectorApp:
 
         self._last_config_choice = ""
         self._global_dict = SingletonDict()
-        self._media_tag_completer = ItemCompleter(items=["audio:", "image:"], trigger="[[", start_position=0)
+        self._db_tag_completer = ItemCompleter(items=[f"{tag}:" for tag in _AVAILBLE_DB_TAGS], trigger="[[", start_position=0)
 
     def set_current_description(self) -> None:
         """
@@ -270,7 +270,7 @@ class OptionSelectorApp:
         completer = CombinedCompleter(
             history_completer,
             python_code_completer,
-            self._media_tag_completer,
+            self._db_tag_completer,
         )
 
         text_area = TextArea(
@@ -363,11 +363,11 @@ class OptionSelectorApp:
                     start = buffer.selection_state.original_cursor_position
                     end = buffer.cursor_position
                     sel_type = buffer.selection_state.type
-                    
+
                     # Copy the selection
                     data = buffer.copy_selection()
                     event.app.clipboard.set_data(data)
-                    
+
                     # Restore selection
                     buffer.cursor_position = end
                     buffer.start_selection(selection_type=sel_type)

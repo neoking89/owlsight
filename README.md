@@ -463,7 +463,7 @@ Notes
 ...     model_id="dandelin/vilt-b32-finetuned-vqa",
 ...     task="visual-question-answering"
 ... )
->>> media_obj = MediaObject(path="image-of-car.jpg", type="image")
+>>> media_obj = MediaObject(path="image-of-car.jpg", tag="image")
 >>> result = processor.generate(
 ...     "What color is the car in this image:",
 ...     media_objects={"image1": media_obj}
