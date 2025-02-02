@@ -84,7 +84,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
                         _ = process_user_question(user_choice, code_executor, manager)
 
         except KeyboardInterrupt:
-            logger.info("KeyboardInterrupt received. Restarting...")
+            logger.info("KeyboardInterrupt received. Returning to main menu.")
         except Exception:
             logger.error(f"Unexpected error:\n{traceback.format_exc()}")
             # raise
@@ -192,7 +192,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> str:
     _handle_dynamic_system_prompt(user_choice, manager)
-    # Parse media placeholders in the user choice, if present.
+    # Parse media tags in the user choice, if present.
     user_question, media_objects = parse_media_tags(user_choice, code_executor.globals_dict)
     rag_is_active = manager.get_config_key("rag.active", False)
     library_to_rag = manager.get_config_key("rag.target_library", "")
