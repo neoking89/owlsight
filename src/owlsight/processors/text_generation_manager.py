@@ -22,15 +22,38 @@ from owlsight.utils.logger import logger
 
 
 class TextGenerationManager:
+    _instance = None
+
+    def __new__(cls, config_manager: ConfigManager):
+        if cls._instance is not None:
+            raise RuntimeError("Only one instance of TextGenerationManager can exist at the same time.")
+        cls._instance = super().__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def _reset_instance(cls):
+        """Reset the singleton instance. This should only be used in tests."""
+        cls._instance = None
+
     def __init__(self, config_manager: ConfigManager):
         """
         Manage the lifecycle of a TextGenerationProcessor and its interaction with the configuration during runtime of the CLI app.
+        This is a singleton class - only one instance can exist at a time.
 
         Parameters
         ----------
         config_manager : ConfigManager
             Configuration dictionary to manage settings for the processor.
+
+        Raises
+        ------
+        RuntimeError
+            If attempting to create a second instance of TextGenerationManager
         """
+        # Skip initialization if this instance has already been initialized
+        if hasattr(self, 'config_manager'):
+            return
+            
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
         self._original_generate_method = None
