@@ -208,7 +208,10 @@ class MediaObject(DoubleBracketsObject):
 
 @runtime_checkable
 class TextGenerationManagerProtocol(Protocol):
-    """Protocol defining the interface for text generation manager"""
+    """
+    Protocol defining the interface for text generation manager.
+    This way we do not need to import TextGenerationManager seperately only to use it for type checking.
+    """
     def load_config(self, path: Union[str, Path, bytes]) -> None:
         """Load configuration from path"""
         ...
