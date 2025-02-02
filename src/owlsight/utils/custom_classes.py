@@ -3,10 +3,9 @@ Created by Nestor Demeure.
 This software is released under the Apache License 2.0.
 """
 
-from typing import List, Literal, Dict, Union
+from typing import List, Literal, Dict, Union, Any, Optional, get_args, Protocol, runtime_checkable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Any, Dict
 import builtins
 import inspect
 
@@ -15,7 +14,6 @@ import torch
 from transformers import StoppingCriteria, AutoTokenizer
 
 from owlsight.prompts.helper_functions import function_to_json_for_tool_calling
-
 
 class StopWordCriteria(StoppingCriteria):
     """
@@ -180,24 +178,62 @@ class SingletonDict(dict):
         }
 
 
-MediaType = Literal["image", "audio", "video"]
+DoubleBracketsTag = Literal["image", "audio", "video", "load"]
+_AVAILBLE_DB_TAGS = get_args(DoubleBracketsTag)
 
 
 @dataclass
-class MediaObject:
+class DoubleBracketsObject:
+    tag: DoubleBracketsTag
+    path: Union[str, Path, bytes]
+    options: Dict[str, str] = field(default_factory=lambda: {})
+
+
+@dataclass
+class MediaObject(DoubleBracketsObject):
     """
-    Represents a media object with its type, path, and options.
+    Represents a media object with its tag, path, and options.
+    Specifically handles image, audio, and video content.
 
     Attributes
     ----------
-    type : MediaType
-        The type of media (image, audio, or video)
+    tag : DoubleBracketsTag
+        The tag of media (image, audio, or video)
     path : Union[str, Path, bytes]
         The path to the media file or a bytes-like object
     options : Dict[str, str]
         Optional parameters for processing the media
     """
 
-    type: MediaType
-    path: Union[str, Path, bytes]
-    options: Dict[str, str] = field(default_factory=lambda: {})  # ensure each instance has its own options dict
+
+@runtime_checkable
+class TextGenerationManagerProtocol(Protocol):
+    """Protocol defining the interface for text generation manager"""
+    def load_config(self, path: Union[str, Path, bytes]) -> None:
+        """Load configuration from path"""
+        ...
+
+
+@dataclass
+class LoadObject(DoubleBracketsObject):
+    """
+    Represents a load object with its tag, path, and options.
+    Used for loading external resources or configurations.
+
+    Attributes
+    ----------
+    tag : DoubleBracketsTag
+        Must be "load"
+    path : Union[str, Path, bytes]
+        The path to the load file or a bytes-like object
+    options : Dict[str, str]
+        Optional parameters for processing the load
+    text_generation_manager : TextGenerationManagerProtocol
+        Manager for text generation configuration and processing
+    """
+    def __init__(self, path: Union[str, Path, bytes], text_generation_manager: TextGenerationManagerProtocol, options: Dict[str, str] = None):
+        super().__init__(tag="load", path=path, options=options or {})
+        self.text_generation_manager = text_generation_manager
+
+    def load_config(self):
+        self.text_generation_manager.load_config(self.path)
