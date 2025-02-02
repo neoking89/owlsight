@@ -6,6 +6,7 @@
         "track_model_usage": false,
         "extra_index_url": "",
         "python_compile_mode": "single",
+        "dynamic_system_prompt": false,
         "sequence_on_loading": []
     },
     "model": {
