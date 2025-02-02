@@ -238,5 +238,13 @@ class LoadObject(DoubleBracketsObject):
         super().__init__(tag="load", path=path, options=options or {})
         self.text_generation_manager = text_generation_manager
 
-    def load_config(self):
-        self.text_generation_manager.load_config(self.path)
+    def load_config(self) -> bool:
+        """
+        Load configuration from path.
+
+        Returns
+        -------
+        bool
+            True if the configuration was successfully loaded, False otherwise
+        """
+        return self.text_generation_manager.load_config(self.path)
