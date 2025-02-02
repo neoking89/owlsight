@@ -12,8 +12,8 @@ from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 
-from owlsight.utils.logger import logger
 from owlsight.utils.custom_classes import MediaObject, DoubleBracketsTag
+from owlsight.utils.logger import logger
 
 
 def parse_markdown(md_string: str) -> List[Tuple[str, str]]:
@@ -42,6 +42,7 @@ def parse_python_placeholders(text: str, var_dict: Dict[str, Any]) -> Any:
         The evaluated object if the entire string is a single placeholder,
         otherwise the string with placeholders replaced.
     """
+
     def evaluate_expression(expr: str) -> Any:
         try:
             safe_globals = {
@@ -381,3 +382,40 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
     processed_text = parse_python_placeholders(processed_text, var_dict)
 
     return processed_text, media_objects
+
+
+def extract_load_tags(text: str) -> List[Union[str, Dict[str, str]]]:
+    """
+    Extracts load tags from a string and returns a list of either strings or dictionaries.
+
+    Parameters
+    ----------
+    text : str
+        The input string containing load tags.
+
+    Returns
+    -------
+    List[Union[str, Dict[str, str]]]
+        A list of strings (input text) and/or dictionaries (load tags).
+    """
+    pattern = r"\[\[load:(.*?)\]\]"
+    matches = list(re.finditer(pattern, text))
+    result = []
+    prev_end = 0
+
+    for match in matches:
+        start, end = match.start(), match.end()
+        if start > prev_end:
+            part = text[prev_end:start].strip()
+            if part:
+                result.append(part)
+        load_obj = {"path": match.group(1)}
+        result.append(load_obj)
+        prev_end = end
+
+    if prev_end < len(text):
+        part = text[prev_end:].strip()
+        if part:
+            result.append(part)
+
+    return result
