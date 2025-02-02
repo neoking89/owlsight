@@ -251,14 +251,17 @@ class TextGenerationManager:
         self.config_manager.set("huggingface.select_model", "")
         self.config_manager.save(path)
 
-    def load_config(self, path: str):
+    def load_config(self, path: str) -> bool:
         """
         Load the configuration from a file.
         """
-        config_sucesfully_loaded = self.config_manager.load(path)
-        if config_sucesfully_loaded:
+        config_successfully_loaded = self.config_manager.load(path)
+        if config_successfully_loaded:
             self.load_model_processor(reload=self.processor is not None)
             self._execute_sequence_on_loading()
+
+        return config_successfully_loaded
+        
 
     def load_model_processor(self, reload=False) -> Union[None, Exception]:
         """
