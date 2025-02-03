@@ -15,6 +15,7 @@ from transformers import StoppingCriteria, AutoTokenizer
 
 from owlsight.prompts.helper_functions import function_to_json_for_tool_calling
 
+
 class StopWordCriteria(StoppingCriteria):
     """
     A stopping criteria that halts the text generation process if any specified stop word is encountered.
@@ -178,7 +179,7 @@ class SingletonDict(dict):
         }
 
 
-DoubleBracketsTag = Literal["image", "audio", "video", "load"]
+DoubleBracketsTag = Literal["image", "audio", "load", "chain"]
 _AVAILBLE_DB_TAGS = get_args(DoubleBracketsTag)
 
 
