@@ -259,7 +259,7 @@ class DocumentReader:
         >>> for filepath, content in reader.read_directory("docs"):
         ...     print(f"Found {len(content)} characters in {filepath}")
         """
-        directory = Path(directory)
+        directory: Path = Path(directory)
         if not directory.exists():
             raise FileNotFoundError(f"Directory not found: {directory}")
 
