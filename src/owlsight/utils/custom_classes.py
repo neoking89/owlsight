@@ -179,7 +179,7 @@ class SingletonDict(dict):
         }
 
 
-DoubleBracketsTag = Literal["image", "audio", "load", "chain"]
+DoubleBracketsTag = Literal["image", "audio", "video", "load", "chain"]
 _AVAILBLE_DB_TAGS = get_args(DoubleBracketsTag)
 
 
