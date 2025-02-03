@@ -5,6 +5,7 @@ import ast
 
 from owlsight.configurations.constants import CONFIG_DEFAULTS
 from owlsight.processors.base import TextGenerationProcessor
+from owlsight.processors.multimodal_processors import MultiModalProcessor
 from owlsight.processors.helper_functions import select_processor_type, warn_processor_not_loaded
 from owlsight.ui.console import get_user_choice
 from owlsight.ui.custom_classes import AppDTO
