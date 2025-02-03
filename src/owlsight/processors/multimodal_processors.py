@@ -8,8 +8,12 @@ import numpy as np
 import re
 
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
-from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
-from owlsight.processors.text_generation_processors import TextGenerationProcessorTransformers
+from owlsight.processors.base import TextGenerationProcessor
+from owlsight.processors.text_generation_processors import (
+    TextGenerationProcessorTransformers,
+    TextGenerationProcessorOnnx,
+    TextGenerationProcessorGGUF,
+)
 from owlsight.processors.constants import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from owlsight.utils.custom_classes import MediaObject
 from owlsight.utils.logger import logger
@@ -49,11 +53,7 @@ class MediaPreprocessor:
         """Initialize the media preprocessor."""
         pass
 
-    def preprocess_input(
-        self, 
-        media_obj: MediaObject, 
-        question: Optional[str] = None
-    ) -> Any:
+    def preprocess_input(self, media_obj: MediaObject, question: Optional[str] = None) -> Any:
         """Preprocess media input based on type and task requirements.
 
         Parameters
@@ -122,138 +122,32 @@ class MediaPreprocessor:
         return image
 
 
-class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
-    """Multimodal text generation processor using Hugging Face transformers.
-
-    This processor handles text generation tasks that involve multiple modalities
-    (text, images, audio) using Hugging Face transformer models. It combines
-    the MediaPreprocessor for handling media inputs with text generation capabilities.
-
-    Parameters
-    ----------
-    model_id : str
-        Identifier for the Hugging Face model to use
-    task : str
-        Task type, must be one of HUGGINGFACE_MEDIA_TASKS
-    apply_chat_history : bool, default=False
-        Whether to maintain chat history
-    system_prompt : str, default=""
-        System prompt to use for generation
-    **kwargs : dict
-        Additional arguments passed to TextGenerationProcessorTransformers
-
-    Notes
-    -----
-    - Supports various multimodal tasks (VQA, image captioning, etc.)
-    - Handles media preprocessing automatically
-    - Integrates with Hugging Face's transformers library
-    - Manages memory efficiently for large media files
-
-    Examples
-    --------
-    >>> processor = MultiModalProcessorTransformers(
-    ...     model_id="dandelin/vilt-b32-finetuned-vqa",
-    ...     task="visual-question-answering"
-    ... )
-    >>> media_obj = MediaObject(path="image-of-car.jpg", tag="image")
-    >>> result = processor.generate(
-    ...     "What color is the car in this image:",
-    ...     media_objects={"image1": media_obj}
-    ... )
-    """
+class MultiModalProcessor(TextGenerationProcessor):
+    """Abstract base class for multimodal  processors."""
 
     def __init__(
         self,
         model_id: str,
-        task: str,
         apply_chat_history: bool = False,
         system_prompt: str = "",
         **kwargs: Any,
     ) -> None:
-        if task not in HUGGINGFACE_MEDIA_TASKS:
-            raise ValueError(
-                f"Task {task} is not supported for media preprocessing. Should be one of {HUGGINGFACE_MEDIA_TASKS}.\nPerhaps we should set the right task for the model in 'config:huggingface:task' inside the CLI?"
-            )
-
         super().__init__(model_id=model_id, apply_chat_history=apply_chat_history, system_prompt=system_prompt)
-        self.task = task
-        self.text_processor = TextGenerationProcessorTransformers(model_id=model_id, task=task, **kwargs)
+        _base_class = type(self).__bases__[0]
+        # dynamicly select the type of self.text processor during runtime
+        text_processor_type = type(self).__name__.removeprefix(_base_class.__name__)
+        possible_classes = [
+            TextGenerationProcessorOnnx,
+            TextGenerationProcessorTransformers,
+            TextGenerationProcessorGGUF,
+        ]
+        text_processor_type = next((i for i in possible_classes if i.__name__.endswith(text_processor_type)), None)
+        if text_processor_type is None:
+            raise ValueError(f"TextGenerationProcessor type {text_processor_type} not supported. Is it in {possible_classes}?")
+        self.text_processor: TextGenerationProcessor = text_processor_type(model_id=model_id, **kwargs)
         self.media_preprocessor = MediaPreprocessor()
 
-    def generate(
-        self,
-        input_data: str,
-        media_objects: Dict[str, MediaObject],
-        stopwords: Optional[List[str]] = None,
-        max_new_tokens: int = DEFAULT_MAX_TOKENS,
-        temperature: float = DEFAULT_TEMPERATURE,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """
-        Generate text based on input text and media objects.
-
-        Parameters
-        ----------
-        input_data : str
-            Text prompt or question
-        media_objects : Dict[str, MediaObject]
-            Dictionary mapping media references to MediaObject instances
-        stopwords : List[str], optional
-            List of words to stop generation at
-        max_new_tokens : int, default=DEFAULT_MAX_TOKENS
-            Maximum number of tokens to generate
-        temperature : float, default=DEFAULT_TEMPERATURE
-            Sampling temperature for generation
-        generation_kwargs : dict, optional
-            Additional generation parameters
-
-        Returns
-        -------
-        str
-            Generated text incorporating information from media inputs
-
-        Notes
-        -----
-        - Automatically handles preprocessing
-        - A directory of files can also be provided.
-        """
-        # First prepare the generation parameters
-        input_data, generate_kwargs = self.text_processor.prepare_generation(
-            input_data=input_data,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            stopwords=stopwords,
-            streaming=False,
-            generation_kwargs=generation_kwargs,
-            apply_chat_template=False,
-        )
-        generate_kwargs.pop("eos_token_id", None)
-
-        media_refs = re.finditer(r"__MEDIA_\d+__", input_data)
-
-        # For each media reference, preprocess the media and store question if present
-        preprocessed_data = self._preprocess_media_objects(input_data, media_objects, media_refs)
-
-        # If we have only one media object, unpack it
-        if len(preprocessed_data) == 1:
-            preprocessed_data = preprocessed_data[0]
-
-        try:
-            response = self.text_processor.pipe_call(preprocessed_data, generate_kwargs=generate_kwargs)
-            response = str(response)
-            print(response)
-        except Exception:
-            logger.error(f"Error generating text with media input: {traceback.format_exc()}")
-            raise
-
-        self.update_history(str(input_data), response.strip())
-        return response
-
-    def preprocess_input(
-        self,
-        input_data: Union[str, bytes, Path],
-        question: Optional[str] = None
-    ) -> Any:
+    def preprocess_input(self, input_data: Union[str, bytes, Path], question: Optional[str] = None) -> Any:
         """Preprocess media input data for the model.
 
         Parameters
@@ -329,10 +223,144 @@ class MultiModalProcessorTransformers(MultiModalTextGenerationProcessor):
 
         return lst
 
+    def _handle_media_refs_and_input(self, input_data: str, media_objects: Dict[str, MediaObject]) -> str:
+        media_refs = re.finditer(r"__MEDIA_\d+__", input_data)
 
-class MultiModalProcessorGGUF(TextGenerationProcessor):
+        # For each media reference, preprocess the media and store question if present
+        preprocessed_data = self._preprocess_media_objects(input_data, media_objects, media_refs)
+
+        # If we have only one media object, unpack it
+        if len(preprocessed_data) == 1:
+            preprocessed_data = preprocessed_data[0]
+
+        return preprocessed_data
+
+
+class MultiModalProcessorTransformers(MultiModalProcessor):
+    """Multimodal processor using Hugging Face transformers.
+
+    This processor handles text generation tasks that involve multiple modalities
+    (text, images, audio) using Hugging Face transformer models. It combines
+    the MediaPreprocessor for handling media inputs with text generation capabilities.
+
+    Parameters
+    ----------
+    model_id : str
+        Identifier for the Hugging Face model to use
+    task : str
+        Task type, must be one of HUGGINGFACE_MEDIA_TASKS
+    apply_chat_history : bool, default=False
+        Whether to maintain chat history
+    system_prompt : str, default=""
+        System prompt to use for generation
+    **kwargs : dict
+        Additional arguments passed to TextGenerationProcessorTransformers
+
+    Notes
+    -----
+    - Supports various multimodal tasks (VQA, image captioning, etc.)
+    - Handles media preprocessing automatically
+    - Integrates with Hugging Face's transformers library
+    - Manages memory efficiently for large media files
+
+    Examples
+    --------
+    >>> processor = MultiModalProcessorTransformers(
+    ...     model_id="dandelin/vilt-b32-finetuned-vqa",
+    ...     task="visual-question-answering"
+    ... )
+    >>> media_obj = MediaObject(path="image-of-car.jpg", tag="image")
+    >>> result = processor.generate(
+    ...     "What color is the car in this image:",
+    ...     media_objects={"image1": media_obj}
+    ... )
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        task: str,
+        apply_chat_history: bool = False,
+        system_prompt: str = "",
+        **kwargs: Any,
+    ) -> None:
+        if task not in HUGGINGFACE_MEDIA_TASKS:
+            raise ValueError(
+                f"Task {task} is not supported for media preprocessing. Should be one of {HUGGINGFACE_MEDIA_TASKS}.\nPerhaps we should set the right task for the model in 'config:huggingface:task' inside the CLI?"
+            )
+
+        super().__init__(
+            model_id=model_id, apply_chat_history=apply_chat_history, system_prompt=system_prompt, task=task
+        )
+        self.task = task
+
+    def generate(
+        self,
+        input_data: str,
+        media_objects: Dict[str, MediaObject],
+        stopwords: Optional[List[str]] = None,
+        max_new_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Generate text based on input text and media objects.
+
+        Parameters
+        ----------
+        input_data : str
+            Text prompt or question
+        media_objects : Dict[str, MediaObject]
+            Dictionary mapping media references to MediaObject instances
+        stopwords : List[str], optional
+            List of words to stop generation at
+        max_new_tokens : int, default=DEFAULT_MAX_TOKENS
+            Maximum number of tokens to generate
+        temperature : float, default=DEFAULT_TEMPERATURE
+            Sampling temperature for generation
+        generation_kwargs : dict, optional
+            Additional generation parameters
+
+        Returns
+        -------
+        str
+            Generated text incorporating information from media inputs
+
+        Notes
+        -----
+        - Automatically handles preprocessing
+        - A directory of files can also be provided.
+        """
+        # First prepare the generation parameters
+        input_data, generate_kwargs = self.text_processor.prepare_generation(
+            input_data=input_data,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            stopwords=stopwords,
+            streaming=False,
+            generation_kwargs=generation_kwargs,
+            apply_chat_template=False,
+        )
+        generate_kwargs.pop("eos_token_id", None)
+
+        # Handle media references and input
+        preprocessed_data = self._handle_media_refs_and_input(input_data, media_objects)
+
+        try:
+            response = self.text_processor.pipe_call(preprocessed_data, generate_kwargs=generate_kwargs)
+            response = str(response)
+            print(response)
+        except Exception:
+            logger.error(f"Error generating text with media input: {traceback.format_exc()}")
+            raise
+
+        self.update_history(str(input_data), response.strip())
+        return response
+
+
+class MultiModalProcessorGGUF(MultiModalProcessor):
     pass
 
 
-class MultiModalProcessorOnnx(TextGenerationProcessor):
+class MultiModalProcessorOnnx(MultiModalProcessor):
     pass
