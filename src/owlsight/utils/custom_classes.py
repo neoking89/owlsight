@@ -3,7 +3,7 @@ Created by Nestor Demeure.
 This software is released under the Apache License 2.0.
 """
 
-from typing import List, Literal, Dict, Union, Any, Optional, get_args, Protocol, runtime_checkable
+from typing import List, Literal, Dict, Union, Any, Optional, get_args
 from dataclasses import dataclass, field
 from pathlib import Path
 import builtins
@@ -204,47 +204,3 @@ class MediaObject(DoubleBracketsObject):
     options : Dict[str, str]
         Optional parameters for processing the media
     """
-
-
-@runtime_checkable
-class TextGenerationManagerProtocol(Protocol):
-    """
-    Protocol defining the interface for text generation manager.
-    This way we do not need to import TextGenerationManager seperately only to use it for type checking.
-    """
-    def load_config(self, path: Union[str, Path, bytes]) -> None:
-        """Load configuration from path"""
-        ...
-
-
-@dataclass
-class LoadObject(DoubleBracketsObject):
-    """
-    Represents a load object with its tag, path, and options.
-    Used for loading external resources or configurations.
-
-    Attributes
-    ----------
-    tag : DoubleBracketsTag
-        Must be "load"
-    path : Union[str, Path, bytes]
-        The path to the load file or a bytes-like object
-    options : Dict[str, str]
-        Optional parameters for processing the load
-    text_generation_manager : TextGenerationManagerProtocol
-        Manager for text generation configuration and processing
-    """
-    def __init__(self, path: Union[str, Path, bytes], text_generation_manager: TextGenerationManagerProtocol, options: Dict[str, str] = None):
-        super().__init__(tag="load", path=path, options=options or {})
-        self.text_generation_manager = text_generation_manager
-
-    def load_config(self) -> bool:
-        """
-        Load configuration from path.
-
-        Returns
-        -------
-        bool
-            True if the configuration was successfully loaded, False otherwise
-        """
-        return self.text_generation_manager.load_config(self.path)
