@@ -384,7 +384,7 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
     return processed_text, media_objects
 
 
-def extract_square_bracket_tags(text: str, tag: str, key: str) -> List[Union[str, Dict[str, str]]]:
+def extract_square_bracket_tags(text: str, tag: Union[str, List[str]], key: str = "path") -> List[Union[str, Dict[str, str]]]:
     """
     Extracts square bracket tags from a string and returns a list of either strings or dictionaries.
 
@@ -393,20 +393,25 @@ def extract_square_bracket_tags(text: str, tag: str, key: str) -> List[Union[str
     text : str
         The input string containing square bracket tags.
 
-    tag : str
-        The tag to search for
+    tag : Union[str, List[str]]
+        A tag or list of tags to search for. Each tag must be one of _AVAILBLE_DB_TAGS.
 
-    key : str
-        The key to use for the tag, by default "path".
+    key : str, optional
+        The key to use for the tag value, by default "path".
 
     Returns
     -------
     List[Union[str, Dict[str, str]]]
         A list of strings (input text) and/or dictionaries (tag).
     """
-    if tag not in _AVAILBLE_DB_TAGS:
-        raise ValueError(f"Invalid tag: {tag}. Must be one of {_AVAILBLE_DB_TAGS}")
-    pattern = rf"\[\[{tag}:(.*?)\]\]"
+    # Convert single tag to list if necessary
+    tags = [tag] if isinstance(tag, str) else tag
+
+    if not all(t in _AVAILBLE_DB_TAGS for t in tags):
+        raise ValueError(f"Invalid tag in {tags}. Must be a subset of {_AVAILBLE_DB_TAGS}")
+    
+    # Construct regex pattern to capture any of the provided tags
+    pattern = r"\[\[(?P<tag>" + "|".join(re.escape(t) for t in tags) + "):" + r"(?P<value>.*?)\]\]"
     matches = list(re.finditer(pattern, text))
     result = []
     prev_end = 0
@@ -417,8 +422,8 @@ def extract_square_bracket_tags(text: str, tag: str, key: str) -> List[Union[str
             part = text[prev_end:start].strip()
             if part:
                 result.append(part)
-        load_obj = {key: match.group(1)}
-        result.append(load_obj)
+        d = {"tag": match.group("tag"), key: match.group("value")}
+        result.append(d)
         prev_end = end
 
     if prev_end < len(text):
