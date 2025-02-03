@@ -235,6 +235,7 @@ class CodeExecutor:
             "- Use Ctrl+A to select all\n"
             "- Use Ctrl+V to copy\n"
             "- Use Ctrl+Y to paste\n"
+            "- Use `owl_show()` to show all active objects\n"
             "Type 'exit()' to quit the console."
         )
 
