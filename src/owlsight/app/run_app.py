@@ -1,6 +1,6 @@
 import tempfile
 import traceback
-from typing import Union
+from typing import Union, Tuple
 from enum import Enum, auto
 import os
 
@@ -64,19 +64,32 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             elif command_result == CommandResult.CONTINUE:
                 continue
 
-            user_choice_list = extract_square_bracket_tags(user_choice, tag="load", key="path")
-            load_tags_in_user_choice = any((isinstance(item, dict) and item["tag"]=="load") for item in user_choice_list)
+            user_choice_list = extract_square_bracket_tags(user_choice, tag=["load", "chain"], key="params")
+            load_tags_in_user_choice = any(
+                (isinstance(item, dict) and item["tag"] == "load") for item in user_choice_list
+            )
             if manager.processor is None and not load_tags_in_user_choice:
                 warn_processor_not_loaded()
                 continue
             else:
                 for user_choice in user_choice_list:
                     if isinstance(user_choice, dict):
+                        params = user_choice["params"]
                         if user_choice["tag"] == "load":
-                            config_successfully_loaded = manager.load_config(user_choice["path"])
+                            logger.info(f"load tag detected. Loading {params}...")
+                            config_successfully_loaded = manager.load_config(params)
                             if not config_successfully_loaded:
-                                logger.error(f"Failed to load configuration from {user_choice.path}. Stopping...")
+                                logger.error(f"Failed to load configuration from {params}. Stopping...")
                                 break
+                        elif user_choice["tag"] == "chain":
+                            logger.info("Chain tag detected. Splitting parameters and continuing...")
+                            for param in params:
+                                key, value = _extract_params_chain_tag(param)
+                                if not key:
+                                    continue
+                                # TODO: check if key exists. if not, log.error and continue
+                                manager.update_config(key, value)
+                            continue
                     else:
                         _ = process_user_question(user_choice, code_executor, manager)
 
@@ -263,3 +276,13 @@ def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationMan
         # TODO: handle some kind of parsing of response here?
         manager.update_config("model.system_prompt", new_system_prompt)
         manager.update_config("main.dynamic_system_prompt", False)
+
+
+def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
+    if "=" not in param:
+        logger.error(f"Invalid chain parameter: {param}. Use 'param=value' format. Skipping...")
+        return "", ""
+    key, value = param.split("=")
+    key = key.strip()
+    value = value.strip()
+    return key, value
