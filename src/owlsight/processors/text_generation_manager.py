@@ -4,7 +4,7 @@ import pkgutil
 import ast
 
 from owlsight.configurations.constants import CONFIG_DEFAULTS
-from owlsight.processors.base import TextGenerationProcessor, MultiModalTextGenerationProcessor
+from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.helper_functions import select_processor_type, warn_processor_not_loaded
 from owlsight.ui.console import get_user_choice
 from owlsight.ui.custom_classes import AppDTO
@@ -92,8 +92,8 @@ class TextGenerationManager:
             self._restore_original_method()
 
         if media_objects or task in HUGGINGFACE_MEDIA_TASKS:
-            if not isinstance(self.processor, MultiModalTextGenerationProcessor):
-                logger.error("Processor is not a MultiModalTextGenerationProcessor, but media objects were provided.")
+            if not isinstance(self.processor, MultiModalProcessor):
+                logger.error("Processor is not a MultiModalProcessor, but media objects were provided.")
                 logger.error(
                     f"Please select a model that supports multimodal generation through one of the following tasks: {HUGGINGFACE_MEDIA_TASKS}"
                 )

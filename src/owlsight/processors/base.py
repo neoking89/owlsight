@@ -122,7 +122,3 @@ class TextGenerationProcessor(ABC):
             The maximum number of tokens the model can process in a single input.
         """
         raise NotImplementedError("get_max_context_length method must be implemented in the subclass.")
-
-
-class MultiModalTextGenerationProcessor(TextGenerationProcessor):
-    """Abstract base class for multimodal text generation processors."""
