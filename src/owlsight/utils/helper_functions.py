@@ -12,7 +12,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 
-from owlsight.utils.custom_classes import MediaObject, DoubleBracketsTag
+from owlsight.utils.custom_classes import MediaObject, DoubleBracketsTag, _AVAILBLE_DB_TAGS
 from owlsight.utils.logger import logger
 
 
@@ -384,22 +384,29 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
     return processed_text, media_objects
 
 
-# TODO: extend this function to handle more tags than only "load". also  add key parameter for dictionaries
-def extract_load_tags(text: str) -> List[Union[str, Dict[str, str]]]:
+def extract_square_bracket_tags(text: str, tag: str, key: str) -> List[Union[str, Dict[str, str]]]:
     """
-    Extracts load tags from a string and returns a list of either strings or dictionaries.
+    Extracts square bracket tags from a string and returns a list of either strings or dictionaries.
 
     Parameters
     ----------
     text : str
-        The input string containing load tags.
+        The input string containing square bracket tags.
+
+    tag : str
+        The tag to search for
+
+    key : str
+        The key to use for the tag, by default "path".
 
     Returns
     -------
     List[Union[str, Dict[str, str]]]
-        A list of strings (input text) and/or dictionaries (load tags).
+        A list of strings (input text) and/or dictionaries (tag).
     """
-    pattern = r"\[\[load:(.*?)\]\]"
+    if tag not in _AVAILBLE_DB_TAGS:
+        raise ValueError(f"Invalid tag: {tag}. Must be one of {_AVAILBLE_DB_TAGS}")
+    pattern = rf"\[\[{tag}:(.*?)\]\]"
     matches = list(re.finditer(pattern, text))
     result = []
     prev_end = 0
@@ -410,7 +417,7 @@ def extract_load_tags(text: str) -> List[Union[str, Dict[str, str]]]:
             part = text[prev_end:start].strip()
             if part:
                 result.append(part)
-        load_obj = {"path": match.group(1)}
+        load_obj = {key: match.group(1)}
         result.append(load_obj)
         prev_end = end
 

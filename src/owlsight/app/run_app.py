@@ -15,7 +15,7 @@ from owlsight.utils.helper_functions import (
     force_delete,
     remove_temp_directories,
     parse_media_tags,
-    extract_load_tags,
+    extract_square_bracket_tags,
     os_is_windows,
 )
 from owlsight.utils.custom_classes import LoadObject
@@ -65,7 +65,7 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             elif command_result == CommandResult.CONTINUE:
                 continue
 
-            user_choice_list = extract_load_tags(user_choice)
+            user_choice_list = extract_square_bracket_tags(user_choice, tag="load", key="path")
             user_choice_list = [
                 LoadObject(path=item["path"], text_generation_manager=manager) if isinstance(item, dict) else item
                 for item in user_choice_list
