@@ -317,7 +317,7 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
     def validate_media_syntax(text: str) -> None:
         # Check for valid media tags
         invalid_tags = re.findall(r"\[\[(\w+):", text)
-        valid_tags = {"image", "audio", "video"}
+        valid_tags = _AVAILBLE_DB_TAGS
         for t in invalid_tags:
             if t not in valid_tags:
                 raise ValueError(f"Invalid media tag: {t}. Must be one of {valid_tags}")
