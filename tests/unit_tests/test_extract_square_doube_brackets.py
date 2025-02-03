@@ -84,3 +84,13 @@ def test_extract_square_bracket_tags():
         {'tag': 'load', 'path': 'path-to-model4.json'}
     ]
     assert extract_square_bracket_tags(input_10, tag="load", key="path") == expected_10
+
+    input_11 = '[[load:path-to-model1.json]] hello [[chain:]] [[load:path-to-model2.json]]'
+    expected_11 = [
+        {'tag': 'load', 'params': 'path-to-model1.json'}, 
+        'hello',
+        {'tag': 'chain', 'params': ''},
+        {'tag': 'load', 'params': 'path-to-model2.json'}
+    ]
+
+    assert extract_square_bracket_tags(input_11, tag=["load", "chain"], key="params") == expected_11
