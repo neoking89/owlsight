@@ -1,6 +1,7 @@
 /.cache
 /.ruff_cache
 /.venv
+/venv
 /models
 /logs
 
