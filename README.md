@@ -429,7 +429,7 @@ Notes
 class MultiModalProcessorTransformers(model_id: str, task: str, apply_chat_history: bool = False, system_prompt: str = '', **kwargs: Any) -> None
 ```
 
-Multimodal text generation processor using Hugging Face transformers.
+Multimodal processor using Hugging Face transformers.
 
 This processor handles text generation tasks that involve multiple modalities
 (text, images, audio) using Hugging Face transformer models. It combines
@@ -1267,9 +1267,18 @@ The idea is that this might help the model to give a more focused response to th
 
 **2.4.0**
 
+***Several changes for the "How can I assist you?"-option:***
 - Added `[[load:...]]` tag support for dynamic configuration loading during conversations. This can be used in "How can I assist you?" in mainmenu to chain multiple configurations (agents) together, like so:
 "[[load:config-to-model1.json]] Generates a rough draft for the following text: {{owl_read("mockup-idea.txt")}} [[load:config-to-model2.json]] Validate that the generated draft based on the previous text is relevant and contains all necessary information"
 TIP 1: Combing a sequence of different agents together with above method can lead to complex conversation flows.
 TIP 2: Using above tag in combination with `sequence_on_loading` in the configuration json opens lots of new possibilities to control the application.
+- Added `[[chain:...]]` tag support for changing config parameters in between conversations. For example: "[[chain:model.system_prompt=act as a helpful assistant||generate.temperature=0.5]]".
+- Above tags can also be used INSIDE a python-expression in the "How can I assist you?"-option, like so:
+{{"".join(f"[[load:config-to-model{i}.json]]how much is {i} + 1?" for i in range(1, 10))}}
+This will load 10 different models (given the configuration files "config-to-model1.json", "config-to-model2.json", etc.) and ask them in a sequence, like so:
+how much is 1 + 1?
+how much is 2 + 1?
+etc.
+
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
