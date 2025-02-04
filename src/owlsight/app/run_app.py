@@ -17,6 +17,7 @@ from owlsight.utils.helper_functions import (
     parse_media_tags,
     extract_square_bracket_tags,
     os_is_windows,
+    parse_python_placeholders,
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
 from owlsight.utils.constants import (
@@ -64,36 +65,13 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             elif command_result == CommandResult.CONTINUE:
                 continue
 
-            user_choice_list = extract_square_bracket_tags(user_choice, tag=["load", "chain"], key="params")
-            load_tags_in_user_choice = any(
-                (isinstance(item, dict) and item["tag"] == "load") for item in user_choice_list
-            )
-            if manager.processor is None and not load_tags_in_user_choice:
-                warn_processor_not_loaded()
+            user_choice = parse_python_placeholders(user_choice, code_executor.globals_dict)
+            if not isinstance(user_choice, str):
+                logger.error(
+                    f"User choice is not a string, but {type(user_choice).__name__}. Please only use curly braces '{{{{expression}}}}' if the end result from the python expression is a string."
+                )
                 continue
-            else:
-                for user_choice in user_choice_list:
-                    if isinstance(user_choice, dict):
-                        params = user_choice["params"]
-                        if user_choice["tag"] == "load":
-                            logger.info(f"load tag detected. Loading {params}...")
-                            config_successfully_loaded = manager.load_config(params)
-                            if not config_successfully_loaded:
-                                logger.error(f"Failed to load configuration from {params}. Stopping...")
-                                break
-                        elif user_choice["tag"] == "chain":
-                            logger.info("Chain tag detected. Splitting parameters...")
-                            for param in params.split("||"):
-                                key, value = _extract_params_chain_tag(param)
-                                if not key:
-                                    continue
-                                if manager.get_config_key(key, None) is None:
-                                    logger.error(f"Invalid chain parameter: {param}. Key '{key}' not found in config.")
-                                    continue
-                                manager.update_config(key, value)
-                            continue
-                    else:
-                        _ = process_user_question(user_choice, code_executor, manager)
+            handle_assistant_prompt(user_choice, manager, code_executor)
 
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt received. Returning to main menu.")
@@ -173,6 +151,54 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> st
     manager.update_config(config_key, config_value)
 
     return config_key
+
+
+def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, code_executor: CodeExecutor) -> None:
+    """
+    Process user input from the 'How can I assist you?' field in the main menu.
+    Handles extraction of tags, processor validation, and command processing.
+
+    Parameters
+    ----------
+    user_choice : str
+        The raw user input to process
+    manager : TextGenerationManager
+        Manager instance for handling configurations
+    code_executor : CodeExecutor
+        Executor for processing code-related requests
+    """
+    user_choice_list = extract_square_bracket_tags(user_choice, tag=["load", "chain"], key="params")
+    load_tags_present = any(isinstance(item, dict) and item["tag"] == "load" for item in user_choice_list)
+
+    if manager.processor is None and not load_tags_present:
+        warn_processor_not_loaded()
+        return
+
+    _load_tag = "[[load:"
+    if load_tags_present and not user_choice.startswith(_load_tag):
+        logger.error(f"Load tags present, but user choice does not start with '{_load_tag}'. Please correct the input.")
+        return
+
+    for choice in user_choice_list:
+        if isinstance(choice, dict):
+            params = choice["params"]
+            if choice["tag"] == "load":
+                logger.info(f"load tag detected. Loading {params}...")
+                if not manager.load_config(params):
+                    logger.error(f"Failed to load configuration from {params}. Stopping...")
+                    break
+            elif choice["tag"] == "chain":
+                logger.info("Chain tag detected. Splitting parameters...")
+                for param in params.split("||"):
+                    key, value = _extract_params_chain_tag(param)
+                    if not key:
+                        continue
+                    if manager.get_config_key(key, None) is None:
+                        logger.error(f"Invalid chain parameter: {param}. Key '{key}' not found in config.")
+                        continue
+                    manager.update_config(key, value)
+        else:
+            _ = process_user_question(choice, code_executor, manager)
 
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
