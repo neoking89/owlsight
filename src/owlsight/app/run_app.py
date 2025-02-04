@@ -82,12 +82,14 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
                                 logger.error(f"Failed to load configuration from {params}. Stopping...")
                                 break
                         elif user_choice["tag"] == "chain":
-                            logger.info("Chain tag detected. Splitting parameters and continuing...")
-                            for param in params:
+                            logger.info("Chain tag detected. Splitting parameters...")
+                            for param in params.split("||"):
                                 key, value = _extract_params_chain_tag(param)
                                 if not key:
                                     continue
-                                # TODO: check if key exists. if not, log.error and continue
+                                if manager.get_config_key(key, None) is None:
+                                    logger.error(f"Invalid chain parameter: {param}. Key '{key}' not found in config.")
+                                    continue
                                 manager.update_config(key, value)
                             continue
                     else:
