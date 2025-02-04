@@ -185,7 +185,7 @@ def test_basic_media_syntax(test_id, input_string, var_dict, expected_text, expe
         ),
         (
             "python_expr_options",
-            "[[image:{{folder}}/test.jpg|width={{size}}]]",
+            "[[image:{{folder}}/test.jpg||width={{size}}]]",
             {"folder": "images", "size": 512},
             "__MEDIA_0__",
             {"__MEDIA_0__": MediaObject(tag="image", path="images/test.jpg", options={"width": "512"})},
@@ -213,7 +213,7 @@ def test_python_expression_integration(test_id, input_string, var_dict, expected
         ),
         (
             "complex_options",
-            "[[image:photo.jpg|width=512|height=512|pipeline=depth-estimation]]",
+            "[[image:photo.jpg||width=512||height=512||pipeline=depth-estimation]]",
             {},
             "__MEDIA_0__",
             {
@@ -244,8 +244,8 @@ def test_multiple_media_and_options(test_id, input_string, var_dict, expected_te
         ),
         (
             "mixed_complex",
-            """Process this [[image:{{folder}}/{{filename}}|width={{size}}]] 
-            with value {{x + 1}} and [[audio:recording.mp3|language=en]]""",
+            """Process this [[image:{{folder}}/{{filename}}||width={{size}}]] 
+            with value {{x + 1}} and [[audio:recording.mp3||language=en]]""",
             {"folder": "imgs", "filename": "test.jpg", "size": 256, "x": 5},
             """Process this __MEDIA_0__ 
             with value 6 and __MEDIA_1__""",
@@ -272,7 +272,7 @@ def test_missing_path():
 
 def test_invalid_option_format():
     with pytest.raises(ValueError):
-        parse_media_tags("[[image:test.jpg|invalid_option]]", {})
+        parse_media_tags("[[image:test.jpg||invalid_option]]", {})
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

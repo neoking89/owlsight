@@ -327,7 +327,7 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
             raise ValueError("Media path cannot be empty")
 
         # Check for invalid option format
-        option_pattern = r"\|(?!\w+=)[^]|]*(?=[\]|])"
+        option_pattern = r"\|\|(?!\w+=)[^]|]*(?=[\]|])"
         invalid_options = re.findall(option_pattern, text)
         if invalid_options:
             raise ValueError(f"Invalid option format: {invalid_options[0].strip()}. Must be key=value")
@@ -336,8 +336,8 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
 
     pattern = r"""\[\[
         (?P<tag>image|audio|video):  # Media tag
-        (?P<path>[^\|\]]+)            # Path (anything until | or ])
-        (?:\|(?P<options>[^\]]+))?    # Optional options after |
+        (?P<path>[^\|\]]+)            # Path (anything until || or ])
+        (?:\|\|(?P<options>[^\]]+))?    # Optional options after ||
         \]\]"""
 
     media_objects: Dict[str, MediaObject] = {}
@@ -356,7 +356,7 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
         # Process options
         options: Dict[str, str] = {}
         if options_str:
-            for option in options_str.split("|"):
+            for option in options_str.split("||"):
                 if "=" in option:
                     key, value = option.split("=", 1)
                     # Evaluate Python expressions in option values and convert to string
