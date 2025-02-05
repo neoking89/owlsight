@@ -38,7 +38,7 @@
         "target_library": "",
         "top_k": 10,
         "sentence_transformer_weight": 0.5,
-        "sentence_transformer_name_or_path": "",
+        "sentence_transformer_name_or_path": "Alibaba-NLP/gte-base-en-v1.5",
         "search": ""
     },
     "huggingface": {
