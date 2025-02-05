@@ -284,6 +284,16 @@ class OwlDefaultFunctions:
         urls: List[str],
         max_concurrent: int = 5,
     ) -> str:
+        """
+        Async process URLs to fetch and extract content.
+
+        Args:
+            urls: Single URL or list of URLs to process
+            max_concurrent: Maximum simultaneous requests
+
+        Returns:
+            List of extracted content
+        """
         return asyncio.run(fetch_and_parse_urls(urls, max_concurrent))
 
     def owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]:
