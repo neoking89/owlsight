@@ -490,18 +490,6 @@ class OwlDefaultFunctions:
         subprocess.Popen([sys.executable, str(script_path), params_json])
 
 
-def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> List[str]:
-    """Search Bing for a term and return a list of URLs."""
-    term = "+".join(term.split(" "))
-    url = f"https://www.bing.com/search?q={term}"
-    response = requests.get(url, **request_kwargs)
-    soup = BeautifulSoup(response.text, "html.parser")
-    urls = [a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("http")]
-    if exclude_from_url:
-        urls = [url for url in urls if not any(exclude in url for exclude in exclude_from_url)]
-    return urls
-
-
 # Update get_url to use Django-style regex for better validation
 # source: https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not
 IS_URL_PATTERN = re.compile(
@@ -513,7 +501,6 @@ IS_URL_PATTERN = re.compile(
     r"(?:/?|[/?]\S+)$",
     re.IGNORECASE,
 )
-
 
 def is_url(url: str) -> bool:
     """
