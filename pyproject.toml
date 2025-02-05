@@ -27,6 +27,8 @@ dependencies = [
     "pydantic",
     "dill",
     "tika",
+    "html5lib",
+    "aiohttp",
 ]
 
 [project.optional-dependencies]
@@ -78,6 +80,8 @@ all = [
     "tqdm",
     "pynput",
     "tika",
+    "aiohttp",
+    "html5lib",
     # Optional dependencies
     "llama-cpp-python",
     "onnxruntime-genai",
