@@ -1,4 +1,5 @@
 import importlib.util
+import asyncio
 import os
 import inspect
 import traceback
@@ -11,7 +12,6 @@ import sys
 import json
 import dill
 import logging
-from owlsight.rag.document_reader import DocumentReader
 
 import requests
 from bs4 import BeautifulSoup
@@ -19,6 +19,8 @@ from huggingface_hub import scan_cache_dir, CachedRepoInfo, HfApi
 from huggingface_hub.constants import HF_HUB_CACHE
 
 from owlsight.utils.custom_classes import SingletonDict
+from owlsight.rag.document_reader import DocumentReader
+from owlsight.app.url_processor import fetch_and_parse_urls
 
 
 class OwlDefaultFunctions:
@@ -279,68 +281,12 @@ class OwlDefaultFunctions:
 
     def owl_scrape(
         self,
-        url_or_terms: str,
-        trim_newlines: Optional[int] = 2,
-        filter_by: Optional[Dict[str, str]] = None,
-        **request_kwargs,
+        urls: List[str],
+        max_concurrent: int = 5,
     ) -> str:
-        """
-        Scrape the text content of a webpage and return specific content based on the filter.
+        return asyncio.run(fetch_and_parse_urls(urls, max_concurrent))
 
-        Parameters
-        ----------
-        url_or_terms : str
-            The URL of the webpage to scrape OR the search term to search Bing for.
-        trim_newlines : int, optional
-            The maximum number of consecutive newlines to allow in the output, default is 2.
-        filter_by : dict, optional
-            Dictionary specifying HTML tag and/or attributes to filter specific content.
-            For example: {'tag': 'div', 'class': 'content'}
-        **request_kwargs
-            Additional keyword arguments to pass to the requests.get function.
-
-        Returns
-        -------
-        str
-            The filtered text content of the webpage.
-        """
-        if is_url(url_or_terms):
-            url = url_or_terms
-        else:
-            urls = search_bing(url_or_terms, exclude_from_url=["microsoft"], **request_kwargs)
-            if not urls:
-                return ""
-            url = urls[0]
-
-        response = requests.get(url, **request_kwargs)
-        html_content = response.text
-
-        soup = BeautifulSoup(html_content, "html.parser")
-
-        # Remove script and style elements
-        for script_or_style in soup(["script", "style"]):
-            script_or_style.decompose()
-
-        # Filter specific content if filter_by is provided
-        if filter_by:
-            tag = filter_by.get("tag", None)
-            attrs = {key: value for key, value in filter_by.items() if key != "tag"}
-            filtered_elements = soup.find_all(tag, attrs=attrs)
-
-            # Join the filtered elements' text content
-            filtered_text = "\n".join(element.get_text() for element in filtered_elements)
-        else:
-            filtered_text = soup.get_text()
-
-        # Optionally trim consecutive newlines
-        if trim_newlines:
-            pattern = r"\n{" + str(trim_newlines + 1) + r",}"
-            replacement = "\n" * trim_newlines
-            return re.sub(pattern, replacement, filtered_text)
-
-        return filtered_text
-
-    def owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> str:
+    def owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]:
         """
         Returns a string with information about all Hugging Face models currently loaded in the cache directory.
         Print the output from this function to the console to get a nice overview.
