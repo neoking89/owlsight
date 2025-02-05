@@ -11,7 +11,8 @@ import subprocess
 import sys
 import json
 import dill
-import logging
+import time
+import random
 
 import requests
 from bs4 import BeautifulSoup
@@ -115,7 +116,7 @@ class OwlDefaultFunctions:
                             results[filepath] = content
                         return results
                     except Exception as e:
-                        logging.error(f"DocumentReader failed to read directory {path}: {str(e)}")
+                        print(f"DocumentReader failed to read directory {path}: {str(e)}")
                         return f"Error reading directory {path}: {str(e)}"
                 else:
                     # Handle single file
@@ -156,8 +157,57 @@ class OwlDefaultFunctions:
                 return results
 
         except Exception as e:
-            logging.error(f"Critical error in owl_read: {str(e)}")
+            print(f"Critical error in owl_read: {str(e)}")
             return f"Critical error: {str(e)}"
+
+    def owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> list:
+        """
+        Search using DuckDuckGo and return results with URLs and text snippets.
+
+        Parameters:
+        ----------
+            query (str): Search query
+            max_results (int): Maximum number of results to return
+            max_retries (int): Maximum number of retry attempts
+
+        Returns:
+            list: List of search results from DuckDuckGo
+        """
+        errors = []
+        for attempt in range(max_retries):
+            try:
+                print(f"Searching for query: {query} (attempt {attempt + 1}/{max_retries})")
+
+                from duckduckgo_search import DDGS
+
+                with DDGS() as ddgs:
+                    # Use a generator to avoid loading all results at once
+                    results = []
+                    for result in ddgs.text(query, max_results=max_results):
+                        results.append(result)
+                        if len(results) >= max_results:
+                            break
+
+                if not results:
+                    print(f"No results found for query: {query}")
+                    return []
+
+                print(f"Found {len(results)} results")
+                return results
+
+            except Exception as e:
+                error_msg = f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}"
+                print(error_msg)
+                errors.append(error_msg)
+
+                if attempt < max_retries - 1:
+                    # Exponential backoff with jitter
+                    wait_time = min(2**attempt + random.random(), 10)
+                    print(f"Waiting {wait_time:.1f} seconds before retry {attempt + 2}/{max_retries}")
+                    time.sleep(wait_time)
+                else:
+                    print(f"All {max_retries} attempts failed")
+                    raise RuntimeError(f"Search failed after {max_retries} attempts: {'; '.join(errors)}")
 
     def owl_import(self, file_path: str):
         """
