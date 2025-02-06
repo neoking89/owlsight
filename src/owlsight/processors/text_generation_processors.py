@@ -62,8 +62,9 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         tokenizer_kwargs: Optional[dict] = None,
         task: Optional[str] = None,
         apply_chat_history: bool = False,
-        model_kwargs: Optional[dict] = None,
         system_prompt: str = "",
+        apply_tools: Optional[List[dict]] = None,
+        model_kwargs: Optional[dict] = None,
         **kwargs,
     ):
         """
@@ -90,15 +91,19 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             Set to True if you want model to generate responses based on previous inputs.
         system_prompt : str
             The system prompt to prepend to the input text.
+        apply_tools : Optional[List[dict]]
+            A list of tools to call from the processor.
+            Default is None.
+            Also see: https://medium.com/@malumbea/function-tool-calling-using-gemma-transform-instruction-tuned-it-model-bc8b05585377
         model_kwargs : Optional[dict]
-            Additional keyword arguments for the model. 
+            Additional keyword arguments for the model.
             These get passed to `transformers.pipeline` function as `model_kwargs` argument.
-            Default is None. 
+            Default is None.
         """
         if task and task not in SUPPORTED_TASKS:
             raise ValueError(f"Task '{task}' is not supported. Supported tasks are: {list(SUPPORTED_TASKS.keys())}")
 
-        super().__init__(model_id, apply_chat_history, system_prompt, model_kwargs)
+        super().__init__(model_id, apply_chat_history, system_prompt, model_kwargs, apply_tools)
 
         # Initialize configuration
         self.transformers__device = transformers__device or get_best_device()
@@ -477,6 +482,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         apply_chat_history: bool = False,
         system_prompt: Optional[str] = None,
         model_kwargs: Optional[dict] = None,
+        apply_tools: Optional[List[dict]] = None,
         **kwargs: Any,
     ) -> None:
         if og is None:
@@ -486,7 +492,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         self.model_id = self._validate_model_id(model_id, onnx__model_dir, token)
         self.transformers_tokenizer = AutoTokenizer.from_pretrained(self.model_id, token=token)
 
-        super().__init__(self.model_id, apply_chat_history, system_prompt)
+        super().__init__(self.model_id, apply_chat_history, system_prompt, model_kwargs, apply_tools)
         self.onnx__verbose = onnx__verbose
         self.onnx__n_cpu_threads = onnx__n_cpu_threads
 
@@ -823,6 +829,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         apply_chat_history: bool = False,
         system_prompt: str = "",
         model_kwargs: Dict[str, Any] = None,
+        apply_tools: Optional[List[dict]] = None,
         **kwargs,
     ):
         """
@@ -851,7 +858,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         model_kwargs : Optional[Dict[str, Any]]
             Additional keyword arguments for the model. These get passed directly to llama-cpp.Llama.__init__.
         """
-        super().__init__(model_id, apply_chat_history, system_prompt, model_kwargs)
+        super().__init__(model_id, apply_chat_history, system_prompt, model_kwargs, apply_tools)
 
         if Llama is None:
             raise ImportError(
@@ -941,6 +948,14 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         ...     stopwords=["END"]
         ... )
         """
+        if self.apply_tools:
+            generation_kwargs["tools"] = self.apply_tools
+            generation_kwargs["tool_choice"] = "auto"
+        else:
+            if generation_kwargs is not None:
+                del generation_kwargs["tools"]
+                del generation_kwargs["tool_choice"]
+
         templated_text, _generation_kwargs = self._prepare_generate(
             input_data, max_new_tokens, temperature, stopwords, generation_kwargs
         )
