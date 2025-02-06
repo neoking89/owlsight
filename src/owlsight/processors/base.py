@@ -15,6 +15,7 @@ class TextGenerationProcessor(ABC):
         apply_chat_history: bool,
         system_prompt: str,
         model_kwargs: Optional[Dict[str, Any]] = None,
+        apply_tools: Optional[List[dict]] = None,
     ):
         """
         Initialize the text generation processor.
@@ -30,6 +31,9 @@ class TextGenerationProcessor(ABC):
             The system prompt to use for generation.
         model_kwargs : Optional[Dict[str, Any]]
             Additional keyword arguments for the model. Default is None.
+        apply_tools : Optional[List[dict]]
+            A list of tools to call from the processor. Default is None.
+            Also see: https://medium.com/@malumbea/function-tool-calling-using-gemma-transform-instruction-tuned-it-model-bc8b05585377
         """
         if not model_id:
             raise ValueError("Model ID cannot be empty.")
@@ -39,6 +43,7 @@ class TextGenerationProcessor(ABC):
         self.system_prompt = system_prompt
         self.chat_history = []
         self.model_kwargs = model_kwargs or {}
+        self.apply_tools = apply_tools
 
     def apply_chat_template(
         self,
@@ -64,7 +69,9 @@ class TextGenerationProcessor(ABC):
         if tokenizer.chat_template is not None:
             messages = self.get_history() if self.apply_chat_history else []
             messages.append({"role": "user", "content": input_data})
-            templated_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            templated_text = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True if self.apply_tools else False
+            )
         else:
             logger.warning("Chat template not found in tokenizer. Using input text as is.")
             templated_text = input_data
