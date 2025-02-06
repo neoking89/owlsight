@@ -6,6 +6,7 @@ import re
 import traceback
 import inspect
 from datetime import datetime, timedelta
+import json
 from pathlib import Path
 
 from prompt_toolkit import prompt
@@ -384,7 +385,9 @@ def parse_media_tags(text: str, var_dict: Dict[str, Any]) -> Tuple[str, Dict[str
     return processed_text, media_objects
 
 
-def extract_square_bracket_tags(text: str, tag: Union[str, List[str]], key: str = "path") -> List[Union[str, Dict[str, str]]]:
+def extract_square_bracket_tags(
+    text: str, tag: Union[str, List[str]], key: str = "path"
+) -> List[Union[str, Dict[str, str]]]:
     """
     Extracts square bracket tags from a string and returns a list of either strings or dictionaries.
 
@@ -409,7 +412,7 @@ def extract_square_bracket_tags(text: str, tag: Union[str, List[str]], key: str 
 
     if not all(t in _AVAILBLE_DB_TAGS for t in tags):
         raise ValueError(f"Invalid tag in {tags}. Must be a subset of {_AVAILBLE_DB_TAGS}")
-    
+
     # Construct regex pattern to capture any of the provided tags
     pattern = r"\[\[(?P<tag>" + "|".join(re.escape(t) for t in tags) + "):" + r"(?P<value>.*?)\]\]"
     matches = list(re.finditer(pattern, text))
@@ -432,3 +435,39 @@ def extract_square_bracket_tags(text: str, tag: Union[str, List[str]], key: str 
             result.append(part)
 
     return result
+
+
+def parse_function_call_to_python_code(input_str: str) -> str:
+    """
+    Parses a string for a JSON-like function call pattern of the form:
+
+    {"name": "function_name", "arguments": { ... }}
+
+    If such a pattern is found, it transforms the information into a Python
+    markdown code block that executes the function, like so:
+
+        ```python
+        final_result = function_name(arg1=value1, arg2=value2, ...)
+        ```
+
+    The JSON "arguments" object is converted into valid Python keyword arguments
+    (using repr() to ensure proper quoting for strings, etc).
+
+    If the pattern isn't found or the JSON is invalid, the original input string
+    is returned.
+    """
+    pattern = r'\{\s*"name"\s*:\s*"([^"]+)"\s*,\s*"arguments"\s*:\s*(\{.*?\})\s*\}'
+    match = re.search(pattern, input_str)
+    if match:
+        func_name = match.group(1)
+        args_str = match.group(2)
+        try:
+            arguments = json.loads(args_str)
+        except json.JSONDecodeError:
+            return input_str
+
+        # Build the keyword arguments string.
+        kwargs = ", ".join(f"{key}={repr(value)}" for key, value in arguments.items())
+        code_line = f"final_result = {func_name}({kwargs})"
+        return f"```python\n{code_line}\n```"
+    return input_str
