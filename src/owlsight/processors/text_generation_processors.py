@@ -953,8 +953,8 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             generation_kwargs["tool_choice"] = "auto"
         else:
             if generation_kwargs is not None:
-                del generation_kwargs["tools"]
-                del generation_kwargs["tool_choice"]
+                generation_kwargs.pop("tools", None)
+                generation_kwargs.pop("tool_choice", None)
 
         templated_text, _generation_kwargs = self._prepare_generate(
             input_data, max_new_tokens, temperature, stopwords, generation_kwargs
