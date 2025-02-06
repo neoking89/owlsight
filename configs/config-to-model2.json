@@ -13,6 +13,7 @@
     "model": {
         "model_id": "lmstudio-community/Llama-3.2-3B-Instruct-GGUF",
         "apply_chat_history": true,
+        "apply_tools": true,
         "system_prompt": "",
         "model_kwargs": {},
         "transformers__device": null,

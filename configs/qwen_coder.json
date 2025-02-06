@@ -11,8 +11,9 @@
     },
     "model": {
         "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
-        "apply_chat_history": false,
-        "system_prompt": "",
+        "apply_chat_history": true,
+        "apply_tools": true,
+        "system_prompt": "You are a helpful assistant. Use one of the available tools to answer the user's question. ALWAYS use tools.",
         "model_kwargs": {},
         "transformers__device": null,
         "transformers__quantization_bits": null,
