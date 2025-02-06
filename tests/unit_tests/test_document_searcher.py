@@ -1,6 +1,6 @@
 import pytest
 
-from owlsight.rag.core import DocumentSearcher, SearchMethod
+from owlsight.rag.core import DocumentSearcher, SearchMethod, TextSplitter
 from unittest.mock import patch, MagicMock
 
 
@@ -11,7 +11,7 @@ def test_split_documents_basic():
         "doc2": "Short doc. With few. Sentences only.",
     }
     
-    result = DocumentSearcher.split_documents(documents, n_sentences=3, n_overlap=1)
+    result = TextSplitter.split_documents(documents, n_sentences=3, n_overlap=1)
     
     # Check doc1 splits (should have 2 chunks with 1 sentence overlap)
     assert "doc1__split0" in result
@@ -31,7 +31,7 @@ def test_split_documents_custom_params():
     }
     
     # Split into chunks of 4 sentences with 2 sentence overlap
-    result = DocumentSearcher.split_documents(
+    result = TextSplitter.split_documents(
         documents,
         n_sentences=4,
         n_overlap=2
@@ -60,7 +60,7 @@ def test_split_documents_edge_cases():
         "no_periods": "This is a sentence without proper punctuation",
     }
     
-    result = DocumentSearcher.split_documents(documents, n_sentences=2)
+    result = TextSplitter.split_documents(documents, n_sentences=2)
     
     # Empty document should create empty split
     assert "empty__split0" in result
@@ -81,10 +81,10 @@ def test_split_documents_validation():
     
     # Test n_overlap >= n_sentences
     with pytest.raises(ValueError):
-        DocumentSearcher.split_documents(documents, n_sentences=2, n_overlap=2)
+        TextSplitter.split_documents(documents, n_sentences=2, n_overlap=2)
     
     with pytest.raises(ValueError):
-        DocumentSearcher.split_documents(documents, n_sentences=2, n_overlap=3)
+        TextSplitter.split_documents(documents, n_sentences=2, n_overlap=3)
 
 
 def test_document_searcher_init_basic():
