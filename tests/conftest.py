@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any, Union
 from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.configurations.config_manager import ConfigManager
-from owlsight.utils.custom_classes import SingletonDict
+from owlsight.utils.custom_classes import GlobalVarsDict
 from owlsight.app.default_functions import OwlDefaultFunctions
 
 
@@ -62,5 +62,5 @@ def media_model_mappings():
 
 @pytest.fixture
 def owl_instance():
-    globals_dict = SingletonDict()
+    globals_dict = GlobalVarsDict()
     return OwlDefaultFunctions(globals_dict)
