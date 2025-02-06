@@ -4,7 +4,7 @@ import os
 import inspect
 import traceback
 import re
-from typing import Optional, List, Dict, Union, Iterable
+from typing import Optional, List, Dict, Union, Iterable, Callable
 from datetime import datetime
 from pathlib import Path
 import subprocess
@@ -14,12 +14,10 @@ import dill
 import time
 import random
 
-import requests
-from bs4 import BeautifulSoup
 from huggingface_hub import scan_cache_dir, CachedRepoInfo, HfApi
 from huggingface_hub.constants import HF_HUB_CACHE
 
-from owlsight.utils.custom_classes import SingletonDict
+from owlsight.utils.custom_classes import GlobalVarsDict
 from owlsight.rag.document_reader import DocumentReader
 from owlsight.app.url_processor import fetch_and_parse_urls
 
@@ -33,7 +31,7 @@ class OwlDefaultFunctions:
     This class is open for extension, as possibly more useful functions can be added in the future.
     """
 
-    def __init__(self, globals_dict: Union[SingletonDict]):
+    def __init__(self, globals_dict: GlobalVarsDict):
         # Add check to make sure every function starts with 'owl_'
         self._check_method_naming_convention()
 
@@ -61,10 +59,23 @@ class OwlDefaultFunctions:
             )
         return self._document_reader
 
-    def owl_tools(self) -> List[str]:
-        """Return a list of available functions which can be used for tool calling out of the global scope."""
+    def owl_tools(self, as_json: bool = True) -> List[Union[Callable, Dict]]:
+        """
+        Return a list of available functions which can be used for tool calling out of the global scope.
+
+        Parameters
+        ----------
+        as_json : bool, default=True
+            If True, return a list of dictionaries, each dictionary representing a function/tool which can be transformed to JSON.
+            Handles the OpenAI format for tool calling. See: https://platform.openai.com/docs/guides/function-calling
+
+        Returns
+        -------
+        List[Union[Callable, str]]
+            A list of available functions which can be used for tool calling out of the global scope.
+        """
         current_func_name = inspect.currentframe().f_code.co_name
-        tools = self.globals_dict.get_tools(exclude_keys=[current_func_name]).copy()
+        tools = self.globals_dict.get_tools(exclude_keys=[current_func_name], as_json=as_json).copy()
         return tools
 
     def owl_read(
@@ -501,6 +512,7 @@ IS_URL_PATTERN = re.compile(
     r"(?:/?|[/?]\S+)$",
     re.IGNORECASE,
 )
+
 
 def is_url(url: str) -> bool:
     """
