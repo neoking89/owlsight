@@ -3,7 +3,7 @@ Created by Nestor Demeure.
 This software is released under the Apache License 2.0.
 """
 
-from typing import List, Literal, Dict, Union, Any, Optional, get_args
+from typing import List, Literal, Dict, Union, Any, Optional, Callable, get_args
 from dataclasses import dataclass, field
 from pathlib import Path
 import builtins
@@ -127,36 +127,47 @@ class StopWordCriteria(StoppingCriteria):
         yield self
 
 
-class SingletonDict(dict):
+class GlobalVarsDict(dict):
     """
     A dictionary that only allows a single instance to be created.
-    Meant to be used as a singleton for storing global variables and to share state across different classes.
+    Meant to be used as a singleton for storing python variables and to share state across different places in the code.
     """
 
     _instance = None
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
-            cls._instance = super(SingletonDict, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(GlobalVarsDict, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
     def get_public_keys(self):
         return [k for k in self.keys() if not k.startswith("_")]
 
-    def get_tools(self, exclude_keys: Optional[List[str]] = None) -> List[dict]:
+    def get_tools(self, exclude_keys: Optional[List[str]] = None, as_json: bool = True) -> List[Union[Callable, Dict]]:
         """
         Get a list of available functions which can be used for tool calling out of the global scope.
         NOTE: ONLY objects that are functions are included.
 
+        Parameters
+        ----------
+        exclude_keys : Optional[List[str]], optional
+            A list of keys to exclude from the list of available functions, by default None
+        as_json : bool, optional
+            If True, return a list of dictionaries, each dictionary representing a function/tool which can be transformed to JSON.
+            Handles the OpenAI format for tool calling. See: https://platform.openai.com/docs/guides/function-calling
+
         Returns
         -------
-        str
-            String representation of available functions/tools in OPENAI-format.
+        List[Union[Callable, str]]
+            A list of available functions which can be used for tool calling out of the global scope.
+
         """
         globals_dict = self._filter_globals(self)
         if exclude_keys is not None:
             globals_dict = {k: v for k, v in globals_dict.items() if k not in exclude_keys}
-        tools = [function_to_json_for_tool_calling(v) for v in globals_dict.values() if inspect.isroutine(v)]
+        tools = [v for v in globals_dict.values() if inspect.isroutine(v)]
+        if as_json:
+            tools = [function_to_json_for_tool_calling(v) for v in tools]
 
         return tools
 
