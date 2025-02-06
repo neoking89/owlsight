@@ -365,16 +365,12 @@ Use the following information to answer the **User Request**:
         user_question = f"**User Request**:\n{user_choice}\n\n{ctx_to_add}".strip()
         # remove previous user and assistant message from chat history to prevent model from keep on using tools
         del manager.processor.chat_history[-2:]
-        # then we need to temporarily remove apply_tools from processor to avoid model from using tools
-        # tmp_tools = manager.processor.apply_tools
-        # manager.processor.apply_tools = None
         manager.update_config("model.apply_tools", False)
         response = manager.generate(user_question)
-        # manager.processor.apply_tools = tmp_tools
         manager.update_config("model.apply_tools", True)
         return response
     else:
-        logger.error(f"Something went wrong when applying tools. Results from code_executor: {results}")
+        logger.warning(f"Tool result not applied to answer the user's request. Results from code_executor: {results}")
         return ""
 
 
