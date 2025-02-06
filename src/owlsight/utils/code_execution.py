@@ -14,7 +14,7 @@ from prompt_toolkit.completion import WordCompleter
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.ui.constants import EDIT_CODE_BLOCK_COLOR
 from owlsight.utils.custom_exceptions import ModuleNotFoundInVenvError
-from owlsight.utils.custom_classes import SingletonDict
+from owlsight.utils.custom_classes import GlobalVarsDict
 from owlsight.utils.subprocess_utils import execute_shell_command
 from owlsight.utils.helper_functions import (
     parse_markdown,
@@ -62,7 +62,7 @@ class CodeExecutor:
 
         self.manager = manager
         self.temp_dir = temp_dir
-        self.globals_dict = SingletonDict()
+        self.globals_dict = GlobalVarsDict()
         self._attempts = 0
         self.python_compile_mode = python_compile_mode
 
