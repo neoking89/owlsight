@@ -91,6 +91,7 @@ class ConfigManager:
             "back": None,
             "model_id": self._get_basic_choice("model", "model_id"),
             "apply_chat_history": self._get_toggle_choice("model", "apply_chat_history"),
+            "apply_tools": self._get_toggle_choice("model", "apply_tools"),
             "system_prompt": self._get_basic_choice("model", "system_prompt"),
             "model_kwargs": str(self._get_basic_choice("model", "model_kwargs")),
             "transformers__device": self._get_toggle_choice("model", "transformers__device"),

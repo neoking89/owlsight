@@ -79,6 +79,12 @@ class Schema:
                 default=True,
                 choices=[False, True],
             ),
+            "apply_tools": MenuItem(
+                type=OptionType.TOGGLE,
+                description="Toggle the inclusion of python functions in the prompt, which can be used for tool/function-calling. This concerns all defined functions in the python namespace.",
+                default=False,
+                choices=[False, True],
+            ),
             "system_prompt": MenuItem(
                 type=OptionType.EDITABLE, description="System prompt defining model behavior", default="", choices=None
             ),
