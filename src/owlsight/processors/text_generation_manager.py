@@ -14,10 +14,14 @@ from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.hugging_face.core import show_and_return_model_data
 from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
-from owlsight.utils.helper_functions import convert_to_real_type, parse_python_placeholders
+from owlsight.utils.helper_functions import (
+    convert_to_real_type,
+    parse_python_placeholders,
+    parse_function_call_to_python_code,
+)
 from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache
-from owlsight.utils.custom_classes import SingletonDict
+from owlsight.utils.custom_classes import GlobalVarsDict
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.logger import logger
 
@@ -52,9 +56,9 @@ class TextGenerationManager:
             If attempting to create a second instance of TextGenerationManager
         """
         # Skip initialization if this instance has already been initialized
-        if hasattr(self, 'config_manager'):
+        if hasattr(self, "config_manager"):
             return
-            
+
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
         self._original_generate_method = None
@@ -104,6 +108,7 @@ class TextGenerationManager:
         else:
             generated_text = self.processor.generate(input_data, **kwargs)
 
+        # if media objects or task is a media task, try to parse the generated text
         if task in HUGGINGFACE_MEDIA_TASKS:
             try:
                 result = ast.literal_eval(generated_text)
@@ -115,12 +120,17 @@ class TextGenerationManager:
                 for mediatype in ["image", "audio", "video"]:
                     logger.warning(f"For example: '[[{mediatype}:path/to/{mediatype}]]'")
                 logger.warning("Or for QA: 'What color is the car? [[image:path/to/image.jpg]]'")
+        else:
+            # else try to parse the generated text if it's a function call. if no function call, return the generated text as is
+            generated_text = parse_function_call_to_python_code(generated_text)
 
         return generated_text
 
+    # TODO: refactor
     def update_config(self, key: str, value: Any):
         """
         Update the configuration dynamically. If 'model_id' is updated, reload the processor.
+        This function should contain all logic to update the configuration.
         """
         value = self._parse_python_placeholders(value)
         if key.endswith(".back"):
@@ -141,7 +151,9 @@ class TextGenerationManager:
                 if self.processor is None:
                     warn_processor_not_loaded()
                     return
-                if hasattr(self.processor, inner_key):
+                if inner_key == "apply_tools":
+                    self.processor.apply_tools = self._update_apply_tools(value)
+                elif hasattr(self.processor, inner_key):
                     setattr(self.processor, inner_key, value)
                     logger.info(f"Processor updated: {inner_key} = {value}")
                 else:
@@ -262,7 +274,6 @@ class TextGenerationManager:
             self._execute_sequence_on_loading()
 
         return config_successfully_loaded
-        
 
     def load_model_processor(self, reload=False) -> Union[None, Exception]:
         """
@@ -282,6 +293,8 @@ class TextGenerationManager:
         model_kwargs = self.config_manager.get("model", {})
         task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
         processor_kwargs = {"task": task, **model_kwargs}
+        apply_tools = self.config_manager.get("model.apply_tools", False)
+        processor_kwargs["apply_tools"] = self._update_apply_tools(apply_tools)
 
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
@@ -357,6 +370,14 @@ class TextGenerationManager:
         Parse python placeholders in the value.
         """
         try:
-            return parse_python_placeholders(value, SingletonDict())
+            return parse_python_placeholders(value, GlobalVarsDict())
         except Exception:
             return value
+
+    def _update_apply_tools(self, value: bool) -> Optional[Dict[str, Any]]:
+        if value:
+            global_vars_dict = GlobalVarsDict()
+            apply_tools = OwlDefaultFunctions(global_vars_dict).owl_tools(as_json=True)
+            return apply_tools
+        else:
+            return None
