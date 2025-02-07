@@ -4,7 +4,6 @@ import json
 from copy import deepcopy
 from unittest.mock import patch, mock_open
 
-import sys; sys.path.append("src")
 from owlsight.configurations.constants import CONFIG_DEFAULTS
 from owlsight.configurations.config_manager import (
     ConfigManager,
@@ -301,7 +300,3 @@ def test_remove_action_optiontypes_real_config():
     # Verify structure is maintained
     assert isinstance(result, dict), "Result should be a dictionary"
     assert all(isinstance(v, dict) for v in result.values()), "All sections should be dictionaries"
-
-
-if __name__ == "__main__":
-    pytest.main(["-vv", "-s", __file__])

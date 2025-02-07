@@ -1,4 +1,3 @@
-import sys
 import logging
 
 from pathlib import Path
@@ -7,7 +6,6 @@ import pytest
 from typing import Tuple
 from transformers import AutoTokenizer
 
-sys.path.append("src")
 from owlsight.processors.text_generation_processors import TextGenerationProcessorOnnx
 
 logging.basicConfig(level=logging.INFO)
@@ -132,6 +130,3 @@ def test_get_max_context_length(setup_processor: Tuple[TextGenerationProcessorOn
     assert isinstance(max_context_length, int), "Max context length should be an integer."
     assert max_context_length > 0, "Max context length should be greater than zero."
 
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

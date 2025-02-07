@@ -2,10 +2,6 @@ import json
 import os
 import tempfile
 import pytest
-import sys
-from unittest.mock import patch
-
-sys.path.append("src")
 
 from owlsight.prompts.system_prompts import SystemPrompts, PromptWriter
 

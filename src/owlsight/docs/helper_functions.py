@@ -2,7 +2,7 @@ import ast
 import importlib
 import inspect
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple
 
 def parse_init_file(init_path: str) -> Tuple[List[str], Dict[str, str]]:
     """
