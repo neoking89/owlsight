@@ -19,13 +19,12 @@ from .processors.text_generation_processors import (
 )
 from .processors.multimodal_processors import MultiModalProcessorTransformers
 from .rag.core import (
-    SentenceTextSplitter,
-    SemanticTextSplitter,
     DocumentSearcher,
     HashingVectorizerSearchEngine,
     TFIDFSearchEngine,
     SentenceTransformerSearchEngine,
 )
+from .rag.text_splitters import SemanticTextSplitter, SentenceTextSplitter
 from .rag.document_reader import DocumentReader
 from .app.default_functions import OwlDefaultFunctions, is_url
 from .hugging_face.core import get_model_data
