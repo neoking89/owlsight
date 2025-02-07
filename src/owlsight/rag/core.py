@@ -1,19 +1,26 @@
 import re
-import os
-from typing import Dict, List, Optional, Literal, Any, Union
-from abc import ABC, abstractmethod
 import traceback
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Literal, Union
+import os
 
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
+
+
 import pandas as pd
 import torch
-from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import HashingVectorizer, TfidfVectorizer
 from tqdm import tqdm
 
+from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.rag.custom_classes import CacheMixin, SearchMethod, SearchResult
 from owlsight.rag.helper_functions import _get_signature
-from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.utils.deep_learning import get_best_device
 from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
@@ -21,22 +28,18 @@ from owlsight.utils.logger import logger
 
 class TextSplitter(ABC):
     """Abstract base class for text splitting strategies."""
-    
+
     @abstractmethod
-    def split_documents(
-        self,
-        documents: Dict[str, str],
-        **kwargs
-    ) -> Dict[str, str]:
+    def split_documents(self, documents: Dict[str, str], **kwargs) -> Dict[str, str]:
         """Split documents according to the strategy's implementation.
-        
+
         Parameters
         ----------
         documents : Dict[str, str]
             Dictionary of documents to split, where keys are document names and values are document texts.
         **kwargs
             Additional arguments specific to the splitting strategy
-            
+
         Returns
         -------
         Dict[str, str]
@@ -47,7 +50,7 @@ class TextSplitter(ABC):
 
 class SentenceTextSplitter(TextSplitter):
     """Split text into chunks based on sentences."""
-    
+
     def __init__(self, n_sentences: int = 3, n_overlap: int = 0):
         """
         Parameters
@@ -61,7 +64,7 @@ class SentenceTextSplitter(TextSplitter):
             raise ValueError("n_overlap must be less than n_sentences")
         self.n_sentences = n_sentences
         self.n_overlap = n_overlap
-    
+
     @staticmethod
     def split_text(text: str) -> List[str]:
         """Split a longer text into sentences, while keeping account edgecases like "Mr. Smith"."""
@@ -73,12 +76,8 @@ class SentenceTextSplitter(TextSplitter):
         cleaned_text = text.replace("\n", " ")
         sentences = SentenceTextSplitter.split_text(cleaned_text)
         return [sentence.strip() for sentence in sentences if sentence.strip()]
-    
-    def split_documents(
-        self,
-        documents: Dict[str, str],
-        **kwargs
-    ) -> Dict[str, str]:
+
+    def split_documents(self, documents: Dict[str, str], **kwargs) -> Dict[str, str]:
         """Split documents into chunks of n sentences with overlap.
 
         Parameters
@@ -132,11 +131,109 @@ class SentenceTextSplitter(TextSplitter):
 
         return split_docs
 
-class SemanticSplitter(TextSplitter):
-    """Split text into chunks based on semantic similarity."""
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
-        
+class SemanticTextSplitter(TextSplitter):
+    """Split text into chunks based on semantic similarity breakpoints."""
+
+    def __init__(
+        self,
+        model_name: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
+        model: Optional[SentenceTransformer] = None,
+        window_size: int = 1,
+        percentile: float = 0.90,
+        device: Optional[str] = None,
+    ):
+        """
+        Parameters
+        ----------
+        model_name : str
+            Name of the SentenceTransformer model if no model provided
+        model : Optional[SentenceTransformer]
+            Pre-initialized SentenceTransformer instance
+        window_size : int
+            Number of neighbor sentences to include in embedding context
+        percentile : float
+            Distance percentile threshold for breakpoints (0-100)
+        """
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            SentenceTransformer = None
+
+        if SentenceTransformer is None:
+            raise ImportError("Please install `sentence-transformers` to use SemanticTextSplitter.")
+
+        self.model = model if model else SentenceTransformer(model_name, trust_remote_code=True, device=device)
+        self.window_size = window_size
+        self.percentile = percentile * 100
+
+    def split_documents(self, documents: Dict[str, str], show_progress_bar: bool = True, **kwargs) -> Dict[str, str]:
+        """Split documents using semantic breakpoint detection."""
+        final_results = {}
+
+        for doc_name, doc_text in documents.items():
+            doc_text = doc_text.strip()
+            if not doc_text:
+                final_results[f"{doc_name}__split0"] = ""
+                continue
+
+            sentences = SentenceTextSplitter.split_and_clean_text(doc_text)
+            if not sentences:
+                final_results[f"{doc_name}__split0"] = doc_text
+                continue
+
+            if len(sentences) == 1:
+                final_results[f"{doc_name}__split0"] = sentences[0]
+                continue
+
+            # Create windowed sentences
+            windowed_sentences = [
+                " ".join(sentences[max(0, i - self.window_size) : i + self.window_size + 1])
+                for i in range(len(sentences))
+            ]
+
+            # Generate embeddings
+            embeddings = self.model.encode(
+                windowed_sentences, convert_to_numpy=True, show_progress_bar=show_progress_bar
+            )
+
+            # Calculate adjacency distances
+            distances = []
+            for i in range(len(embeddings) - 1):
+                sim = cosine_similarity(embeddings[i].reshape(1, -1), embeddings[i + 1].reshape(1, -1))[0][0]
+                distances.append(1 - sim)
+
+            # Determine breakpoints
+            breakpoints = []
+            if distances:
+                threshold = np.percentile(distances, self.percentile)
+                breakpoints = [i for i, d in enumerate(distances) if d > threshold]
+
+            # Create chunks
+            chunks = self._create_chunks(sentences, breakpoints)
+
+            # Store results
+            for idx, chunk in enumerate(chunks):
+                final_results[f"{doc_name}__split{idx}"] = chunk
+
+        return final_results
+
+    def _create_chunks(self, sentences: List[str], breakpoints: List[int]) -> List[str]:
+        """Split sentences into chunks based on breakpoints."""
+        chunks = []
+        start = 0
+
+        for bp in breakpoints:
+            end = bp + 1  # breakpoint index is between sentences
+            chunks.append(" ".join(sentences[start:end]))
+            start = end
+
+        # Add remaining sentences
+        if start < len(sentences):
+            chunks.append(" ".join(sentences[start:]))
+
+        return chunks
+
 
 class DocumentSearcher:
     """Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
@@ -204,7 +301,7 @@ class DocumentSearcher:
         self.text_splitter = text_splitter
 
         self._handle_cache_and_documents()
-        
+
         self.sentence_transformer_model = sentence_transformer_model
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
         engine_init_arguments = {
@@ -734,7 +831,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
                 for idx, score in zip(top_indices, top_values)
             ]
 
-        except Exception as e:
+        except Exception:
             logger.error(f"Error in search: {traceback.format_exc()}")
             return []
 

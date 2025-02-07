@@ -47,6 +47,7 @@ __all__ = [
     "MultiModalProcessorTransformers",
     "PythonLibSearcher",
     "SentenceTextSplitter",
+    'SemanticTextSplitter',
     "DocumentSearcher",
     "DocumentReader",
     "HashingVectorizerSearchEngine",
