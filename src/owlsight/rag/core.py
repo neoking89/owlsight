@@ -1,7 +1,7 @@
 import re
 import traceback
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Literal, Union
+from typing import Any, Dict, List, Optional, Literal, Union, TypeVar
 import os
 
 import numpy as np
@@ -222,12 +222,15 @@ class SentenceTextSplitter(TextSplitter):
         return split_docs
 
 
+SENCENCETRANSFORMER_TYPE = TypeVar("SentenceTransformer")
+
+
 class SemanticTextSplitter(TextSplitter):
     """Split text into chunks based on semantic similarity breakpoints."""
 
     def __init__(
         self,
-        model_name: Optional[Union[str, SentenceTransformer]] = None,
+        model_name: Optional[Union[str, SENCENCETRANSFORMER_TYPE]] = None,
         window_size: int = 1,
         percentile: float = 0.90,
         device: Optional[str] = None,
@@ -309,7 +312,7 @@ class SemanticTextSplitter(TextSplitter):
 
         return final_results
 
-    def set_model(self, model: Union[str, SentenceTransformer]):
+    def set_model(self, model: Union[str, SENCENCETRANSFORMER_TYPE]) -> None:
         """Set the model for the splitter."""
         self._model = (
             model
@@ -513,7 +516,7 @@ class DocumentSearcher:
 
     def _clean_path_for_cache(self, value: Any) -> str:
         """Clean a value for use in cache path by replacing problematic characters."""
-        return str(value).replace('\\', '-').replace('/', '-')
+        return str(value).replace("\\", "-").replace("/", "-")
 
     def _handle_cache_and_documents(self):
         if not self.documents and not self.cache_dir:
