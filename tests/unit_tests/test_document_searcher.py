@@ -1,6 +1,6 @@
 import pytest
 
-from owlsight.rag.core import DocumentSearcher, SearchMethod, TextSplitter
+from owlsight.rag.core import DocumentSearcher, SearchMethod, SentenceTextSplitter
 from unittest.mock import patch, MagicMock
 
 
@@ -11,7 +11,8 @@ def test_split_documents_basic():
         "doc2": "Short doc. With few. Sentences only.",
     }
     
-    result = TextSplitter.split_documents(documents, n_sentences=3, n_overlap=1)
+    splitter = SentenceTextSplitter(n_sentences=3, n_overlap=1)
+    result = splitter.split_documents(documents)
     
     # Check doc1 splits (should have 2 chunks with 1 sentence overlap)
     assert "doc1__split0" in result
@@ -31,25 +32,29 @@ def test_split_documents_custom_params():
     }
     
     # Split into chunks of 4 sentences with 2 sentence overlap
-    result = TextSplitter.split_documents(
-        documents,
-        n_sentences=4,
-        n_overlap=2
-    )
+    splitter = SentenceTextSplitter(n_sentences=4, n_overlap=2)
+    result = splitter.split_documents(documents)
     
     print("\nTest split_documents_custom_params:")
     print(f"Input document: {documents['doc1']}")
-    print(f"Result: {result}")
+    print("\nActual result chunks:")
+    for key, value in sorted(result.items()):
+        print(f"{key}: {value}")
+        
+    expected_chunks = {
+        "doc1__split0": "One. Two. Three. Four.",
+        "doc1__split1": "Three. Four. Five. Six.",
+        "doc1__split2": "Five. Six. Seven. Eight."
+    }
+    print("\nExpected chunks:")
+    for key, value in sorted(expected_chunks.items()):
+        print(f"{key}: {value}")
     
-    assert len(result) == 4
-    for i in range(3):
-        key = f"doc1__split{i}"
-        print(f"Checking chunk {i}: {result.get(key, 'NOT FOUND')}")
-        assert key in result
+    print("\nSplitter settings:")
+    print(f"n_sentences: {splitter.n_sentences}")
+    print(f"n_overlap: {splitter.n_overlap}")
     
-    assert result["doc1__split0"] == "One. Two. Three. Four."
-    assert result["doc1__split1"] == "Three. Four. Five. Six."
-    assert result["doc1__split2"] == "Five. Six. Seven. Eight."
+    assert result == expected_chunks
 
 
 def test_split_documents_edge_cases():
@@ -60,7 +65,8 @@ def test_split_documents_edge_cases():
         "no_periods": "This is a sentence without proper punctuation",
     }
     
-    result = TextSplitter.split_documents(documents, n_sentences=2)
+    splitter = SentenceTextSplitter(n_sentences=2)
+    result = splitter.split_documents(documents)
     
     # Empty document should create empty split
     assert "empty__split0" in result
@@ -75,16 +81,14 @@ def test_split_documents_edge_cases():
     assert result["no_periods__split0"] == "This is a sentence without proper punctuation"
 
 
-def test_split_documents_validation():
-    """Test input validation in split_documents."""
-    documents = {"doc": "Some text."}
-    
+def test_sentence_text_splitter_validation():
+    """Test input validation in SentenceTextSplitter constructor."""
     # Test n_overlap >= n_sentences
     with pytest.raises(ValueError):
-        TextSplitter.split_documents(documents, n_sentences=2, n_overlap=2)
+        SentenceTextSplitter(n_sentences=2, n_overlap=2)
     
     with pytest.raises(ValueError):
-        TextSplitter.split_documents(documents, n_sentences=2, n_overlap=3)
+        SentenceTextSplitter(n_sentences=2, n_overlap=3)
 
 
 def test_document_searcher_init_basic():
@@ -120,14 +124,20 @@ def test_document_searcher_init_with_cache():
     }
     cache_dir = "test_cache"
     base_cache_suffix = "test_suffix"
-    expected_cache_suffix = f"{base_cache_suffix}__split_documents_n_sentences=None__split_documents_n_overlap=1"
+    splitter = SentenceTextSplitter(n_sentences=3, n_overlap=1)
+    expected_cache_suffix = f"{base_cache_suffix}__SentenceTextSplitter__n_sentences=3__n_overlap=1"
     
     with patch('owlsight.rag.core.EnsembleSearchEngine', new_callable=MagicMock) as mock_engine:
-        searcher = DocumentSearcher(documents, cache_dir=cache_dir, cache_dir_suffix=base_cache_suffix)
+        searcher = DocumentSearcher(
+            documents, 
+            cache_dir=cache_dir, 
+            cache_dir_suffix=base_cache_suffix,
+            text_splitter=splitter
+        )
         
         # Check if the EnsembleSearchEngine was called with the expected arguments
         mock_engine.assert_called_once_with(
-            documents=documents,
+            documents=searcher.documents,  
             search_methods=[SearchMethod.TFIDF, SearchMethod.SENTENCE_TRANSFORMER],
             cache_dir=cache_dir,
             cache_dir_suffix=expected_cache_suffix,

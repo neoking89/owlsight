@@ -1,6 +1,6 @@
 import re
 import os
-from typing import Dict, List, Optional, Literal, Any, Union, Tuple
+from typing import Dict, List, Optional, Literal, Any, Union
 from abc import ABC, abstractmethod
 import traceback
 
@@ -19,23 +19,65 @@ from owlsight.utils.helper_functions import check_invalid_input_parameters
 from owlsight.utils.logger import logger
 
 
-class TextSplitter:
-    """
-    Split text in smaller chunks to preprocess for RAG.
-    """
+class TextSplitter(ABC):
+    """Abstract base class for text splitting strategies."""
+    
+    @abstractmethod
+    def split_documents(
+        self,
+        documents: Dict[str, str],
+        **kwargs
+    ) -> Dict[str, str]:
+        """Split documents according to the strategy's implementation.
+        
+        Parameters
+        ----------
+        documents : Dict[str, str]
+            Dictionary of documents to split, where keys are document names and values are document texts.
+        **kwargs
+            Additional arguments specific to the splitting strategy
+            
+        Returns
+        -------
+        Dict[str, str]
+            Dictionary with new document names as keys and chunks as values.
+        """
+        pass
+
+
+class SentenceTextSplitter(TextSplitter):
+    """Split text into chunks based on sentences."""
+    
+    def __init__(self, n_sentences: int = 3, n_overlap: int = 0):
+        """
+        Parameters
+        ----------
+        n_sentences : int, default=3
+            Number of sentences per chunk
+        n_overlap : int, default=0
+            Number of sentences to overlap between chunks
+        """
+        if n_overlap >= n_sentences:
+            raise ValueError("n_overlap must be less than n_sentences")
+        self.n_sentences = n_sentences
+        self.n_overlap = n_overlap
+    
+    @staticmethod
+    def split_text(text: str) -> List[str]:
+        """Split a longer text into sentences, while keeping account edgecases like "Mr. Smith"."""
+        return re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", text)
 
     @staticmethod
     def split_and_clean_text(text: str) -> List[str]:
         """Split a longer text into sentences and clean them."""
         cleaned_text = text.replace("\n", " ")
-        sentences = re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", cleaned_text)
+        sentences = SentenceTextSplitter.split_text(cleaned_text)
         return [sentence.strip() for sentence in sentences if sentence.strip()]
-
-    @staticmethod
+    
     def split_documents(
+        self,
         documents: Dict[str, str],
-        n_sentences: int = 3,
-        n_overlap: int = 0,
+        **kwargs
     ) -> Dict[str, str]:
         """Split documents into chunks of n sentences with overlap.
 
@@ -43,10 +85,6 @@ class TextSplitter:
         ----------
         documents : Dict[str, str]
             Dictionary of documents to split, where keys are document names and values are document texts.
-        n_sentences : int, default=3
-            Number of sentences per chunk
-        n_overlap : int, default=1
-            Number of sentences to overlap between chunks
 
         Returns
         -------
@@ -54,9 +92,6 @@ class TextSplitter:
             Dictionary with new document names as keys and sentence chunks as values.
             New document names follow the pattern: [document_name]__split[n]
         """
-        if n_overlap >= n_sentences:
-            raise ValueError("n_overlap must be less than n_sentences")
-
         split_docs = {}
         for doc_name, doc_text in documents.items():
             # Handle empty documents
@@ -65,7 +100,7 @@ class TextSplitter:
                 continue
 
             # Split document into sentences
-            sentences = TextSplitter.split_and_clean_text(doc_text)
+            sentences = self.split_and_clean_text(doc_text)
 
             # Handle documents with no proper sentences
             if not sentences:
@@ -73,7 +108,7 @@ class TextSplitter:
                 continue
 
             # If document is shorter than chunk size, keep it as one chunk
-            if len(sentences) <= n_sentences:
+            if len(sentences) <= self.n_sentences:
                 split_docs[f"{doc_name}__split0"] = " ".join(sentences)
                 continue
 
@@ -81,28 +116,27 @@ class TextSplitter:
             chunk_idx = 0
             start_idx = 0
 
-            while start_idx < len(sentences):
+            while start_idx + self.n_overlap < len(sentences):
                 # Get chunk of n_sentences (or remaining sentences)
-                end_idx = min(start_idx + n_sentences, len(sentences))
+                end_idx = min(start_idx + self.n_sentences, len(sentences))
                 chunk = sentences[start_idx:end_idx]
 
-                # Join sentences into a single string
+                # Create chunk if we have enough sentences for overlap
                 chunk_text = " ".join(chunk)
-
-                # Create new document name with chunk index
                 new_doc_name = f"{doc_name}__split{chunk_idx}"
                 split_docs[new_doc_name] = chunk_text
                 chunk_idx += 1
 
                 # Move start index forward by (n_sentences - n_overlap)
-                start_idx += n_sentences - n_overlap
-
-                # If we can't form another complete chunk, append the remaining sentences
-                if len(sentences) - start_idx < n_sentences:
-                    split_docs[new_doc_name] = " ".join(chunk)
+                start_idx += self.n_sentences - self.n_overlap
 
         return split_docs
 
+class SemanticSplitter(TextSplitter):
+    """Split text into chunks based on semantic similarity."""
+
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
+        
 
 class DocumentSearcher:
     """Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
@@ -128,15 +162,8 @@ class DocumentSearcher:
         Name or path of the Sentence Transformer model
     sentence_transformer_batch_size : int, default=64
         Batch size for computing embeddings
-    split_documents_n_sentences : int, optional
-        Number of sentences to split each document into.
-        If None, no splitting is done per document
-        If not None, splitting is done per document.
-        Also, documents will be split into chunks of size `split_documents_n_sentences` so that
-        the number of sentences is equal to `split_documents_n_sentences`.
-    split_documents_n_overlap : int, default=1
-        Only applies if `split_documents_n_sentences` is not None.
-        Number of sentences to overlap between adjacent chunks.
+    text_splitter : Optional[TextSplitter], default=None
+        Strategy for splitting documents into chunks. If None, no splitting is done.
     cache_dir : str, optional
         Directory to cache embeddings and results
     cache_dir_suffix : str, optional
@@ -148,6 +175,7 @@ class DocumentSearcher:
     - Uses both TF-IDF and neural embeddings for robust search
     - Has caching capabilities in pickled files
     - Supports batch processing for efficient embedding computation
+    - Supports custom text splitting strategies through the TextSplitter interface
 
     Examples
     --------
@@ -155,7 +183,9 @@ class DocumentSearcher:
     ...     "doc1": "Python is a programming language",
     ...     "doc2": "Machine learning is fascinating"
     ... }
-    >>> searcher = DocumentSearcher(docs, cache_dir="document_cache", cache_dir_suffix="programming")
+    >>> # Using default sentence-based splitting
+    >>> splitter = SentenceTextSplitter(n_sentences=3, n_overlap=1)
+    >>> searcher = DocumentSearcher(docs, text_splitter=splitter, cache_dir="document_cache", cache_dir_suffix="programming")
     >>> results = searcher.search("python programming", top_k=3)
     """
 
@@ -164,19 +194,17 @@ class DocumentSearcher:
         documents: Dict[str, str],
         sentence_transformer_model: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
         sentence_transformer_batch_size: int = 64,
-        split_documents_n_sentences: Optional[int] = None,
-        split_documents_n_overlap: int = 1,
+        text_splitter: Optional[TextSplitter] = None,
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
     ) -> None:
         self.documents = documents
         self.cache_dir = cache_dir
         self.cache_dir_suffix = cache_dir_suffix
+        self.text_splitter = text_splitter
 
-        self._handle_cache_and_documents(self.cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap)
-        self.split_documents_n_sentences = split_documents_n_sentences
-        self.split_documents_n_overlap = split_documents_n_overlap
-
+        self._handle_cache_and_documents()
+        
         self.sentence_transformer_model = sentence_transformer_model
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
         engine_init_arguments = {
@@ -274,69 +302,33 @@ class DocumentSearcher:
 
         return results
 
-    def _handle_split_documents(
-        self,
-        documents: Dict[str, str],
-        split_documents_n_sentences: Optional[int],
-        split_documents_n_overlap: int,
-    ) -> Dict[str, str]:
-        """Handle document splitting based on instance configuration.
-
-        Parameters
-        ----------
-        documents : Dict[str, str]
-            Input documents to potentially split
-
-        Returns
-        -------
-        Dict[str, str]
-            Documents after potential splitting
-
-        Raises
-        ------
-        ValueError
-            If split_documents_n_overlap is greater than or equal to split_documents_n_sentences
-        """
-        if split_documents_n_sentences is not None:
-            if split_documents_n_overlap >= split_documents_n_sentences:
-                raise ValueError("split_documents_n_overlap must be less than split_documents_n_sentences")
-            documents = TextSplitter.split_documents(
-                documents,
-                n_sentences=split_documents_n_sentences,
-                n_overlap=split_documents_n_overlap,
-            )
-        return documents
-
-    def _create_unique_cache_dir_suffix(
-        self, cache_dir_suffix: str, split_documents_n_sentences: str, split_documents_n_overlap: str
-    ) -> str:
+    def _create_unique_cache_dir_suffix(self) -> str:
         """Create unique cache names based on instance configuration"""
-        cache_dir_suffix = f"{cache_dir_suffix}__split_documents_n_sentences={split_documents_n_sentences}__split_documents_n_overlap={split_documents_n_overlap}"
-        return cache_dir_suffix
+        if self.text_splitter:
+            # Get the class name and parameters for the text splitter
+            splitter_config = f"{self.text_splitter.__class__.__name__}"
+            for key, value in self.text_splitter.__dict__.items():
+                splitter_config += f"__{key}={value}"
+            self.cache_dir_suffix = f"{self.cache_dir_suffix}__{splitter_config}"
+        return self.cache_dir_suffix
 
-    def _handle_cache_and_documents(self, cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap):
+    def _handle_cache_and_documents(self):
         if not self.documents and not self.cache_dir:
             raise ValueError("documents must not be empty if cache_dir is not provided")
 
-        if self.cache_dir and cache_dir_suffix:
-            self.cache_dir_suffix = self._create_unique_cache_dir_suffix(
-                cache_dir_suffix, split_documents_n_sentences, split_documents_n_overlap
-            )
+        if self.cache_dir and self.cache_dir_suffix:
+            self.cache_dir_suffix = self._create_unique_cache_dir_suffix()
             cache_mixin = CacheMixin(
                 cache_dir=self.cache_dir,
                 cache_dir_suffix=f"cache_dir_suffix={self.cache_dir_suffix}",
             )
             if cache_mixin.get_full_cache_path().exists() and not self.documents:
                 self.documents = cache_mixin.load_data()
-            else:
-                self.documents = self._handle_split_documents(
-                    self.documents, split_documents_n_sentences, split_documents_n_overlap
-                )
+            elif self.text_splitter:
+                self.documents = self.text_splitter.split_documents(self.documents)
                 cache_mixin.save_data(self.documents)
-        else:
-            self.documents = self._handle_split_documents(
-                self.documents, split_documents_n_sentences, split_documents_n_overlap
-            )
+        elif self.text_splitter:
+            self.documents = self.text_splitter.split_documents(self.documents)
 
 
 class SearchEngine(ABC):
@@ -653,7 +645,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         for text in self.doc_list:
             if text and isinstance(text, str):
                 if self._pooling_strategy:
-                    sentences = TextSplitter.split_and_clean_text(text)
+                    sentences = SentenceTextSplitter.split_and_clean_text(text)
                     if sentences:  # Only add if we have valid sentences
                         valid_texts.append(sentences if self._pooling_strategy else text)
                 else:
