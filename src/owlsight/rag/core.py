@@ -66,7 +66,7 @@ class SentenceTextSplitter(TextSplitter):
         self.n_overlap = n_overlap
 
     @staticmethod
-    def split_text(text: str) -> List[str]:
+    def split_text_in_sentences(text: str) -> List[str]:
         """Split a longer text into sentences, while keeping account edgecases."""
         text = " " + text.strip() + "  "
         text = text.replace("\n", " ")
@@ -78,7 +78,6 @@ class SentenceTextSplitter(TextSplitter):
         suffixes = r"(Inc|Ltd|Jr|Sr|Co)"
 
         # Some possible expansions: "Mt" for "Mount", "Sen" for "Senator", etc.
-        # Adjust as needed for your scenario.
 
         # Common acronym pattern like "U.S.A." or "E.U."
         acronyms = r"([A-Z][.][A-Z][.](?:[A-Z][.])?)"
@@ -165,7 +164,7 @@ class SentenceTextSplitter(TextSplitter):
     def split_and_clean_text(text: str) -> List[str]:
         """Split a longer text into sentences and clean them."""
         cleaned_text = text.replace("\n", " ")
-        sentences = SentenceTextSplitter.split_text(cleaned_text)
+        sentences = SentenceTextSplitter.split_text_in_sentences(cleaned_text)
         return [sentence.strip() for sentence in sentences if sentence.strip()]
 
     def split_documents(self, documents: Dict[str, str], **kwargs) -> Dict[str, str]:
