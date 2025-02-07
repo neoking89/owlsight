@@ -507,9 +507,14 @@ class DocumentSearcher:
             for key, value in self.text_splitter.__dict__.items():
                 if key.startswith("_"):
                     continue
-                splitter_config += f"__{key}={value}"
+                safe_value = self._clean_path_for_cache(value)
+                splitter_config += f"__{key}={safe_value}"
             self.cache_dir_suffix = f"{self.cache_dir_suffix}__{splitter_config}"
         return self.cache_dir_suffix
+
+    def _clean_path_for_cache(self, value: Any) -> str:
+        """Clean a value for use in cache path by replacing problematic characters."""
+        return str(value).replace('\\', '-').replace('/', '-')
 
     def _handle_cache_and_documents(self):
         if not self.documents and not self.cache_dir:
