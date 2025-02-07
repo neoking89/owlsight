@@ -67,8 +67,99 @@ class SentenceTextSplitter(TextSplitter):
 
     @staticmethod
     def split_text(text: str) -> List[str]:
-        """Split a longer text into sentences, while keeping account edgecases like "Mr. Smith"."""
-        return re.split(r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s", text)
+        """Split a longer text into sentences, while keeping account edgecases."""
+        text = " " + text.strip() + "  "
+        text = text.replace("\n", " ")
+
+        # A small set of "title" abbreviations commonly found
+        prefixes = r"(Mr|Mrs|Ms|Dr|Prof|Capt|Cpt|Lt|St|Mw|Hr)"
+
+        # A few corporate suffixes or honorifics
+        suffixes = r"(Inc|Ltd|Jr|Sr|Co)"
+
+        # Some possible expansions: "Mt" for "Mount", "Sen" for "Senator", etc.
+        # Adjust as needed for your scenario.
+
+        # Common acronym pattern like "U.S.A." or "E.U."
+        acronyms = r"([A-Z][.][A-Z][.](?:[A-Z][.])?)"
+
+        # Recognize decimal numbers "5.5" => "5<prd>5"
+        digits = r"([0-9])"
+
+        # A small selection of top-level domains (TLDs). Expand as needed:
+        # we handle .co.uk, .com, .org, .edu, .io, .net, .gov, .fr, .de, .es, etc.
+        websites = r"[.](com|org|net|io|gov|edu|co\.uk|de|fr|es|it|nl|ru|ch|pt|pl|cz|me|be)"
+
+        # Matches multiple periods (could be ellipses, etc.)
+        multiple_periods = r"\.{2,}"
+
+        # 1. Protect common abbreviations by rewriting them with <prd>
+        text = re.sub(rf"{prefixes}[.]", r"\1<prd>", text)
+
+        # 2. Protect websites / domains: something.com => something<prd>com
+        text = re.sub(websites, r"<prd>\1", text)
+
+        # 3. Protect decimals: 3.14 => 3<prd>14
+        text = re.sub(rf"{digits}[.]{digits}", r"\1<prd>\2", text)
+
+        # 4. Handle multiple dots: "..." => replace with <prd><prd><prd> + <stop> to mark the end
+        #    so we don't inadvertently break them up. e.g. "..." => "<prd><prd><prd><stop>"
+        text = re.sub(multiple_periods, lambda match: "<prd>" * len(match.group(0)) + "<stop>", text)
+
+        # 5. Special handling for "Ph.D." or similar
+        if "Ph.D." in text:
+            text = text.replace("Ph.D.", "Ph<prd>D<prd>")
+
+        # 6. Convert single-letter abbreviations: " K. " => " K<prd> "
+        #    This ensures we don't treat "K." as end of a sentence if it's an initial
+        text = re.sub(rf"\s([A-Za-z])[.]\s", r" \1<prd> ", text)
+
+        # 7. Convert well-known acronyms (U.S.A. => U.S.A<stop>) if followed by capital letter
+        #    This helps if the acronym is at end of sentence, though it’s still a simplification
+        text = re.sub(rf"{acronyms}\s+([A-Z])", r"\1<stop> \2", text)
+
+        # 8. Convert triple-initial acronyms: "A.B.C." => "A<prd>B<prd>C<prd>"
+        text = re.sub(r"([A-Za-z])[.]([A-Za-z])[.]([A-Za-z])[.]", r"\1<prd>\2<prd>\3<prd>", text)
+        # 9. Convert double-initial acronyms: "A.B." => "A<prd>B<prd>"
+        text = re.sub(r"([A-Za-z])[.]([A-Za-z])[.]", r"\1<prd>\2<prd>", text)
+
+        # 10. Protect suffixes: "Co." => "Co<prd>"
+        #     If it's "Company Co. She said", we do "Company Co<prd> She said"
+        text = re.sub(rf"\s{suffixes}[.]\s", r" \1<prd> ", text)
+        text = re.sub(rf"\s{suffixes}[.]", r" \1<prd>", text)
+
+        # 11. Now, mark the real stops: for . ? !
+        #     But watch out for quotes "”" or double quotes right before them
+        #     We'll unify them by normalizing some quotes if we want.
+        #     This code tries to handle: .", ." , ?" , !", etc.
+        #     By reordering them so that the period comes first, or we can do special cases:
+
+        # reorder some ".”" => "”."
+        if ".”" in text:
+            text = text.replace(".”", "”.")
+        if '."' in text:
+            text = text.replace('."', '".')
+        if '!"' in text:
+            text = text.replace('!"', '"!')
+        if '?"' in text:
+            text = text.replace('?"', '"?')
+
+        # Finally replace the real sentence endings with <stop>
+        # So "." => ".<stop>", "?" => "?<stop>", "!" => "!<stop>"
+        text = text.replace(".", ".<stop>")
+        text = text.replace("?", "?<stop>")
+        text = text.replace("!", "!<stop>")
+
+        # Convert all <prd> placeholders back to "."
+        text = text.replace("<prd>", ".")
+
+        # 12. Split on <stop>
+        sentences = text.split("<stop>")
+
+        # 13. Clean up whitespace, remove empty items
+        sentences = [s.strip() for s in sentences if s.strip()]
+
+        return sentences
 
     @staticmethod
     def split_and_clean_text(text: str) -> List[str]:
@@ -137,8 +228,7 @@ class SemanticTextSplitter(TextSplitter):
 
     def __init__(
         self,
-        model_name: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
-        model: Optional[SentenceTransformer] = None,
+        model_name: Optional[Union[str, SentenceTransformer]] = None,
         window_size: int = 1,
         percentile: float = 0.90,
         device: Optional[str] = None,
@@ -148,12 +238,12 @@ class SemanticTextSplitter(TextSplitter):
         ----------
         model_name : str
             Name of the SentenceTransformer model if no model provided
-        model : Optional[SentenceTransformer]
-            Pre-initialized SentenceTransformer instance
         window_size : int
             Number of neighbor sentences to include in embedding context
         percentile : float
-            Distance percentile threshold for breakpoints (0-100)
+            Distance percentile threshold for breakpoints (0.0 to 1.0)
+        device : Optional[str], default None
+            Device to use for Sentence Transformer model
         """
         try:
             from sentence_transformers import SentenceTransformer
@@ -163,9 +253,11 @@ class SemanticTextSplitter(TextSplitter):
         if SentenceTransformer is None:
             raise ImportError("Please install `sentence-transformers` to use SemanticTextSplitter.")
 
-        self.model = model if model else SentenceTransformer(model_name, trust_remote_code=True, device=device)
+        self.model_name = model_name
+        self._model = SentenceTransformer(model_name, trust_remote_code=True, device=device) if model_name else None
         self.window_size = window_size
         self.percentile = percentile * 100
+        self.device = device
 
     def split_documents(self, documents: Dict[str, str], show_progress_bar: bool = True, **kwargs) -> Dict[str, str]:
         """Split documents using semantic breakpoint detection."""
@@ -193,7 +285,7 @@ class SemanticTextSplitter(TextSplitter):
             ]
 
             # Generate embeddings
-            embeddings = self.model.encode(
+            embeddings = self._model.encode(
                 windowed_sentences, convert_to_numpy=True, show_progress_bar=show_progress_bar
             )
 
@@ -217,6 +309,14 @@ class SemanticTextSplitter(TextSplitter):
                 final_results[f"{doc_name}__split{idx}"] = chunk
 
         return final_results
+
+    def set_model(self, model: Union[str, SentenceTransformer]):
+        """Set the model for the splitter."""
+        self._model = (
+            model
+            if isinstance(model, SentenceTransformer)
+            else SentenceTransformer(model, trust_remote_code=True, device=self.device)
+        )
 
     def _create_chunks(self, sentences: List[str], breakpoints: List[int]) -> List[str]:
         """Split sentences into chunks based on breakpoints."""
@@ -405,6 +505,8 @@ class DocumentSearcher:
             # Get the class name and parameters for the text splitter
             splitter_config = f"{self.text_splitter.__class__.__name__}"
             for key, value in self.text_splitter.__dict__.items():
+                if key.startswith("_"):
+                    continue
                 splitter_config += f"__{key}={value}"
             self.cache_dir_suffix = f"{self.cache_dir_suffix}__{splitter_config}"
         return self.cache_dir_suffix
