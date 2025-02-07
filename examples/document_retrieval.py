@@ -50,11 +50,9 @@ def main():
         cache_dir_suffix="physics"
     )
     
-    # Perform a search
     query = "quantum gravity and black holes"
     results = searcher.search(query, top_k=5)
     
-    # Print results
     print(f"\nSearch Results for '{query}':")
     print("=" * 80)
     for _, row in results.iterrows():
