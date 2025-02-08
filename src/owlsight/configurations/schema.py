@@ -282,7 +282,7 @@ class Schema:
         ),
         "save": MenuItem(type=OptionType.EDITABLE, description="Save current configuration as JSON-file", default=""),
         "load": MenuItem(type=OptionType.EDITABLE, description="Load a configuration from a JSON-file", default=""),
-        "clear history": MenuItem(type=OptionType.ACTION, description="Clear cache and chat history"),
+        "clear history": MenuItem(type=OptionType.ACTION, description="Clear owlsight cache (directory called '.owlsight') and chat history"),
         "quit": MenuItem(type=OptionType.ACTION, description="Exit application"),
     }
 
