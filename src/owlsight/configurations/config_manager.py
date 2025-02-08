@@ -5,6 +5,7 @@ import traceback
 from copy import deepcopy
 
 from owlsight.configurations.constants import CONFIG_DEFAULTS, CONFIG_CHOICES, CONFIG_TYPES
+from owlsight.utils.constants import get_default_config_on_startup_path
 from owlsight.utils.helper_functions import flatten_dict
 from owlsight.utils.validations import validate_key_is_nested_one_layer
 from owlsight.ui.custom_classes import OptionType
@@ -22,6 +23,8 @@ class ConfigManager:
     Also:
     For options to become available in the UI, they need to be defined in one of the create...choices() methods.
     """
+
+    EXCLUDED_KEYS = {"main.default_config_on_startup"}
 
     _instance = None
 
@@ -83,6 +86,7 @@ class ConfigManager:
             "extra_index_url": self._get_basic_choice("main", "extra_index_url"),
             "python_compile_mode": self._get_toggle_choice("main", "python_compile_mode"),
             "dynamic_system_prompt": self._get_toggle_choice("main", "dynamic_system_prompt"),
+            "default_config_on_startup": get_default_config_on_startup_path(return_cache_path=False),
         }
 
     def _create_model_choices(self) -> Dict[str, Any]:
@@ -182,7 +186,7 @@ class ConfigManager:
             return False
 
         # filter out options that are None
-        filtered_config = _remove_action_optiontypes_from_config(self._config, CONFIG_TYPES)
+        filtered_config = _remove_keys_from_config(self._config, CONFIG_TYPES)
 
         try:
             with open(path, "w") as f:
@@ -255,6 +259,9 @@ class ConfigManager:
         flattened_defaults = flatten_dict(self._defaults)
         flattened_config = flatten_dict(config)
 
+        flattened_defaults = self._remove_excluded_keys(flattened_defaults)
+        flattened_config = self._remove_excluded_keys(flattened_config)
+
         # check differences in sections:
         missing_sections = set(self._defaults.keys()) - set(config.keys())
         if missing_sections:
@@ -297,6 +304,8 @@ class ConfigManager:
     def __repr__(self):
         return repr(self._config)
 
+    def _remove_excluded_keys(self, config: dict) -> dict:
+        return {key: value for key, value in config.items() if key not in self.EXCLUDED_KEYS}
 
 class DottedDict(dict):
     """A dictionary with dotted access to attributes, enforcing lowercase keys."""
@@ -350,10 +359,10 @@ def _prepare_toggle_choices(current_val: Any, possible_vals: List[Any]) -> List[
     return possible_vals
 
 
-def _remove_action_optiontypes_from_config(config: dict, config_types: dict) -> dict:
+def _remove_keys_from_config(config: dict, config_types: dict) -> dict:
     """
     Remove keys from the config dictionary if their type in config_types is OptionType.ACTION.
-    Only keeps keys that are defined in config_types and are not ACTION type.
+    Only keeps keys that are NOT in EXCLUDED_KEYS and are not of ACTION Optiontype.
     """
     filtered_config = {}
     for outer_key in config_types.keys():
@@ -361,6 +370,10 @@ def _remove_action_optiontypes_from_config(config: dict, config_types: dict) -> 
         # Only process keys that exist in both config and config_types
         for inner_key, inner_value in config.get(outer_key, {}).items():
             # Only keep the key if it's defined in config_types and is not an ACTION type
-            if inner_key in config_types.get(outer_key, {}) and config_types[outer_key][inner_key] != OptionType.ACTION:
+            if (
+                inner_key in config_types.get(outer_key, {})
+                and config_types[outer_key][inner_key] != OptionType.ACTION
+                and f"{outer_key}.{inner_key}" not in ConfigManager.EXCLUDED_KEYS
+            ):
                 filtered_config[outer_key][inner_key] = inner_value
     return filtered_config
