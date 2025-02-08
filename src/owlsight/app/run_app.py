@@ -25,6 +25,7 @@ from owlsight.utils.constants import (
     get_pickle_cache,
     get_prompt_cache,
     get_py_cache,
+    get_default_config_on_startup_path,
 )
 from owlsight.utils.deep_learning import free_cuda_memory
 from owlsight.rag.python_lib_search import PythonLibSearcher
@@ -41,6 +42,8 @@ class CommandResult(Enum):
     PROCEED = auto()
 
 
+# TODO: Have an AppManager which encapsulates the run_code_generation_loop and on_startup functionality and might be better fit for keeping track of state?
+# Hierarchy would be: AppManager -> CodeExecutor/ TextGenerationManager -> ConfigManager
 def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
     """Runs the main loop for code generation and user interaction."""
     option = None
@@ -226,6 +229,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     get_pickle_cache()
     get_prompt_cache()
     get_py_cache()
+    get_default_config_on_startup_path(return_cache_path=True)
 
 
 def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> str:
@@ -286,14 +290,23 @@ def run(manager: TextGenerationManager) -> None:
     # Create temporary directory in venv to install packages, until end of execution lifecycle
     with tempfile.TemporaryDirectory(dir=temp_dir_location) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
-
         code_executor = CodeExecutor(manager, pyenv_path, pip_path, temp_dir)
-
+        on_app_startup(manager)
         run_code_generation_loop(code_executor, manager)
 
     logger.info(f"Removing temporary directory: {temp_dir}")
     free_cuda_memory()
     force_delete(temp_dir)
+
+
+def on_app_startup(manager: TextGenerationManager):
+    """
+    Functionality to execute when the CLI starts up.
+    """
+    default_config_path = get_default_config_on_startup_path(return_cache_path=False)
+    if default_config_path:
+        manager.load_config(default_config_path)
+        logger.info(f"Loaded settings from default config '{default_config_path}'")
 
 
 def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationManager) -> None:
