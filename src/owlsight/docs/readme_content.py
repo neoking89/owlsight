@@ -93,7 +93,7 @@ Then, a distinction needs to be made in Owlsight between 3 different, but very s
    Examples from the main menu are:
 
    - *python*: Enter the python interpreter.
-   - *clear history*: clear cache -and chat history.
+   - *clear history*: clear cache and chat history.
    - *quit*: exit the Owlsight application.
 
 2. **Configuration**: This is a configuration option which can be edited by pressing ENTER on it. This will open a submenu with more options.
