@@ -54,9 +54,15 @@ class Schema:
             ),
             "dynamic_system_prompt": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Experimental feature: update the system prompt based on user input.",
+                description="Experimental feature: The model will first act as Prompt Engineer to create a new system prompt based on user input.",
                 default=False,
                 choices=[False, True],
+            ),
+            "default_config_on_startup": MenuItem(
+                type=OptionType.EDITABLE,
+                description="Link to a configuration file that will be loaded on startup.",
+                default="",
+                choices=None,
             ),
             "sequence_on_loading": MenuItem(
                 type=OptionType.EDITABLE,
