@@ -177,9 +177,11 @@ class OwlDefaultFunctions:
 
         Parameters:
         ----------
-            query (str): Search query
-            max_results (int): Maximum number of results to return
-            max_retries (int): Maximum number of retry attempts
+        query (str): Search query to use.
+        max_results (int): Maximum number of results to return.
+            The higher the amount of number, the greater the chance of getting relevant results.
+        max_retries (int): Maximum number of retry attempts
+            Retry attempts to make in case of network issues or other errors.
 
         Returns:
             list: List of search results from DuckDuckGo
