@@ -406,6 +406,11 @@ TIP 2: Using above tag in combination with `sequence_on_loading` in the configur
 - Added `[[chain:...]]` tag support for changing config parameters in between conversations. For example: "[[chain:model.system_prompt=act as a helpful assistant||generate.temperature=0.5]]".
 - Above tags can also be used INSIDE a python-expression inside the "How can I assist you?"-option, like so:
 {{{{"".join(f"[[load:config-to-model{{i}}.json]]how much is {{i}} + 1?" for i in range(1, 10))}}}} 
+- Added `SentenceTextSplitter` to the API. This can be used to split text into chunks based on sentences.
+- Added `SemanticTextSplitter` to the API. This can be used to split text into chunks based on semantic similarity breakpoints and might be more accurate for chunking than `SentenceTextSplitter`.
+Note that both TextSplitter classes can be used as input for the `DocumentSearcher` class.
+- Added `main.default_config_on_startup` to the `config:main` section. This option can be used to specify a default configuration file to load when starting Owlsight.
+This will load the configuration file specified in `main.default_config_on_startup` when every time when starting Owlsight.
 
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
