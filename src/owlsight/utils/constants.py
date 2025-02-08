@@ -4,6 +4,7 @@ from typing import Union, Optional
 
 KB_AUTOCOMPLETE = ("escape", "v")
 
+
 def get_cache_dir() -> Path:
     """Returns the base directory for storing cached data."""
     data_dir = Path.home() / ".owlsight"
@@ -24,6 +25,30 @@ def create_file(path: Union[str, Path], base: Optional[Path] = None) -> Path:
     full_path.parent.mkdir(parents=True, exist_ok=True)
     full_path.touch(exist_ok=True)
     return full_path
+
+
+def get_default_config_on_startup_path(return_cache_path: bool = False) -> str:
+    """
+    Returns the path to the JSON configuration file.
+    Use this as value for the main.default_config_on_startup key.
+
+    Parameters
+    ----------
+    return_cache_path : bool, optional
+        Whether to return the path to the cache file instead of the path to the JSON file, by default False.
+
+    Returns
+    -------
+    str
+        The path to the configuration file OR the path to the cache file depending on the return_cache_path parameter.
+    """
+    cache_path = create_file(".default_config")
+    if return_cache_path:
+        return cache_path
+
+    with open(cache_path, "r") as f:
+        default_config_path = f.read().strip()
+    return str(Path(default_config_path))
 
 
 def get_prompt_cache() -> Path:
