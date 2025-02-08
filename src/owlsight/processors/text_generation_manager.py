@@ -2,6 +2,7 @@ from typing import Any, Optional, Dict, Union
 import traceback
 import pkgutil
 import ast
+import os
 
 from owlsight.configurations.constants import CONFIG_DEFAULTS
 from owlsight.processors.base import TextGenerationProcessor
@@ -20,7 +21,7 @@ from owlsight.utils.helper_functions import (
     parse_function_call_to_python_code,
 )
 from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
-from owlsight.utils.constants import get_pickle_cache
+from owlsight.utils.constants import get_pickle_cache, get_default_config_on_startup_path
 from owlsight.utils.custom_classes import GlobalVarsDict
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.logger import logger
@@ -62,24 +63,6 @@ class TextGenerationManager:
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
         self._original_generate_method = None
-
-    def _wrap_with_usage_tracking(self):
-        """Wrap the processor's generate method with the track_measure_usage decorator."""
-        if not self._original_generate_method:
-            # Save the original method
-            self._original_generate_method = self.processor.generate
-
-        if not getattr(self.processor.generate, "_is_tracked", False):
-            # Wrap the method if not already wrapped
-            self.processor.generate = track_measure_usage(self._original_generate_method, polling_time=0.5)(
-                self._original_generate_method
-            )
-            self.processor.generate._is_tracked = True
-
-    def _restore_original_method(self):
-        """Restore the processor's original generate method if it was modified."""
-        if self._original_generate_method:
-            self.processor.generate = self._original_generate_method
 
     def generate(self, input_data: str, media_objects: Optional[Dict[str, dict]] = None) -> str:
         """
@@ -126,15 +109,17 @@ class TextGenerationManager:
 
         return generated_text
 
-    # TODO: refactor
     def update_config(self, key: str, value: Any):
         """
         Update the configuration dynamically. If 'model_id' is updated, reload the processor.
-        This function should contain all logic to update the configuration.
+        This function contains all logic to update the configuration.
         """
-        value = self._parse_python_placeholders(value)
+        # Skip "back" keys and preprocess value
         if key.endswith(".back"):
-            return  # Do not set the "back" key
+            return
+        value = self._parse_python_placeholders(value)
+
+        # Update configuration store
         try:
             value = convert_to_real_type(value)
             self.config_manager.set(key, value)
@@ -143,118 +128,172 @@ class TextGenerationManager:
             logger.error(f"Error updating configuration for key '{key}': {traceback.format_exc()}")
             return
 
+        # Handle specific configuration sections
         outer_key, inner_key = key.split(".", 1)
-        if outer_key == "model":
-            if inner_key == "model_id":
-                self.load_model_processor(reload=self.processor is not None)
-            else:
-                if self.processor is None:
-                    warn_processor_not_loaded()
-                    return
-                if inner_key == "apply_tools":
-                    self.processor.apply_tools = self._update_apply_tools(value)
-                elif hasattr(self.processor, inner_key):
-                    setattr(self.processor, inner_key, value)
-                    logger.info(f"Processor updated: {inner_key} = {value}")
-                else:
-                    logger.warning(f"'{inner_key}' not found in self.processor, meaning it was not updated.")
-                    logger.warning(
-                        "It is possible that this value is only set during initialization of self.processor."
-                    )
-                    logger.warning("Consider loading the model from a config file to update this value.")
+        if outer_key == "main":
+            self._update_main_config(inner_key, value)
+        elif outer_key == "model":
+            self._update_model_config(inner_key, value)
         elif outer_key == "rag":
-            rag_is_active = self.config_manager.get("rag.active", False)
-            if rag_is_active:
-                library = self.config_manager.get("rag.target_library", "")
-                if not library:
-                    logger.error("No library provided. Please set 'target_library' in the configuration.")
-                    return
-
-                # get all libs without the _ prefix and in sorted order
-                available_libraries = [
-                    module.name for module in pkgutil.iter_modules() if not module.name.startswith("_")
-                ]
-                if library not in available_libraries:
-                    logger.error(f"Library '{library}' not found in the current Python session.")
-                    logger.error(f"available libraries: {sorted(available_libraries)}")
-                    return
-                elif inner_key == "search":
-                    search = self.config_manager.get("rag.search", "")
-                    if not search:
-                        logger.error("No prompt provided. Please provide a prompt in the 'search' field.")
-                        return
-                    top_k = self.config_manager.get("rag.top_k", CONFIG_DEFAULTS[outer_key]["top_k"])
-                    sentence_transformer_weight = self.config_manager.get("rag.sentence_transformer_weight", 0.0)
-                    sentence_transformer_name_or_path = self.config_manager.get(
-                        "rag.sentence_transformer_name_or_path", SENTENCETRANSFORMER_DEFAULT_MODEL
-                    )
-                    if sentence_transformer_weight > 0.0:
-                        if not sentence_transformer_name_or_path:
-                            logger.error(
-                                "No sentence transformer provided. Please provide a valid name or path to a sentence transformer in the 'sentence_transformer_name_or_path' field."
-                            )
-                            return
-                        logger.warning(
-                            "Using sentence transformer for semantic search. Creating embeddings for the library can take some time!"
-                        )
-                    tfidf_weight = 1 - sentence_transformer_weight
-                    logger.info(
-                        f"Using weights for search: TFIDF weight = {tfidf_weight:.2f}, Sentence Transformer weight = {sentence_transformer_weight:.2f}."
-                    )
-                    searcher = PythonLibSearcher()
-                    context = searcher.search(
-                        library,
-                        search,
-                        top_k,
-                        cache_dir=get_pickle_cache(),
-                        tfidf_weight=tfidf_weight,
-                        sentence_transformer_weight=sentence_transformer_weight,
-                        sentence_transformer_model=sentence_transformer_name_or_path,
-                    )
-                    print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
+            self._update_rag_config(inner_key)
         elif outer_key == "huggingface":
-            if inner_key == "search":
-                # search models from huggingface
-                model_search = self.config_manager.get("huggingface.search", CONFIG_DEFAULTS["huggingface"]["search"])
-                top_k = self.config_manager.get("huggingface.top_k", CONFIG_DEFAULTS["huggingface"]["top_k"])
-                task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
-                model_dict = show_and_return_model_data(model_search, top_n_models=top_k, task=task)
-                if not model_dict:
-                    logger.error("No models found. Please try a different search query.")
-                    return
-                # set list of models from model_dict to select_model
-                self.config_manager.set("huggingface.select_model", list(model_dict.keys()))
-            elif inner_key == "select_model":
-                select_model = self.config_manager.get(
-                    "huggingface.select_model", CONFIG_DEFAULTS["huggingface"]["select_model"]
+            self._update_huggingface_config(inner_key)
+
+    def _update_main_config(self, inner_key: str, value: Any):
+        """Handle updates to main configuration."""
+        if inner_key == "default_config_on_startup" and value:
+            if not value.endswith(".json"):
+                raise ValueError("Default config file must be a JSON file.")
+            if not os.path.exists(value):
+                raise FileNotFoundError(f"Default config file '{value}' not found.")
+            with open(get_default_config_on_startup_path(return_cache_path=True), "w") as f:
+                f.write(value)
+
+    def _update_model_config(self, inner_key: str, value: Any):
+        """Handle updates to model-related configuration."""
+        if inner_key == "model_id":
+            self.load_model_processor(reload=self.processor is not None)
+            return
+
+        if self.processor is None:
+            warn_processor_not_loaded()
+            return
+
+        if inner_key == "apply_tools":
+            self.processor.apply_tools = self._update_apply_tools(value)
+        elif hasattr(self.processor, inner_key):
+            setattr(self.processor, inner_key, value)
+            logger.info(f"Processor updated: {inner_key} = {value}")
+        else:
+            logger.warning(f"'{inner_key}' not found in self.processor, meaning it was not updated.")
+            logger.warning("It is possible that this value is only set during initialization of self.processor.")
+            logger.warning("Consider loading the model from a config file to update this value.")
+
+    def _update_rag_config(self, inner_key: str):
+        """Handle updates to RAG-related configuration."""
+        rag_is_active = self.config_manager.get("rag.active", False)
+        if not rag_is_active:
+            return
+
+        library = self.config_manager.get("rag.target_library", "")
+        if not library:
+            logger.error("No library provided. Please set 'target_library' in the configuration.")
+            return
+
+        # Get all libs without the _ prefix and in sorted order
+        available_libraries = [module.name for module in pkgutil.iter_modules() if not module.name.startswith("_")]
+        if library not in available_libraries:
+            logger.error(f"Library '{library}' not found in the current Python session.")
+            logger.error(f"available libraries: {sorted(available_libraries)}")
+            return
+
+        if inner_key == "search":
+            self._perform_rag_search(library)
+
+    def _perform_rag_search(self, library: str):
+        """Perform RAG search with current configuration settings."""
+        search = self.config_manager.get("rag.search", "")
+        if not search:
+            logger.error("No prompt provided. Please provide a prompt in the 'search' field.")
+            return
+
+        top_k = self.config_manager.get("rag.top_k", CONFIG_DEFAULTS["rag"]["top_k"])
+        sentence_transformer_weight = self.config_manager.get("rag.sentence_transformer_weight", 0.0)
+        sentence_transformer_name_or_path = self.config_manager.get(
+            "rag.sentence_transformer_name_or_path", SENTENCETRANSFORMER_DEFAULT_MODEL
+        )
+
+        if sentence_transformer_weight > 0.0:
+            if not sentence_transformer_name_or_path:
+                logger.error(
+                    "No sentence transformer provided. Please provide a valid name or path to a sentence transformer in the 'sentence_transformer_name_or_path' field."
                 )
-                if not select_model:
-                    logger.error("No model provided. Please set a model in the configuration.")
-                    return
-                if not isinstance(select_model, str):
-                    logger.error("Model must be a string. Please set a model in the configuration.")
-                    return
-                # select and load a model from huggingface
-                self.config_manager.set("model.model_id", select_model)
-                task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
-                exc = self.load_model_processor(reload=self.processor is not None)
-                if exc and select_model.lower().endswith("gguf"):
-                    gguf_list = str(exc).split("Available Files:")[1].strip()
-                    if gguf_list:
-                        gguf_list = [file for file in ast.literal_eval(gguf_list) if file.endswith("gguf")]
-                        gguf_menu = {
-                            "back": None,
-                            "Choose a GGUF model": gguf_list,
-                        }
-                        gguf__filename = get_user_choice(gguf_menu, app_dto=AppDTO(return_value_only=True))
-                        if gguf__filename:
-                            self.config_manager.set("model.gguf__filename", gguf__filename)
-                            self.load_model_processor(reload=self.processor is not None)
-                    else:
-                        logger.warning("No gguf-list could be inferred")
-            elif inner_key == "task":
-                task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
-                self.config_manager.set("huggingface.task", task)
+                return
+            logger.warning(
+                "Using sentence transformer for semantic search. Creating embeddings for the library can take some time!"
+            )
+
+        tfidf_weight = 1 - sentence_transformer_weight
+        logger.info(
+            f"Using weights for search: TFIDF weight = {tfidf_weight:.2f}, Sentence Transformer weight = {sentence_transformer_weight:.2f}."
+        )
+
+        searcher = PythonLibSearcher()
+        context = searcher.search(
+            library,
+            search,
+            top_k,
+            cache_dir=get_pickle_cache(),
+            tfidf_weight=tfidf_weight,
+            sentence_transformer_weight=sentence_transformer_weight,
+            sentence_transformer_model=sentence_transformer_name_or_path,
+        )
+        print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
+
+    def _update_huggingface_config(self, inner_key: str):
+        """Handle updates to Hugging Face-related configuration."""
+        if inner_key == "search":
+            self._perform_huggingface_search()
+        elif inner_key == "select_model":
+            self._handle_model_selection()
+        elif inner_key == "task":
+            task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
+            self.config_manager.set("huggingface.task", task)
+
+    def _perform_huggingface_search(self):
+        """Perform Hugging Face model search with current configuration settings."""
+        model_search = self.config_manager.get("huggingface.search", CONFIG_DEFAULTS["huggingface"]["search"])
+        top_k = self.config_manager.get("huggingface.top_k", CONFIG_DEFAULTS["huggingface"]["top_k"])
+        task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
+        model_dict = show_and_return_model_data(model_search, top_n_models=top_k, task=task)
+
+        if not model_dict:
+            logger.error("No models found. Please try a different search query.")
+            return
+
+        self.config_manager.set("huggingface.select_model", list(model_dict.keys()))
+
+    def _handle_model_selection(self):
+        """Handle model selection and loading process."""
+        select_model = self.config_manager.get(
+            "huggingface.select_model", CONFIG_DEFAULTS["huggingface"]["select_model"]
+        )
+
+        if not select_model:
+            logger.error("No model provided. Please set a model in the configuration.")
+            return
+
+        if not isinstance(select_model, str):
+            logger.error("Model must be a string. Please set a model in the configuration.")
+            return
+
+        # Select and load model from huggingface
+        self.config_manager.set("model.model_id", select_model)
+        exc = self.load_model_processor(reload=self.processor is not None)
+
+        if exc and select_model.lower().endswith("gguf"):
+            self._handle_gguf_model_selection(exc)
+
+    def _handle_gguf_model_selection(self, exc: Exception):
+        """Handle GGUF model selection process."""
+        try:
+            gguf_list = str(exc).split("Available Files:")[1].strip()
+            if not gguf_list:
+                logger.warning("No gguf-list could be inferred")
+                return
+
+            gguf_list = [file for file in ast.literal_eval(gguf_list) if file.endswith("gguf")]
+            gguf_menu = {
+                "back": None,
+                "Choose a GGUF model": gguf_list,
+            }
+            gguf_filename = get_user_choice(gguf_menu, app_dto=AppDTO(return_value_only=True))
+
+            if gguf_filename:
+                self.config_manager.set("model.gguf__filename", gguf_filename)
+                self.load_model_processor(reload=self.processor is not None)
+        except Exception:
+            logger.warning("Error processing GGUF model selection")
 
     def save_config(self, path: str):
         """
@@ -354,6 +393,7 @@ class TextGenerationManager:
         """
         return self.config_manager.get(key, default)
 
+
     def _execute_sequence_on_loading(self):
         """
         Execute the keystrokes from sequence_on_loading if it is not an empty list in the configuration.
@@ -381,3 +421,21 @@ class TextGenerationManager:
             return apply_tools
         else:
             return None
+
+    def _wrap_with_usage_tracking(self):
+        """Wrap the processor's generate method with the track_measure_usage decorator."""
+        if not self._original_generate_method:
+            # Save the original method
+            self._original_generate_method = self.processor.generate
+
+        if not getattr(self.processor.generate, "_is_tracked", False):
+            # Wrap the method if not already wrapped
+            self.processor.generate = track_measure_usage(self._original_generate_method, polling_time=0.5)(
+                self._original_generate_method
+            )
+            self.processor.generate._is_tracked = True
+
+    def _restore_original_method(self):
+        """Restore the processor's original generate method if it was modified."""
+        if self._original_generate_method:
+            self.processor.generate = self._original_generate_method
