@@ -316,6 +316,10 @@ class CodeExecutor:
         self.pip_path = pip_path
 
     def _fill_globals_dict(self):
+        """
+        Fill the globals_dict with the available functions
+        These might be available for tool calling or from use in the Python interpreter.
+        """
         from owlsight.app.default_functions import OwlDefaultFunctions
 
         owl_funcs = OwlDefaultFunctions(self.globals_dict)
