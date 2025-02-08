@@ -162,6 +162,8 @@ class GlobalVarsDict(dict):
             A list of available functions which can be used for tool calling out of the global scope.
 
         """
+        if self.empty():
+            raise ValueError(f"{self.__class__.__name__} is empty! Please fill it with functions before trying to get tools.")
         globals_dict = self._filter_globals(self)
         if exclude_keys is not None:
             globals_dict = {k: v for k, v in globals_dict.items() if k not in exclude_keys}
@@ -170,6 +172,9 @@ class GlobalVarsDict(dict):
             tools = [function_to_json_for_tool_calling(v) for v in tools]
 
         return tools
+
+    def empty(self) -> bool:
+        return len(self) == 0
 
     def _filter_globals(self, globals_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
