@@ -14,12 +14,17 @@ import dill
 import time
 import random
 
-from huggingface_hub import scan_cache_dir, CachedRepoInfo, HfApi
-from huggingface_hub.constants import HF_HUB_CACHE
+from huggingface_hub import CachedRepoInfo
 
 from owlsight.utils.custom_classes import GlobalPythonVarsDict
 from owlsight.rag.document_reader import DocumentReader
-from owlsight.app.url_processor import fetch_and_parse_urls
+
+EXCLUDE_TOOLS = [
+    "owl_tools",
+    "owl_show",
+    "owl_save_namespace",
+    "owl_load_namespace",
+]
 
 
 class OwlDefaultFunctions:
@@ -63,25 +68,21 @@ class OwlDefaultFunctions:
         """
         Retrieve available tool-callable functions in OpenAI-compatible format.
 
-        Parameters
-        ----------
-        as_json : bool, default=True
-            When True, returns tools in JSON schema format compatible with OpenAI's
-            function calling API. When False, returns raw function objects.
-
         Returns
         -------
         List[Union[Callable, Dict]]
             List of tools/functions available for execution. Example JSON format:
             {{"name": "tool_name", "description": "...", "parameters": {{...}}}}
+        as_json : bool, default=True
+            When True, returns tools in JSON schema format compatible with OpenAI's
+            function calling API. When False, returns raw function objects.
 
         Notes
         -----
         - Excludes itself from the returned tools to prevent recursion
         - Maintains compatibility with OpenAI's tool calling specifications
         """
-        current_func_name = inspect.currentframe().f_code.co_name
-        tools = self.globals_dict.get_tools(exclude_keys=[current_func_name], as_json=as_json).copy()
+        tools = self.globals_dict.get_tools(exclude_keys=EXCLUDE_TOOLS, as_json=as_json).copy()
         return tools
 
     def owl_read(
@@ -412,6 +413,8 @@ class OwlDefaultFunctions:
         - Respects robots.txt and website rate limits
         - Extracts main article content when possible
         """
+        from owlsight.app.url_processor import fetch_and_parse_urls
+
         return asyncio.run(fetch_and_parse_urls(urls, max_concurrent))
 
     def owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]:
@@ -434,6 +437,9 @@ class OwlDefaultFunctions:
             - Last modified timestamps
             - File locations
         """
+        from huggingface_hub import scan_cache_dir, HfApi
+        from huggingface_hub.constants import HF_HUB_CACHE
+
         output_lines = []
         cache_dir: Path = Path(cache_dir or HF_HUB_CACHE)
         if not cache_dir.exists():
