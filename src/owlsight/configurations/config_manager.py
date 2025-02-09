@@ -95,7 +95,6 @@ class ConfigManager:
             "back": None,
             "model_id": self._get_basic_choice("model", "model_id"),
             "apply_chat_history": self._get_toggle_choice("model", "apply_chat_history"),
-            "apply_tools": self._get_toggle_choice("model", "apply_tools"),
             "system_prompt": self._get_basic_choice("model", "system_prompt"),
             "model_kwargs": str(self._get_basic_choice("model", "model_kwargs")),
             "transformers__device": self._get_toggle_choice("model", "transformers__device"),
@@ -134,6 +133,13 @@ class ConfigManager:
             "search": self._get_basic_choice("rag", "search"),
         }
 
+    def create_agentic_choices(self):
+        return {
+            "back": None,
+            "apply_tools": self._get_toggle_choice("agentic", "apply_tools"),
+            "max_steps": self._get_toggle_choice("agentic", "max_steps"),
+        }
+
     def _create_huggingface_choices(self):
         return {
             "back": None,
@@ -153,6 +159,7 @@ class ConfigManager:
             "model": self._create_model_choices(),
             "generate": self._create_generate_choices(),
             "rag": self._create_rag_choices(),
+            "agentic": self.create_agentic_choices(),
             "huggingface": self._create_huggingface_choices(),
         }
 
@@ -306,6 +313,7 @@ class ConfigManager:
 
     def _remove_excluded_keys(self, config: dict) -> dict:
         return {key: value for key, value in config.items() if key not in self.EXCLUDED_KEYS}
+
 
 class DottedDict(dict):
     """A dictionary with dotted access to attributes, enforcing lowercase keys."""
