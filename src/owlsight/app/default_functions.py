@@ -17,7 +17,7 @@ import random
 from huggingface_hub import scan_cache_dir, CachedRepoInfo, HfApi
 from huggingface_hub.constants import HF_HUB_CACHE
 
-from owlsight.utils.custom_classes import GlobalVarsDict
+from owlsight.utils.custom_classes import GlobalPythonVarsDict
 from owlsight.rag.document_reader import DocumentReader
 from owlsight.app.url_processor import fetch_and_parse_urls
 
@@ -31,7 +31,7 @@ class OwlDefaultFunctions:
     This class is open for extension, as possibly more useful functions can be added in the future.
     """
 
-    def __init__(self, globals_dict: GlobalVarsDict):
+    def __init__(self, globals_dict: GlobalPythonVarsDict):
         # Add check to make sure every function starts with 'owl_'
         self._check_method_naming_convention()
 
