@@ -22,7 +22,7 @@ from owlsight.utils.helper_functions import (
 )
 from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache, get_default_config_on_startup_path
-from owlsight.utils.custom_classes import GlobalVarsDict
+from owlsight.utils.custom_classes import GlobalPythonVarsDict
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.logger import logger
 
@@ -136,6 +136,8 @@ class TextGenerationManager:
             self._update_model_config(inner_key, value)
         elif outer_key == "rag":
             self._update_rag_config(inner_key)
+        elif outer_key == "agentic":
+            self._update_agentic_config(inner_key, value)
         elif outer_key == "huggingface":
             self._update_huggingface_config(inner_key)
 
@@ -159,8 +161,6 @@ class TextGenerationManager:
             warn_processor_not_loaded()
             return
 
-        if inner_key == "apply_tools":
-            self.processor.apply_tools = self._update_apply_tools(value)
         elif hasattr(self.processor, inner_key):
             setattr(self.processor, inner_key, value)
             logger.info(f"Processor updated: {inner_key} = {value}")
@@ -229,6 +229,11 @@ class TextGenerationManager:
             sentence_transformer_model=sentence_transformer_name_or_path,
         )
         print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
+
+
+    def _update_agentic_config(self, inner_key: str, value: Any):
+        if inner_key == "apply_tools":
+            self.processor.apply_tools = self._update_apply_tools(value)
 
     def _update_huggingface_config(self, inner_key: str):
         """Handle updates to Hugging Face-related configuration."""
@@ -410,13 +415,13 @@ class TextGenerationManager:
         Parse python placeholders in the value.
         """
         try:
-            return parse_python_placeholders(value, GlobalVarsDict())
+            return parse_python_placeholders(value, GlobalPythonVarsDict())
         except Exception:
             return value
 
     def _update_apply_tools(self, value: bool) -> Optional[Dict[str, Any]]:
         if value:
-            global_vars_dict = GlobalVarsDict()
+            global_vars_dict = GlobalPythonVarsDict()
             apply_tools = OwlDefaultFunctions(global_vars_dict).owl_tools(as_json=True)
             return apply_tools
         else:

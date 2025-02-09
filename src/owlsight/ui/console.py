@@ -24,7 +24,7 @@ from owlsight.configurations.schema import Schema
 from owlsight.ui.constants import BACKGROUND_STYLE, COLOR_CODES, GLOBAL_STYLE, INSTRUCTIONS
 from owlsight.ui.custom_classes import OptionType, AppDTO
 from owlsight.utils.constants import get_prompt_cache, KB_AUTOCOMPLETE
-from owlsight.utils.custom_classes import GlobalVarsDict, _AVAILBLE_DB_TAGS
+from owlsight.utils.custom_classes import GlobalPythonVarsDict, _AVAILBLE_DB_TAGS
 from owlsight.utils.logger import logger
 
 try:
@@ -140,7 +140,7 @@ class OptionSelectorApp:
         self.build_key_bindings()
 
         self._last_config_choice = ""
-        self._global_dict = GlobalVarsDict()
+        self._global_dict = GlobalPythonVarsDict()
         self._db_tag_completer = ItemCompleter(items=[f"{tag}:" for tag in _AVAILBLE_DB_TAGS], trigger="[[", start_position=0)
 
     def set_current_description(self) -> None:

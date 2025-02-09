@@ -127,17 +127,16 @@ class StopWordCriteria(StoppingCriteria):
         yield self
 
 
-class GlobalVarsDict(dict):
+class GlobalPythonVarsDict(dict):
     """
-    A dictionary that only allows a single instance to be created.
-    Meant to be used as a singleton for storing python variables and to share state across different places in the code.
+    A dictionary that is used as a singleton for storing python variables and to share state across different places in the application code.
     """
 
     _instance = None
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
-            cls._instance = super(GlobalVarsDict, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(GlobalPythonVarsDict, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
     def get_public_keys(self):
