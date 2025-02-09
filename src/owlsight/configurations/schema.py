@@ -236,7 +236,7 @@ class Schema:
             ),
             "apply_tools": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Toggle the inclusion of python functions in the prompt, which can be used for tool/function-calling. This concerns all defined functions in the python namespace.",
+                description="Toggle whether agentic systems tool/function-calling is active. Available tools concerns all defined functions in the Python Interpreter namespace.",
                 default=False,
                 choices=[False, True],
             ),
@@ -245,6 +245,12 @@ class Schema:
                 description="Maximum number of steps for agentic systems.",
                 default=1,
                 choices=[n for n in range(1, 21)],
+            ),
+            "enable_python_agent": MenuItem(
+                type=OptionType.TOGGLE,
+                description="Toggle the inclusion of a Python generation agent. This agent judges the last response and writes Python code that is executed directly if it thinks it is an improvement over the previous response",
+                default=False,
+                choices=[False, True],
             ),
         },
         "huggingface": {
