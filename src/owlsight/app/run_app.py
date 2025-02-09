@@ -568,7 +568,7 @@ def _handle_tool_result(
         logger.warning(f"Tool execution failed or no results. Results: {results}")
         return ""
 
-    if results[0]["code"].startswith("final_result"):
+    if "final_result" in code_executor.globals_dict:
         final_result = code_executor.globals_dict["final_result"]
         logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
 
@@ -603,7 +603,7 @@ Important: Synthesize ALL gathered information into a coherent response.
             manager.update_config("agentic.apply_tools", True)
             return response
     else:
-        logger.warning(f"Unexpected tool result format. Results: {results}")
+        logger.warning(f"Unexpected tool result format. Could not find 'final_result'.\nResults: {results}")
         return ""
 
 
