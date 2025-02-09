@@ -201,7 +201,8 @@ def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, co
                         continue
                     manager.update_config(key, value)
         else:
-            _ = process_user_question(choice, code_executor, manager)
+            max_steps = manager.get_config_key("agentic.max_steps", 3)
+            _ = process_user_question(choice, code_executor, manager, max_steps=max_steps)
 
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
@@ -232,15 +233,23 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     get_default_config_on_startup_path(return_cache_path=True)
 
 
-def process_user_question(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> str:
+def process_user_question(
+    user_choice: str,
+    code_executor: CodeExecutor,
+    manager: TextGenerationManager,
+    max_steps: int = 3,
+    current_step: int = 0,
+) -> str:
     """
     Process the user's choice and generate a response.
 
     Parameters:
     ----------
-        user_choice (str): The user's inputted choice.
+        user_choice (str): The user's inputted choice
         code_executor (CodeExecutor): The code executor.
         manager (TextGenerationManager): The text generation manager.
+        max_steps (int, optional): Maximum number of tool calling steps. Defaults to 3.
+        current_step (int, optional): Current step in the tool calling sequence. Defaults to 0.
 
     Returns:
     -------
@@ -251,9 +260,15 @@ def process_user_question(user_choice: str, code_executor: CodeExecutor, manager
     user_question, media_objects = parse_media_tags(user_choice, code_executor.globals_dict)
     user_question = _handle_rag_for_python(user_question, manager)
 
-    apply_tools = manager.config_manager.get("model.apply_tools", False)
+    apply_tools = manager.config_manager.get("agentic.apply_tools", False)
     if apply_tools:
-        user_question = _handle_apply_tools(user_question)
+        # Track tool execution state
+        tool_state = {
+            "step": current_step,
+            "max_steps": max_steps,
+            "previous_results": code_executor.globals_dict.get("tool_results", []),
+        }
+        user_question = _handle_apply_tools(user_question, tool_state, manager)
 
     response = manager.generate(user_question, media_objects=media_objects)
     results = execute_code_with_feedback(
@@ -264,7 +279,14 @@ def process_user_question(user_choice: str, code_executor: CodeExecutor, manager
         prompt_retry_on_error=manager.config_manager.get("main.prompt_retry_on_error", False),
     )
     if apply_tools:
-        response = _handle_tool_result(results, user_choice, code_executor, manager)
+        response = _handle_tool_result(
+            results=results,
+            user_choice=user_choice,
+            code_executor=code_executor,
+            manager=manager,
+            current_step=current_step,
+            max_steps=max_steps,
+        )
 
     return response
 
@@ -333,23 +355,84 @@ def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
     return key, value
 
 
-def _handle_apply_tools(user_question: str) -> str:
-    tool_prompt = """
-# TOOLS:
-Please use the available tools to answer the user's request. 
-Use the following output format:
-{"name": "tool_name", "arguments": {argument1: value1, argument2: value2, ...}}
-Make sure all values in "arguments" are valid python types.
+def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGenerationManager) -> str:
+    """
+    Enhance the user question with tool calling instructions and context from previous steps.
+
+    Parameters
+    ----------
+    user_question : str
+        The original user question
+    tool_state : Dict
+        Current state of tool execution including step count and previous results
+
+    Returns
+    -------
+    str
+        Enhanced question with tool calling instructions
+    """
+    previous_results = tool_state["previous_results"]
+    current_step = tool_state["step"] + 1
+    max_steps = tool_state["max_steps"]
+
+    # Get the last used tool from chat history if available
+    last_tool = None
+    if hasattr(manager, "processor") and manager.processor and manager.processor.chat_history:
+        for msg in reversed(manager.processor.chat_history):
+            if isinstance(msg, dict) and "name" in msg.get("function_call", {}):
+                last_tool = msg["function_call"]["name"]
+                break
+
+    tool_prompt = f"""
+# Current Progress (Step {current_step}/{max_steps})
+
+## Previous Results:
+{previous_results if previous_results else "No previous results"}
+{f"Last tool used: {last_tool}" if last_tool else ""}
+
+## Critical Instructions:
+1. ANALYZE your last tool call:
+   - Was the information useful?
+   - Did you get what you needed?
+   - Is there a better approach?
+
+2. NEXT STEPS:
+   If the last tool call ({last_tool if last_tool else "none"}) didn't provide what you need:
+   - DO NOT repeat the same tool call
+   - YOU MUST choose a different tool or approach
+   - Consider what complementary information would help
+
+3. REFLECTION:
+   - What specific information are you still missing?
+   - Which alternative tool would provide different insights?
+   - How can you combine information from multiple sources?
+
+## Response Format:
+If you need more information:
+{{"name": "tool_name", "arguments": {{...}}}}
+NOTE: Your tool choice MUST be different if the last result wasn't satisfactory
+
+If you have enough information:
+Provide your complete answer using all gathered data.
+
+Remember: 
+- Each final_result contains the output from your last tool call
+- Repeating the same tool with similar parameters will likely give similar results
+- Different tools provide different types of information
 """
-    user_question = f"{user_question}\n\n{tool_prompt}".strip()
-    return user_question
+    return f"{user_question}\n\n{tool_prompt}".strip()
 
 
 def _handle_tool_result(
-    results: List[Dict], user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager
+    results: List[Dict],
+    user_choice: str,
+    code_executor: CodeExecutor,
+    manager: TextGenerationManager,
+    current_step: int,
+    max_steps: int,
 ) -> str:
     """
-    Handle the result of a tool execution.
+    Handle the result of a tool execution with support for multi-step processing.
 
     Parameters
     ----------
@@ -361,29 +444,56 @@ def _handle_tool_result(
         The code executor instance
     manager : TextGenerationManager
         The text generation manager instance
+    current_step : int
+        Current step in the tool calling sequence
+    max_steps : int
+        Maximum number of tool calling steps
 
     Returns
     -------
-    Optional[str]
+    str
         The response from the model
     """
-    if results and results[0]["success"] and results[0]["code"].startswith("final_result"):
-        logger.info("Tool result applied to answer the user's request.")
+    if not results or not results[0]["success"]:
+        logger.warning(f"Tool execution failed or no results. Results: {results}")
+        return ""
+
+    if results[0]["code"].startswith("final_result"):
         final_result = code_executor.globals_dict["final_result"]
-        logger.info(f"`final_result` from tool call: {final_result}")
-        ctx_to_add = f"""
-Use the following information to answer the **User Request**:
-{final_result}
+        logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
+
+        # Store result for next steps
+        tool_results = code_executor.globals_dict.get("tool_results", [])
+        tool_results.append(final_result)
+        code_executor.globals_dict["tool_results"] = tool_results
+
+        if current_step + 1 < max_steps:
+            # Remove last messages to prevent tool usage loop
+            if manager.processor and manager.processor.chat_history:
+                del manager.processor.chat_history[-2:]
+
+            # Process next step with accumulated results
+            return process_user_question(
+                user_choice, code_executor, manager, max_steps=max_steps, current_step=current_step + 1
+            )
+        else:
+            logger.info("Reached maximum steps or completed task. Generating final response.")
+            # Format final response context
+            ctx_to_add = f"""
+Use ALL the following information to provide a COMPLETE answer:
+Previous Results: {tool_results}
+
+Important: Synthesize ALL gathered information into a coherent response.
 """.strip()
-        user_question = f"**User Request**:\n{user_choice}\n\n{ctx_to_add}".strip()
-        # remove previous user and assistant message from chat history to prevent model from keep on using tools
-        del manager.processor.chat_history[-2:]
-        manager.update_config("model.apply_tools", False)
-        response = manager.generate(user_question)
-        manager.update_config("model.apply_tools", True)
-        return response
+            user_question = f"**User Request**:\n{user_choice}\n\n{ctx_to_add}".strip()
+
+            # Generate final response without tools
+            manager.update_config("agentic.apply_tools", False)
+            response = manager.generate(user_question)
+            manager.update_config("agentic.apply_tools", True)
+            return response
     else:
-        logger.warning(f"Tool result not applied to answer the user's request. Results from code_executor: {results}")
+        logger.warning(f"Unexpected tool result format. Results: {results}")
         return ""
 
 
