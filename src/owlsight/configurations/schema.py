@@ -85,12 +85,6 @@ class Schema:
                 default=True,
                 choices=[False, True],
             ),
-            "apply_tools": MenuItem(
-                type=OptionType.TOGGLE,
-                description="Toggle the inclusion of python functions in the prompt, which can be used for tool/function-calling. This concerns all defined functions in the python namespace.",
-                default=False,
-                choices=[False, True],
-            ),
             "system_prompt": MenuItem(
                 type=OptionType.EDITABLE, description="System prompt defining model behavior", default="", choices=None
             ),
@@ -234,6 +228,23 @@ class Schema:
                 description="RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True",
                 default="",
                 choices=None,
+            ),
+        },
+        "agentic":{
+            "back": MenuItem(
+                type=OptionType.ACTION, description="Apply logic for agentic systems."
+            ),
+            "apply_tools": MenuItem(
+                type=OptionType.TOGGLE,
+                description="Toggle the inclusion of python functions in the prompt, which can be used for tool/function-calling. This concerns all defined functions in the python namespace.",
+                default=False,
+                choices=[False, True],
+            ),
+            "max_steps": MenuItem(
+                type=OptionType.TOGGLE,
+                description="Maximum number of steps for agentic systems.",
+                default=1,
+                choices=[n for n in range(1, 21)],
             ),
         },
         "huggingface": {
