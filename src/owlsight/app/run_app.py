@@ -218,19 +218,24 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     temp_dict = {k: v for k, v in code_executor.globals_dict.items() if k.startswith("owl_")}
     code_executor.globals_dict.clear()
     code_executor.globals_dict.update(temp_dict)
+    cache_dir = get_cache_dir()
+    default_config_on_startup_path = get_default_config_on_startup_path(return_cache_path=True)
+    # reset all cache files except the default config on startup
+    files_in_cache_dir = [i for i in os.listdir(cache_dir) if i != default_config_on_startup_path]
 
-    force_delete(get_cache_dir())
+    for file_path in files_in_cache_dir:
+        # file_path = os.path.join(cache_dir, filename)
+        force_delete(file_path)
 
     if manager.processor is not None:
         manager.processor.chat_history.clear()
 
-    logger.info(f"Cleared cachefolder {get_cache_dir()} and model chathistory.")
+    logger.info(f"Cleared files in cachefolder '{get_cache_dir()}' and model chathistory.")
 
     # rebuild empty cache files after clearing
     get_pickle_cache()
     get_prompt_cache()
     get_py_cache()
-    get_default_config_on_startup_path(return_cache_path=True)
 
 
 def process_user_question(
@@ -268,9 +273,14 @@ def process_user_question(
             "max_steps": max_steps,
             "previous_results": code_executor.globals_dict.get("tool_results", []),
         }
+        # Enhance the user question with tool calling instructions and context from previous steps (if any)
         user_question = _handle_apply_tools(user_question, tool_state, manager)
 
     response = manager.generate(user_question, media_objects=media_objects)
+    if apply_tools:
+        python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
+        if python_agent_is_enabled:
+            response = _handle_python_agent(response, manager)
     results = execute_code_with_feedback(
         response=response,
         original_question=user_question,
@@ -392,7 +402,7 @@ def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGener
 
 ## Critical Instructions:
 1. ANALYZE your last tool call:
-   - Was the information useful?
+   - Was the information useful for answering the user request?
    - Did you get what you needed?
    - Is there a better approach?
 
@@ -400,7 +410,7 @@ def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGener
    If the last tool call ({last_tool if last_tool else "none"}) didn't provide what you need:
    - DO NOT repeat the same tool call
    - YOU MUST choose a different tool or approach
-   - Consider what complementary information would help
+   - Consider what complementary information would help to answer the user request.
 
 3. REFLECTION:
    - What specific information are you still missing?
@@ -421,6 +431,78 @@ Remember:
 - Different tools provide different types of information
 """
     return f"{user_question}\n\n{tool_prompt}".strip()
+
+
+def _handle_python_agent(response: str, manager: TextGenerationManager) -> str:
+    """
+    Handle the response from the Python agent.
+
+    Parameters
+    ----------
+    response : str
+        The response from the Python agent.
+
+    manager : TextGenerationManager
+        The manager object.
+
+    Returns
+    -------
+    str
+        The response from the Python agent.
+    """
+    appropiate_cue = "The last response is appropriate to address the user's request."
+    old_system_prompt = manager.get_config_key("model.system_prompt", "")
+    new_system_prompt = f"""
+You are a expert in Python. Your task is to analyze the last response from another agent and write new python code if it is more appropriate to address the user's request.
+
+Last Response: {response}
+
+# TASK:
+Think deeply and step-by-step
+1. Analyze the last response from another agent. Figure if this answer is appropiate to address the user's request.
+2.
+a: If the last response is appropriate to address the user's request, just say: {appropiate_cue}. End your response.
+b: If the last response is not appropriate to address the user's request, think about what information is needed to address the user's request. Proceed to step 3.
+3. Write the python code to address the user's request. You can use any 3rd party library if needed. 
+4. Always provide the generated Python code in your response in Markdown-format.
+5. Write a function with an appropiate name and an appropiate docstring. Use numpy-style for writing the docstring.
+6. Use this function to address the user's request. Store the result in a variable named "final_result".
+
+
+# Response Format:
+**Explanation:** Explain in your reasoning what information is needed to address the user's request.
+**Judgment:** 
+If the last response is satisfactory, say {appropiate_cue} and end your response.
+If the last response is not satisfactory, use the following format:
+
+```python
+# You can import any third-party libraries as needed.
+import ...
+
+# Write the python code to address the user's request in a function with an appropiate name.
+def new_tool(param1, param2):
+    return ....
+
+# store the result in a variable named "final_result"
+final_result = new_tool(param1, param2)
+```
+""".strip()
+    manager.update_config("model.system_prompt", new_system_prompt)
+    new_response = manager.generate(response)
+
+    # reset the original system prompt and remove the last message from the chat history to prevent tool usage loop
+    manager.update_config("model.system_prompt", old_system_prompt)
+    del manager.processor.chat_history[-1]
+    if new_response.lower() in appropiate_cue.lower():
+        logger.info("Last response is appropiate to address the user's request.")
+        return response
+
+    # if the message is not appropiate, replace the last message with the new response
+    if manager.processor and manager.processor.chat_history:
+        logger.info("Last response is not appropiate to address the user's request.")
+        manager.processor.chat_history[-1] = {"role": "assistant", "content": new_response}
+
+    return new_response
 
 
 def _handle_tool_result(
