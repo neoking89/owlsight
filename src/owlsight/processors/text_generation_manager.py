@@ -332,7 +332,7 @@ class TextGenerationManager:
         model_kwargs = self.config_manager.get("model", {})
         task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
         processor_kwargs = {"task": task, **model_kwargs}
-        apply_tools = self.config_manager.get("model.apply_tools", False)
+        apply_tools = self.config_manager.get("agentic.apply_tools", False)
         processor_kwargs["apply_tools"] = self._update_apply_tools(apply_tools)
 
         model_id = self.config_manager.get("model.model_id", "")
