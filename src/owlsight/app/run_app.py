@@ -3,6 +3,7 @@ import traceback
 from typing import Union, Tuple, List, Dict
 from enum import Enum, auto
 import os
+import inspect
 
 from owlsight.configurations.constants import MAIN_MENU
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
@@ -280,7 +281,7 @@ def process_user_question(
     if apply_tools:
         python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
         if python_agent_is_enabled:
-            response = _handle_python_agent(response, manager)
+            response = _handle_python_agent(user_choice, response, manager, code_executor)
     results = execute_code_with_feedback(
         response=response,
         original_question=user_question,
@@ -433,29 +434,53 @@ Remember:
     return f"{user_question}\n\n{tool_prompt}".strip()
 
 
-def _handle_python_agent(response: str, manager: TextGenerationManager) -> str:
+def _handle_python_agent(user_request: str, response: str, manager: TextGenerationManager, code_executor: CodeExecutor) -> str:
     """
     Handle the response from the Python agent.
 
     Parameters
-    ----------
+    ----------l
+    user_request : str
+        The user's request.
     response : str
         The response from the Python agent.
-
     manager : TextGenerationManager
         The manager object.
+    code_executor : CodeExecutor
+        The code executor object.
 
     Returns
     -------
     str
         The response from the Python agent.
     """
-    appropiate_cue = "The last response is appropriate to address the user's request."
-    old_system_prompt = manager.get_config_key("model.system_prompt", "")
-    new_system_prompt = f"""
-You are a expert in Python. Your task is to analyze the last response from another agent and write new python code if it is more appropriate to address the user's request.
+    used_tool = ""
+    possible_tool_names = code_executor.globals_dict.get_public_keys()
+    tool_name = next((i for i in possible_tool_names if i in response), None)
+    if tool_name:
+        bound_tool = code_executor.globals_dict.get(tool_name, None)
+        if bound_tool:
+            tool_code = inspect.getsource(bound_tool).strip()
+            used_tool = f"Used tool: {tool_name}\n{tool_code}".strip()
 
-Last Response: {response}
+    # adjust processor so that it doesnt have any memory of the previous conversation
+    old_chat_history = manager.processor.chat_history.copy()
+    manager.processor.chat_history.clear()
+
+    # adjust the system prompt so that it acts like a new agent
+    old_system_prompt = manager.get_config_key("model.system_prompt", "")
+    new_system_prompt = "You are a expert in Python. Analyze the last response from another agent and write new python code if it is more appropriate to address the user's request."
+    manager.update_config("model.system_prompt", new_system_prompt)
+    
+    appropiate_cue = "The last response is appropriate to address the user's request."
+
+    # define user question
+    user_question = f"""
+User request:\n{user_request}
+
+Last Response:\n{response}
+
+{used_tool}
 
 # TASK:
 Think deeply and step-by-step
@@ -487,13 +512,16 @@ def new_tool(param1, param2):
 final_result = new_tool(param1, param2)
 ```
 """.strip()
-    manager.update_config("model.system_prompt", new_system_prompt)
-    new_response = manager.generate(response)
+    manager.update_config("agentic.apply_tools", False)
+    new_response = manager.generate(user_question)
+    manager.update_config("agentic.apply_tools", True)
 
     # reset the original system prompt and remove the last message from the chat history to prevent tool usage loop
     manager.update_config("model.system_prompt", old_system_prompt)
-    del manager.processor.chat_history[-1]
-    if new_response.lower() in appropiate_cue.lower():
+    manager.processor.chat_history = old_chat_history
+
+    # if the message is appropiate, return the response
+    if appropiate_cue.lower() in new_response.lower():
         logger.info("Last response is appropiate to address the user's request.")
         return response
 
