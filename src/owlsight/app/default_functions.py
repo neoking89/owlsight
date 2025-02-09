@@ -61,18 +61,24 @@ class OwlDefaultFunctions:
 
     def owl_tools(self, as_json: bool = True) -> List[Union[Callable, Dict]]:
         """
-        Return a list of available functions which can be used for tool calling out of the global scope.
+        Retrieve available tool-callable functions in OpenAI-compatible format.
 
         Parameters
         ----------
         as_json : bool, default=True
-            If True, return a list of dictionaries, each dictionary representing a function/tool which can be transformed to JSON.
-            Handles the OpenAI format for tool calling. See: https://platform.openai.com/docs/guides/function-calling
+            When True, returns tools in JSON schema format compatible with OpenAI's
+            function calling API. When False, returns raw function objects.
 
         Returns
         -------
-        List[Union[Callable, str]]
-            A list of available functions which can be used for tool calling out of the global scope.
+        List[Union[Callable, Dict]]
+            List of tools/functions available for execution. Example JSON format:
+            {{"name": "tool_name", "description": "...", "parameters": {{...}}}}
+
+        Notes
+        -----
+        - Excludes itself from the returned tools to prevent recursion
+        - Maintains compatibility with OpenAI's tool calling specifications
         """
         current_func_name = inspect.currentframe().f_code.co_name
         tools = self.globals_dict.get_tools(exclude_keys=[current_func_name], as_json=as_json).copy()
@@ -87,31 +93,30 @@ class OwlDefaultFunctions:
         timeout: int = 5,
     ) -> Union[str, Dict[str, str]]:
         """
-        Read content from files using DocumentReader with fallback to basic file reading.
+        Read LOCAL FILE CONTENTS with advanced document processing.
 
         Parameters
         ----------
-        path : str, Path, or Iterable of str/Path
-            Can be:
-            - A single file path
-            - A directory path
-            - An iterable of file paths
-        recursive : bool, default=False
-            Whether to recursively read content from subdirectories, given path is a directory
-        ignore_patterns : Optional[List[str]], default=None
-            List of gitignore-style patterns to exclude
-            eg. ["*.txt", "*.log"]
-        ocr_enabled : bool, default=True
-            Whether to enable OCR for image files in tika.
-        timeout : int, default=5
-            Timeout in seconds for Tika processing
+        path : Union[str, Path, Iterable[Union[str, Path]]]
+            LOCAL FILE SYSTEM PATHS ONLY. Can be:
+            - Single local file
+            - Directory (requires recursive=True)
+            - List of local files
+            DOES NOT SUPPORT WEB URLS
 
-        Returns
-        -------
-        Union[str, Dict[str, str]]
-            - For single file: returns the content as string
-            - For directory or multiple files: returns dict mapping filepath to content
+        Notes
+        -----
+        - For web content/URLs use owl_scrape() instead
+        - URL inputs will return explicit error messages
         """
+        if isinstance(path, (str, Path)) and is_url(path):
+            return f"Error: owl_read requires local files. Use owl_scrape() for URLs like '{path}'"
+
+        if isinstance(path, Iterable):
+            for p in path:
+                if is_url(p):
+                    return "Error: Detected web URL in paths. Use owl_scrape() instead."
+
         try:
             reader = self._get_document_reader(
                 timeout=timeout, ignore_patterns=ignore_patterns, ocr_enabled=ocr_enabled
@@ -173,18 +178,34 @@ class OwlDefaultFunctions:
 
     def owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> list:
         """
-        Search using DuckDuckGo and return results with URLs and text snippets.
+        Execute web search using DuckDuckGo's API.
 
-        Parameters:
+        Parameters
         ----------
-        query (str): Search query to use.
-        max_results (int): Maximum number of results to return.
-            The higher the amount of number, the greater the chance of getting relevant results.
-        max_retries (int): Maximum number of retry attempts
-            Retry attempts to make in case of network issues or other errors.
+        query : str
+            Search phrase to look up
+        max_results : int, default=10
+            Maximum number of results to return (1-20)
+        max_retries : int, default=3
+            Number of retry attempts for failed requests
 
-        Returns:
-            list: List of search results from DuckDuckGo
+        Returns
+        -------
+        list
+            List of search result dictionaries containing:
+            - title: Result title
+            - href: URL
+            - body: Content snippet
+
+        Raises
+        ------
+        RuntimeError
+            After exhausting all retry attempts without success
+
+        Notes
+        -----
+        - Implements exponential backoff with jitter between retries
+        - Results are limited to text-based web content
         """
         errors = []
         for attempt in range(max_retries):
@@ -224,12 +245,18 @@ class OwlDefaultFunctions:
 
     def owl_import(self, file_path: str):
         """
-        Import a Python file and load its contents into the current namespace.
+        Import Python module into the current execution environment.
 
         Parameters
         ----------
         file_path : str
-            The path to the Python file to import.
+            Absolute path to Python (.py) file
+
+        Notes
+        -----
+        - Makes all module symbols available in global namespace
+        - Overwrites existing names with same identifiers
+        - Handles relative imports within the module
         """
         try:
             module_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -243,16 +270,24 @@ class OwlDefaultFunctions:
 
     def owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]:
         """
-        Show all currently active imported objects in the namespace except builtins.
+        Display active namespace objects with documentation.
 
-        Parameters:
-        -----------
-        docs (bool): If True, also display the docstring of each object.
-        return_str (bool): If True, return a string representation of the active objects and their information.
+        Parameters
+        ----------
+        docs : bool, default=True
+            Include docstrings in output
+        return_str : bool, default=False
+            Return formatted string instead of printing
 
-        Returns:
-        --------
-        str: A string representation of the active objects and their information.
+        Returns
+        -------
+        List[str]
+            Formatted inventory of objects when return_str=True
+
+        Notes
+        -----
+        - Filters out builtins and internal objects (starting with '_')
+        - Object types shown in parentheses after names
         """
         current_globals = self.globals_dict
         active_objects = self.globals_dict._filter_globals(current_globals)
@@ -280,14 +315,20 @@ class OwlDefaultFunctions:
 
     def owl_write(self, file_path: str, content: str) -> None:
         """
-        Write content to a (text) file.
+        Write text content to filesystem.
 
         Parameters
         ----------
         file_path : str
-            The path to the file to write.
+            Absolute path for output file
         content : str
-            The content to write to the file.
+            Text content to write
+
+        Notes
+        -----
+        - Overwrites existing files without warning
+        - Uses UTF-8 encoding
+        - Limited to text-based formats
         """
         try:
             with open(file_path, "w") as file:
@@ -298,15 +339,18 @@ class OwlDefaultFunctions:
 
     def owl_save_namespace(self, file_path: str):
         """
-        Save the current python namespace using dill.
-        NOTE: This will only save the variables that do not start with '_' or 'owl_'.
-        Also, some complex objects (like from external libraries) may not be serializable.
+        Serialize current namespace state to disk.
 
         Parameters
         ----------
         file_path : str
-            The path to the file to save the namespace to.
-            the .dill extension will be automaticly added if not present.
+            Output path with .dill extension
+
+        Notes
+        -----
+        - Excludes internal variables (starting with '_' or 'owl_')
+        - Serialization uses dill package
+        - Not all object types can be serialized
         """
         if not file_path.endswith(".dill"):
             file_path += ".dill"
@@ -348,34 +392,47 @@ class OwlDefaultFunctions:
         max_concurrent: int = 5,
     ) -> str:
         """
-        Async process URLs to fetch and extract content.
+        Scrape web content from URLs (use instead of owl_read for web resources).
 
-        Args:
-            urls: Single URL or list of URLs to process
-            max_concurrent: Maximum simultaneous requests
+        Parameters
+        ----------
+        urls : List[str]
+            VALID HTTP/HTTPS URLS TO PROCESS
+            Does not support local file paths
+        max_concurrent : int, default=5
+            Simultaneous requests allowed
 
-        Returns:
-            List of extracted content
+        Returns
+        -------
+        str
+            Concatenated text content from all URLs
+
+        Notes
+        -----
+        - Respects robots.txt and website rate limits
+        - Extracts main article content when possible
         """
         return asyncio.run(fetch_and_parse_urls(urls, max_concurrent))
 
     def owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]:
         """
-        Returns a string with information about all Hugging Face models currently loaded in the cache directory.
-        Print the output from this function to the console to get a nice overview.
+        Audit Hugging Face model cache.
 
-        Parameters:
-        -----------
-        cache_dir (str, optional):
-            The directory path to scan for models. If None, the default cache directory is used.
-        show_task (bool, optional):
-            If True, also display the tasks associated with each model.
-            If used, showing models will take a while longer.
+        Parameters
+        ----------
+        cache_dir : Optional[str], default=None
+            Custom cache path override
+        show_task : bool, default=False
+            Include model task/purpose information
 
-        Returns:
-        --------
-        str:
-            A string containing information about all cached models
+        Returns
+        -------
+        List[str]
+            Formatted report containing:
+            - Model IDs
+            - Storage sizes
+            - Last modified timestamps
+            - File locations
         """
         output_lines = []
         cache_dir: Path = Path(cache_dir or HF_HUB_CACHE)
@@ -421,30 +478,31 @@ class OwlDefaultFunctions:
         time_between_keys: float = 0.12,
     ) -> bool:
         """
-        Simulate typing a sequence of keys and automaticly control the menu inside the Owlsight application.
-
-        The parameters passed to this function, are passed to another Python process that simulates the keystrokes.
-        This is done to avoid blocking the interpreter while the sequence is being typed.
+        Simulate keyboard input for application control.
 
         Parameters
         ----------
         sequence : List[str]
-            The sequence of keys to type. Case-sensitive when typing available keys.
-            Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds),
-            'CTRL+A' (Select all), 'CTRL+C' (Copy), 'CTRL+Y' (Paste), 'DEL' (Delete)
-            Any other character will be typed as is.
-        exit_python_before_sequence : bool, optional
-            If True, type 'exit()' and press ENTER before typing the sequence, default is True.
-            Assuming owl_press is called from the interpreter, this will return to the mainmenu before typing the sequence.
-        time_before_sequence : float, optional
-            The time to wait before executing the keysequence, default is 0.5 seconds.
-        time_between_keys : float, optional
-            The time to wait between typing each key, default is 0.12 seconds.
+            Supported key codes:
+            - Arrow keys: 'L', 'R', 'U', 'D'
+            - Modifiers: 'CTRL+A', 'CTRL+C', 'CTRL+V'
+            - Special: 'ENTER', 'DEL', 'SLEEP:X.X'
+        exit_python_before_sequence : bool, default=True
+            Return to main menu before execution
+        time_before_sequence : float, default=0.5
+            Initial delay in seconds
+        time_between_keys : float, default=0.12
+            Typing interval in seconds
 
         Returns
         -------
         bool
-            True if the subprocess was started successfully, False otherwise.
+            True if sequence started successfully
+
+        Notes
+        -----
+        - Runs in separate process to avoid blocking
+        - Timings approximate due to system scheduling
         """
         if not isinstance(sequence, list):
             raise TypeError("sequence must be a list")
