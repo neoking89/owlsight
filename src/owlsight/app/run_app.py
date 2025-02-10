@@ -447,6 +447,33 @@ Remember:
     return f"{user_question}\n\n{tool_prompt}".strip()
 
 
+class AgentHandler:
+    def __init__(
+        self, question: str, new_system_prompt: str, manager: TextGenerationManager, code_executor: CodeExecutor
+    ):
+        self.manager = manager
+        self.question = question
+        self.code_executor = code_executor
+        self.original_state = {
+            "system_prompt": manager.get_config_key("model.system_prompt", ""),
+            "chat_history": manager.processor.chat_history.copy(),
+        }
+
+        # temporary clean old state
+        self.manager.processor.chat_history = []
+        self.manager.update_config("model.system_prompt", new_system_prompt)
+        self.manager.update_config("agentic.apply_tools", False)
+
+    def __enter__(self):
+        # You can add any setup code here if needed
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.manager.update_config("model.system_prompt", self.original_state["system_prompt"])
+        self.manager.processor.chat_history = self.original_state["chat_history"]
+        self.manager.update_config("agentic.apply_tools", True)
+
+
 def _handle_python_agent(
     user_request: str, response: str, manager: TextGenerationManager, code_executor: CodeExecutor
 ) -> str:
