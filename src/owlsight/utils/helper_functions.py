@@ -437,40 +437,61 @@ def extract_square_bracket_tags(
     return result
 
 
-def parse_function_call_to_python_code(input_str: str) -> str:
+def parse_function_call(input_str: str) -> tuple[str | None, dict | None]:
     """
     Parses a string for a JSON-like function call pattern of the form:
-
     {"name": "function_name", "arguments": { ... }}
 
-    If such a pattern is found, it transforms the information into a Python
-    markdown code block that executes the function, like so:
-
-        ```python
-        final_result = function_name(arg1=value1, arg2=value2, ...)
-        ```
-
-    The JSON "arguments" object is converted into valid Python keyword arguments
-    (using repr() to ensure proper quoting for strings, etc).
-
-    If the pattern isn't found or the JSON is invalid, the original input string
-    is returned.
+    Returns:
+        tuple: (function_name, arguments_dict) if parsing succeeds,
+               (None, None) if parsing fails
     """
-    pattern = r'\{\s*"name"\s*:\s*"([^"]+)"\s*,\s*"arguments"\s*:\s*(\{.*?\})\s*\}'
+    pattern = r'\{"name":\s*"([^"]+)"[^}]*?:\s*(\{[^}]+\})'
     match = re.search(pattern, input_str)
-    if match:
-        func_name = match.group(1)
-        args_str = match.group(2)
-        try:
-            arguments = json.loads(args_str)
-        except json.JSONDecodeError:
-            return input_str
+    if not match:
+        return None, None
+        
+    func_name = match.group(1)
+    args_str = match.group(2)
+    try:
+        arguments = json.loads(args_str)
+        return func_name, arguments
+    except json.JSONDecodeError:
+        return None, None
 
-        # Build the keyword arguments string.
-        kwargs = ", ".join(f"{key}={repr(value)}" for key, value in arguments.items())
-        code_line = f"final_result = {func_name}({kwargs})"
-        return f"```python\n{code_line}\n```"
-    return input_str
+
+def function_call_to_python_code(func_name: str, arguments: dict) -> str:
+    """
+    Transforms a function name and arguments dict into a Python code string.
+
+    Args:
+        func_name: Name of the function to call
+        arguments: Dictionary of argument names and values
+
+    Returns:
+        str: Python code string in markdown format
+    """
+    # try/parse all parameter values to 'unstring' them
+    d = {}
+    for key, value in arguments.items():
+        try:
+            d[key] = eval(value)
+        except:
+            d[key] = f"'{value}'"
+    kwargs = ", ".join(f"{key}={value}" for key, value in d.items())
+    code_line = f"final_result = {func_name}({kwargs})"
+    return f"```python\n{code_line}\n```"
+
+
+def parse_function_call_to_python_code(input_str: str) -> str:
+    """
+    Parses a string for a JSON-like function call pattern and transforms it into
+    a Python markdown code block. If parsing fails, returns the original string.
+    """
+    func_name, arguments = parse_function_call(input_str)
+    if func_name is None or arguments is None:
+        return input_str
+    return function_call_to_python_code(func_name, arguments)
 
 
 def format_chat_history_as_string(history: List[dict]) -> str:
