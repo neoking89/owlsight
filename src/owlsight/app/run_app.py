@@ -39,7 +39,12 @@ from owlsight.utils.logger import logger
 
 class AlternativeAgent:
     def __init__(
-        self, question: str, new_system_prompt: str, manager: TextGenerationManager, code_executor: CodeExecutor
+        self,
+        question: str,
+        new_system_prompt: str,
+        manager: TextGenerationManager,
+        code_executor: CodeExecutor,
+        disable_tools: bool = True,
     ):
         self.manager = manager
         self.question = question
@@ -48,11 +53,13 @@ class AlternativeAgent:
             "system_prompt": manager.get_config_key("model.system_prompt", ""),
             "chat_history": manager.processor.chat_history.copy(),
         }
+        self.disable_tools = disable_tools
 
         # temporary clean old state
         self.manager.processor.chat_history = []
         self.manager.update_config("model.system_prompt", new_system_prompt)
-        self.manager.update_config("agentic.apply_tools", False)
+        if self.disable_tools:
+            self.manager.update_config("agentic.apply_tools", False)
 
     def __enter__(self):
         # You can add any setup code here if needed
@@ -61,7 +68,8 @@ class AlternativeAgent:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.manager.update_config("model.system_prompt", self.original_state["system_prompt"])
         self.manager.processor.chat_history = self.original_state["chat_history"] + self.manager.processor.chat_history
-        self.manager.update_config("agentic.apply_tools", True)
+        if self.disable_tools:
+            self.manager.update_config("agentic.apply_tools", True)
 
 
 class CommandResult(Enum):
@@ -251,7 +259,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     cache_dir = get_cache_dir()
     default_config_on_startup_path = get_default_config_on_startup_path(return_cache_path=True)
     # reset all cache files except the default config on startup
-    files_in_cache_dir = [i for i in os.listdir(cache_dir) if i != default_config_on_startup_path]
+    files_in_cache_dir = [path for path in os.listdir(cache_dir) if path != default_config_on_startup_path]
 
     for file_path in files_in_cache_dir:
         # file_path = os.path.join(cache_dir, filename)
@@ -297,16 +305,20 @@ def process_user_question(
 
     apply_tools = manager.config_manager.get("agentic.apply_tools", False)
     if apply_tools:
-        # Track tool execution state
         tool_state = {
             "step": current_step,
             "max_steps": max_steps,
             "previous_results": code_executor.globals_dict.get("tool_results", []),
         }
-        # Enhance the user question with tool calling instructions and context from previous steps (if any)
-        user_question = _handle_apply_tools(user_question, tool_state, manager)
+        user_question = _create_tool_agent_prompt(user_question, tool_state, manager)
+        tool_agent_system_prompt = "You are an expert planner, specialized in thinking through the next steps and choosing the appropiate tools to facilitate them. Always use one of the available tools to answer the user's question."
+        with AlternativeAgent(
+            user_question, tool_agent_system_prompt, manager, code_executor, disable_tools=False
+        ) as tool_agent:
+            response = tool_agent.manager.generate(user_question)
+    else:
+        response = manager.generate(user_question, media_objects=media_objects)
 
-    response = manager.generate(user_question, media_objects=media_objects)
     if apply_tools:
         last_used_tool = _get_last_used_tool(code_executor, response)
         python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
@@ -396,7 +408,7 @@ def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
     return key, value
 
 
-def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGenerationManager) -> str:
+def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: TextGenerationManager) -> str:
     """
     Enhance the user question with tool calling instructions and context from previous steps.
 
@@ -488,6 +500,7 @@ def _get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str,
     Dict[str, str]
         A dictionary containing the name of the last used tool and its function body as str.
     """
+    tool_code = ""
     possible_tool_names = code_executor.globals_dict.get_public_keys()
     tool_name = next((name for name in possible_tool_names if name in response), None)
     if tool_name:
@@ -499,7 +512,11 @@ def _get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str,
 
 
 def _handle_python_agent(
-    user_request: str, response: str, manager: TextGenerationManager, code_executor: CodeExecutor, tool_name: Dict[str, str]
+    user_request: str,
+    response: str,
+    manager: TextGenerationManager,
+    code_executor: CodeExecutor,
+    tool_name: Dict[str, str],
 ) -> str:
     """
     Handle the response from the Python agent.
@@ -576,11 +593,6 @@ final_result = new_tool(param1, param2)
             logger.info("Last response is appropiate to address the user's request.")
             return response
 
-        # # If not appropriate, update the chat history
-        # if python_agent.manager.processor and python_agent.manager.processor.chat_history:
-        #     logger.info("Last response is not appropiate to address the user's request.")
-        #     python_agent.manager.processor.chat_history[-1] = {"role": "assistant", "content": new_response}
-
         return new_response
 
 
@@ -596,7 +608,7 @@ def _handle_answer_validation_agent(
     assistant_context = [d for d in manager.processor.chat_history if d["role"] == "assistant"]
     old_chat_history = format_chat_history_as_string(assistant_context)
     system_prompt = "You are an expert at judging how satisfactory the gathered information is to address a user's request. Pay special attention to text with the word 'final_result'."
-    question = _create_validation_prompt(
+    question = _create_validation_agent_prompt(
         user_request=user_request,
         old_chat_history=old_chat_history,
         final_result=final_result,
@@ -726,7 +738,7 @@ Use this information to help generate a code snippet that answers the question.
     return user_question
 
 
-def _create_validation_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
+def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
     return f"""
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                    TASK                                       ║
