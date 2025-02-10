@@ -20,6 +20,7 @@ from owlsight.utils.helper_functions import (
     parse_markdown,
     editable_input,
     format_error_message,
+    format_chat_history_as_string,
 )
 from owlsight.ui.console import get_user_choice
 from owlsight.utils.venv_manager import (
@@ -354,7 +355,7 @@ class CodeExecutor:
                 if get_last_response_only:
                     return history[-1]["content"] if history else ""
                 if to_string:
-                    return _format_history_as_string(history)
+                    return format_chat_history_as_string(history)
                 return history
             return "" if to_string else []
 
@@ -516,11 +517,3 @@ def extract_missing_module(stderr: str) -> Union[str, None]:
     """Extract a missing module from a ModuleNotFoundError exception"""
     match = re.search(r"No module named '(\w+)'", stderr)
     return match.group(1) if match else None
-
-
-def _format_history_as_string(history: List[dict]) -> str:
-    formatted = []
-    for item in history:
-        formatted.append(f"Role: {item['role']}")
-        formatted.append(f"Content: {item['content']}\n")
-    return "\n".join(formatted)

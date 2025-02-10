@@ -4,6 +4,7 @@ from typing import Union, Tuple, List, Dict
 from enum import Enum, auto
 import os
 import inspect
+import re
 
 from owlsight.configurations.constants import MAIN_MENU
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
@@ -19,6 +20,7 @@ from owlsight.utils.helper_functions import (
     extract_square_bracket_tags,
     os_is_windows,
     parse_python_placeholders,
+    format_chat_history_as_string,
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
 from owlsight.utils.constants import (
@@ -33,6 +35,33 @@ from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.processors.helper_functions import warn_processor_not_loaded
 from owlsight.prompts.system_prompts import ExpertPrompts
 from owlsight.utils.logger import logger
+
+
+class AlternativeAgent:
+    def __init__(
+        self, question: str, new_system_prompt: str, manager: TextGenerationManager, code_executor: CodeExecutor
+    ):
+        self.manager = manager
+        self.question = question
+        self.code_executor = code_executor
+        self.original_state = {
+            "system_prompt": manager.get_config_key("model.system_prompt", ""),
+            "chat_history": manager.processor.chat_history.copy(),
+        }
+
+        # temporary clean old state
+        self.manager.processor.chat_history = []
+        self.manager.update_config("model.system_prompt", new_system_prompt)
+        self.manager.update_config("agentic.apply_tools", False)
+
+    def __enter__(self):
+        # You can add any setup code here if needed
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.manager.update_config("model.system_prompt", self.original_state["system_prompt"])
+        self.manager.processor.chat_history = self.original_state["chat_history"] + self.manager.processor.chat_history
+        self.manager.update_config("agentic.apply_tools", True)
 
 
 class CommandResult(Enum):
@@ -387,24 +416,34 @@ def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGener
     max_steps = tool_state["max_steps"]
 
     # Get the last used tool from chat history if available
+    # TODO: just keep a list of used tools instead of parsing them from chat history
     last_tool = None
-    if hasattr(manager, "processor") and manager.processor and manager.processor.chat_history:
-        for msg in reversed(manager.processor.chat_history):
-            if isinstance(msg, dict) and "name" in msg.get("function_call", {}):
-                last_tool = msg["function_call"]["name"]
-                break
+    # if hasattr(manager, "processor") and manager.processor and manager.processor.chat_history:
+    #     for msg in reversed(manager.processor.chat_history):
+    #         extraxcted_tool = extract_and_parse_json(msg["content"])
+    #         # if parse_try:
+    #         #     try:
+    #         #         parse_try = dict(parse_try)
+    #         #     except Exception:
+    #         #         logger.error(f"Tried to parse tool name to dict, but failed: {parse_try['name']}. Skipping...")
+    #         #         continue
+    #             last_tool = parse_try["name"]
+    #             break
 
     if current_step > 1:
+        # TODO: smaller prompt
         instruction_prompt = f"""
 1. ANALYZE your last tool call:
    - Was the information useful for answering the user request?
    - Did you get what you needed?
-   - Is there a better approach?
+   - Is there another tool that might provide a better answer?
+   - Always prioritize websearches over scraping tools.
 
 2. NEXT STEPS:
    If the last tool call ({last_tool if last_tool else "none"}) didn't provide what you need:
    - DO NOT repeat the same tool call
    - YOU MUST choose a different tool or approach
+   - You MUST return the answer in the format of a JSON object with a "name" and "arguments" field
    - Consider what complementary information would help to answer the user request.
 
 3. REFLECTION:
@@ -432,12 +471,8 @@ def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGener
 {instruction_prompt}
 
 ## Response Format:
-If you need more information:
 {{"name": "tool_name", "arguments": {{...}}}}
 NOTE: Your tool choice MUST be different if the last result wasn't satisfactory
-
-If you have enough information:
-Provide your complete answer using all gathered data.
 
 Remember: 
 - Each final_result contains the output from your last tool call
@@ -447,33 +482,6 @@ Remember:
     return f"{user_question}\n\n{tool_prompt}".strip()
 
 
-class AgentHandler:
-    def __init__(
-        self, question: str, new_system_prompt: str, manager: TextGenerationManager, code_executor: CodeExecutor
-    ):
-        self.manager = manager
-        self.question = question
-        self.code_executor = code_executor
-        self.original_state = {
-            "system_prompt": manager.get_config_key("model.system_prompt", ""),
-            "chat_history": manager.processor.chat_history.copy(),
-        }
-
-        # temporary clean old state
-        self.manager.processor.chat_history = []
-        self.manager.update_config("model.system_prompt", new_system_prompt)
-        self.manager.update_config("agentic.apply_tools", False)
-
-    def __enter__(self):
-        # You can add any setup code here if needed
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.manager.update_config("model.system_prompt", self.original_state["system_prompt"])
-        self.manager.processor.chat_history = self.original_state["chat_history"]
-        self.manager.update_config("agentic.apply_tools", True)
-
-
 def _handle_python_agent(
     user_request: str, response: str, manager: TextGenerationManager, code_executor: CodeExecutor
 ) -> str:
@@ -481,7 +489,7 @@ def _handle_python_agent(
     Handle the response from the Python agent.
 
     Parameters
-    ----------l
+    ----------
     user_request : str
         The user's request.
     response : str
@@ -496,31 +504,23 @@ def _handle_python_agent(
     str
         The response from the Python agent.
     """
+    # Get the last tool used
     used_tool = ""
     possible_tool_names = code_executor.globals_dict.get_public_keys()
-    tool_name = next((i for i in possible_tool_names if i in response), None)
+    tool_name = next((name for name in possible_tool_names if name in response), None)
     if tool_name:
         bound_tool = code_executor.globals_dict.get(tool_name, None)
         if bound_tool:
             tool_code = inspect.getsource(bound_tool).strip()
             used_tool = f"Used tool: {tool_name}\n{tool_code}".strip()
 
-    # adjust processor so that it doesnt have any memory of the previous conversation
-    old_chat_history = manager.processor.chat_history.copy()
-    manager.processor.chat_history.clear()
-
-    # adjust the system prompt so that it acts like a new agent
-    old_system_prompt = manager.get_config_key("model.system_prompt", "")
     new_system_prompt = """
 You are a expert in Python. 
 Analyze the last response from another agent and write new python code if it is more appropriate to address the user's request. 
 If the answer has a deterministic outcome, ALWAYS write Python code.
 """
-    manager.update_config("model.system_prompt", new_system_prompt)
-
     appropiate_cue = "The last response is appropriate to address the user's request."
 
-    # define user question
     user_question = f"""
 User request:\n{user_request}
 
@@ -557,27 +557,58 @@ def new_tool(param1, param2):
 
 # store the result in a variable named "final_result"
 final_result = new_tool(param1, param2)
-```
 """.strip()
-    manager.update_config("agentic.apply_tools", False)
-    new_response = manager.generate(user_question)
-    manager.update_config("agentic.apply_tools", True)
 
-    # reset the original system prompt and remove the last message from the chat history to prevent tool usage loop
-    manager.update_config("model.system_prompt", old_system_prompt)
-    manager.processor.chat_history = old_chat_history
+    with AlternativeAgent(user_question, new_system_prompt, manager, code_executor) as python_agent:
+        new_response = python_agent.manager.generate(python_agent.question)
 
-    # if the message is appropiate, return the response
-    if appropiate_cue.lower() in new_response.lower():
-        logger.info("Last response is appropiate to address the user's request.")
-        return response
+        # Check if the response is appropriate
+        if appropiate_cue.lower() in new_response.lower():
+            logger.info("Last response is appropiate to address the user's request.")
+            return response
 
-    # if the message is not appropiate, replace the last message with the new response
-    if manager.processor and manager.processor.chat_history:
-        logger.info("Last response is not appropiate to address the user's request.")
-        manager.processor.chat_history[-1] = {"role": "assistant", "content": new_response}
+        # # If not appropriate, update the chat history
+        # if python_agent.manager.processor and python_agent.manager.processor.chat_history:
+        #     logger.info("Last response is not appropiate to address the user's request.")
+        #     python_agent.manager.processor.chat_history[-1] = {"role": "assistant", "content": new_response}
 
-    return new_response
+        return new_response
+
+
+def _handle_answer_validation_agent(
+    user_request: str,
+    final_result: str,
+    manager: TextGenerationManager,
+    code_executor: CodeExecutor,
+):
+    """
+    Handle the response from the answer validation agent.
+    """
+    assistant_context = [d for d in manager.processor.chat_history if d["role"] == "assistant"]
+    old_chat_history = format_chat_history_as_string(assistant_context)
+    system_prompt = "You are an expert at judging how satisfactory the gathered information is to address a user's request. Pay special attention to text with the word 'final_result'."
+    question = _create_validation_prompt(
+        user_request=user_request,
+        old_chat_history=old_chat_history,
+        final_result=final_result,
+    )
+
+    with AlternativeAgent(question, system_prompt, manager, code_executor) as judge_agent:
+        judgment = judge_agent.manager.generate(judge_agent.question)
+
+        # parse the judgment from the html tags
+        try:
+            judgment = re.findall(r"<judgment>(.*?)</judgment>", judgment, re.DOTALL)[0].strip()
+            logger.info(f"Answer validation judgment: {judgment}")
+        except Exception as e:
+            logger.error(f"Error parsing judgment: {str(e)}")
+
+        if judgment.lower() == "yes":
+            logger.info("Answer 'yes' found in judgment.")
+            return True
+
+    logger.info("Did not find 'yes' in judgment.")
+    return False
 
 
 def _handle_tool_result(
@@ -619,25 +650,24 @@ def _handle_tool_result(
         final_result = code_executor.globals_dict["final_result"]
         logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
 
-        # TODO: check HERE with a validation agent if the result is appropriate to address the user's request
-        answer_is_appropriate = False  # TODO: implement
+        answer_is_appropriate = _handle_answer_validation_agent(user_choice, final_result, manager, code_executor)
+        if answer_is_appropriate:
+            logger.info("✅ Enough information gathered to generate a final answer.")
+        else:
+            logger.info("❌ There is not enough information to generate a final answer (yet!).")
 
         # Store result for next steps
         tool_results = code_executor.globals_dict.get("tool_results", [])
         tool_results.append(final_result)
         code_executor.globals_dict["tool_results"] = tool_results
 
-        if current_step + 1 < max_steps:
-            # Remove last messages to prevent tool usage loop
-            # if manager.processor and manager.processor.chat_history:
-            #     del manager.processor.chat_history[-2:]
-
+        if current_step + 1 < max_steps and not answer_is_appropriate:
             # Process next step with accumulated results
             return process_user_question(
                 user_choice, code_executor, manager, max_steps=max_steps, current_step=current_step + 1
             )
         else:
-            logger.info("Reached maximum steps or completed task. Generating final response.")
+            logger.info("Reached maximum steps or gathered enough information. Generating final response.")
             # Format final response context
             ctx_to_add = f"""
 Use ALL the following information to provide a COMPLETE answer:
@@ -685,3 +715,82 @@ Use this information to help generate a code snippet that answers the question.
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
         logger.info(f"Context added to the question with approximate amount of {len(context.split())} words")
     return user_question
+
+
+def _create_validation_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
+    return f"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                    TASK                                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+IMPORTANT: Your task is ONLY to validate if enough information has been gathered.
+DO NOT calculate or provide the final answer yourself.
+
+Key validation rules:
+1. For multi-step problems: ALL steps must be completed for a YES judgment
+2. Each piece of information must be explicitly present in the context or 'final_result'
+3. Pay special attention to context with the word 'final_result' and surrounding text.
+4. Do not make assumptions or infer data that isn't explicitly provided
+5. If the context shows a list of required steps, check each one individually
+6. Focus ONLY on whether required information is present, not on calculating results
+
+Judgment criteria:
+- YES: ONLY if ALL required steps are completed AND ALL needed information is present
+- PARTIAL: If any step is incomplete OR any required information is missing
+- NO: If the result is incorrect or unsuitable
+
+Remember: Your role is to verify information completeness, NOT to solve the problem.
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                               EVALUATION STEPS                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+1. Look for any explicitly stated steps or requirements in the context
+2. For each step or requirement found:
+   - Mark it as COMPLETED only if the exact information is present
+   - Mark it as PENDING if the information is missing or incomplete
+3. Check that you can cite the source of each piece of information
+4. Verify information presence without calculating final results
+5. Only proceed to judgment after checking all steps
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                  CONTEXT                                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ORIGINAL REQUEST ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+{user_request}
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ CHAT HISTORY ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+{old_chat_history}
+
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ FINAL RESULT ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+{final_result}
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            RESPONSE FORMAT                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+<goal>
+[STATE THE USER'S ULTIMATE GOAL/QUESTION - DO NOT ANSWER IT]
+</goal>
+
+<required_steps>
+[LIST ALL REQUIRED STEPS FOUND IN CONTEXT]
+</required_steps>
+
+<step_completion_status>
+[FOR EACH STEP LISTED ABOVE:
+- Status: COMPLETED/PENDING
+- Source: Where the information came from (chat history/final result)
+- Information: What exact information was found (raw data only, no calculations)]
+</step_completion_status>
+
+<judgment>
+[YES/NO/PARTIAL]
+</judgment>
+
+<explanation>
+[EXPLAIN WHICH INFORMATION IS STILL MISSING - DO NOT CALCULATE OR PROVIDE SOLUTIONS]
+</explanation>
+
+<next_steps>
+[IF PARTIAL/NO: List which specific information needs to be gathered next]
+</next_steps>
+"""

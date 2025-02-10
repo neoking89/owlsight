@@ -471,3 +471,35 @@ def parse_function_call_to_python_code(input_str: str) -> str:
         code_line = f"final_result = {func_name}({kwargs})"
         return f"```python\n{code_line}\n```"
     return input_str
+
+
+def format_chat_history_as_string(history: List[dict]) -> str:
+    """
+    Formats a chathistory as a string with clear visual separation between messages.
+
+    Parameters
+    ----------
+    history : List[dict]
+        The chathistory to format.
+
+    Returns
+    -------
+    str
+        The formatted chathistory with enhanced visual separation.
+    """
+    formatted = []
+    message_separator = "\n" + "=" * 80 + "\n"  # Longer, more distinct separator
+    
+    for item in history:
+        # Add message header with role in uppercase
+        formatted.append(f"【 {item['role'].upper()} 】")
+        
+        # Add content with indentation for better readability
+        content_lines = item['content'].split('\n')
+        indented_content = '\n    '.join(content_lines)  # Four spaces indentation
+        formatted.append(f"Content:\n    {indented_content}")
+        
+        # Add separator after each message
+        formatted.append(message_separator)
+    
+    return "".join(formatted)
