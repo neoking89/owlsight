@@ -48,7 +48,7 @@ def get_default_config_on_startup_path(return_cache_path: bool = False) -> str:
 
     with open(cache_path, "r") as f:
         default_config_path = f.read().strip()
-    return str(Path(default_config_path))
+    return default_config_path
 
 
 def get_prompt_cache() -> Path:
