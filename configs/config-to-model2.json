@@ -13,7 +13,6 @@
     "model": {
         "model_id": "lmstudio-community/Llama-3.2-3B-Instruct-GGUF",
         "apply_chat_history": true,
-        "apply_tools": true,
         "system_prompt": "",
         "model_kwargs": {},
         "transformers__device": null,
@@ -42,6 +41,11 @@
         "sentence_transformer_weight": 0.5,
         "sentence_transformer_name_or_path": "",
         "search": ""
+    },
+    "agentic": {
+        "apply_tools": true,
+        "max_steps": 8,
+        "enable_python_agent": false
     },
     "huggingface": {
         "search": "gguf 1b llama",
