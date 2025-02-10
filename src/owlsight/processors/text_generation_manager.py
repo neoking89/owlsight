@@ -148,14 +148,15 @@ class TextGenerationManager:
 
     def _update_main_config(self, inner_key: str, value: Any):
         """Handle updates to main configuration."""
-        if inner_key == "default_config_on_startup" and value:
-            if not value.endswith(".json"):
-                raise ValueError("Default config file must be a JSON file.")
-            if not os.path.exists(value):
-                raise FileNotFoundError(f"Default config file '{value}' not found.")
+        if inner_key == "default_config_on_startup":
+            if value:
+                if not value.endswith(".json"):
+                    raise ValueError("Default config file must be a JSON file.")
+                if not os.path.exists(value):
+                    raise FileNotFoundError(f"Default config file '{value}' not found.")
             with open(get_default_config_on_startup_path(return_cache_path=True), "w") as f:
                 f.write(value)
-
+                
     def _update_model_config(self, inner_key: str, value: Any):
         """Handle updates to model-related configuration."""
         if inner_key == "model_id":
