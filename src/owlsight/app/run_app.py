@@ -394,14 +394,8 @@ def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGener
                 last_tool = msg["function_call"]["name"]
                 break
 
-    tool_prompt = f"""
-# Current Progress (Step {current_step}/{max_steps})
-
-## Previous Results:
-{previous_results if previous_results else "No previous results"}
-{f"Last tool used: {last_tool}" if last_tool else ""}
-
-## Critical Instructions:
+    if current_step > 1:
+        instruction_prompt = f"""
 1. ANALYZE your last tool call:
    - Was the information useful for answering the user request?
    - Did you get what you needed?
@@ -417,6 +411,25 @@ def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGener
    - What specific information are you still missing?
    - Which alternative tool would provide different insights?
    - How can you combine information from multiple sources?
+""".strip()
+
+    else:
+        instruction_prompt = """
+1. Think deeply and step-by-step about how to approach the user's request.
+- Delve the problem into smaller, atomic steps.
+- Reason about the steps in a logical sequence.
+- Consider the potential tools and their inputs/outputs.
+""".strip()
+
+    tool_prompt = f"""
+# Current Progress (Step {current_step}/{max_steps})
+
+## Previous Results:
+{previous_results if previous_results else "No previous results"}
+{f"Last tool used: {last_tool}" if last_tool else ""}
+
+## Critical Instructions:
+{instruction_prompt}
 
 ## Response Format:
 If you need more information:
@@ -434,7 +447,9 @@ Remember:
     return f"{user_question}\n\n{tool_prompt}".strip()
 
 
-def _handle_python_agent(user_request: str, response: str, manager: TextGenerationManager, code_executor: CodeExecutor) -> str:
+def _handle_python_agent(
+    user_request: str, response: str, manager: TextGenerationManager, code_executor: CodeExecutor
+) -> str:
     """
     Handle the response from the Python agent.
 
@@ -469,9 +484,13 @@ def _handle_python_agent(user_request: str, response: str, manager: TextGenerati
 
     # adjust the system prompt so that it acts like a new agent
     old_system_prompt = manager.get_config_key("model.system_prompt", "")
-    new_system_prompt = "You are a expert in Python. Analyze the last response from another agent and write new python code if it is more appropriate to address the user's request."
+    new_system_prompt = """
+You are a expert in Python. 
+Analyze the last response from another agent and write new python code if it is more appropriate to address the user's request. 
+If the answer has a deterministic outcome, ALWAYS write Python code.
+"""
     manager.update_config("model.system_prompt", new_system_prompt)
-    
+
     appropiate_cue = "The last response is appropriate to address the user's request."
 
     # define user question
@@ -486,8 +505,9 @@ Last Response:\n{response}
 Think deeply and step-by-step
 1. Analyze the last response from another agent. Figure if this answer is appropiate to address the user's request.
 2.
-a: If the last response is appropriate to address the user's request, just say: {appropiate_cue}. End your response.
-b: If the last response is not appropriate to address the user's request, think about what information is needed to address the user's request. Proceed to step 3.
+a: If the last response is appropriate to address the user's request and does not have a deterministic outcome, just say: {appropiate_cue}. End your response.
+b: If the last response is appropriate to address the user's request, but has a deterministic outcome, write Python code to validate the deterministic outcome. Proceed to step 3.
+c: If the last response is not appropriate to address the user's request, think about what information is needed to address the user's request. Proceed to step 3.
 3. Write the python code to address the user's request. You can use any 3rd party library if needed. 
 4. Always provide the generated Python code in your response in Markdown-format.
 5. Write a function with an appropiate name and an appropiate docstring. Use numpy-style for writing the docstring.
@@ -572,6 +592,9 @@ def _handle_tool_result(
         final_result = code_executor.globals_dict["final_result"]
         logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
 
+        # TODO: check HERE with a validation agent if the result is appropriate to address the user's request
+        answer_is_appropriate = False  # TODO: implement
+
         # Store result for next steps
         tool_results = code_executor.globals_dict.get("tool_results", [])
         tool_results.append(final_result)
@@ -579,8 +602,8 @@ def _handle_tool_result(
 
         if current_step + 1 < max_steps:
             # Remove last messages to prevent tool usage loop
-            if manager.processor and manager.processor.chat_history:
-                del manager.processor.chat_history[-2:]
+            # if manager.processor and manager.processor.chat_history:
+            #     del manager.processor.chat_history[-2:]
 
             # Process next step with accumulated results
             return process_user_question(
