@@ -308,9 +308,10 @@ def process_user_question(
 
     response = manager.generate(user_question, media_objects=media_objects)
     if apply_tools:
+        last_used_tool = _get_last_used_tool(code_executor, response)
         python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
         if python_agent_is_enabled:
-            response = _handle_python_agent(user_choice, response, manager, code_executor)
+            response = _handle_python_agent(user_choice, response, manager, code_executor, last_used_tool)
     results = execute_code_with_feedback(
         response=response,
         original_question=user_question,
@@ -416,44 +417,25 @@ def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGener
     max_steps = tool_state["max_steps"]
 
     # Get the last used tool from chat history if available
-    # TODO: just keep a list of used tools instead of parsing them from chat history
-    last_tool = None
-    # if hasattr(manager, "processor") and manager.processor and manager.processor.chat_history:
-    #     for msg in reversed(manager.processor.chat_history):
-    #         extraxcted_tool = extract_and_parse_json(msg["content"])
-    #         # if parse_try:
-    #         #     try:
-    #         #         parse_try = dict(parse_try)
-    #         #     except Exception:
-    #         #         logger.error(f"Tried to parse tool name to dict, but failed: {parse_try['name']}. Skipping...")
-    #         #         continue
-    #             last_tool = parse_try["name"]
-    #             break
+    last_tool = manager._used_tools[-1] if manager._used_tools else None
 
-    if current_step > 1:
-        # TODO: smaller prompt
-        instruction_prompt = f"""
+    if current_step > 1 or last_tool:
+        logger.info(f"Last tool call found: {last_tool}")
+        instruction_prompt = """
+## TASK:
 1. ANALYZE your last tool call:
    - Was the information useful for answering the user request?
    - Did you get what you needed?
-   - Is there another tool that might provide a better answer?
-   - Always prioritize websearches over scraping tools.
 
 2. NEXT STEPS:
-   If the last tool call ({last_tool if last_tool else "none"}) didn't provide what you need:
-   - DO NOT repeat the same tool call
-   - YOU MUST choose a different tool or approach
+   - Think deeply and step-by-step about the next steps.
+   - What tool is most suitable for the next step?
    - You MUST return the answer in the format of a JSON object with a "name" and "arguments" field
-   - Consider what complementary information would help to answer the user request.
-
-3. REFLECTION:
-   - What specific information are you still missing?
-   - Which alternative tool would provide different insights?
-   - How can you combine information from multiple sources?
 """.strip()
 
     else:
         instruction_prompt = """
+## TASK:
 1. Think deeply and step-by-step about how to approach the user's request.
 - Delve the problem into smaller, atomic steps.
 - Reason about the steps in a logical sequence.
@@ -470,20 +452,54 @@ def _handle_apply_tools(user_question: str, tool_state: Dict, manager: TextGener
 ## Critical Instructions:
 {instruction_prompt}
 
+## Tool guidelines:
+- Use `owl_search` if you are looking for general information.
+- Use `owl_scrape` if you know of a specific url and need to scrape the content.
+- Use `owl_read` if you need to read a local file or directory.
+- Use `owl_write` if you need to write to a local file.
+- Use `owl_import` if you need to import a Python file.
+- Use any of the other tools if you need to perform a specific task.
+
 ## Response Format:
 {{"name": "tool_name", "arguments": {{...}}}}
 NOTE: Your tool choice MUST be different if the last result wasn't satisfactory
 
 Remember: 
 - Each final_result contains the output from your last tool call
-- Repeating the same tool with similar parameters will likely give similar results
+- Repeating the same tool with the same parameters will likely give exact same results
 - Different tools provide different types of information
 """
     return f"{user_question}\n\n{tool_prompt}".strip()
 
 
+def _get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str, str]:
+    """
+    Parse the last used tool from the response, together with its function body as str.
+
+    Parameters
+    ----------
+    code_executor : CodeExecutor
+        The code executor.
+    response : str
+        The response from the model.
+
+    Returns
+    -------
+    Dict[str, str]
+        A dictionary containing the name of the last used tool and its function body as str.
+    """
+    possible_tool_names = code_executor.globals_dict.get_public_keys()
+    tool_name = next((name for name in possible_tool_names if name in response), None)
+    if tool_name:
+        bound_tool = code_executor.globals_dict.get(tool_name, None)
+        if bound_tool:
+            tool_code = inspect.getsource(bound_tool).strip()
+
+    return {tool_name: tool_code}
+
+
 def _handle_python_agent(
-    user_request: str, response: str, manager: TextGenerationManager, code_executor: CodeExecutor
+    user_request: str, response: str, manager: TextGenerationManager, code_executor: CodeExecutor, tool_name: Dict[str, str]
 ) -> str:
     """
     Handle the response from the Python agent.
@@ -505,14 +521,8 @@ def _handle_python_agent(
         The response from the Python agent.
     """
     # Get the last tool used
-    used_tool = ""
-    possible_tool_names = code_executor.globals_dict.get_public_keys()
-    tool_name = next((name for name in possible_tool_names if name in response), None)
-    if tool_name:
-        bound_tool = code_executor.globals_dict.get(tool_name, None)
-        if bound_tool:
-            tool_code = inspect.getsource(bound_tool).strip()
-            used_tool = f"Used tool: {tool_name}\n{tool_code}".strip()
+    tool_name, tool_code = list(tool_name.items())[0] if tool_name else ("", "")
+    used_tool = f"Used tool: {tool_name}\n{tool_code}".strip() if tool_name else ""
 
     new_system_prompt = """
 You are a expert in Python. 
@@ -539,7 +549,6 @@ c: If the last response is not appropriate to address the user's request, think 
 4. Always provide the generated Python code in your response in Markdown-format.
 5. Write a function with an appropiate name and an appropiate docstring. Use numpy-style for writing the docstring.
 6. Use this function to address the user's request. Store the result in a variable named "final_result".
-
 
 # Response Format:
 **Explanation:** Explain in your reasoning what information is needed to address the user's request.
