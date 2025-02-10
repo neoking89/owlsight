@@ -24,7 +24,6 @@ dependencies = [
     "jinja2",
     "tqdm",
     "pynput",
-    "pydantic",
     "dill",
     "tika",
     "html5lib",
