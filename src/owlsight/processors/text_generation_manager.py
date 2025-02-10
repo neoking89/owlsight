@@ -1,4 +1,4 @@
-from typing import Any, Optional, Dict, Union
+from typing import Any, Optional, Dict, Union, List
 import traceback
 import pkgutil
 import ast
@@ -18,7 +18,8 @@ from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.utils.helper_functions import (
     convert_to_real_type,
     parse_python_placeholders,
-    parse_function_call_to_python_code,
+    parse_function_call,
+    function_call_to_python_code,
 )
 from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache, get_default_config_on_startup_path
@@ -63,6 +64,7 @@ class TextGenerationManager:
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
         self._original_generate_method = None
+        self._used_tools: List[Dict[str, str]] = []
 
     def generate(self, input_data: str, media_objects: Optional[Dict[str, dict]] = None) -> str:
         """
@@ -105,7 +107,10 @@ class TextGenerationManager:
                 logger.warning("Or for QA: 'What color is the car? [[image:path/to/image.jpg]]'")
         else:
             # else try to parse the generated text if it's a function call. if no function call, return the generated text as is
-            generated_text = parse_function_call_to_python_code(generated_text)
+            func_name, arguments = parse_function_call(generated_text)
+            if func_name:
+                self._used_tools.append({"name": func_name, "arguments": arguments})
+                generated_text = function_call_to_python_code(func_name, arguments)
 
         return generated_text
 
