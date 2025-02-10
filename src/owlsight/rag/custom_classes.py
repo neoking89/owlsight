@@ -3,8 +3,6 @@ from pathlib import Path
 from typing import Any, Optional
 import pickle
 
-from pydantic import BaseModel
-
 
 class SearchMethod(str, Enum):
     """Supported search methods."""
@@ -14,7 +12,7 @@ class SearchMethod(str, Enum):
     HASHING = "hashing"
 
 
-class SearchResult(BaseModel):
+class SearchResult:
     """Model to store essential search results with type validation."""
 
     document: str
