@@ -541,10 +541,28 @@ def parse_function_call_to_python_code(input_str: str) -> str:
     Parses a string for a JSON-like function call pattern and transforms it into
     a Python markdown code block. If parsing fails, returns the original string.
     """
-    func_name, arguments = parse_function_call(input_str)
-    if func_name is None or arguments is None:
+    try:
+        # Parse input with JSON loader to handle whitespace and types
+        data = json.loads(input_str)
+        name = data.get('name', '')
+        arguments = data.get('arguments', {})
+        
+        # Convert arguments with proper type handling
+        args = []
+        for key, value in arguments.items():
+            if isinstance(value, bool):
+                args.append(f'{key}={str(value)}')
+            elif value is None:
+                args.append(f'{key}=None')
+            elif isinstance(value, str):
+                args.append(f'{key}={repr(value)}')
+            else:
+                args.append(f'{key}={value}')
+        
+        code_line = f'final_result = {name}({", ".join(args)})'
+        return f'```python\n{code_line}\n```'
+    except json.JSONDecodeError:
         return input_str
-    return function_call_to_python_code(func_name, arguments)
 
 
 def format_chat_history_as_string(history: List[dict]) -> str:
