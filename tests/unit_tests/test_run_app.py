@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import patch
 from owlsight.app.run_app import _extract_params_chain_tag, CommandResult
-from owlsight.utils.logger import logger
 
 
 @pytest.fixture(autouse=True)
