@@ -264,7 +264,11 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     files_in_cache_dir = [file_path for file_path in files_in_cache_dir if file_path != default_config_on_startup_path]
 
     for file_path in files_in_cache_dir:
-        file_path.unlink()
+        try:
+            file_path.unlink()
+        except (PermissionError, OSError) as e:
+            logger.warning(f"Could not delete file {file_path}: {str(e)}. The file may be in use.")
+            continue
 
     if manager.processor is not None:
         manager.processor.chat_history.clear()
@@ -381,10 +385,11 @@ def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
     Returns:
         Tuple[str, str]: A tuple containing the key and value extracted from the parameter string.
     """
-    if "=" not in param:
-        logger.error(f"Invalid chain parameter: {param}. Use 'param=value' format. Skipping...")
+    try:
+        key, value = param.split("=")
+    except Exception as e:
+        logger.error(f"Invalid chain parameter: {param}. Use 'param=value' format.\nException: {e}")
         return "", ""
-    key, value = param.split("=")
     key = key.strip()
     value = value.strip()
     return key, value
@@ -533,7 +538,7 @@ def _handle_python_agent(
     appropriate_cue = "The last response is appropriate to address the user's request."
 
     system_prompt = f"""## Python Expert Role
-You are an advanced Python developer specialized in security-critical code analysis[2].
+You are an advanced Python developer specialized in security-critical code analysis.
 Follow this decision matrix:
 
 1. IF response contains valid code solving {user_request}:
@@ -553,7 +558,7 @@ Follow this decision matrix:
 ## Forbidden Patterns
 - eval/exec
 - Unsafe deserialization
-- Bare except clauses[2]
+- Bare except clauses
 """
 
     validation_rules = "\n".join([f"- {desc} check" for desc in validation_checks.values()])
@@ -566,7 +571,7 @@ Follow this decision matrix:
 
 {used_tool}
 
-## Validation Checklist[1]
+## Validation Checklist
 {validation_rules}
 
 ## Required Output Format
