@@ -1,6 +1,6 @@
 import tempfile
 import traceback
-from typing import Union, Tuple, List, Dict
+from typing import Union, List, Dict
 from enum import Enum, auto
 import os
 import inspect
@@ -18,6 +18,7 @@ from owlsight.utils.helper_functions import (
     remove_temp_directories,
     parse_media_tags,
     extract_square_bracket_tags,
+    parse_html_tags,
     os_is_windows,
     parse_python_placeholders,
     format_chat_history_as_string,
@@ -37,7 +38,12 @@ from owlsight.prompts.system_prompts import ExpertPrompts
 from owlsight.utils.logger import logger
 
 
-class AlternativeAgent:
+class AgenticRole:
+    """
+    A context manager that temporarily replaces the system prompt and (optionally) disables
+    tool usage. It captures any changes to the chat history and system prompt, restoring
+    them when the context closes.
+    """
     def __init__(
         self,
         question: str,
@@ -49,46 +55,51 @@ class AlternativeAgent:
         self.manager = manager
         self.question = question
         self.code_executor = code_executor
+
+        # Save original prompts & chat history
         self.original_state = {
             "system_prompt": manager.get_config_key("model.system_prompt", ""),
             "chat_history": manager.processor.chat_history.copy(),
         }
         self.disable_tools = disable_tools
 
-        # temporary clean old state
+        # Temporary clean old state
         self.manager.processor.chat_history = []
         self.manager.update_config("model.system_prompt", new_system_prompt)
+
         if self.disable_tools:
             self.manager.update_config("agentic.apply_tools", False)
 
     def __enter__(self):
-        # You can add any setup code here if needed
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.manager.update_config("model.system_prompt", self.original_state["system_prompt"])
-        self.manager.processor.chat_history = self.original_state["chat_history"] + self.manager.processor.chat_history
+        # Restore the original agentic.apply_tools setting
         if self.disable_tools:
             self.manager.update_config("agentic.apply_tools", True)
 
+        # Restore original system prompt & chat history
+        self.manager.update_config("model.system_prompt", self.original_state["system_prompt"])
+        self.manager.processor.chat_history = (
+            self.original_state["chat_history"] + self.manager.processor.chat_history
+        )
+
+
 
 class CommandResult(Enum):
-    """Enum to represent the result of a command from the mainmenu."""
+    """Enum to represent the result of a command from the main menu."""
 
     CONTINUE = auto()
     BREAK = auto()
     PROCEED = auto()
 
 
-# TODO: Have an AppManager which encapsulates the run_code_generation_loop and on_startup functionality and might be better fit for keeping track of state?
-# Hierarchy would be: AppManager -> CodeExecutor/ TextGenerationManager -> ConfigManager
 def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
     """Runs the main loop for code generation and user interaction."""
     option = None
     user_choice = None
     while True:
         try:
-            # define startindex of arrow in mainmenu
             _option_or_userchoice: bool = option or user_choice
             if _option_or_userchoice:
                 start_index = list(MAIN_MENU.keys()).index(_option_or_userchoice)
@@ -109,7 +120,9 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             user_choice = parse_python_placeholders(user_choice, code_executor.globals_dict)
             if not isinstance(user_choice, str):
                 logger.error(
-                    f"User choice is not a string, but {type(user_choice).__name__}. Please only use curly braces '{{{{expression}}}}' if the end result from the python expression is a string."
+                    f"User choice is not a string, but {type(user_choice).__name__}. "
+                    "Please only use curly braces '{{expression}}' if the end result "
+                    "from the python expression is a string."
                 )
                 continue
             handle_assistant_prompt(user_choice, manager, code_executor)
@@ -118,7 +131,6 @@ def run_code_generation_loop(code_executor: CodeExecutor, manager: TextGeneratio
             logger.info("KeyboardInterrupt received. Returning to main menu.")
         except Exception:
             logger.error(f"Unexpected error:\n{traceback.format_exc()}")
-            # raise
 
 
 def handle_special_commands(
@@ -182,12 +194,11 @@ def handle_config_update(user_choice: str, manager: TextGenerationManager) -> st
 
     if isinstance(user_selected_choice, dict):
         nested_key = next(iter(user_selected_choice))  # Get the first key
-        config_value = user_selected_choice[nested_key]  # Get the corresponding value
+        config_value = user_selected_choice[nested_key]
     else:
         nested_key = user_selected_choice
         config_value = None
 
-    # Construct the config key and update the configuration
     config_key = f"{user_choice}.{nested_key}"
     manager.update_config(config_key, config_value)
 
@@ -198,15 +209,6 @@ def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, co
     """
     Process user input from the 'How can I assist you?' field in the main menu.
     Handles extraction of tags, processor validation, and command processing.
-
-    Parameters
-    ----------
-    user_choice : str
-        The raw user input to process
-    manager : TextGenerationManager
-        Manager instance for handling configurations
-    code_executor : CodeExecutor
-        Executor for processing code-related requests
     """
     user_choice_list = extract_square_bracket_tags(user_choice, tag=["load", "chain"], key="params")
     load_tags_present = any(isinstance(item, dict) and item["tag"] == "load" for item in user_choice_list)
@@ -244,25 +246,24 @@ def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, co
 
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
-    """Clears the following things:
-
-    - All variables in the Python interpreter state, except those starting with "owl_"
+    """
+    Clears:
+    - Variables in the Python interpreter (except those starting with "owl_")
     - Python interpreter history file
     - Prompt history file
-    - chat history in the processor
-    - pickled cache files
+    - Chat history in the processor
+    - Pickled cache files
     """
-    # clear all variables except those starting with "owl_"
+    # keep only "owl_*" variables
     temp_dict = {k: v for k, v in code_executor.globals_dict.items() if k.startswith("owl_")}
     code_executor.globals_dict.clear()
     code_executor.globals_dict.update(temp_dict)
+
     cache_dir = get_cache_dir()
     default_config_on_startup_path = get_default_config_on_startup_path(return_cache_path=True)
-    # reset all cache files except the default config on startup
     files_in_cache_dir = [path for path in os.listdir(cache_dir) if path != default_config_on_startup_path]
 
     for file_path in files_in_cache_dir:
-        # file_path = os.path.join(cache_dir, filename)
         force_delete(file_path)
 
     if manager.processor is not None:
@@ -270,7 +271,6 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
     logger.info(f"Cleared files in cachefolder '{get_cache_dir()}' and model chathistory.")
 
-    # rebuild empty cache files after clearing
     get_pickle_cache()
     get_prompt_cache()
     get_py_cache()
@@ -284,22 +284,10 @@ def process_user_question(
     current_step: int = 0,
 ) -> str:
     """
-    Process the user's choice and generate a response.
-
-    Parameters:
-    ----------
-        user_choice (str): The user's inputted choice
-        code_executor (CodeExecutor): The code executor.
-        manager (TextGenerationManager): The text generation manager.
-        max_steps (int, optional): Maximum number of tool calling steps. Defaults to 3.
-        current_step (int, optional): Current step in the tool calling sequence. Defaults to 0.
-
-    Returns:
-    -------
-        The response generated by the model.
+    Process the user's choice and generate a response. 
+    Optionally involves multi-step tool usage and result validation.
     """
     _handle_dynamic_system_prompt(user_choice, manager)
-    # Parse media tags in the user choice, if present.
     user_question, media_objects = parse_media_tags(user_choice, code_executor.globals_dict)
     user_question = _handle_rag_for_python(user_question, manager)
 
@@ -311,8 +299,13 @@ def process_user_question(
             "previous_results": code_executor.globals_dict.get("tool_results", []),
         }
         user_question = _create_tool_agent_prompt(user_question, tool_state, manager)
-        tool_agent_system_prompt = "You are an expert planner, specialized in thinking through the next steps and choosing the appropiate tools to facilitate them. Always use one of the available tools to answer the user's question."
-        with AlternativeAgent(
+        tool_agent_system_prompt = (
+            "You are an expert planner, specialized in thinking through the next steps "
+            "and choosing the appropriate tools to facilitate them. Always use one of the "
+            "available tools to answer the user's question."
+        )
+
+        with AgenticRole(
             user_question, tool_agent_system_prompt, manager, code_executor, disable_tools=False
         ) as tool_agent:
             response = tool_agent.manager.generate(user_question)
@@ -322,8 +315,10 @@ def process_user_question(
     if apply_tools:
         last_used_tool = _get_last_used_tool(code_executor, response)
         python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
+
         if python_agent_is_enabled:
             response = _handle_python_agent(user_choice, response, manager, code_executor, last_used_tool)
+
     results = execute_code_with_feedback(
         response=response,
         original_question=user_question,
@@ -331,8 +326,9 @@ def process_user_question(
         prompt_code_execution=manager.config_manager.get("main.prompt_code_execution", True),
         prompt_retry_on_error=manager.config_manager.get("main.prompt_retry_on_error", False),
     )
+
     if apply_tools:
-        response = _handle_tool_result(
+        return _handle_tool_result(
             results=results,
             user_choice=user_choice,
             code_executor=code_executor,
@@ -347,22 +343,15 @@ def process_user_question(
 def run(manager: TextGenerationManager) -> None:
     """
     Main function to run the interactive loop for code generation and execution
-
-    Parameters
-    ----------
-    manager : TextGenerationManager
-        TextGenerationManager instance to handle the code generation and execution
     """
     pyenv_path = get_pyenv_path()
     lib_path = get_lib_path(pyenv_path)
     pip_path = get_pip_path(pyenv_path)
 
-    # Remove lingering temporary directories
     remove_temp_directories(lib_path)
 
     temp_dir_location = get_temp_dir(".owlsight_packages")
 
-    # Create temporary directory in venv to install packages, until end of execution lifecycle
     with tempfile.TemporaryDirectory(dir=temp_dir_location) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
         code_executor = CodeExecutor(manager, pyenv_path, pip_path, temp_dir)
@@ -375,9 +364,7 @@ def run(manager: TextGenerationManager) -> None:
 
 
 def on_app_startup(manager: TextGenerationManager):
-    """
-    Functionality to execute when the CLI starts up.
-    """
+    """Functionality to execute when the CLI starts up."""
     default_config_path = get_default_config_on_startup_path(return_cache_path=False)
     if default_config_path:
         manager.load_config(default_config_path)
@@ -385,73 +372,73 @@ def on_app_startup(manager: TextGenerationManager):
 
 
 def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationManager) -> None:
+    """
+    If 'main.dynamic_system_prompt' is enabled, ask the model to create a new system prompt
+    based on the user's input, then switch to that prompt for subsequent calls.
+    """
     dynamic_system_prompt = manager.get_config_key("main.dynamic_system_prompt", False)
     if dynamic_system_prompt:
         prompt_engineer_prompt = ExpertPrompts.prompt_engineering
         manager.update_config("model.system_prompt", prompt_engineer_prompt)
         logger.info(
-            "Dynamic system prompt is active. Model will act as Prompt Engineer to create a new system prompt based on user input."
+            "Dynamic system prompt is active. Model will act as Prompt Engineer to create a new system prompt."
         )
         new_system_prompt = manager.generate(user_question)
-        # TODO: handle some kind of parsing of response here?
         manager.update_config("model.system_prompt", new_system_prompt)
         manager.update_config("main.dynamic_system_prompt", False)
 
 
-def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
-    if "=" not in param:
-        logger.error(f"Invalid chain parameter: {param}. Use 'param=value' format. Skipping...")
-        return "", ""
-    key, value = param.split("=")
-    key = key.strip()
-    value = value.strip()
-    return key, value
-
-
 def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: TextGenerationManager) -> str:
     """
-    Enhance the user question with tool calling instructions and context from previous steps.
-
-    Parameters
-    ----------
-    user_question : str
-        The original user question
-    tool_state : Dict
-        Current state of tool execution including step count and previous results
-
-    Returns
-    -------
-    str
-        Enhanced question with tool calling instructions
+    Enhance the user question with tool-calling instructions and context from previous steps,
+    guiding the LLM to produce the next-step plan in JSON format.
     """
     previous_results = tool_state["previous_results"]
     current_step = tool_state["step"] + 1
     max_steps = tool_state["max_steps"]
+    last_tools = manager._used_tools if manager._used_tools else None
+    if current_step > 1 or last_tools:
+        logger.info(f"Current tools found: {last_tools}")
 
-    # Get the last used tool from chat history if available
-    last_tool = manager._used_tools[-1] if manager._used_tools else None
+        # parse important steps from judge-agent response:
+        last_response = parse_html_tags(manager.processor.chat_history[-1]["content"])
+        required_steps = last_response.get("required_steps", "")
+        step_completion_status = last_response.get("step_completion_status", "")
+        next_steps = last_response.get("next_steps", "")
 
-    if current_step > 1 or last_tool:
-        logger.info(f"Last tool call found: {last_tool}")
-        instruction_prompt = """
+        # Build progress sections if they exist
+        progress_sections = []
+        if required_steps:
+            progress_sections.append(f"## Required Steps:\n{required_steps}")
+        if step_completion_status:
+            progress_sections.append(f"## Step Status:\n{step_completion_status}")
+        if next_steps:
+            progress_sections.append(f"## Next Steps:\n{next_steps}")
+        
+        progress_content = "\n\n".join(progress_sections)
+
+        instruction_prompt = f"""
 ## TASK:
-1. ANALYZE your last tool call:
-   - Was the information useful for answering the user request?
+1. Examine your previous tool calls:
+   - Was the information useful for answering the user's request?
    - Did you get what you needed?
 
-2. NEXT STEPS:
-   - Think deeply and step-by-step about the next steps.
-   - What tool is most suitable for the next step?
-   - You MUST return the answer in the format of a JSON object with a "name" and "arguments" field
-""".strip()
+2. Decide your next steps carefully:
+   - Think step-by-step about what else is required.
+   - Look closely at **Last tools used:** (if any). Do not repeat any of them with the same arguments.
+   - If you must use another tool, respond with a valid JSON object:
+       {{"name": "<tool_name>", "arguments": {{...}}}}
+   - Make sure you ONLY respond with that JSON object, nothing else.
 
+{progress_content}
+""".strip()
     else:
         instruction_prompt = """
 ## TASK:
-1. Think deeply and step-by-step about how to approach the user's request.
-- Delve the problem into smaller, atomic steps.
-- Reason about the steps in a logical sequence.
-- Consider the potential tools and their inputs/outputs.
+1. Think step-by-step about how to approach the user's request.
+2. If you need a tool, respond ONLY with a JSON object:
+   {"name": "<tool_name>", "arguments": {...}}
+3. Do not provide any additional text beyond that JSON.
 """.strip()
 
     tool_prompt = f"""
@@ -459,46 +446,28 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
 
 ## Previous Results:
 {previous_results if previous_results else "No previous results"}
-{f"Last tool used: {last_tool}" if last_tool else ""}
+{f"**Last tools used:** {last_tools}" if last_tools else ""}
 
-## Critical Instructions:
+## CRITICAL INSTRUCTIONS:
 {instruction_prompt}
 
-## Tool guidelines:
-- Use `owl_search` if you are looking for general information.
-- Use `owl_scrape` if you know of a specific url and need to scrape the content.
-- Use `owl_read` if you need to read a local file or directory.
-- Use `owl_write` if you need to write to a local file.
-- Use `owl_import` if you need to import a Python file.
-- Use any of the other tools if you need to perform a specific task.
+## TOOL GUIDELINES:
+- Use `owl_search` if you need general information.
+- Use `owl_scrape` for scraping a known URL.
+- Use `owl_read` to read a local file or directory.
+- Use `owl_write` to write to a local file.
+- Use `owl_import` to import a Python file.
+- Other tools may be used for specialized tasks.
 
-## Response Format:
+## REQUIRED RESPONSE FORMAT:
 {{"name": "tool_name", "arguments": {{...}}}}
-NOTE: Your tool choice MUST be different if the last result wasn't satisfactory
-
-Remember: 
-- Each final_result contains the output from your last tool call
-- Repeating the same tool with the same parameters will likely give exact same results
-- Different tools provide different types of information
 """
-    return f"{user_question}\n\n{tool_prompt}".strip()
-
+    return f"# User Request:\n{user_question}\n\n{tool_prompt}".strip()
 
 def _get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str, str]:
     """
-    Parse the last used tool from the response, together with its function body as str.
-
-    Parameters
-    ----------
-    code_executor : CodeExecutor
-        The code executor.
-    response : str
-        The response from the model.
-
-    Returns
-    -------
-    Dict[str, str]
-        A dictionary containing the name of the last used tool and its function body as str.
+    Parse the last used tool from the response, along with its function body.
+    If none is found, returns an empty dict.
     """
     tool_code = ""
     possible_tool_names = code_executor.globals_dict.get_public_keys()
@@ -508,7 +477,7 @@ def _get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str,
         if bound_tool:
             tool_code = inspect.getsource(bound_tool).strip()
 
-    return {tool_name: tool_code}
+    return {tool_name: tool_code} if tool_name else {}
 
 
 def _handle_python_agent(
@@ -519,34 +488,25 @@ def _handle_python_agent(
     tool_name: Dict[str, str],
 ) -> str:
     """
-    Handle the response from the Python agent.
-
-    Parameters
-    ----------
-    user_request : str
-        The user's request.
-    response : str
-        The response from the Python agent.
-    manager : TextGenerationManager
-        The manager object.
-    code_executor : CodeExecutor
-        The code executor object.
-
-    Returns
-    -------
-    str
-        The response from the Python agent.
+    If a Python-specific refinement is needed, we engage an "expert Python agent" that checks
+    if the tool usage is appropriate. If not, it may produce an alternative Python solution.
     """
-    # Get the last tool used
-    tool_name, tool_code = list(tool_name.items())[0] if tool_name else ("", "")
-    used_tool = f"Used tool: {tool_name}\n{tool_code}".strip() if tool_name else ""
+    if tool_name:
+        extracted_tool_name, tool_code = list(tool_name.items())[0]
+        used_tool = f"Used tool: {extracted_tool_name}\n{tool_code}".strip()
+    else:
+        extracted_tool_name, used_tool = "", ""
 
-    new_system_prompt = """
-You are a expert in Python. 
-Analyze the last response from another agent and write new python code if it is more appropriate to address the user's request. 
-If the answer has a deterministic outcome, ALWAYS write Python code.
+    appropriate_cue = "The last response is appropriate to address the user's request."
+
+    new_system_prompt = f"""
+You are an advanced Python developer. 
+Analyze the previous tool usage and decide whether it solves the user's request.
+
+If it does, respond with a short statement: "{appropriate_cue}".
+If it is correct but has a deterministic outcome, provide a small Python code snippet to confirm.
+If it is not correct or insufficient, produce new Python code that fulfills the user's request.
 """
-    appropiate_cue = "The last response is appropriate to address the user's request."
 
     user_question = f"""
 User request:\n{user_request}
@@ -555,42 +515,20 @@ Last Response:\n{response}
 
 {used_tool}
 
-# TASK:
-Think deeply and step-by-step
-1. Analyze the last response from another agent. Figure if this answer is appropiate to address the user's request.
-2.
-a: If the last response is appropriate to address the user's request and does not have a deterministic outcome, just say: {appropiate_cue}. End your response.
-b: If the last response is appropriate to address the user's request, but has a deterministic outcome, write Python code to validate the deterministic outcome. Proceed to step 3.
-c: If the last response is not appropriate to address the user's request, think about what information is needed to address the user's request. Proceed to step 3.
-3. Write the python code to address the user's request. You can use any 3rd party library if needed. 
-4. Always provide the generated Python code in your response in Markdown-format.
-5. Write a function with an appropiate name and an appropiate docstring. Use numpy-style for writing the docstring.
-6. Use this function to address the user's request. Store the result in a variable named "final_result".
+# DETAILED TASK:
+1. Judge if the last response fully satisfies the user's request.
+2. If yes and it's non-deterministic, just say: {appropriate_cue}.
+3. If yes but it's deterministic, write code that verifies the outcome.
+4. If no, write code that properly solves the user's request.
+5. The code must be in Markdown format, with a function named appropriately. 
+   Return the result in a variable named "final_result".
+"""
 
-# Response Format:
-**Explanation:** Explain in your reasoning what information is needed to address the user's request.
-**Judgment:** 
-If the last response is satisfactory, say {appropiate_cue} and end your response.
-If the last response is not satisfactory, use the following format:
-
-```python
-# You can import any third-party libraries as needed.
-import ...
-
-# Write the python code to address the user's request in a function with an appropiate name.
-def new_tool(param1, param2):
-    return ....
-
-# store the result in a variable named "final_result"
-final_result = new_tool(param1, param2)
-""".strip()
-
-    with AlternativeAgent(user_question, new_system_prompt, manager, code_executor) as python_agent:
+    with AgenticRole(user_question, new_system_prompt, manager, code_executor) as python_agent:
         new_response = python_agent.manager.generate(python_agent.question)
 
-        # Check if the response is appropriate
-        if appropiate_cue.lower() in new_response.lower():
-            logger.info("Last response is appropiate to address the user's request.")
+        if appropriate_cue.lower() in new_response.lower():
+            logger.info("Last response is deemed appropriate to address the user's request.")
             return response
 
         return new_response
@@ -601,32 +539,37 @@ def _handle_answer_validation_agent(
     final_result: str,
     manager: TextGenerationManager,
     code_executor: CodeExecutor,
-):
+) -> bool:
     """
-    Handle the response from the answer validation agent.
+    Engages a specialized 'validation agent' to confirm whether all necessary info
+    has been gathered to finalize the user's request.
+
+    Returns a boolean indicating whether the answer is appropriate.
     """
+    response = ""
     assistant_context = [d for d in manager.processor.chat_history if d["role"] == "assistant"]
     old_chat_history = format_chat_history_as_string(assistant_context)
-    system_prompt = "You are an expert at judging how satisfactory the gathered information is to address a user's request. Pay special attention to text with the word 'final_result'."
+    system_prompt = (
+        "You are an expert at verifying completeness. Focus on whether enough data is present, "
+        "especially around 'final_result'. Do NOT solve the problem yourself."
+    )
     question = _create_validation_agent_prompt(
         user_request=user_request,
         old_chat_history=old_chat_history,
         final_result=final_result,
     )
 
-    with AlternativeAgent(question, system_prompt, manager, code_executor) as judge_agent:
-        judgment = judge_agent.manager.generate(judge_agent.question)
+    with AgenticRole(question, system_prompt, manager, code_executor) as judge_agent:
+        response = judge_agent.manager.generate(judge_agent.question)
 
-        # parse the judgment from the html tags
         try:
-            judgment = re.findall(r"<judgment>(.*?)</judgment>", judgment, re.DOTALL)[0].strip()
-            logger.info(f"Answer validation judgment: {judgment}")
+            judgment_str = re.findall(r"<judgment>(.*?)</judgment>", response, re.DOTALL)[0].strip()
+            logger.info(f"Answer validation judgment: {judgment_str}")
+            if judgment_str.lower() == "yes":
+                logger.info("Answer 'yes' found in judgment.")
+                return True
         except Exception as e:
             logger.error(f"Error parsing judgment: {str(e)}")
-
-        if judgment.lower() == "yes":
-            logger.info("Answer 'yes' found in judgment.")
-            return True
 
     logger.info("Did not find 'yes' in judgment.")
     return False
@@ -641,92 +584,64 @@ def _handle_tool_result(
     max_steps: int,
 ) -> str:
     """
-    Handle the result of a tool execution with support for multi-step processing.
-
-    Parameters
-    ----------
-    results : List[Dict]
-        The results from the code executor
-    user_choice : str
-        The user's inputted choice
-    code_executor : CodeExecutor
-        The code executor instance
-    manager : TextGenerationManager
-        The text generation manager instance
-    current_step : int
-        Current step in the tool calling sequence
-    max_steps : int
-        Maximum number of tool calling steps
-
-    Returns
-    -------
-    str
-        The response from the model
+    Handle the result of a tool execution with support for multi-step processing,
+    final validation, and building the ultimate response.
     """
-    if not results or not results[0]["success"]:
+    if not results or not any(r["success"] for r in results):
         logger.warning(f"Tool execution failed or no results. Results: {results}")
         return ""
 
-    if "final_result" in code_executor.globals_dict:
-        final_result = code_executor.globals_dict["final_result"]
-        logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
+    final_result = code_executor.globals_dict.get("final_result", None)
+    if final_result is None:
+        logger.warning(f"No 'final_result' found in globals after tool execution.\nResults: {results}")
+        return ""
 
-        answer_is_appropriate = _handle_answer_validation_agent(user_choice, final_result, manager, code_executor)
-        if answer_is_appropriate:
-            logger.info("✅ Enough information gathered to generate a final answer.")
-        else:
-            logger.info("❌ There is not enough information to generate a final answer (yet!).")
+    logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
 
-        # Store result for next steps
-        tool_results = code_executor.globals_dict.get("tool_results", [])
-        tool_results.append(final_result)
-        code_executor.globals_dict["tool_results"] = tool_results
+    answer_is_appropriate = _handle_answer_validation_agent(user_choice, final_result, manager, code_executor)
+    if answer_is_appropriate:
+        logger.info("✅ Enough information gathered to generate a final answer.")
+    else:
+        logger.info("❌ More information needed to generate a final answer.")
 
-        if current_step + 1 < max_steps and not answer_is_appropriate:
-            # Process next step with accumulated results
-            return process_user_question(
-                user_choice, code_executor, manager, max_steps=max_steps, current_step=current_step + 1
-            )
-        else:
-            logger.info("Reached maximum steps or gathered enough information. Generating final response.")
-            # Format final response context
-            ctx_to_add = f"""
-Use ALL the following information to provide a COMPLETE answer:
+    tool_results = code_executor.globals_dict.get("tool_results", [])
+    tool_results.append(final_result)
+    code_executor.globals_dict["tool_results"] = tool_results
+
+    if current_step + 1 < max_steps and not answer_is_appropriate:
+        return process_user_question(
+            user_choice, code_executor, manager, max_steps=max_steps, current_step=current_step + 1
+        )
+
+    logger.info("Reached maximum steps or decided enough info is present. Generating final response.")
+    ctx_to_add = f"""
+Use ALL the following gathered data:
 Previous Results: {tool_results}
 
-Important: Synthesize ALL gathered information into a coherent response.
+Synthesize everything into one coherent final answer.
 """.strip()
-            user_question = f"**User Request**:\n{user_choice}\n\n{ctx_to_add}".strip()
+    user_question = f"**User Request**:\n{user_choice}\n\n{ctx_to_add}".strip()
 
-            # Generate final response without tools
-            manager.update_config("agentic.apply_tools", False)
-            response = manager.generate(user_question)
-            manager.update_config("agentic.apply_tools", True)
-            return response
-    else:
-        logger.warning(f"Unexpected tool result format. Could not find 'final_result'.\nResults: {results}")
-        return ""
+    manager.update_config("agentic.apply_tools", False)
+    response = manager.generate(user_question)
+    manager.update_config("agentic.apply_tools", True)
+
+    return response
 
 
 def _handle_rag_for_python(user_question: str, manager: TextGenerationManager) -> str:
     """
-    Handle RAG (Retrieval Augmented Generation) for Python library documentation.
-
-    Args:
-        user_question: The original user question
-        manager: TextGenerationManager instance for config access
-
-    Returns:
-        Modified user question with added context from library documentation
+    If Retrieval-Augmented Generation (RAG) is enabled, add relevant Python library docstrings
+    to the user question.
     """
     rag_is_active = manager.get_config_key("rag.active", False)
     library_to_rag = manager.get_config_key("rag.target_library", "")
     if rag_is_active and library_to_rag:
-        logger.info(f"RAG search enabled. Adding context of python library '{library_to_rag}' to the question.")
+        logger.info(f"RAG search enabled. Adding docs from python library '{library_to_rag}'.")
         ctx_to_add = f"""
 # CONTEXT:
-The following context is documentation from the python library {library_to_rag}.
-Use this information to help generate a code snippet that answers the question.
+Below is documentation from the Python library '{library_to_rag}'.
+Use it to assist in answering the user's question.
 """
         searcher = PythonLibSearcher()
         context = searcher.search(
@@ -734,73 +649,57 @@ Use this information to help generate a code snippet that answers the question.
         )
         ctx_to_add += context
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
-        logger.info(f"Context added to the question with approximate amount of {len(context.split())} words")
+        logger.info(f"Context added (~{len(context.split())} words).")
     return user_question
 
 
 def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
+    """
+    Builds a prompt for a specialized validation agent that checks if all
+    required steps/data are present to fulfill the user's request.
+    """
     return f"""
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                                    TASK                                       ║
+║                                    TASK                                      ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 IMPORTANT: Your task is ONLY to validate if enough information has been gathered.
-DO NOT calculate or provide the final answer yourself.
+Do NOT calculate or provide the final answer yourself.
 
-Key validation rules:
-1. For multi-step problems: ALL steps must be completed for a YES judgment
-2. Each piece of information must be explicitly present in the context or 'final_result'
-3. Pay special attention to context with the word 'final_result' and surrounding text.
-4. Do not make assumptions or infer data that isn't explicitly provided
-5. If the context shows a list of required steps, check each one individually
-6. Focus ONLY on whether required information is present, not on calculating results
+Validation rules:
+1. Multi-step: ALL steps must be addressed to respond "YES".
+2. Do not guess or infer data not explicitly present.
+3. If any vital data is missing, do NOT say "YES".
 
-Judgment criteria:
-- YES: ONLY if ALL required steps are completed AND ALL needed information is present
-- PARTIAL: If any step is incomplete OR any required information is missing
-- NO: If the result is incorrect or unsuitable
-
-Remember: Your role is to verify information completeness, NOT to solve the problem.
+Possible judgments:
+- YES: If all necessary data is present
+- PARTIAL: Data is partially present, or some steps incomplete
+- NO: Data is incorrect, missing critical parts, or entirely irrelevant
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                               EVALUATION STEPS                                ║
+║                                 CONTEXT                                      ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
-1. Look for any explicitly stated steps or requirements in the context
-2. For each step or requirement found:
-   - Mark it as COMPLETED only if the exact information is present
-   - Mark it as PENDING if the information is missing or incomplete
-3. Check that you can cite the source of each piece of information
-4. Verify information presence without calculating final results
-5. Only proceed to judgment after checking all steps
-
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                                  CONTEXT                                      ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ORIGINAL REQUEST ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓▓▓ ORIGINAL REQUEST ▓▓▓
 {user_request}
 
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ CHAT HISTORY ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓▓▓ CHAT HISTORY ▓▓▓
 {old_chat_history}
 
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ FINAL RESULT ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓▓▓ FINAL RESULT ▓▓▓
 {final_result}
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                            RESPONSE FORMAT                                    ║
+║                          RESPONSE FORMAT (REQUIRED)                          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 <goal>
-[STATE THE USER'S ULTIMATE GOAL/QUESTION - DO NOT ANSWER IT]
+[Restate the user's ultimate goal or question; do not answer it]
 </goal>
 
 <required_steps>
-[LIST ALL REQUIRED STEPS FOUND IN CONTEXT]
+[List the steps found in context]
 </required_steps>
 
 <step_completion_status>
-[FOR EACH STEP LISTED ABOVE:
-- Status: COMPLETED/PENDING
-- Source: Where the information came from (chat history/final result)
-- Information: What exact information was found (raw data only, no calculations)]
+[For each step, show COMPLETED/PENDING, plus source (chat/final_result)]
 </step_completion_status>
 
 <judgment>
@@ -808,10 +707,10 @@ Remember: Your role is to verify information completeness, NOT to solve the prob
 </judgment>
 
 <explanation>
-[EXPLAIN WHICH INFORMATION IS STILL MISSING - DO NOT CALCULATE OR PROVIDE SOLUTIONS]
+[If PARTIAL/NO, explain what info is missing. Do NOT solve the problem.]
 </explanation>
 
 <next_steps>
-[IF PARTIAL/NO: List which specific information needs to be gathered next]
+[If PARTIAL/NO, specify what additional data is needed next]
 </next_steps>
 """
