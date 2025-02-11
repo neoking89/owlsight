@@ -11,6 +11,8 @@ try:
 except ImportError:
     SentenceTransformer = None
 
+from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
+
 
 class TextSplitter(ABC):
     """Abstract base class for text splitting strategies."""
@@ -216,7 +218,7 @@ class SemanticTextSplitter(TextSplitter):
 
     def __init__(
         self,
-        model_name: Optional[str] = None,
+        model_name: Optional[str] = SENTENCETRANSFORMER_DEFAULT_MODEL,
         window_size: int = 1,
         percentile: float = 0.90,
         device: Optional[str] = None,
