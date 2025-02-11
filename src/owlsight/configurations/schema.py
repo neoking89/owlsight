@@ -1,12 +1,12 @@
 """Complete schema for the application."""
 
+import json
 import os
 from typing import Any, Dict, List, Union
-import json
 
-from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.hugging_face.constants import HUGGINGFACE_TASKS
 from owlsight.processors.custom_classes import GGUF_Utils
+from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.ui.custom_classes import MenuItem, OptionType
 
 
@@ -232,24 +232,24 @@ class Schema:
         },
         "agentic":{
             "back": MenuItem(
-                type=OptionType.ACTION, description="Apply logic for agentic systems."
+                type=OptionType.ACTION, description="Orchestrate a sequential multi-agent workflow: Tool → Python → Judge agents process data, feeding their collective output to an Answer agent for final synthesis"
             ),
             "apply_tools": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Toggle whether agentic systems tool/function-calling is active. Available tools concerns all defined functions in the Python Interpreter namespace.",
+                description="Toggle whether the agentic system is active. Available tools concerns a subset of functions in the Python Interpreter namespace.",
                 default=False,
                 choices=[False, True],
             ),
             "max_steps": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Maximum number of steps for agentic systems.",
-                default=1,
+                description="Maximum number of steps for the agentic system.",
+                default=5,
                 choices=[n for n in range(1, 21)],
             ),
             "enable_python_agent": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Toggle the inclusion of a Python generation agent. This agent judges the last response and writes Python code that is executed directly if it thinks it is an improvement over the previous response",
-                default=False,
+                description="Toggle the inclusion of a Python generation agent. This agent judges the last response of the Tool agent and writes Python code if appropriate",
+                default=True,
                 choices=[False, True],
             ),
         },
