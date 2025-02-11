@@ -437,6 +437,43 @@ def extract_square_bracket_tags(
     return result
 
 
+def parse_html_tags(text: str) -> dict:
+    """
+    Parse HTML-like tags from text into a dictionary.
+    
+    Parameters
+    ----------
+    text : str
+        The text containing HTML-like tags to parse
+    
+    Returns
+    -------
+    dict
+        Dictionary with tag names as keys and their content as values
+    
+    Example
+    -------
+    >>> text = '<goal>My goal</goal><step>Step 1</step>'
+    >>> parse_html_tags(text)
+    {'goal': 'My goal', 'step': 'Step 1'}
+    """
+    # Strip any leading/trailing whitespace
+    text = text.strip()
+    
+    # Dictionary to store results
+    result = {}
+    
+    # Find all tags and their content
+    pattern = r'<(\w+)>(.*?)</\1>'
+    matches = re.findall(pattern, text, re.DOTALL)
+    
+    # Store each tag's content in the dictionary
+    # Strip whitespace and newlines from the beginning and end of content
+    for tag, content in matches:
+        result[tag] = content.strip()
+    
+    return result
+
 def parse_function_call(input_str: str) -> tuple[str | None, dict | None]:
     """
     Parses a string for a JSON-like function call pattern of the form:
@@ -450,7 +487,7 @@ def parse_function_call(input_str: str) -> tuple[str | None, dict | None]:
     match = re.search(pattern, input_str)
     if not match:
         return None, None
-        
+
     func_name = match.group(1)
     args_str = match.group(2)
     try:
@@ -463,23 +500,39 @@ def parse_function_call(input_str: str) -> tuple[str | None, dict | None]:
 def function_call_to_python_code(func_name: str, arguments: dict) -> str:
     """
     Transforms a function name and arguments dict into a Python code string.
-
-    Args:
-        func_name: Name of the function to call
-        arguments: Dictionary of argument names and values
-
-    Returns:
-        str: Python code string in markdown format
     """
-    # try/parse all parameter values to 'unstring' them
-    d = {}
-    for key, value in arguments.items():
+
+    def parse_value(value: str):
+        """Safely convert string representations to proper Python types"""
         try:
-            d[key] = eval(value)
-        except:
-            d[key] = f"'{value}'"
-    kwargs = ", ".join(f"{key}={value}" for key, value in d.items())
-    code_line = f"final_result = {func_name}({kwargs})"
+            # Handle numeric types
+            if value.isdigit():
+                return int(value)
+            if value.replace(".", "", 1).isdigit():
+                return float(value)
+            # Handle boolean values
+            if value.lower() in ("true", "false"):
+                return value.lower() == "true"
+            # Handle quoted strings
+            if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                return value[1:-1]
+            # Handle lists/dicts
+            if value.startswith(("[", "{")):
+                return ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            pass
+        return value  # Return as string literal if all else fails
+
+    processed_args = []
+    for key, value in arguments.items():
+        parsed = parse_value(str(value))
+        if isinstance(parsed, str):
+            # Add quotes if not already present
+            if not (parsed.startswith(('"', "'")) and parsed.endswith(('"', "'"))):
+                parsed = f"'{parsed}'"
+        processed_args.append(f"{key}={parsed}")
+
+    code_line = f"final_result = {func_name}({', '.join(processed_args)})"
     return f"```python\n{code_line}\n```"
 
 
@@ -510,17 +563,17 @@ def format_chat_history_as_string(history: List[dict]) -> str:
     """
     formatted = []
     message_separator = "\n" + "=" * 80 + "\n"  # Longer, more distinct separator
-    
+
     for item in history:
         # Add message header with role in uppercase
         formatted.append(f"【 {item['role'].upper()} 】")
-        
+
         # Add content with indentation for better readability
-        content_lines = item['content'].split('\n')
-        indented_content = '\n    '.join(content_lines)  # Four spaces indentation
+        content_lines = item["content"].split("\n")
+        indented_content = "\n    ".join(content_lines)  # Four spaces indentation
         formatted.append(f"Content:\n    {indented_content}")
-        
+
         # Add separator after each message
         formatted.append(message_separator)
-    
+
     return "".join(formatted)
