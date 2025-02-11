@@ -258,6 +258,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     code_executor.globals_dict.clear()
     code_executor.globals_dict.update(temp_dict)
 
+    # remove all files in cache folder except the default config file
     cache_dir = get_cache_dir()
     default_config_on_startup_path = get_default_config_on_startup_path(return_cache_path=True)
     files_in_cache_dir = [Path(cache_dir) / path for path in os.listdir(cache_dir)]
@@ -270,12 +271,14 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
             logger.warning(f"Could not delete file {file_path}: {str(e)}. The file may be in use.")
             continue
 
+    # clear manager state
     if manager.processor is not None:
         manager.processor.chat_history.clear()
     manager._used_tools.clear()
 
     logger.info(f"Cleared files in cachefolder '{get_cache_dir()}' and model chathistory.")
 
+    # initialize empty cache files again
     get_pickle_cache()
     get_prompt_cache()
     get_py_cache()
