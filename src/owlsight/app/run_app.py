@@ -372,6 +372,15 @@ def on_app_startup(manager: TextGenerationManager):
         logger.info(f"Loaded settings from default config '{default_config_path}'")
 
 def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
+    """
+    Extracts the key and value from a chain parameter string.
+
+    Args:
+        param (str): The chain parameter string in the format "param=value".
+
+    Returns:
+        Tuple[str, str]: A tuple containing the key and value extracted from the parameter string.
+    """
     if "=" not in param:
         logger.error(f"Invalid chain parameter: {param}. Use 'param=value' format. Skipping...")
         return "", ""
