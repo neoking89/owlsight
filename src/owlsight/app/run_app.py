@@ -1,10 +1,11 @@
 import tempfile
 import traceback
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple
 from enum import Enum, auto
 import os
 import inspect
 import re
+from pathlib import Path
 
 from owlsight.configurations.constants import MAIN_MENU
 from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
@@ -44,6 +45,7 @@ class AgenticRole:
     tool usage. It captures any changes to the chat history and system prompt, restoring
     them when the context closes.
     """
+
     def __init__(
         self,
         question: str,
@@ -80,10 +82,7 @@ class AgenticRole:
 
         # Restore original system prompt & chat history
         self.manager.update_config("model.system_prompt", self.original_state["system_prompt"])
-        self.manager.processor.chat_history = (
-            self.original_state["chat_history"] + self.manager.processor.chat_history
-        )
-
+        self.manager.processor.chat_history = self.original_state["chat_history"] + self.manager.processor.chat_history
 
 
 class CommandResult(Enum):
@@ -261,13 +260,15 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
     cache_dir = get_cache_dir()
     default_config_on_startup_path = get_default_config_on_startup_path(return_cache_path=True)
-    files_in_cache_dir = [path for path in os.listdir(cache_dir) if path != default_config_on_startup_path]
+    files_in_cache_dir = [Path(cache_dir) / path for path in os.listdir(cache_dir)]
+    files_in_cache_dir = [file_path for file_path in files_in_cache_dir if file_path != default_config_on_startup_path]
 
     for file_path in files_in_cache_dir:
-        force_delete(file_path)
+        file_path.unlink()
 
     if manager.processor is not None:
         manager.processor.chat_history.clear()
+    manager._used_tools.clear()
 
     logger.info(f"Cleared files in cachefolder '{get_cache_dir()}' and model chathistory.")
 
@@ -284,7 +285,7 @@ def process_user_question(
     current_step: int = 0,
 ) -> str:
     """
-    Process the user's choice and generate a response. 
+    Process the user's choice and generate a response.
     Optionally involves multi-step tool usage and result validation.
     """
     _handle_dynamic_system_prompt(user_choice, manager)
@@ -370,6 +371,14 @@ def on_app_startup(manager: TextGenerationManager):
         manager.load_config(default_config_path)
         logger.info(f"Loaded settings from default config '{default_config_path}'")
 
+def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
+    if "=" not in param:
+        logger.error(f"Invalid chain parameter: {param}. Use 'param=value' format. Skipping...")
+        return "", ""
+    key, value = param.split("=")
+    key = key.strip()
+    value = value.strip()
+    return key, value
 
 def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationManager) -> None:
     """
@@ -380,9 +389,7 @@ def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationMan
     if dynamic_system_prompt:
         prompt_engineer_prompt = ExpertPrompts.prompt_engineering
         manager.update_config("model.system_prompt", prompt_engineer_prompt)
-        logger.info(
-            "Dynamic system prompt is active. Model will act as Prompt Engineer to create a new system prompt."
-        )
+        logger.info("Dynamic system prompt is active. Model will act as Prompt Engineer to create a new system prompt.")
         new_system_prompt = manager.generate(user_question)
         manager.update_config("model.system_prompt", new_system_prompt)
         manager.update_config("main.dynamic_system_prompt", False)
@@ -414,7 +421,7 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
             progress_sections.append(f"## Step Status:\n{step_completion_status}")
         if next_steps:
             progress_sections.append(f"## Next Steps:\n{next_steps}")
-        
+
         progress_content = "\n\n".join(progress_sections)
 
         instruction_prompt = f"""
@@ -464,6 +471,7 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
 """
     return f"# User Request:\n{user_question}\n\n{tool_prompt}".strip()
 
+
 def _get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str, str]:
     """
     Parse the last used tool from the response, along with its function body.
@@ -488,52 +496,90 @@ def _handle_python_agent(
     tool_name: Dict[str, str],
 ) -> str:
     """
-    If a Python-specific refinement is needed, we engage an "expert Python agent" that checks
-    if the tool usage is appropriate. If not, it may produce an alternative Python solution.
+    Expert Python agent for code validation and refinement with enhanced security
+    and prompt engineering features. Implements input validation, secure coding
+    practices, and structured prompting.
     """
-    if tool_name:
-        extracted_tool_name, tool_code = list(tool_name.items())[0]
-        used_tool = f"Used tool: {extracted_tool_name}\n{tool_code}".strip()
-    else:
-        extracted_tool_name, used_tool = "", ""
+    # Input validation guard clause
+    if not all(isinstance(arg, (str, dict)) for arg in (user_request, response, tool_name)):
+        raise ValueError("Invalid input types for Python agent handling")
 
+    # Secure tool extraction with fallback
+    used_tool = ""
+    if tool_name:
+        try:
+            extracted_tool_name, tool_code = next(iter(tool_name.items()))
+            used_tool = f"## Tool Usage\nName: {extracted_tool_name}\nCode:\n``````"
+        except (StopIteration, ValueError):
+            logger.warning("Invalid tool format received")
+
+    validation_checks = {
+        "def": "missing def",
+        ":": "missing colon",
+        "(": "missing paren",
+        ")": "missing paren",
+        "    ": "missing indent",
+        "return": "missing return"
+    }
     appropriate_cue = "The last response is appropriate to address the user's request."
 
-    new_system_prompt = f"""
-You are an advanced Python developer. 
-Analyze the previous tool usage and decide whether it solves the user's request.
+    system_prompt = f"""## Python Expert Role
+You are an advanced Python developer specialized in security-critical code analysis[2].
+Follow this decision matrix:
 
-If it does, respond with a short statement: "{appropriate_cue}".
-If it is correct but has a deterministic outcome, provide a small Python code snippet to confirm.
-If it is not correct or insufficient, produce new Python code that fulfills the user's request.
+1. IF response contains valid code solving {user_request}:
+   - IF contains randomness/nondeterminism → "{appropriate_cue}"
+   - ELSE → Add verification code
+   
+2. IF response incomplete/incorrect → Write new solution
+
+## Code Requirements
+- Functions with type hints
+- Input validation
+- Error handling
+- Secure defaults
+- Markdown format with ```
+- Testable verification code for deterministic solutions
+
+## Forbidden Patterns
+- eval/exec
+- Unsafe deserialization
+- Bare except clauses[2]
 """
 
-    user_question = f"""
-User request:\n{user_request}
+    validation_rules = "\n".join([f"- {desc} check" for desc in validation_checks.values()])
+    
+    user_prompt = f"""# Code Validation Task
+**User Request**: {user_request}
 
-Last Response:\n{response}
+**Previous Response**:
+{response}
 
 {used_tool}
 
-# DETAILED TASK:
-1. Judge if the last response fully satisfies the user's request.
-2. If yes and it's non-deterministic, just say: {appropriate_cue}.
-3. If yes but it's deterministic, write code that verifies the outcome.
-4. If no, write code that properly solves the user's request.
-5. The code must be in Markdown format, with a function named appropriately. 
-   Return the result in a variable named "final_result".
+## Validation Checklist[1]
+{validation_rules}
+
+## Required Output Format
+```python
+def solution_<descriptive_name>(...) -> <return_type>:
+    '''Docstring explaining functionality'''
+    # Implementation
+    # Verification logic if needed
+    
+final_result = solution(...)
+```
 """
+    with AgenticRole(user_prompt, system_prompt, manager, code_executor) as agent:
+        new_response = agent.manager.generate(agent.question)
 
-    with AgenticRole(user_question, new_system_prompt, manager, code_executor) as python_agent:
-        new_response = python_agent.manager.generate(python_agent.question)
-
-        if appropriate_cue.lower() in new_response.lower():
-            logger.info("Last response is deemed appropriate to address the user's request.")
-            return response
-
-        return new_response
-
-
+        if all(keyword in new_response for keyword in validation_checks):
+            if re.search(r"def validate$$.*$$:.*?return True", new_response, re.DOTALL):
+                return new_response
+        
+        logger.warning("Code validation failed, returning original response")
+        return response
+        
 def _handle_answer_validation_agent(
     user_request: str,
     final_result: str,
