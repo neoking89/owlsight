@@ -1,8 +1,8 @@
 {
     "main": {
         "max_retries_on_error": 3,
-        "prompt_retry_on_error": true,
-        "prompt_code_execution": true,
+        "prompt_retry_on_error": false,
+        "prompt_code_execution": false,
         "track_model_usage": false,
         "extra_index_url": "",
         "python_compile_mode": "single",
@@ -12,7 +12,6 @@
     "model": {
         "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
         "apply_chat_history": true,
-        "apply_tools": true,
         "system_prompt": "You are a helpful assistant. Use one of the available tools to answer the user's question. ALWAYS use tools.",
         "model_kwargs": {},
         "transformers__device": null,
@@ -42,6 +41,11 @@
         "sentence_transformer_name_or_path": "Alibaba-NLP/gte-base-en-v1.5",
         "search": ""
     },
+    "agentic": {
+            "apply_tools": true,
+            "max_steps": 5,
+            "enable_python_agent": true
+        },
     "huggingface": {
         "search": "",
         "top_k": 10,
