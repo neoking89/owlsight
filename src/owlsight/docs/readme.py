@@ -326,7 +326,7 @@ for token in processor.generate_stream(question):
 
 **1.2.1**
 
-- Access backend functionality through the API using "from owlsight import ..."
+- Access backend functionality through the Owlsight API using "from owlsight import ..."
 - Added default functions to the Python interpreter, starting with the "owl_" suffix.
 - More configurations available when using GGUF models from the command line.
 
@@ -338,9 +338,9 @@ for token in processor.generate_stream(question):
 
 **1.4.1**
 
-- improve RAG capabilities in the API, added **SentenceTransformerSearchEngine**, **TFIDFSearchEngine** and **HashingVectorizerSearchEngine** as classes.
+- improve RAG capabilities in the Owlsight API, added **SentenceTransformerSearchEngine**, **TFIDFSearchEngine** and **HashingVectorizerSearchEngine** as classes.
 - Added **DocumentSearcher** to offer a general RAG solution for documents. At its core, uses a combination of TFIDF and Sentence Transformer.
-- Added caching possibility to all RAG solutions in the API (*cache_dir* & *cache_dir_suffix*), where documents, embeddings etc. get pickled. This can save a big amount of time if amount of documents is large.
+- Added caching possibility to all RAG solutions in the Owlsight API (*cache_dir* & *cache_dir_suffix*), where documents, embeddings etc. get pickled. This can save a big amount of time if amount of documents is large.
 
 **2.0.1beta**
 
@@ -361,7 +361,12 @@ for token in processor.generate_stream(question):
 - Added `get_max_context_length` method to all `TextGenerationProcessor` classes, which returns the maximum context length of the loaded model.
 - Moved `transformers__use_fp16` in config:model to `transformers__quantization_bits` as value 16, as it is more clear.
 - Added `track_model_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
-- Added possibility to pass complete directories as argument to mediatypes to a model in the CLI, like so: [[image:directory/containing/images]]
+- Added possibility to pass complete directories as argument to mediatypes to a model in the CLI, like so: 
+
+```text
+[[image:directory/containing/images]]
+```
+
 - Add `owl_models()` function to python interpreter for displaying all Huggingface models in the cache directory.
 
 **2.2.0**
@@ -400,18 +405,31 @@ The idea is that this might help the model to give a more focused response to th
 
 ***Several changes for the "How can I assist you?"-option:***
 - Added `[[load:...]]` tag support for dynamic configuration loading during conversations. This can be used in "How can I assist you?" in mainmenu to chain multiple configurations (agents) together, like so:
-"[[load:config-to-model1.json]] Generates a rough draft for the following text: {{{{owl_read("mockup-idea.txt")}}}} [[load:config-to-model2.json]] Validate that the generated draft based on the previous text is relevant and contains all necessary information"
+
+```text
+[[load:config-to-model1.json]] Generates a rough draft for the following text: {{{{owl_read("mockup-idea.txt")}}}} [[load:config-to-model2.json]] Validate that the generated draft based on the previous text is relevant and contains all necessary information
+```
 TIP 1: Combing a sequence of different agents together with above method can lead to complex conversation flows.
 TIP 2: Using above tag in combination with `sequence_on_loading` in the configuration json opens lots of new possibilities to control the application.
-- Added `[[chain:...]]` tag support for changing config parameters in between conversations. For example: "[[chain:model.system_prompt=act as a helpful assistant||generate.temperature=0.5]]".
+
+- Added `[[chain:...]]` tag support for changing config parameters in between conversations. For example: 
+
+```text
+[[chain:model.system_prompt=act as a helpful assistant||generate.temperature=0.5]]
+```
 - Above tags can also be used INSIDE a python-expression inside the "How can I assist you?"-option, like so:
-{{{{"".join(f"[[load:config-to-model{{i}}.json]]how much is {{i}} + 1?" for i in range(1, 10))}}}} 
-- Added `SentenceTextSplitter` to the API. This can be used to split text into chunks based on sentences.
-- Added `SemanticTextSplitter` to the API. This can be used to split text into chunks based on semantic similarity breakpoints and might be more accurate for chunking than `SentenceTextSplitter`.
+
+```text
+{{{{"".join(f"[[load:config-to-model{{i}}.json]]how much is {{i}} + 1?" for i in range(1, 10))}}}}
+```
+
+- Added `SentenceTextSplitter` to the Owlsight API. This can be used to split text into chunks based on sentences.
+- Added `SemanticTextSplitter` to the Owlsight API. This can be used to split text into chunks based on semantic similarity breakpoints and might be more accurate for chunking than `SentenceTextSplitter`.
 Note that both TextSplitter classes can be used as input for the `DocumentSearcher` class.
 - Added `main.default_config_on_startup` to the `config:main` section. This option can be used to specify a default configuration file to load when starting Owlsight.
 This will load the configuration file specified in `main.default_config_on_startup` when every time when starting Owlsight.
-- Added a multi-agent section in config, called `config:agentic`.
+- Added a new section in config, called `config:agentic`. This section can be activated through the "apply_tools" option.
+The section consists of a multi-step agentic system, where the the agents are in fixed order: ToolAgent (can search the internet, scrape, etc) -> Pythonagent (specialized in generating Python code) -> ModelAgent (can use models). 
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
