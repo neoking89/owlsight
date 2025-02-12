@@ -516,7 +516,6 @@ def _handle_python_agent(
     and prompt engineering features. Implements input validation, secure coding
     practices, and structured prompting.
     """
-    # Input validation guard clause
     if not all(isinstance(arg, (str, dict)) for arg in (user_request, response, tool_name)):
         raise ValueError("Invalid input types for Python agent handling")
 
@@ -543,7 +542,7 @@ def _handle_python_agent(
 You are an advanced Python developer specialized in security-critical code analysis.
 Follow this decision matrix:
 
-1. IF response contains valid code solving {user_request}:
+1. IF response helps in solving **User Request** "{user_request}":
    - IF contains randomness/nondeterminism → "{appropriate_cue}"
    - ELSE → Add verification code
    
@@ -560,6 +559,7 @@ Follow this decision matrix:
 - eval/exec
 - Unsafe deserialization
 - Bare except clauses
+- Fabricated information (written code should be factual and accurate)
 """
 
     validation_rules = "\n".join([f"- {desc} check" for desc in validation_checks.values()])
