@@ -379,7 +379,7 @@ The advantage is that `model_kwargs` can now also be passed to other TextGenerat
 The idea is that this might help the model to give a more focused response to the question.
 - Add basic functionality, like select all, copy and paste. Use CTRL+A, CTRL+C and CTRL+Y respectively. This option applies to all editable fields and the Python Interpreter.
 
-**2.4.0**
+**2.4.0** (TO BE RELEASED)
 
 ***Several changes for the "How can I assist you?"-option:***
 - Added `[[load:...]]` tag support for dynamic configuration loading during conversations. This can be used in "How can I assist you?" in mainmenu to chain multiple configurations (agents) together, like so:
