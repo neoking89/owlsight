@@ -552,7 +552,6 @@ Follow this decision matrix:
 
 ## Code Requirements
 - Functions with type hints
-- Input validation
 - Error handling
 - Secure defaults
 - Markdown format with ```
@@ -591,8 +590,7 @@ final_result = solution(...)
         new_response = agent.manager.generate(agent.question)
 
         if all(keyword in new_response for keyword in validation_checks):
-            if re.search(r"def validate$$.*$$:.*?return True", new_response, re.DOTALL):
-                return new_response
+            return new_response
         
         logger.warning("Code validation failed, returning original response")
         return response
