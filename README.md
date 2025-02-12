@@ -256,7 +256,7 @@ The following section details all the objects and functions available in the Owl
 #### TextGenerationProcessorOnnx
 
 ```python
-class TextGenerationProcessorOnnx(model_id: str, onnx__verbose: bool = False, onnx__n_cpu_threads: int = 8, onnx__model_dir: Optional[str] = None, token: Optional[str] = None, apply_chat_history: bool = False, system_prompt: Optional[str] = None, model_kwargs: Optional[dict] = None, **kwargs: Any) -> None
+class TextGenerationProcessorOnnx(model_id: str, onnx__verbose: bool = False, onnx__n_cpu_threads: int = 8, onnx__model_dir: Optional[str] = None, token: Optional[str] = None, apply_chat_history: bool = False, system_prompt: Optional[str] = None, model_kwargs: Optional[dict] = None, apply_tools: Optional[List[dict]] = None, **kwargs: Any) -> None
 ```
 
 Text generation processor using ONNX Runtime optimized models.
@@ -326,7 +326,7 @@ Notes
 #### TextGenerationProcessorTransformers
 
 ```python
-class TextGenerationProcessorTransformers(model_id: str, transformers__device: Optional[str] = None, transformers__quantization_bits: Optional[int] = None, transformers__stream: bool = True, bnb_kwargs: Optional[dict] = None, tokenizer_kwargs: Optional[dict] = None, task: Optional[str] = None, apply_chat_history: bool = False, model_kwargs: Optional[dict] = None, system_prompt: str = '', **kwargs)
+class TextGenerationProcessorTransformers(model_id: str, transformers__device: Optional[str] = None, transformers__quantization_bits: Optional[int] = None, transformers__stream: bool = True, bnb_kwargs: Optional[dict] = None, tokenizer_kwargs: Optional[dict] = None, task: Optional[str] = None, apply_chat_history: bool = False, system_prompt: str = '', apply_tools: Optional[List[dict]] = None, model_kwargs: Optional[dict] = None, **kwargs)
 ```
 
 Text generation processor using transformers library.
@@ -353,7 +353,7 @@ Text generation processor using transformers library.
 #### TextGenerationProcessorGGUF
 
 ```python
-class TextGenerationProcessorGGUF(model_id: str, gguf__filename: str = '', gguf__verbose: bool = False, gguf__n_ctx: Optional[int] = None, gguf__n_gpu_layers: int = 0, gguf__n_batch: Optional[int] = None, gguf__n_cpu_threads: Optional[int] = None, apply_chat_history: bool = False, system_prompt: str = '', model_kwargs: Dict[str, Any] = None, **kwargs)
+class TextGenerationProcessorGGUF(model_id: str, gguf__filename: str = '', gguf__verbose: bool = False, gguf__n_ctx: Optional[int] = None, gguf__n_gpu_layers: int = 0, gguf__n_batch: Optional[int] = None, gguf__n_cpu_threads: Optional[int] = None, apply_chat_history: bool = False, system_prompt: str = '', model_kwargs: Dict[str, Any] = None, apply_tools: Optional[List[dict]] = None, **kwargs)
 ```
 
 Text generation processor for GGUF models using llama-cpp.
@@ -501,10 +501,42 @@ Maintains document and engine caches throughout the owlsight session.
 - `search(self, library: str, query: str, top_k: int = 5, cache_dir: Optional[str] = None, as_context: bool = True, tfidf_weight: float = 1.0, sentence_transformer_weight: float = 0.0, sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5') -> Union[pandas.core.frame.DataFrame, str]`
   - Search Python library documentation with caching for documents and search engines.
 
+#### SentenceTextSplitter
+
+```python
+class SentenceTextSplitter(n_sentences: int = 3, n_overlap: int = 0)
+```
+
+Split text into chunks based on sentences.
+
+**Methods:**
+
+- `split_and_clean_text(text: str) -> List[str]`
+  - Split a longer text into sentences and clean them.
+- `split_documents(self, documents: Dict[str, str], **kwargs) -> Dict[str, str]`
+  - Split documents into chunks of n sentences with overlap.
+- `split_text_in_sentences(text: str) -> List[str]`
+  - Split a longer text into sentences, while keeping account edgecases.
+
+#### SemanticTextSplitter
+
+```python
+class SemanticTextSplitter(model_name: Optional[str] = 'Alibaba-NLP/gte-base-en-v1.5', window_size: int = 1, percentile: float = 0.9, device: Optional[str] = None)
+```
+
+Split text into chunks based on semantic similarity breakpoints.
+
+**Methods:**
+
+- `set_model(self, model: Union[str, ~SentenceTransformer]) -> None`
+  - Set the model for the splitter.
+- `split_documents(self, documents: Dict[str, str], show_progress_bar: bool = True, **kwargs) -> Dict[str, str]`
+  - Split documents using semantic breakpoint detection.
+
 #### DocumentSearcher
 
 ```python
-class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, split_documents_n_sentences: Optional[int] = None, split_documents_n_overlap: int = 1, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None) -> None
+class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, text_splitter: Optional[owlsight.rag.text_splitters.TextSplitter] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None) -> None
 ```
 
 Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
@@ -530,15 +562,8 @@ sentence_transformer_model : str, default='Alibaba-NLP/gte-base-en-v1.5'
     Name or path of the Sentence Transformer model
 sentence_transformer_batch_size : int, default=64
     Batch size for computing embeddings
-split_documents_n_sentences : int, optional
-    Number of sentences to split each document into.
-    If None, no splitting is done per document
-    If not None, splitting is done per document.
-    Also, documents will be split into chunks of size `split_documents_n_sentences` so that
-    the number of sentences is equal to `split_documents_n_sentences`.
-split_documents_n_overlap : int, default=1
-    Only applies if `split_documents_n_sentences` is not None.
-    Number of sentences to overlap between adjacent chunks.
+text_splitter : Optional[TextSplitter], default=None
+    Strategy for splitting documents into chunks. If None, no splitting is done.
 cache_dir : str, optional
     Directory to cache embeddings and results
 cache_dir_suffix : str, optional
@@ -550,6 +575,7 @@ Notes
 - Uses both TF-IDF and neural embeddings for robust search
 - Has caching capabilities in pickled files
 - Supports batch processing for efficient embedding computation
+- Supports custom text splitting strategies through the TextSplitter interface
 
 **Examples:**
 
@@ -559,7 +585,9 @@ Notes
 ...     "doc1": "Python is a programming language",
 ...     "doc2": "Machine learning is fascinating"
 ... }
->>> searcher = DocumentSearcher(docs, cache_dir="document_cache", cache_dir_suffix="programming")
+>>> # Using default sentence-based splitting
+>>> splitter = SentenceTextSplitter(n_sentences=3, n_overlap=1)
+>>> searcher = DocumentSearcher(docs, text_splitter=splitter, cache_dir="document_cache", cache_dir_suffix="programming")
 >>> results = searcher.search("python programming", top_k=3)
 ```
 
@@ -567,8 +595,6 @@ Notes
 
 - `search(self, query: str, top_k: int = 20, sentence_transformer_weight: float = 0.7, tfidf_weight: float = 0.3, as_context: bool = False) -> Union[pandas.core.frame.DataFrame, str]`
   - Search documents using the configured ensemble methods.
-- `split_documents(documents: Dict[str, str], n_sentences: int = 3, n_overlap: int = 0) -> Dict[str, str]`
-  - Split documents into chunks of n sentences with overlap.
 
 #### DocumentReader
 
@@ -785,13 +811,11 @@ Notes
   - Save data to cache.
 - `search(self, query: str, top_k: int = 3) -> List[owlsight.rag.custom_classes.SearchResult]`
   - Search documents using the query.
-- `split_and_clean_text(text: str) -> List[str]`
-  - Split a longer text into sentences and clean them.
 
 #### OwlDefaultFunctions
 
 ```python
-class OwlDefaultFunctions(globals_dict: owlsight.utils.custom_classes.SingletonDict)
+class OwlDefaultFunctions(globals_dict: owlsight.utils.custom_classes.GlobalPythonVarsDict)
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -803,25 +827,27 @@ This class is open for extension, as possibly more useful functions can be added
 **Methods:**
 
 - `owl_import(self, file_path: str)`
-  - Import a Python file and load its contents into the current namespace.
+  - Import Python module into the current execution environment.
 - `owl_load_namespace(self, file_path: str)`
   - Load namespace using dill.
-- `owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> str`
-  - Returns a string with information about all Hugging Face models currently loaded in the cache directory.
+- `owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]`
+  - Audit Hugging Face model cache.
 - `owl_press(self, sequence: List[str], exit_python_before_sequence: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12) -> bool`
-  - Simulate typing a sequence of keys and automaticly control the menu inside the Owlsight application.
+  - Simulate keyboard input for application control.
 - `owl_read(self, path: Union[str, pathlib.Path, Iterable[Union[str, pathlib.Path]]], recursive: bool = False, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5) -> Union[str, Dict[str, str]]`
-  - Read content from files using DocumentReader with fallback to basic file reading.
+  - Read LOCAL FILE CONTENTS with advanced document processing.
 - `owl_save_namespace(self, file_path: str)`
-  - Save the current python namespace using dill.
-- `owl_scrape(self, url_or_terms: str, trim_newlines: Optional[int] = 2, filter_by: Optional[Dict[str, str]] = None, **request_kwargs) -> str`
-  - Scrape the text content of a webpage and return specific content based on the filter.
+  - Serialize current namespace state to disk.
+- `owl_scrape(self, urls: List[str], max_concurrent: int = 5) -> str`
+  - Scrape web content from URLs (use instead of owl_read for web resources).
+- `owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> list`
+  - Execute web search using DuckDuckGo's API.
 - `owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]`
-  - Show all currently active imported objects in the namespace except builtins.
-- `owl_tools(self) -> List[str]`
-  - Return a list of available functions which can be used for tool calling out of the global scope.
+  - Display active namespace objects with documentation.
+- `owl_tools(self, as_json: bool = True) -> List[Union[Callable, Dict]]`
+  - Retrieve available tool-callable functions in OpenAI-compatible format.
 - `owl_write(self, file_path: str, content: str) -> None`
-  - Write content to a (text) file.
+  - Write text content to filesystem.
 
 #### ExpertPrompts
 
@@ -967,14 +993,6 @@ Utilityfunction which selects the appropriate TextGenerationProcessor class base
 If the model_id is a directory, the function will inspect the contents of the directory
 to decide the processor type. Otherwise, it will use the model_id string to make the decision.
 
-#### search_bing
-
-```python
-def search_bing(term: str, exclude_from_url: Optional[List] = None, **request_kwargs) -> List[str]
-```
-
-Search Bing for a term and return a list of URLs.
-
 #### is_url
 
 ```python
@@ -1048,7 +1066,8 @@ Main Menu:
     - track_model_usage: Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model, Options: False, True, Type: OptionType.TOGGLE
     - extra_index_url: Additional URL for Python package installation. Useful for example when installing python packages (through pip) from private repositories, Type: OptionType.EDITABLE
     - python_compile_mode: Compile mode in the Python Interpreter (main menu): 'exec' is suited for defining code blocks, 'single' for direct execution, Options: exec, single, Type: OptionType.TOGGLE
-    - dynamic_system_prompt: Experimental feature: update the system prompt based on user input., Options: False, True, Type: OptionType.TOGGLE
+    - dynamic_system_prompt: Experimental feature: The model will first act as Prompt Engineer to create a new system prompt based on user input., Options: False, True, Type: OptionType.TOGGLE
+    - default_config_on_startup: Link to a configuration file that will be loaded on startup., Type: OptionType.EDITABLE
     - sequence_on_loading: A list of key sequences to execute when loading the configuration. Uses owl_press functionality., Type: OptionType.EDITABLE
   - model settings:
     - back: Return to previous menu
@@ -1082,6 +1101,11 @@ Main Menu:
     - sentence_transformer_weight: Weight for the embedding model. TFIDF-weight is 1 - `sentence_transformer_weight`, Options: 0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, Type: OptionType.TOGGLE
     - sentence_transformer_name_or_path: Name or path to a sentence-transformer model, which is used for embedding, Type: OptionType.EDITABLE
     - search: RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True, Type: OptionType.EDITABLE
+  - agentic settings:
+    - back: Return to previous menu
+    - apply_tools: Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace., Options: False, True, Type: OptionType.TOGGLE
+    - max_steps: Maximum number of steps for the agentic system., Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Type: OptionType.TOGGLE
+    - enable_python_agent: Toggle the inclusion of a Python generation agent. This agent judges the last response of the Tool agent and writes Python code if appropriate, Options: False, True, Type: OptionType.TOGGLE
   - huggingface settings:
     - back: Return to previous menu
     - search: Search for a model on the Hugging Face Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', Type: OptionType.EDITABLE
@@ -1090,7 +1114,7 @@ Main Menu:
     - task: Filter Hugging Face models by task. When using `search`, the results will be filtered directly by chosen task, Options: None, text-generation, text2text-generation, translation, summarization, image-to-text, automatic-speech-recognition, visual-question-answering, document-question-answering, Type: OptionType.TOGGLE
 - save: Save current configuration as JSON-file
 - load: Load a configuration from a JSON-file
-- clear history: Clear cache and chat history
+- clear history: Clear owlsight cache (directory called '.owlsight') and chat history
 - quit: Exit application
 
 Here's an example of what the default configuration looks like:
@@ -1105,6 +1129,7 @@ Here's an example of what the default configuration looks like:
         "extra_index_url": "",
         "python_compile_mode": "single",
         "dynamic_system_prompt": false,
+        "default_config_on_startup": "",
         "sequence_on_loading": []
     },
     "model": {
@@ -1138,6 +1163,11 @@ Here's an example of what the default configuration looks like:
         "sentence_transformer_weight": 0.0,
         "sentence_transformer_name_or_path": "Alibaba-NLP/gte-base-en-v1.5",
         "search": ""
+    },
+    "agentic": {
+        "apply_tools": false,
+        "max_steps": 5,
+        "enable_python_agent": true
     },
     "huggingface": {
         "search": "",
@@ -1273,12 +1303,13 @@ The idea is that this might help the model to give a more focused response to th
 TIP 1: Combing a sequence of different agents together with above method can lead to complex conversation flows.
 TIP 2: Using above tag in combination with `sequence_on_loading` in the configuration json opens lots of new possibilities to control the application.
 - Added `[[chain:...]]` tag support for changing config parameters in between conversations. For example: "[[chain:model.system_prompt=act as a helpful assistant||generate.temperature=0.5]]".
-- Above tags can also be used INSIDE a python-expression in the "How can I assist you?"-option, like so:
-{{"".join(f"[[load:config-to-model{i}.json]]how much is {i} + 1?" for i in range(1, 10))}}
-This will load 10 different models (given the configuration files "config-to-model1.json", "config-to-model2.json", etc.) and ask them in a sequence, like so:
-how much is 1 + 1?
-how much is 2 + 1?
-etc.
-
+- Above tags can also be used INSIDE a python-expression inside the "How can I assist you?"-option, like so:
+{{"".join(f"[[load:config-to-model{i}.json]]how much is {i} + 1?" for i in range(1, 10))}} 
+- Added `SentenceTextSplitter` to the API. This can be used to split text into chunks based on sentences.
+- Added `SemanticTextSplitter` to the API. This can be used to split text into chunks based on semantic similarity breakpoints and might be more accurate for chunking than `SentenceTextSplitter`.
+Note that both TextSplitter classes can be used as input for the `DocumentSearcher` class.
+- Added `main.default_config_on_startup` to the `config:main` section. This option can be used to specify a default configuration file to load when starting Owlsight.
+This will load the configuration file specified in `main.default_config_on_startup` when every time when starting Owlsight.
+- Added a multi-agent section in config, called `config:agentic`.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
