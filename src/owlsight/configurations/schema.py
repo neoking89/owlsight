@@ -36,7 +36,7 @@ class Schema:
             ),
             "track_model_usage": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Show metrics, which tracks GPU/CPU usage, amount of generated words and responsetime of model",
+                description="Show metrics after a model response. Tracks GPU/CPU usage, amount of generated words and responsetime of model. NOTE: GPU tracking only works for PyTorch models.",
                 default=False,
                 choices=[False, True],
             ),
