@@ -161,7 +161,7 @@ The following tasks are supported for multimodal models:
 These models require additional input, which can be passed in the prompt. 
 The syntax for passing mediatypes can be done through special double-square brackets syntax, like so:
 
-**How can I assist you?**
+*How can I assist you?*
 ```text
 [[image:path/to/file.jpg]]
 ```
@@ -169,7 +169,7 @@ The syntax for passing mediatypes can be done through special double-square brac
 The supported mediatypes are: *image*, *audio*.
 For example, to pass an image to a document-question-answering model, you can use the following syntax:
 
-**How can I assist you?**
+*How can I assist you?*
 ```text
 What is the first sentence in this image? [[image:path/to/image.jpg]]
 ```
@@ -1239,7 +1239,7 @@ str
 - Added `track_model_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
 - Added possibility to pass complete directories as argument to mediatypes to a model in the CLI, like so: 
 
-**How can I assist you?**
+*How can I assist you?*
 ```text
 [[image:directory/containing/images]]
 ```
@@ -1283,7 +1283,7 @@ The idea is that this might help the model to give a more focused response to th
 ***Several changes for the "How can I assist you?"-option:***
 - Added `[[load:...]]` tag support for dynamic configuration loading during conversations. This can be used in "How can I assist you?" in mainmenu to chain multiple configurations (agents) together, like so:
 
-**How can I assist you?**
+*How can I assist you?*
 ```text
 [[load:config-to-model1.json]] Generates a rough draft for the following text: {{owl_read("mockup-idea.txt")}} [[load:config-to-model2.json]] Validate that the generated draft based on the previous text is relevant and contains all necessary information
 ```
@@ -1292,13 +1292,13 @@ TIP 2: Using above tag in combination with `sequence_on_loading` in the configur
 
 - Added `[[chain:...]]` tag support for changing config parameters in between conversations. For example: 
 
-**How can I assist you?**
+*How can I assist you?*
 ```text
 [[chain:model.system_prompt=act as a helpful assistant||generate.temperature=0.5]]
 ```
 - Above tags can also be used INSIDE a python-expression inside the "How can I assist you?"-option, like so:
 
-**How can I assist you?**
+*How can I assist you?*
 ```text
 {{"".join(f"[[load:config-to-model{i}.json]]how much is {i} + 1?" for i in range(1, 10))}}
 ```
