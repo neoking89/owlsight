@@ -236,7 +236,7 @@ class Schema:
             ),
             "apply_tools": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Toggle whether the agentic system is active. Available tools concerns a subset of functions in the Python Interpreter namespace.",
+                description="Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace.",
                 default=False,
                 choices=[False, True],
             ),
