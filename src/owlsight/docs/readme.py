@@ -197,11 +197,11 @@ These are:
 - `owl_import`: Import Python file to current namespace
 - `owl_read`: Read file content from any supported format
 - `owl_scrape`: Scrape urls
-- `owl_show`: Display active namespace objects
+- `owl_show`: Display active objects in the Python namespace
 - `owl_write`: Write content to text file
-- `owl_history`: Display chat history
+- `owl_history`: Display model chat history
 - `owl_models`: Display loaded HuggingFace models in cache directory
-- `owl_press`: Press keys for automation
+- `owl_press`: Press keys for automation tasks
 - `owl_save_namespace`: Save namespace to .dill file
 - `owl_load_namespace`: Load namespace from .dill file
 - `owl_tools`: Show available functions for tool calling
