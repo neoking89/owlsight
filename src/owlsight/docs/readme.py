@@ -15,34 +15,22 @@ formatted_api_docs = format_docstrings(api_docs)
 README = f"""
 # Owlsight
 
-**Owlsight** is a command-line tool that combines Python programming with open-source language models. It offers an interactive interface that allows you to execute Python code, shell commands, and use an AI assistant in one unified environment. This tool is ideal for those who want to integrate Python with generative AI capabilities.
+**Owlsight** is a command-line tool that combines Python programming with open-source language models.
+It offers an interactive interface that allows you to execute Python code, shell commands, and use an AI assistant in one unified environment. 
+Next to that, Owlsight offers an extensive set of tools in its backend-API, which enables you to use most of the existing CLI-functionaliy in your own Python scripts.
 
 ## Why owlsight?
 
-Picture this: you are someone who dabbles in Python occasionally. Or you frequently use generative AI to accelerate your workflow, especially for generating code. But often, this involves a tedious process—copying and pasting code between ChatGPT and your IDE, repeatedly switching contexts.
+Picture this: you are someone who dabbles in Python occasionally. Or you frequently use generative AI to accelerate your workflow, whether for generating code or working with data.
+Often, this involves a tedious process—copying and pasting code between ChatGPT and your IDE, repeatedly switching contexts.
 
 What if you could eliminate this friction?
 
-Owlsight brings Python development and generative AI together, streamlining your workflow by integrating them into a single, unified platform. No more toggling between windows, no more manual code transfers. With Owlsight, you get the full power of Python and AI, all in one place—simplifying your process and boosting productivity. Owlsight has been designed to be a swiss-army knife for Python and AI with a core focus on open-source models, allowing you to execute code directly from model prompts and access this code directly from the Python interpreter.
+Owlsight brings Python and generative AI together in an intuitive Command Line Interface, streamlining your workflow by integrating them into a single, unified platform. 
+No more toggling between windows, no more manual code transfers. With Owlsight, you get the full power of Python and AI, all in one place—simplifying your process and boosting productivity. 
+Owlsight has been designed to be a swiss-army knife for Python and AI with a core focus on open-source models, allowing you to execute code directly from model prompts and access this code directly from the Python interpreter.
 
-## Key Features
-
-### Interactive Environment
-- **Command-Line Interface**: Choose from multiple commands such as Python, shell, and AI model queries
-- **Python Integration**: Switch to a Python interpreter and use Python expressions in language model queries
-- **Model Flexibility**: Support for models in **pytorch**, **ONNX**, and **GGUF** formats
-
-### AI Integration
-- **Huggingface Hub**: Search and download models directly from the CLI
-- **Multimodal Support**: Work with models specialized for images and audio input (transformers-based models)
-- **Retrieval Augmented Generation (RAG)**: Enhance prompts with Python library documentation
-
-### Developer Tools
-- **Customizable Configuration**: Easily modify model settings with intuitive save/load of config files
-- **API Access**: Use Owlsight as a library in Python scripts, accessing the core CLI backend
-- **Advanced Model Settings**: Fine-tune configuration parameters for optimal results
-
-## Installation
+## Installation of the CLI:
 
 You can install Owlsight using pip:
 
@@ -56,8 +44,8 @@ To add GGUF functionality:
 ```
 pip install owlsight[gguf]
 ```
-To add ONNX functionality:
 
+To add ONNX functionality:
 ```
 pip install owlsight[onnx]
 ```
@@ -68,7 +56,7 @@ pip install owlsight[multimodal]
 ```
 
 When working offline, you can use the offline flag. 
-This will enable access to the tika-server.jar file locally, enabling you to use the DocumentReader class (which includes Apache Tika functionality) without an internet connection.
+This will enable access to the tika-server.jar file locally, enabling you to use the `DocumentReader` class (which includes Apache Tika functionality) without an internet connection.
 ```
 pip install owlsight[offline]
 ```
@@ -192,9 +180,11 @@ python > excel_data = read_excel("path/to/excel")
 
 ## MultiModal Support
 
-In Owlsight 2, models are supported that require additional input, like images or audio. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. In the CLI, this can be done by setting the *model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. For convenience, it is recommended to select a model through the new Huggingface API in the configuration-settings (read below for more information).
+In Owlsight 2, models are supported that require additional input, like images or audio. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. 
+In the CLI, this can be done by setting the *config.model.model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. 
+For convenience, it is recommended to select a model through the new Huggingface API in the configuration-settings (read below for more information).
 
-The following tasks are supported:
+The following tasks are supported for multimodal models:
 
 - image-to-text
 - automatic-speech-recognition
@@ -203,14 +193,14 @@ The following tasks are supported:
 
 These models require additional input, which can be passed in the prompt. The syntax for passing mediatypes done through special double-square brackets syntax, like so:
 
-```
+```text
 [[mediatype:path/to/file]]
 ```
 
 The supported mediatypes are: *image*, *audio*.
 For example, to pass an image to a document-question-answering model, you can use the following syntax:
 
-```
+```text
 What is the first sentence in this image? [[image:path/to/image.jpg]]
 ```
 
@@ -220,46 +210,18 @@ Next to the fact that objects generated by model-generated code can be accessed,
 
 These are:
 
-* **owl_import(file_path: str)**
-  Import a Python file and load its contents into the current namespace.
-  - *file_path*: The path to the Python file to import.
-* **owl_read(file_path: str)**
-  Read the content of a text file.
-  - *file_path*: The path to the text file to read.
-* **owl_scrape(url_or_terms: str, trim_newlines: int = 2, filter_by: Optional[dict], request_kwargs: dict)**
-  Scrape the text content of a webpage or search Bing and return the first result as a string.
-  * `url_or_terms`: Webpage URL or search term.
-  * `trim_newlines`: Max consecutive newlines (default 2).
-  * `filter_by`: Dictionary specifying HTML tag and/or attributes to filter specific content.
-  * `**request_kwargs`: Additional options for `requests.get`.
-* **owl_show(docs: bool = False)**
-  Display all imported objects (optional: include docstrings).
-  - *docs*: If True, also display docstrings.
-* **owl_write(file_path: str, content: str)**
-  Write content to a text file.
-  - *file_path*: The path to the text file to write.
-  - *content*: The content to write to the file.
-* **owl_history(to_string: bool = False)**
-  Display command history (optional: return as string).
-  - *to_string*: If True, returns the history as a formatted string, by default False
-* **owl_models(cache_dir: str = None, show_task: bool = False)**
-  Display all Hugging Face models currently loaded in the cache directory. Shows model names, sizes, and last modified dates.
-  * `cache_dir`: Optional path to custom cache directory. If None, uses default Hugging Face cache.
-  * `show_task`: If True, also displays the task associated with each model (may take longer to load).
-* **owl_press(sequence: List[str], exit_python_before_sequence: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12)**
-)**
-  Press a sequence of keys in the terminal. This can be used to automate tasks or keypresses.
-  - *sequence*: A list of keys to press. Available keys: 'L' (left), 'R' (right), 'U' (up), 'D' (down), 'ENTER' (ENTER), 'SLEEP:[float]' (sleep for time seconds), 'CTRL+A' (Select all), 'CTRL+C' (Copy), 'CTRL+Y' (Paste), DEL (Delete).
-  - *exit_python_before_sequence*: If True, exit the Python interpreter after pressing the sequence.
-  - *time_before_sequence*: Time to wait before pressing the first key.
-  - *time_between_keys*: Time to wait between pressing each key.
-* **owl_save_namespace(file_path: str)**
-  Save all variables in the current namespace to a file, using the "dill" library.
-  - *file_path*: The path to the file to save the namespace to.
-* **owl_load_namespace(file_path: str)**
-  Load all variables from a file into the current namespace, using the "dill" library.
-* **owl_tools()**
-  Display a list of available functions in the current namespace, which can be used for tool calling. All functions in the namespace are automatically converted to a fitting JSON-format in OPENAI's format.
+owl_import – Import a Python file and load its contents into the current namespace.
+owl_read – Read the content of a text file.
+owl_scrape – Scrape the text content of a webpage or search Bing and return the first result as a string.
+owl_show – Display all currently active objects in the Python interpreter namespace.
+owl_write – Write content to a text file.
+owl_history – Display command history (optional: return as string).
+owl_models – Display all Hugging Face models currently loaded in the cache directory.
+owl_press – Press a sequence of keys in the terminal for automation.
+owl_save_namespace – Save all variables in the current namespace to a file.
+owl_load_namespace – Load all variables from a file into the current namespace.
+owl_tools – Display a list of available functions for tool calling.
+owl_search – Search for information and retrieve relevant results.
 
 ## API Documentation
 
