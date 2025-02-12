@@ -191,15 +191,18 @@ The following tasks are supported for multimodal models:
 - visual-question-answering
 - document-question-answering
 
-These models require additional input, which can be passed in the prompt. The syntax for passing mediatypes done through special double-square brackets syntax, like so:
+These models require additional input, which can be passed in the prompt. 
+The syntax for passing mediatypes can be done through special double-square brackets syntax, like so:
 
+**How can I assist you?**
 ```text
-[[mediatype:path/to/file]]
+[[image:path/to/file.jpg]]
 ```
 
 The supported mediatypes are: *image*, *audio*.
 For example, to pass an image to a document-question-answering model, you can use the following syntax:
 
+**How can I assist you?**
 ```text
 What is the first sentence in this image? [[image:path/to/image.jpg]]
 ```
@@ -255,10 +258,11 @@ During an Owlsight session, a temporary environment is created within the homedi
 
 Owlsight automatically tries to fix and retry any code that encounters a **ModuleNotFoundError** by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.
 
-## API
+## API Examples
 
-Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. Here's an example of how to use it:
+Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. 
 
+Here is a simple example of how to use it:
 ```python
 from owlsight import TextGenerationProcessorGGUF
 # If you want to use another type of text-generation model, you can import the other classes: TextGenerationProcessorONNX, TextGenerationProcessorTransformers
@@ -272,6 +276,35 @@ question = "What is the meaning of life?"
 for token in processor.generate_stream(question):
     print(token, end="", flush=True)
 ```
+
+Alternatively, there is a lot more to explore in the `owlsight` package.
+Here is an example on how to use the `DocumentSearcher` class for simple document retrieval:
+```python
+from owlsight import DocumentSearcher, SentenceTextSplitter, SemanticTextSplitter
+
+docs = {{
+    "doc1": "Quantum mechanics describes nature at atomic scales, introducing wave-particle duality and entanglement.",
+    "doc2": "General relativity redefines gravity as spacetime curvature, predicting black holes and gravitational waves.",
+    "doc3": "Quantum gravity aims to unify quantum mechanics and relativity, with theories like string theory and LQG.",
+    "doc4": "String theory is a framework for understanding the universe, with models like the Minkowski space-time and the Einstein-Hilbert action."
+    "doc5": "LQG is a framework for quantum gravity, with models like the Einstein action and the black hole metric."
+}}
+
+# Experiment with different text splitters
+# splitter = SemanticTextSplitter()
+splitter = SentenceTextSplitter(n_sentences=2)
+
+searcher = DocumentSearcher(
+    documents=docs,
+    text_splitter=splitter,
+    cache_dir="quantum_gravity",
+    cache_dir_suffix="test",
+)
+
+query = "black holes in quantum gravity"
+results = searcher.search(query, top_k=2)
+```
+
 
 ## RELEASE NOTES
 
@@ -325,6 +358,7 @@ for token in processor.generate_stream(question):
 - Added `track_model_usage` to config:main, which can be used to track usage of the model, like the amount of words generated, total time spent etc.
 - Added possibility to pass complete directories as argument to mediatypes to a model in the CLI, like so: 
 
+**How can I assist you?**
 ```text
 [[image:directory/containing/images]]
 ```
@@ -368,6 +402,7 @@ The idea is that this might help the model to give a more focused response to th
 ***Several changes for the "How can I assist you?"-option:***
 - Added `[[load:...]]` tag support for dynamic configuration loading during conversations. This can be used in "How can I assist you?" in mainmenu to chain multiple configurations (agents) together, like so:
 
+**How can I assist you?**
 ```text
 [[load:config-to-model1.json]] Generates a rough draft for the following text: {{{{owl_read("mockup-idea.txt")}}}} [[load:config-to-model2.json]] Validate that the generated draft based on the previous text is relevant and contains all necessary information
 ```
@@ -376,11 +411,13 @@ TIP 2: Using above tag in combination with `sequence_on_loading` in the configur
 
 - Added `[[chain:...]]` tag support for changing config parameters in between conversations. For example: 
 
+**How can I assist you?**
 ```text
 [[chain:model.system_prompt=act as a helpful assistant||generate.temperature=0.5]]
 ```
 - Above tags can also be used INSIDE a python-expression inside the "How can I assist you?"-option, like so:
 
+**How can I assist you?**
 ```text
 {{{{"".join(f"[[load:config-to-model{{i}}.json]]how much is {{i}} + 1?" for i in range(1, 10))}}}}
 ```
