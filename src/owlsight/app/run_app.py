@@ -265,11 +265,10 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     files_in_cache_dir = [file_path for file_path in files_in_cache_dir if file_path != default_config_on_startup_path]
 
     for file_path in files_in_cache_dir:
-        try:
+        if file_path.is_dir():
+            file_path.rmdir()
+        else:
             file_path.unlink()
-        except (PermissionError, OSError) as e:
-            logger.warning(f"Could not delete file {file_path}: {str(e)}. The file may be in use.")
-            continue
 
     # clear manager state
     if manager.processor is not None:

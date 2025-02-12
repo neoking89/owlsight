@@ -144,37 +144,3 @@ def test_clear_history(mock_py_cache, mock_prompt_cache, mock_pickle_cache,
     
     # Assert logging
     mock_logger.info.assert_called_once()
-
-
-@patch('owlsight.app.run_app.get_cache_dir')
-@patch('owlsight.app.run_app.get_default_config_on_startup_path')
-@patch('owlsight.app.run_app.os')
-@patch('owlsight.app.run_app.Path')
-def test_clear_history_file_deletion_error(mock_path_class, mock_os, 
-                                         mock_default_config, mock_cache_dir,
-                                         mock_code_executor, mock_text_generation_manager,
-                                         mock_logger):
-    """Test clear_history function when file deletion fails."""
-    # Setup
-    cache_dir = 'C:/cache/dir'
-    mock_cache_dir.return_value = cache_dir
-    mock_default_config.return_value = 'C:/cache/dir/default_config.pkl'
-    mock_os.listdir.return_value = ['file1.pkl']
-    
-    # Mock Path with failing unlink
-    def create_mock_path(path_str):
-        mock_path = MagicMock(spec=Path)
-        mock_path.__str__.return_value = str(path_str)
-        mock_path.unlink.side_effect = PermissionError("Permission denied")
-        mock_path.__eq__.side_effect = lambda other: str(mock_path) == str(other)
-        mock_path.__truediv__ = lambda self, other: create_mock_path(f"{str(self)}/{other}")
-        return mock_path
-    
-    mock_path_class.side_effect = create_mock_path
-    
-    # Run the function
-    clear_history(mock_code_executor, mock_text_generation_manager)
-    
-    # Assert warning was logged
-    mock_logger.warning.assert_called_once()
-    assert "Permission denied" in mock_logger.warning.call_args[0][0]
