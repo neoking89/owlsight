@@ -97,28 +97,10 @@ quit
 ```
 
 A choice can be made in the mainmenu by pressing the UP and DOWN arrow keys.
-
-Then, a distinction needs to be made in Owlsight between 3 different, but very simple option styles:
-
-1. **Action**: This is just very simply an action which is being triggered by standing on an option in the menu and pressing ENTER.
-   Examples from the main menu are:
-
-   - *python*: Enter the python interpreter.
-   - *clear history*: clear cache -and chat history.
-   - *quit*: exit the Owlsight application.
-2. **Toggle:** When standing on a toggle style option, press the LEFT and RIGHT arrow keys to toggle between different "multiple choice" options.
-   Examples from the main menu are:
-
-   - *config*: Toggle between the main, model, generate and rag config settings.
-   - Inside the *config* settings, several other toggle options can be found. An easy example are the configurations where one can toggle between True and False.
-
-     For more information about the config settings, read further down below the **Configurations** chapter.
-3. **Editable:** This means the user can type in a text and press ENTER. This is useful for several situations in the mainmenu, like:
-
-   - *how can I assist you?* : Given a model has been loaded by providing a valid *model_id*  in *config:model*,  type a question or instruction and press ENTER to get a response from the model.
-   - *shell:* Interactive shell session. Type in a command and press ENTER.
-   - *save*: Provide a valid path to save the current configurations as json. Then press ENTER. This is incredibly useful, as it allows later reuse of the current model with all its respective settings.
-   - *load:* Provide a valid path to load configurations from an earlier saved json. Then press ENTER. If on windows, you can directly press ENTER without specifying a path to open up a file dialog window for convenience.
+In the config menu, the LEFT and RIGHT arrow keys can be used to navigate between the different sections.
+From the config sections, press "back" to go back to the mainmenu.
+Press ENTER to select an option.
+If you want to change an option, press ENTER to confirm the change.
 
 ### Keyboard Shortcuts
 
@@ -226,12 +208,6 @@ owl_load_namespace – Load all variables from a file into the current namespace
 owl_tools – Display a list of available functions for tool calling.
 owl_search – Search for information and retrieve relevant results.
 
-## API Documentation
-
-The following section details all the objects and functions available in the Owlsight API:
-
-{formatted_api_docs}
-
 ## Configurations
 
 Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into five main sections: `main`, `model`,  `generate`, `rag` and `huggingface`. Here's an overview of the application architecture:
@@ -304,6 +280,13 @@ searcher = DocumentSearcher(
 query = "black holes in quantum gravity"
 results = searcher.search(query, top_k=2)
 ```
+
+
+## API Documentation
+
+The following section details all the objects and functions available in the Owlsight API:
+
+{formatted_api_docs}
 
 
 ## RELEASE NOTES
@@ -427,8 +410,9 @@ TIP 2: Using above tag in combination with `sequence_on_loading` in the configur
 Note that both TextSplitter classes can be used as input for the `DocumentSearcher` class.
 - Added `main.default_config_on_startup` to the `config:main` section. This option can be used to specify a default configuration file to load when starting Owlsight.
 This will load the configuration file specified in `main.default_config_on_startup` when every time when starting Owlsight.
-- Added a new section in config, called `config:agentic`. This section can be activated through the "apply_tools" option.
-The section consists of a multi-step agentic system, where the the agents are in fixed order: ToolAgent (can search the internet, scrape, etc) -> Pythonagent (specialized in generating Python code) -> ModelAgent (can use models). 
+- Added an experimental new section in `config`, called `config:agentic`. This section can be enabled through the "apply_tools" option.
+The section consists of a multi-step agentic system, where the the agents are in fixed order: ToolAgent (can search the internet, scrape, etc) -> Pythonagent (specialized in generating Python code) -> JudgeAgent. 
+In the end, the final response is computed by a last agent. All agents are the currently loaded model with different roles.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
