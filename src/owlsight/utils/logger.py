@@ -3,7 +3,7 @@
 
 import logging
 import os
-from typing import Optional
+from typing import Optional, Union
 
 import psutil
 
@@ -101,6 +101,30 @@ class ColoredLogger(logging.Logger):
         """
         handler = logging.FileHandler(filename, mode=mode)
         handler.setFormatter(self._get_formatter(self.name, for_file=True))
+        self.addHandler(handler)
+
+    def configure_file_logging(
+        self,
+        filename: str,
+        level: Union[int, str] = logging.INFO,
+        mode: str = "a+",
+    ) -> None:
+        """Configure file logging with custom debug level.
+        
+        Args:
+            filename: Path to the log file
+            level: Log level for the file handler. Can be an integer (e.g. logging.DEBUG)
+                  or a string (e.g. "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+            mode: File open mode, defaults to "a+" (append and read)
+        """
+        # Convert string level to int if necessary
+        if isinstance(level, str):
+            level = getattr(logging, level.upper())
+            
+        # Create and configure file handler
+        handler = logging.FileHandler(filename, mode=mode)
+        handler.setFormatter(self._get_formatter(self.name, for_file=True))
+        handler.setLevel(level)
         self.addHandler(handler)
 
     def setLevel(self, level: int) -> None:

@@ -6,9 +6,28 @@ from owlsight.utils.deep_learning import check_gpu_and_cuda, calculate_max_param
 from owlsight.utils.logger import logger
 
 import logging
+import argparse
+
+def setup_logging():
+    default_log_level = 'info'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--log', help='Log file to write to')
+    parser.add_argument('--log_level', 
+                       choices=['debug', 'info', 'warning', 'error', 'critical'],
+                       default=default_log_level,
+                       help='Set the logging level')
+    args = parser.parse_args()
+    
+    # Set log level
+    level = getattr(logging, args.log_level.upper())
+    logger.setLevel(level)
+    
+    # Add file logging if specified
+    if args.log:
+        logger.configure_file_logging(args.log, level=level)
 
 def main():
-    logger.setLevel(logging.INFO)
+    setup_logging()
     print_logo()
     check_gpu_and_cuda()
     calculate_max_parameters_per_dtype()

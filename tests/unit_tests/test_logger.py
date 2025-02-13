@@ -137,3 +137,47 @@ def test_level_changes(console_logger, caplog):
     print(f"Final records: {caplog.records}")
     
     assert len(caplog.records) == 1
+
+def test_configure_file_logging(tmp_path):
+    """Test configure_file_logging with different debug levels"""
+    logger = ColoredLogger(name="test_logger")
+    logger.setLevel(logging.DEBUG)  # Set logger to DEBUG level
+    log_file = tmp_path / "test.log"
+    
+    # Configure file logging with DEBUG level
+    logger.configure_file_logging(str(log_file), level="DEBUG")
+    
+    # Test different log levels
+    debug_msg = "Debug message"
+    info_msg = "Info message"
+    warn_msg = "Warning message"
+    
+    logger.debug(debug_msg)  # This should be logged to file
+    logger.info(info_msg)    # This should be logged to file
+    logger.warning(warn_msg) # This should be logged to file
+    
+    with open(log_file) as f:
+        content = f.read()
+        assert debug_msg in content
+        assert info_msg in content
+        assert warn_msg in content
+        assert "\033[" not in content  # No color codes
+
+def test_configure_file_logging_with_int_level(tmp_path):
+    """Test configure_file_logging with integer log level"""
+    logger = ColoredLogger(name="test_logger")
+    log_file = tmp_path / "test.log"
+    
+    # Configure file logging with INFO level using integer
+    logger.configure_file_logging(str(log_file), level=logging.INFO)
+    
+    debug_msg = "Debug message"
+    info_msg = "Info message"
+    
+    logger.debug(debug_msg)  # This should NOT be logged to file
+    logger.info(info_msg)    # This should be logged to file
+    
+    with open(log_file) as f:
+        content = f.read()
+        assert debug_msg not in content
+        assert info_msg in content
