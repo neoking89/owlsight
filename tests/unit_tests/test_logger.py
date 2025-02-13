@@ -16,7 +16,9 @@ def console_logger(caplog):
 @pytest.fixture
 def file_logger(tmp_path):
     log_file = tmp_path / "test.log"
-    return ColoredLogger(name="file_logger", filename=str(log_file))
+    logger = ColoredLogger(name="file_logger")
+    logger.log_to_file(str(log_file))
+    return logger
 
 def test_initialization():
     """Test logger initialization with default parameters"""
@@ -93,6 +95,22 @@ def test_file_logging(file_logger, tmp_path):
         content = f.read()
         assert test_msg in content
         assert "\033[" not in content  # No color codes
+
+def test_log_to_file(tmp_path):
+    """Test adding file logging after initialization"""
+    logger = ColoredLogger(name="test_logger")
+    assert len(logger.handlers) == 1  # Only console handler
+    
+    log_file = tmp_path / "new.log"
+    logger.log_to_file(str(log_file))
+    assert len(logger.handlers) == 2  # Console and file handler
+    
+    test_msg = "Test both handlers"
+    logger.info(test_msg)
+    
+    with open(log_file) as f:
+        content = f.read()
+        assert test_msg in content
 
 def test_level_changes(console_logger, caplog):
     """Test dynamic level changes"""

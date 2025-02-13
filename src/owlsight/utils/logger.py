@@ -53,16 +53,10 @@ class ColoredLogger(logging.Logger):
         self,
         name: Optional[str] = None,
         level: int = logging.INFO,
-        filename: Optional[str] = None,
-        mode: str = "a+",
         log_cpu_and_memory_usage: bool = False,
     ):
         super().__init__(name, level)
-
-        self.filename = filename
-        self.mode = mode
         self.log_cpu_and_memory_usage = log_cpu_and_memory_usage
-
         self.formatter = self._get_formatter(name)
         self._configure_handlers()
 
@@ -92,16 +86,21 @@ class ColoredLogger(logging.Logger):
         self._configure_handlers()
 
     def _configure_handlers(self):
-        """Configure logging handlers based on filename"""
+        """Configure console logging handler"""
         self.handlers.clear()
+        handler = logging.StreamHandler()
+        handler.setFormatter(self._get_formatter(self.name))
+        self.addHandler(handler)
 
-        if self.filename:
-            handler = logging.FileHandler(self.filename, mode=self.mode)
-        else:
-            handler = logging.StreamHandler()
-
-        handler.setLevel(self.level)
-        handler.setFormatter(self.formatter)
+    def log_to_file(self, filename: str, mode: str = "a+") -> None:
+        """Add file logging to the current logger.
+        
+        Args:
+            filename: Path to the log file
+            mode: File open mode, defaults to "a+" (append and read)
+        """
+        handler = logging.FileHandler(filename, mode=mode)
+        handler.setFormatter(self._get_formatter(self.name, for_file=True))
         self.addHandler(handler)
 
     def setLevel(self, level: int) -> None:
@@ -110,15 +109,18 @@ class ColoredLogger(logging.Logger):
         for handler in self.handlers:
             handler.setLevel(level)
 
-    def _get_formatter(self, name: str) -> logging.Formatter:
-        date_fmt, fmt = self._get_formatting(name)
+    def _get_formatter(self, name: Optional[str], for_file: bool = False) -> logging.Formatter:
+        """Get the appropriate formatter based on settings and handler type"""
+        fmt, date_fmt = self._get_formatting(name)
+        
         if self.log_cpu_and_memory_usage:
-            console_formatter = EnhancedColoredFormatter(fmt, datefmt=date_fmt)
-            file_formatter = EnhancedFormatter(fmt, datefmt=date_fmt)
+            if for_file:
+                return EnhancedFormatter(fmt, datefmt=date_fmt)
+            return EnhancedColoredFormatter(fmt, datefmt=date_fmt)
         else:
-            console_formatter = ColoredFormatter(fmt, datefmt=date_fmt)
-            file_formatter = logging.Formatter(fmt, datefmt=date_fmt)
-        return console_formatter if self.filename is None else file_formatter
+            if for_file:
+                return logging.Formatter(fmt, datefmt=date_fmt)
+            return ColoredFormatter(fmt, datefmt=date_fmt)
 
     def _get_formatting(self, name: Optional[str]) -> tuple:
         date_fmt = "%Y-%m-%d %H:%M:%S"
@@ -132,7 +134,7 @@ class ColoredLogger(logging.Logger):
                 fmt = "%(asctime)s - %(levelname)s - %(message)s"
             else:
                 fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        return date_fmt, fmt
+        return fmt, date_fmt
 
     def add_custom_level(self, level_name: str, level_value: int) -> None:
         """Add a custom log level to the logger"""
