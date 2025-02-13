@@ -128,7 +128,7 @@ class TextGenerationManager:
         try:
             value = convert_to_real_type(value)
             self.config_manager.set(key, value)
-            logger.info(f"Configuration updated: {key} = {value}")
+            logger.debug(f"Configuration updated: {key} = {value}")
         except Exception:
             logger.error(f"Error updating configuration for key '{key}': {traceback.format_exc()}")
             return
@@ -169,7 +169,7 @@ class TextGenerationManager:
 
         elif hasattr(self.processor, inner_key):
             setattr(self.processor, inner_key, value)
-            logger.info(f"Processor updated: {inner_key} = {value}")
+            logger.debug(f"Processor updated: {inner_key} = {value}")
         else:
             logger.warning(f"'{inner_key}' not found in self.processor, meaning it was not updated.")
             logger.warning("It is possible that this value is only set during initialization of self.processor.")
