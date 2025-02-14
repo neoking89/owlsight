@@ -484,6 +484,7 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
 4. Use descriptive and functional argument names for clarity. Do not use placeholder names, like "/path/to/file.txt" or "insert api key here".
 """.strip()
 
+    additional_info = manager.config_manager.get("agentic.additional_information", "")
     tool_prompt = f"""
 # Current Progress (Step {current_step}/{max_steps})
 
@@ -491,10 +492,14 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
 {previous_results if previous_results else "No previous results"}
 {f"**Last tools used:** {last_tools}" if last_tools else ""}
 
+## Additional Information:
+{additional_info}
+
 ## CRITICAL INSTRUCTIONS:
 {instruction_prompt}
 
 ## TOOL GUIDELINES:
+- If any information is given in ## Additional Information, use this instead of below instructions.
 - Use `owl_search` if you need general information.
 - Use `owl_scrape` for scraping a known URL.
 - Use `owl_read` to read a local file or directory.
