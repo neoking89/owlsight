@@ -57,14 +57,14 @@ def llama_supports_gpu_offload(base_path: str) -> bool:
     SOURCE: https://stackoverflow.com/questions/78415856/detecting-gpu-availability-in-llama-cpp-python
     """
     base_path = Path(base_path)
-    if not base_path.endswith("llama_cpp/lib"):
+    if not str(base_path).endswith("llama_cpp\\lib"):
         logger.error("Invalid path to Llama.cpp shared library.")
         return False
 
     try:
         from llama_cpp.llama_cpp import load_shared_library
 
-        lib = load_shared_library("llama", base_path)
+        lib = load_shared_library("llama", base_path.absolute())
         return bool(lib.llama_supports_gpu_offload())
     except Exception:
         logger.error(traceback.format_exc())
