@@ -412,6 +412,11 @@ This will load the configuration file specified in `main.default_config_on_start
 - Added an experimental new section in `config`, called `config:agentic`. This section can be enabled through the "apply_tools" option.
 The section consists of a multi-step agentic system, where the the agents are in fixed order: ToolAgent (can search the internet, scrape, etc) -> Pythonagent (specialized in generating Python code) -> JudgeAgent. 
 In the end, the final response is computed by a last agent. All agents are the currently loaded model with different roles.
+- Added --log and --level flags to the CLI. This can be used to specify a log file and log level, like so:
+```bash
+owlsight --log log.txt --level DEBUG
+```
+
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
