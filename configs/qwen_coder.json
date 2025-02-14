@@ -44,7 +44,8 @@
     "agentic": {
             "apply_tools": true,
             "max_steps": 5,
-            "enable_python_agent": true
+            "enable_python_agent": true,
+            "additional_information": ""
         },
     "huggingface": {
         "search": "",
