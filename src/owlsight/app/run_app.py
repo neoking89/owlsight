@@ -299,44 +299,60 @@ def process_user_question(
     user_question = _handle_rag_for_python(user_question, manager)
 
     apply_tools = manager.config_manager.get("agentic.apply_tools", False)
-    if apply_tools:
-        tool_state = {
-            "step": current_step,
-            "max_steps": max_steps,
-            "previous_results": code_executor.globals_dict.get("tool_results", []),
-        }
-        user_question = _create_tool_agent_prompt(user_question, tool_state, manager)
-        tool_agent_system_prompt = (
-            "You are an expert planner, specialized in thinking through the next steps "
-            "and choosing the appropriate tools to facilitate them. Always use one of the "
-            "available tools to answer the user's question."
-        )
-
-        with AgenticRole(
-            user_question, tool_agent_system_prompt, manager, code_executor, disable_tools=False
-        ) as tool_agent:
-            response = tool_agent.manager.generate(user_question)
-    else:
+    if not apply_tools:
         response = manager.generate(user_question, media_objects=media_objects)
+        _ = execute_code_with_feedback(
+            response=response,
+            original_question=user_question,
+            code_executor=code_executor,
+            prompt_code_execution=manager.config_manager.get("main.prompt_code_execution", True),
+            prompt_retry_on_error=manager.config_manager.get("main.prompt_retry_on_error", False),
+        )
+        return response
 
-    if apply_tools:
-        last_used_tool = _get_last_used_tool(code_executor, response)
-        python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
-
-        if python_agent_is_enabled:
-            response = _handle_python_agent(user_choice, response, manager, code_executor, last_used_tool)
-
-    results = execute_code_with_feedback(
-        response=response,
-        original_question=user_question,
-        code_executor=code_executor,
-        prompt_code_execution=manager.config_manager.get("main.prompt_code_execution", True),
-        prompt_retry_on_error=manager.config_manager.get("main.prompt_retry_on_error", False),
+    # Tool agent phase
+    tool_state = {
+        "step": current_step,
+        "max_steps": max_steps,
+        "previous_results": code_executor.globals_dict.get("tool_results", []),
+    }
+    tool_question = _create_tool_agent_prompt(user_question, tool_state, manager)
+    tool_agent_system_prompt = (
+        "You are an expert planner, specialized in thinking through the next steps "
+        "and choosing the appropriate tools to facilitate them. Always use one of the "
+        "available tools to answer the user's question."
     )
+
+    # Get tool call from Tool Agent
+    with AgenticRole(
+        tool_question, tool_agent_system_prompt, manager, code_executor, disable_tools=False
+    ) as tool_agent:
+        tool_response = tool_agent.manager.generate(tool_question)
+
+    # Execute the tool call and get results
+    code_execution_results = execute_code_with_feedback(
+        response=tool_response,
+        original_question=tool_question,
+        code_executor=code_executor,
+        prompt_code_execution=False,  # Always execute tool calls
+        prompt_retry_on_error=False,
+    )
+
+    # Extract the tool information and results
+    last_used_tool = _get_last_used_tool(code_executor, tool_response)
+    tool_result = code_executor.globals_dict.get("final_result", [])
+    python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
+
+    # Pass both the tool call and its results to Python agent
+    if python_agent_is_enabled and not tool_result:
+        response = _handle_python_agent(user_choice, manager, code_executor, last_used_tool)
+    else:
+        response = tool_response
 
     if apply_tools:
         return _handle_tool_result(
-            results=results,
+            results=code_execution_results,
+            tool_results=tool_result,
             user_choice=user_choice,
             code_executor=code_executor,
             manager=manager,
@@ -377,6 +393,7 @@ def on_app_startup(manager: TextGenerationManager):
         manager.load_config(default_config_path)
         logger.info(f"Loaded settings from default config '{default_config_path}'")
 
+
 def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
     """
     Extracts the key and value from a chain parameter string.
@@ -395,6 +412,7 @@ def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
     key = key.strip()
     value = value.strip()
     return key, value
+
 
 def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationManager) -> None:
     """
@@ -448,10 +466,11 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
 
 2. Decide your next steps carefully:
    - Think step-by-step about what else is required.
-   - Look closely at **Last tools used:** (if any). Do not repeat any of them with the same arguments.
+   - Look closely at **Last tools used:** (if any). Do NOT repeat any of them with the same arguments.
    - If you must use another tool, respond with a valid JSON object:
        {{"name": "<tool_name>", "arguments": {{...}}}}
    - Make sure you ONLY respond with that JSON object, nothing else.
+   - **AGAIN**: DO NOT repeat any of the tools used with the same arguments!
 
 {progress_content}
 """.strip()
@@ -506,7 +525,6 @@ def _get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str,
 
 def _handle_python_agent(
     user_request: str,
-    response: str,
     manager: TextGenerationManager,
     code_executor: CodeExecutor,
     tool_name: Dict[str, str],
@@ -516,17 +534,8 @@ def _handle_python_agent(
     and prompt engineering features. Implements input validation, secure coding
     practices, and structured prompting.
     """
-    if not all(isinstance(arg, (str, dict)) for arg in (user_request, response, tool_name)):
+    if not all(isinstance(arg, (str, dict)) for arg in (user_request, tool_name)):
         raise ValueError("Invalid input types for Python agent handling")
-
-    # Secure tool extraction with fallback
-    used_tool = ""
-    if tool_name:
-        try:
-            extracted_tool_name, tool_code = next(iter(tool_name.items()))
-            used_tool = f"## Tool Usage\nName: {extracted_tool_name}\nCode:\n``````"
-        except (StopIteration, ValueError):
-            logger.warning("Invalid tool format received")
 
     validation_checks = {
         "def": "missing def",
@@ -534,26 +543,34 @@ def _handle_python_agent(
         "(": "missing paren",
         ")": "missing paren",
         "    ": "missing indent",
-        "return": "missing return"
+        "return": "missing return",
     }
-    appropriate_cue = "The last response is appropriate to address the user's request."
 
-    system_prompt = f"""## Python Expert Role
-You are an advanced Python developer specialized in security-critical code analysis.
-Follow this decision matrix:
+    system_prompt = """
+# Role
+You are an expert Python developer.
 
-1. IF response helps in solving **User Request** "{user_request}":
-   - IF contains randomness/nondeterminism → "{appropriate_cue}"
-   - ELSE → Add verification code
-   
-2. IF response incomplete/incorrect → Write new solution
+# Task
+Write Python code based on a user request.
+
+```python
+def solution_<descriptive_name>(...) -> <return_type>:
+    '''Write a docstring explaining the functionality of the function.'''
+    # Implementation
+    # Verification logic if needed
+
+# define the "final_result" variable with the created function
+final_result = solution(...)
+```
 
 ## Code Requirements
-- Functions with type hints
+- Function with clear, declarative name and type hints
+- Concise docstring in Numpy-style format
 - Error handling
 - Secure defaults
 - Markdown format with ```
 - Testable verification code for deterministic solutions
+- The variable name "final_result" is defined with the created function
 
 ## Forbidden Patterns
 - eval/exec
@@ -563,37 +580,23 @@ Follow this decision matrix:
 """
 
     validation_rules = "\n".join([f"- {desc} check" for desc in validation_checks.values()])
-    
-    user_prompt = f"""# Code Validation Task
+
+    user_prompt = f"""
 **User Request**: {user_request}
-
-**Previous Response**:
-{response}
-
-{used_tool}
 
 ## Validation Checklist
 {validation_rules}
-
-## Required Output Format
-```python
-def solution_<descriptive_name>(...) -> <return_type>:
-    '''Docstring explaining functionality'''
-    # Implementation
-    # Verification logic if needed
-    
-final_result = solution(...)
-```
-"""
+""".strip()
     with AgenticRole(user_prompt, system_prompt, manager, code_executor) as agent:
         new_response = agent.manager.generate(agent.question)
 
         if all(keyword in new_response for keyword in validation_checks):
             return new_response
-        
-        logger.warning("Code validation failed, returning original response")
-        return response
-        
+
+        logger.warning("Code validation failed, returning empty string.")
+        return ""
+
+
 def _handle_answer_validation_agent(
     user_request: str,
     final_result: str,
@@ -637,6 +640,7 @@ def _handle_answer_validation_agent(
 
 def _handle_tool_result(
     results: List[Dict],
+    tool_results: List[Dict],
     user_choice: str,
     code_executor: CodeExecutor,
     manager: TextGenerationManager,
@@ -660,9 +664,9 @@ def _handle_tool_result(
 
     answer_is_appropriate = _handle_answer_validation_agent(user_choice, final_result, manager, code_executor)
     if answer_is_appropriate:
-        logger.info("✅ Enough information gathered to generate a final answer.")
+        logger.info("Enough information gathered to generate a final answer.")
     else:
-        logger.info("❌ More information needed to generate a final answer.")
+        logger.info("More information needed to generate a final answer.")
 
     tool_results = code_executor.globals_dict.get("tool_results", [])
     tool_results.append(final_result)
