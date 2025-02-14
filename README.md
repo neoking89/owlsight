@@ -247,6 +247,7 @@ Main Menu:
   - agentic settings:
     - back: Return to previous menu
     - apply_tools: Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace., Options: False, True, Type: OptionType.TOGGLE
+    - additional_information: Additional information added to every agent call. Important for the Tool agent, for example: 'Do NOT use owl_scrape and owl_search, because there is no internet connection', Type: OptionType.EDITABLE
     - max_steps: Maximum number of steps for the agentic system., Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Type: OptionType.TOGGLE
     - enable_python_agent: Toggle the inclusion of a Python generation agent. This agent judges the last response of the Tool agent and writes Python code if appropriate, Options: False, True, Type: OptionType.TOGGLE
   - huggingface settings:
@@ -309,6 +310,7 @@ Here's an example of what the default configuration looks like:
     },
     "agentic": {
         "apply_tools": false,
+        "additional_information": "",
         "max_steps": 5,
         "enable_python_agent": true
     },
@@ -1315,6 +1317,7 @@ In the end, the final response is computed by a last agent. All agents are the c
 ```bash
 owlsight --log log.txt --level DEBUG
 ```
+- Added `additional_information` option to the `config:agentic` section. This option can be used to add additional information to every agent call, for example: "Do NOT use owl_scrape and owl_search, because there is no internet connection."
 
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com

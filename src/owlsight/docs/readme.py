@@ -416,6 +416,7 @@ In the end, the final response is computed by a last agent. All agents are the c
 ```bash
 owlsight --log log.txt --level DEBUG
 ```
+- Added `additional_information` option to the `config:agentic` section. This option can be used to add additional information to every agent call, for example: "Do NOT use owl_scrape and owl_search, because there is no internet connection."
 
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
