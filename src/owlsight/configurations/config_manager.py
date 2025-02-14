@@ -139,6 +139,7 @@ class ConfigManager:
             "apply_tools": self._get_toggle_choice("agentic", "apply_tools"),
             "max_steps": self._get_toggle_choice("agentic", "max_steps"),
             "enable_python_agent": self._get_toggle_choice("agentic", "enable_python_agent"),
+            "additional_information": self._get_basic_choice("agentic", "additional_information"),
         }
 
     def _create_huggingface_choices(self):
