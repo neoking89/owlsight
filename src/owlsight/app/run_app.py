@@ -481,6 +481,7 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
 2. If you need a tool, respond ONLY with a JSON object:
    {"name": "<tool_name>", "arguments": {...}}
 3. Do not provide any additional text beyond that JSON.
+4. Use descriptive and functional argument names for clarity. Do not use placeholder names, like "/path/to/file.txt" or "insert api key here".
 """.strip()
 
     tool_prompt = f"""
