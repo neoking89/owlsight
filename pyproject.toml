@@ -61,6 +61,14 @@ multimodal = [
 
 offline = []
 
+https://pypi.org/project/RealtimeSTT/
+voicecontrol = [
+    "pyaudio",
+    "PyAutoGUI",
+    "RealtimeSTT",
+    "ctranslate2==3.24.0",
+]
+
 # Define the "all" option to include everything (base + optional dependencies)
 all = [
     # Base dependencies
