@@ -17,7 +17,7 @@ from owlsight.rag.custom_classes import CacheMixin, SearchMethod, SearchResult
 from owlsight.rag.text_splitters import SentenceTextSplitter, TextSplitter
 from owlsight.rag.helper_functions import _get_signature
 from owlsight.utils.deep_learning import get_best_device
-from owlsight.utils.helper_functions import check_invalid_input_parameters
+from owlsight.utils.helper_functions import validate_input_params
 from owlsight.utils.logger import logger
 
 
@@ -304,7 +304,7 @@ class TFIDFSearchEngine(SearchEngine, CacheMixin):
         **tfidf_kwargs: Any,
     ) -> None:
         super().__init__()
-        check_invalid_input_parameters(TfidfVectorizer.__init__, tfidf_kwargs)
+        validate_input_params(TfidfVectorizer.__init__, tfidf_kwargs)
         if cache_dir_suffix:
             cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}"
 
@@ -383,7 +383,7 @@ class HashingVectorizerSearchEngine(SearchEngine, CacheMixin):
     ):
         """Initialize the HashingVectorizer search engine."""
         super().__init__()
-        check_invalid_input_parameters(HashingVectorizer.__init__, hashing_kwargs)
+        validate_input_params(HashingVectorizer.__init__, hashing_kwargs)
         if cache_dir_suffix:
             cache_dir_suffix = f"{self.cls_name}__{cache_dir_suffix}"
 
