@@ -1,6 +1,7 @@
 import logging
 import argparse
 from typing import Optional
+import json
 
 from owlsight.app.run_app import run
 from owlsight.processors.text_generation_manager import TextGenerationManager
@@ -23,6 +24,98 @@ def parse_arguments(log_level="info"):
         help="Set the logging level",
     )
     parser.add_argument("--voice", action="store_true", help="Activate voice control functionality", default=False)
+    parser.add_argument(
+        "--word-to-key",
+        type=str,
+        help="""JSON string containing voice command to keyboard key mappings.
+        Maps spoken words to keyboard actions. Supports single keys and key combinations.
+        
+        Examples:
+        - Single keys:
+          '{"backward": "left", "forward": "right"}'
+        
+        - Key combinations:
+          '{"save": ["ctrl", "s"], "undo": ["ctrl", "z"]}'
+        
+        - Mixed mappings:
+          {
+            "backward": "left",
+            "forward": "right",
+            "save": ["ctrl", "s"],
+            "select all": ["ctrl", "a"]
+          }
+        
+        Common key names:
+        - Navigation: up, down, left, right, home, end, pageup, pagedown
+        - Editing: backspace, delete, enter, tab, space
+        - Function keys: f1, f2, ..., f12
+        - Modifiers: ctrl, alt, shift
+        
+        Default mappings include: left, right, up, down, enter, delete,
+        and combinations like 'select all' (ctrl+a), 'copy' (ctrl+c), 'paste' (ctrl+v)"""
+    )
+    parser.add_argument(
+        "--word-to-word",
+        type=str,
+        help="""JSON string containing voice command to text substitution mappings.
+        Maps spoken phrases to text that will be typed out.
+        
+        Examples:
+        - Code snippets:
+          {
+            "print": "print()",
+            "function": "def my_function():",
+            "class": "class MyClass:"
+          }
+        
+        - Common phrases:
+          {
+            "greeting": "Hello World",
+            "bye": "Goodbye!",
+            "thanks": "Thank you very much"
+          }
+        
+        - Shell commands:
+          {
+            "files": "ls -la",
+            "clear": "clear()",
+            "exit": "exit()"
+          }
+        
+        Default mappings include: {"exit": "exit()"}"""
+    )
+    parser.add_argument(
+        "--voicecontrol-kwargs",
+        type=str,
+        help="""JSON string containing keyword arguments for VoiceControl and AudioToTextRecorder.
+        
+        Examples:
+        - Basic configuration:
+          {
+            "cmd_cooldown": 0.5,
+            "debug": true,
+            "language": "en"
+          }
+        
+        - Advanced configuration with recorder options:
+          {
+            "cmd_cooldown": 0.5,
+            "model": "base.en",
+            "silero_use_onnx": true,
+            "key_press_interval": 0.1,
+            "typing_interval": 0.05
+          }
+        
+        Available VoiceControl parameters:
+        - cmd_cooldown (float): Cooldown between commands (default: 1.0)
+        - debug (bool): Enable debug mode (default: false)
+        - language (str): Language code (default: "en")
+        - model (str): Model name (default: "small.en")
+        - key_press_interval (float): Interval between key presses (default: 0.05)
+        - typing_interval (float): Interval between typing (default: 0.03)
+        
+        AudioToTextRecorder parameters are also supported and will be passed through."""
+    )
     return parser.parse_args()
 
 
@@ -80,13 +173,60 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
 
     if args.voice or voice_control:
         logger.info("Voice control enabled")
-        # Example command mapping
-        # Create and start voice control
+        
+        # Initialize with default mappings
+        custom_word_to_key = dict(WORD_TO_KEY_MAP)
+        custom_word_to_word = dict(WORD_TO_WORD_MAP)
+        
+        # Parse word-to-key mappings if provided
+        if args.word_to_key:
+            try:
+                key_mappings = json.loads(args.word_to_key)
+                if not isinstance(key_mappings, dict):
+                    raise ValueError("word-to-key must be a JSON object")
+                custom_word_to_key.update(key_mappings)
+                logger.info(f"Added custom word-to-key mappings: {key_mappings}")
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON format for word-to-key. Using defaults.")
+            except Exception as e:
+                logger.warning(f"Error parsing word-to-key: {e}. Using defaults.")
+        
+        # Parse word-to-word mappings if provided
+        if args.word_to_word:
+            try:
+                word_mappings = json.loads(args.word_to_word)
+                if not isinstance(word_mappings, dict):
+                    raise ValueError("word-to-word must be a JSON object")
+                custom_word_to_word.update(word_mappings)
+                logger.info(f"Added custom word-to-word mappings: {word_mappings}")
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON format for word-to-word. Using defaults.")
+            except Exception as e:
+                logger.warning(f"Error parsing word-to-word: {e}. Using defaults.")
+        
+        # Parse voice control kwargs if provided
+        voice_kwargs = {}
+        if args.voicecontrol_kwargs:
+            try:
+                voice_kwargs = json.loads(args.voicecontrol_kwargs)
+                if not isinstance(voice_kwargs, dict):
+                    raise ValueError("voicecontrol-kwargs must be a JSON object")
+                logger.info(f"Using custom voice control configuration: {voice_kwargs}")
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON format for voicecontrol-kwargs. Using defaults.")
+            except Exception as e:
+                logger.warning(f"Error parsing voicecontrol-kwargs: {e}. Using defaults.")
+        
+        # Create and start voice control with custom mappings and kwargs
         vc = VoiceControl(
-            word_to_key_map=WORD_TO_KEY_MAP,
-            word_to_word_map=WORD_TO_WORD_MAP,
+            word_to_key_map=custom_word_to_key,
+            word_to_word_map=custom_word_to_word,
             debug=False,
+            **voice_kwargs
         )
+        
+        # If voice control is not available, VoiceControl will be the DummyVoiceControl class
+        # which will log a warning about missing dependencies
         vc.start()  # This now runs in background
 
     # initialize agent
