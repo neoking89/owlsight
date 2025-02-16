@@ -7,8 +7,9 @@ from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.ui.logo import print_logo
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.deep_learning import check_gpu_and_cuda, calculate_max_parameters_per_dtype
-from owlsight.utils.logger import logger
+from owlsight.voice.constants import WORD_TO_KEY_MAP, WORD_TO_WORD_MAP
 from owlsight.voice.voice_control import VoiceControl
+from owlsight.utils.logger import logger
 
 
 def parse_arguments(log_level="info"):
@@ -57,6 +58,7 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
     ----------
     default_log_level : str, optional
         Log level, by default 'info'
+        Set to 'debug' for more detailed logs
         Options: debug, info, warning, error, critical
     log_path : Optional[str], optional
         Path to the log file, by default None
@@ -79,21 +81,6 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
     if args.voice or voice_control:
         logger.info("Voice control enabled")
         # Example command mapping
-        WORD_TO_KEY_MAP = {"boom": "left", 
-        "bang": "right", 
-        "ding": "up", 
-        "dong": "down", 
-        "sick": "enter",
-        "select all": ["ctrl", "a"],
-        "copy": ["ctrl", "c"],
-        "paste": ["ctrl", "y"],
-        "delete": "delete",
-        }
-        WORD_TO_WORD_MAP = {
-            "Exit": "exit()",
-            "exit": "exit()",
-        }
-
         # Create and start voice control
         vc = VoiceControl(
             word_to_key_map=WORD_TO_KEY_MAP,
@@ -106,7 +93,7 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
     run(text_generation_manager)
 
     # Cleanup voice control if it was started
-    if 'vc' in locals() and vc.is_running:
+    if "vc" in locals() and vc.is_running:
         vc.stop()
 
 
