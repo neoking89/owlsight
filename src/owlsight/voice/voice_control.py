@@ -91,6 +91,9 @@ class VoiceControl:
         self.typing_thread = threading.Thread(target=self._typing_worker, daemon=True)
         self.voice_thread = None
 
+        # Event used to signal all threads to stop
+        self._stop_event = threading.Event()
+
         # Initialize recorder
         self.recorder = None
         self._initialize_recorder()
@@ -118,6 +121,7 @@ class VoiceControl:
         while True:
             key_combo = self.key_press_queue.get()
             if key_combo is None:
+                self.key_press_queue.task_done()
                 break
             if isinstance(key_combo, (list, tuple)):
                 # Handle key combination (e.g., ["ctrl", "s"])
@@ -138,6 +142,7 @@ class VoiceControl:
         while True:
             text = self.typing_queue.get()
             if text is None:
+                self.typing_queue.task_done()
                 break
             pyautogui.write(text, interval=self.typing_interval)
             if self.debug:
@@ -250,11 +255,15 @@ class VoiceControl:
 
     def _voice_worker(self) -> None:
         """Background thread for voice recognition."""
-        try:
-            while True:
+        if self.debug:
+            logger.debug("Voice worker started")
+        while not self._stop_event.is_set():
+            try:
                 self.recorder.text(on_transcription_finished=self._process_text)
-        except KeyboardInterrupt:
-            self.stop()
+            except Exception as e:
+                if self.debug:
+                    logger.debug(f"Voice worker encountered exception: {e}")
+                break
 
     def start(self) -> None:
         """Start the voice control system."""
@@ -275,20 +284,23 @@ class VoiceControl:
         if self.debug:
             logger.debug("Stopping voice control system...")
 
+        # Signal all threads to stop
+        self._stop_event.set()
+
         if self.recorder:
             self.recorder.shutdown()
 
-        # Signal workers to stop
+        # Signal workers to stop by putting None in the queues
         self.key_press_queue.put(None)
         self.typing_queue.put(None)
 
-        # Wait for threads to finish
+        # Wait for threads to finish, with a timeout to prevent hanging indefinitely
         if self.key_press_thread.is_alive():
-            self.key_press_thread.join()
+            self.key_press_thread.join(timeout=5)
         if self.typing_thread.is_alive():
-            self.typing_thread.join()
+            self.typing_thread.join(timeout=5)
         if self.voice_thread and self.voice_thread.is_alive():
-            self.voice_thread.join()
+            self.voice_thread.join(timeout=5)
 
         logger.info("Voice control system stopped")
 
@@ -306,7 +318,6 @@ class VoiceControl:
 
 # Example usage:
 if __name__ == "__main__":
-    # Example command mapping
     WORD_TO_KEY_MAP = {
         "left": "left",
         "right": "right",
@@ -318,7 +329,8 @@ if __name__ == "__main__":
         "paste": ["ctrl", "v"],
         "delete": "delete",
     }
-    WORD_TO_WORD_MAP = {"exit": "exit()", "print": "print()"}
+    WORD_TO_WORD_MAP = {"exit": "exit()",
+                        }
 
     # Optional callback function
     def on_command(word, key):
@@ -326,10 +338,16 @@ if __name__ == "__main__":
 
     # Create and start voice control
     vc = VoiceControl(
-        word_to_key_map=WORD_TO_KEY_MAP, word_to_word_map=WORD_TO_WORD_MAP, debug=True, on_command_processed=on_command
+        word_to_key_map=WORD_TO_KEY_MAP,
+        word_to_word_map=WORD_TO_WORD_MAP,
+        debug=True,
+        on_command_processed=on_command,
     )
 
     try:
         vc.start()
+        # Keep the main thread alive until a KeyboardInterrupt is received.
+        while True:
+            time.sleep(0.1)
     except KeyboardInterrupt:
         vc.stop()
