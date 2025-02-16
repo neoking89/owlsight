@@ -52,7 +52,7 @@ def parse_arguments(log_level="info"):
         - Modifiers: ctrl, alt, shift
         
         Default mappings include: left, right, up, down, enter, delete,
-        and combinations like 'select all' (ctrl+a), 'copy' (ctrl+c), 'paste' (ctrl+v)"""
+        and combinations like 'select all' (ctrl+a), 'copy' (ctrl+c), 'paste' (ctrl+v)""",
     )
     parser.add_argument(
         "--word-to-word",
@@ -82,10 +82,10 @@ def parse_arguments(log_level="info"):
             "exit": "exit()"
           }
         
-        Default mappings include: {"exit": "exit()"}"""
+        Default mappings include: {"exit": "exit()"}""",
     )
     parser.add_argument(
-        "--voicecontrol-kwargs",
+        "--voice-control-kwargs",
         type=str,
         help="""JSON string containing keyword arguments for VoiceControl and AudioToTextRecorder.
         
@@ -101,7 +101,6 @@ def parse_arguments(log_level="info"):
           {
             "cmd_cooldown": 0.5,
             "model": "base.en",
-            "silero_use_onnx": true,
             "key_press_interval": 0.1,
             "typing_interval": 0.05
           }
@@ -114,7 +113,7 @@ def parse_arguments(log_level="info"):
         - key_press_interval (float): Interval between key presses (default: 0.05)
         - typing_interval (float): Interval between typing (default: 0.03)
         
-        AudioToTextRecorder parameters are also supported and will be passed through."""
+        AudioToTextRecorder parameters are also supported and will be passed through.""",
     )
     return parser.parse_args()
 
@@ -143,7 +142,12 @@ def setup_logging(args, log_path: Optional[str] = None):
         logger.configure_file_logging(log_path, level=level)
 
 
-def main(default_log_level="info", log_path: Optional[str] = None, voice_control: bool = False):
+def main(
+    default_log_level="info",
+    log_path: Optional[str] = None,
+    voice_control: bool = False,
+    voice_control_kwargs: Optional[dict] = None,
+):
     """
     Main entry point for the application
 
@@ -158,6 +162,19 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
         If a path is specified, all logging will be written to the file next to the console
     voice_control : bool, optional
         Whether to enable voice control, by default False
+    voice_control_kwargs : Optional[dict], optional
+        Keyword arguments for VoiceControl and AudioToTextRecorder, by default None\n
+        For example:\n
+        voice_control_kwargs = {
+            "word_to_key_map": {
+                "hello": "hello",
+                "world": "world"
+            },
+            "word_to_word_map": {
+                "hello": "world"
+            },
+            "language": "en"
+        }
     """
     args = parse_arguments(default_log_level)
     setup_logging(args, log_path)
@@ -173,11 +190,11 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
 
     if args.voice or voice_control:
         logger.info("Voice control enabled")
-        
+
         # Initialize with default mappings
         custom_word_to_key = dict(WORD_TO_KEY_MAP)
         custom_word_to_word = dict(WORD_TO_WORD_MAP)
-        
+
         # Parse word-to-key mappings if provided
         if args.word_to_key:
             try:
@@ -190,7 +207,7 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
                 logger.warning("Invalid JSON format for word-to-key. Using defaults.")
             except Exception as e:
                 logger.warning(f"Error parsing word-to-key: {e}. Using defaults.")
-        
+
         # Parse word-to-word mappings if provided
         if args.word_to_word:
             try:
@@ -203,12 +220,12 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
                 logger.warning("Invalid JSON format for word-to-word. Using defaults.")
             except Exception as e:
                 logger.warning(f"Error parsing word-to-word: {e}. Using defaults.")
-        
+
         # Parse voice control kwargs if provided
-        voice_kwargs = {}
-        if args.voicecontrol_kwargs:
+        voice_kwargs = {} or voice_control_kwargs
+        if args.voice_control_kwargs:
             try:
-                voice_kwargs = json.loads(args.voicecontrol_kwargs)
+                voice_kwargs = json.loads(args.voice_control_kwargs)
                 if not isinstance(voice_kwargs, dict):
                     raise ValueError("voicecontrol-kwargs must be a JSON object")
                 logger.info(f"Using custom voice control configuration: {voice_kwargs}")
@@ -216,15 +233,12 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
                 logger.warning("Invalid JSON format for voicecontrol-kwargs. Using defaults.")
             except Exception as e:
                 logger.warning(f"Error parsing voicecontrol-kwargs: {e}. Using defaults.")
-        
+
         # Create and start voice control with custom mappings and kwargs
         vc = VoiceControl(
-            word_to_key_map=custom_word_to_key,
-            word_to_word_map=custom_word_to_word,
-            debug=False,
-            **voice_kwargs
+            word_to_key_map=custom_word_to_key, word_to_word_map=custom_word_to_word, debug=False, **voice_kwargs
         )
-        
+
         # If voice control is not available, VoiceControl will be the DummyVoiceControl class
         # which will log a warning about missing dependencies
         vc.start()  # This now runs in background
