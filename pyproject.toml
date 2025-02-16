@@ -61,7 +61,7 @@ multimodal = [
 
 offline = []
 
-https://pypi.org/project/RealtimeSTT/
+# more info: https://pypi.org/project/RealtimeSTT/
 voice = [
     "pyaudio",
     "PyAutoGUI",
