@@ -8,6 +8,7 @@
 # Ignore all .pyc files
 *.pyc
 *.pkl
+*.log
 
 # Also ignore the __pycache__ directories where .pyc files are stored
 __pycache__/
