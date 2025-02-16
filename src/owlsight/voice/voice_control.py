@@ -190,6 +190,9 @@ class VoiceControl:
         if self.debug:
             logger.debug(f"Final transcription received: {text}")
 
+        # Clean and update cooldown state first
+        self._clean_recent_words()
+
         # First clean punctuation, then split into words for command detection
         cleaned_for_commands = self.non_alpha_pattern.sub(" ", text).lower()
         words = [w.strip() for w in cleaned_for_commands.split() if w.strip()]
@@ -200,17 +203,23 @@ class VoiceControl:
 
         while i < len(words):
             for cmd_len in range(min(4, len(words) - i), 0, -1):
-                potential_cmd = " ".join(words[i:i + cmd_len])
-                if potential_cmd in self.word_to_key_map:
+                potential_cmd = " ".join(words[i : i + cmd_len])
+                # Add cooldown check here
+                if potential_cmd in self.word_to_key_map and self._can_process_word(potential_cmd):
                     if self.debug:
                         logger.debug(f"Found command: {potential_cmd}")
-                    
+
                     key_combo = self.word_to_key_map[potential_cmd]
                     self.key_press_queue.put(key_combo)
-                    
+
                     if self.on_command_processed:
                         self.on_command_processed(potential_cmd, key_combo)
-                    
+
+                    processed_until = i + cmd_len
+                    i += cmd_len
+                    break
+                elif potential_cmd in self.word_to_key_map:
+                    # Skip this command as it's too soon to process again
                     processed_until = i + cmd_len
                     i += cmd_len
                     break
@@ -224,15 +233,15 @@ class VoiceControl:
                 word_pattern = re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
                 match = word_pattern.search(remaining_text)
                 if match:
-                    remaining_text = remaining_text[match.end():].lstrip()
+                    remaining_text = remaining_text[match.end() :].lstrip()
 
             # Apply word transformations
             transformed_text = remaining_text
             for word, replacement in self.word_to_word_map.items():
                 # Match the word with any surrounding punctuation
-                pattern = re.compile(rf'\b{word}\b[^\s\w]*', re.IGNORECASE)
+                pattern = re.compile(rf"\b{word}\b[^\s\w]*", re.IGNORECASE)
                 transformed_text = pattern.sub(replacement, transformed_text)
-                
+
             # Queue the transformed text for typing if it's not empty
             if transformed_text.strip():
                 if self.debug:
@@ -317,10 +326,7 @@ if __name__ == "__main__":
 
     # Create and start voice control
     vc = VoiceControl(
-        word_to_key_map=WORD_TO_KEY_MAP, 
-        word_to_word_map=WORD_TO_WORD_MAP, 
-        debug=True, 
-        on_command_processed=on_command
+        word_to_key_map=WORD_TO_KEY_MAP, word_to_word_map=WORD_TO_WORD_MAP, debug=True, on_command_processed=on_command
     )
 
     try:

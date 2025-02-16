@@ -1,6 +1,5 @@
 import logging
 import argparse
-from tkinter import W
 from typing import Optional
 
 from owlsight.app.run_app import run
