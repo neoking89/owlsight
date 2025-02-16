@@ -12,7 +12,7 @@ from huggingface_hub import HfApi
 from huggingface_hub.hf_api import ModelInfo
 from tqdm import tqdm
 
-from owlsight.utils.helper_functions import check_invalid_input_parameters
+from owlsight.utils.helper_functions import validate_input_params
 from owlsight.utils.logger import logger
 
 MODELHUB_PREFIX = "https://huggingface.co/"
@@ -101,7 +101,7 @@ def _cached_get_model_list(
     # Convert filter_by back to list if it's not None
     filter_by_list = list(filter_by) if filter_by is not None else None
 
-    check_invalid_input_parameters(hf_api.list_models, kwargs)
+    validate_input_params(hf_api.list_models, kwargs)
     model_gen = hf_api.list_models(
         filter=filter_by_list,
         search=search,
