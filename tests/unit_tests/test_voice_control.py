@@ -1,8 +1,21 @@
 import pytest
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 import queue
 
 from owlsight.voice.voice_control import VoiceControl
+
+@pytest.fixture(autouse=True)
+def mock_audio_recorder():
+    """Mock AudioToTextRecorder to prevent actual multiprocessing during tests."""
+    with patch('owlsight.voice.voice_control.AudioToTextRecorder') as mock_recorder:
+        # Create a mock instance that will be returned when AudioToTextRecorder is instantiated
+        mock_instance = Mock()
+        mock_recorder.return_value = mock_instance
+        
+        # Mock the shutdown method
+        mock_instance.shutdown = Mock()
+        
+        yield mock_instance
 
 @pytest.fixture
 def voice_control():
@@ -27,8 +40,31 @@ def voice_control():
     
     # Mock the callback
     vc.on_command_processed = Mock()
-    
-    return vc
+
+    # Cleanup function
+    def cleanup():
+        # Signal threads to stop
+        vc._stop_event.set()
+        
+        # Properly shutdown the recorder
+        if vc.recorder:
+            vc.recorder.shutdown()
+        
+        # Put None in queues to signal threads to exit
+        vc.key_press_queue.put(None)
+        vc.typing_queue.put(None)
+        
+        # Wait for threads to finish with longer timeouts
+        if vc.key_press_thread.is_alive():
+            vc.key_press_thread.join(timeout=5)
+        if vc.typing_thread.is_alive():
+            vc.typing_thread.join(timeout=5)
+        if vc.voice_thread and vc.voice_thread.is_alive():
+            vc.voice_thread.join(timeout=5)
+
+    # Register cleanup with pytest
+    yield vc
+    cleanup()
 
 @pytest.mark.parametrize("input_text, expected_output", [
     # Basic word transformations
