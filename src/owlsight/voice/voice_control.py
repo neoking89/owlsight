@@ -13,11 +13,6 @@ from owlsight.utils.logger import logger
 
 
 class VoiceControl:
-    """
-    A class to handle voice-controlled keyboard input with real-time speech recognition.
-    Supports command words that trigger key combinations and word transformations.
-    """
-
     def __init__(
         self,
         word_to_key_map: Dict[str, Union[str, List[str]]] = None,
@@ -30,9 +25,7 @@ class VoiceControl:
         typing_interval: float = 0.03,
         on_command_processed: Optional[Callable[[str, Union[str, List[str]]], None]] = None,
     ):
-        """
-        Initialize the VoiceControl instance.
-        """
+        """Initialize the VoiceControl instance."""
         self.word_to_key_map = {k.lower(): v for k, v in (word_to_key_map or {}).items()}
         self.word_to_word_map = word_to_word_map or {}
         self.word_cooldown = word_cooldown
@@ -57,11 +50,15 @@ class VoiceControl:
             if ' ' not in cmd:  # Only add single-word commands to command_words
                 self.command_words.add(cmd.lower())
 
+        # For command detection
         self.non_alpha_pattern = re.compile(r"[^a-zA-Z\s]")
-        self.word_transform_patterns = {
-            re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE): replacement
-            for word, replacement in self.word_to_word_map.items()
-        }
+        
+        # For word transformations - NEW
+        self.word_transform_patterns = []
+        for word, replacement in self.word_to_word_map.items():
+            # Pattern matches the word with optional punctuation
+            pattern = re.compile(rf'\b{re.escape(word)}\b[.!,;?]*', re.IGNORECASE)
+            self.word_transform_patterns.append((pattern, replacement))
 
         self.key_press_thread = threading.Thread(target=self._key_press_worker, daemon=True)
         self.typing_thread = threading.Thread(target=self._typing_worker, daemon=True)
@@ -143,13 +140,13 @@ class VoiceControl:
         }
 
     def _trigger_keys(self, text: str) -> None:
-        """Process real-time transcription updates ONLY for key commands."""
+        """Process real-time transcription updates for key commands."""
         if self.debug:
             logger.debug(f"Real-time update received: {text}")
 
         self._clean_recent_commands()
 
-        # Only process complete commands in real-time updates
+        # Clean text for command processing
         cleaned_text = self.non_alpha_pattern.sub(" ", text).lower()
         words = cleaned_text.split()
         
@@ -183,10 +180,9 @@ class VoiceControl:
         if self.debug:
             logger.debug(f"Final transcription received: {text}")
 
-        # Check if the text contains any complete commands
-        contains_command = False
+        # Check if the text contains any complete commands using cleaned text
         cleaned_text = self.non_alpha_pattern.sub(" ", text).lower()
-        
+        contains_command = False
         for cmd in self.complete_commands:
             if cmd in cleaned_text:
                 contains_command = True
@@ -194,26 +190,16 @@ class VoiceControl:
 
         # Only process text if it doesn't contain any commands
         if not contains_command:
-            transformed_text = text.strip()
-            for pattern, replacement in self.word_transform_patterns.items():
+            transformed_text = text
+            
+            # Apply word transformations
+            for pattern, replacement in self.word_transform_patterns:
                 transformed_text = pattern.sub(replacement, transformed_text)
 
-            if transformed_text:
+            if transformed_text.strip():
                 if self.debug:
                     logger.debug(f"Queueing transformed text: {transformed_text}")
                 self.typing_queue.put(transformed_text)
-
-    def _voice_worker(self) -> None:
-        """Background thread for voice recognition."""
-        if self.debug:
-            logger.debug("Voice worker started")
-        while not self._stop_event.is_set():
-            try:
-                self.recorder.text(on_transcription_finished=self._process_text)
-            except Exception as e:
-                if self.debug:
-                    logger.debug(f"Voice worker encountered exception: {e}")
-                break
 
     def start(self) -> None:
         """Start the voice control system."""
@@ -250,6 +236,18 @@ class VoiceControl:
 
         logger.info("Voice control system stopped")
 
+    def _voice_worker(self) -> None:
+        """Background thread for voice recognition."""
+        if self.debug:
+            logger.debug("Voice worker started")
+        while not self._stop_event.is_set():
+            try:
+                self.recorder.text(on_transcription_finished=self._process_text)
+            except Exception as e:
+                if self.debug:
+                    logger.debug(f"Voice worker encountered exception: {e}")
+                break
+
     @property
     def is_running(self) -> bool:
         """Check if the voice control system is currently running."""
@@ -260,8 +258,6 @@ class VoiceControl:
             and self.voice_thread.is_alive()
             and self.recorder is not None
         )
-
-
 # Example usage:
 if __name__ == "__main__":
     WORD_TO_KEY_MAP = {
