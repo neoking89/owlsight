@@ -47,17 +47,17 @@ class VoiceControl:
         self.complete_commands = set(self.word_to_key_map.keys())
         self.command_words = set()
         for cmd in self.complete_commands:
-            if ' ' not in cmd:  # Only add single-word commands to command_words
+            if " " not in cmd:  # Only add single-word commands to command_words
                 self.command_words.add(cmd.lower())
 
         # For command detection
         self.non_alpha_pattern = re.compile(r"[^a-zA-Z\s]")
-        
+
         # For word transformations
         self.word_transform_patterns = []
         for word, replacement in self.word_to_word_map.items():
             # Pattern matches the word with optional punctuation
-            pattern = re.compile(rf'\b{re.escape(word)}\b[.!,;?]*', re.IGNORECASE)
+            pattern = re.compile(rf"\b{re.escape(word)}\b[.!,;?]*", re.IGNORECASE)
             self.word_transform_patterns.append((pattern, replacement))
 
         self.key_press_thread = threading.Thread(target=self._key_press_worker, daemon=True)
@@ -122,12 +122,12 @@ class VoiceControl:
         current_time = time.time()
         if cmd in self.recent_commands and (current_time - self.recent_commands[cmd] < self.word_cooldown):
             return False
-        
+
         # Only add to cooldown if it's a complete command
         if cmd.lower() in self.complete_commands:
             self.recent_commands[cmd] = current_time
             return True
-            
+
         return True
 
     def _clean_recent_commands(self) -> None:
@@ -149,13 +149,13 @@ class VoiceControl:
         # Clean text for command processing
         cleaned_text = self.non_alpha_pattern.sub(" ", text).lower()
         words = cleaned_text.split()
-        
+
         i = 0
         while i < len(words):
             found_command = False
             # First try to match multi-word commands
             for cmd_len in range(min(4, len(words) - i), 1, -1):
-                potential_cmd = " ".join(words[i:i + cmd_len])
+                potential_cmd = " ".join(words[i : i + cmd_len])
                 if potential_cmd in self.complete_commands and self._can_process_cmd(potential_cmd):
                     key_combo = self.word_to_key_map[potential_cmd]
                     self.key_press_queue.put(key_combo)
@@ -164,7 +164,7 @@ class VoiceControl:
                     i += cmd_len
                     found_command = True
                     break
-            
+
             # Then try to match single-word commands
             if not found_command:
                 word = words[i]
@@ -191,7 +191,7 @@ class VoiceControl:
         # Only process text if it doesn't contain any commands
         if not contains_command:
             transformed_text = text
-            
+
             # Apply word transformations
             for pattern, replacement in self.word_transform_patterns:
                 transformed_text = pattern.sub(replacement, transformed_text)
@@ -258,6 +258,8 @@ class VoiceControl:
             and self.voice_thread.is_alive()
             and self.recorder is not None
         )
+
+
 # Example usage:
 if __name__ == "__main__":
     WORD_TO_KEY_MAP = {
