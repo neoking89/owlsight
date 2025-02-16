@@ -22,7 +22,7 @@ class VoiceControl:
         self,
         word_to_key_map: Dict[str, Union[str, List[str]]] = None,
         word_to_word_map: Dict[str, str] = None,
-        word_cooldown: float = 0.9,
+        word_cooldown: float = 1.0,
         debug: bool = False,
         language: str = "en",
         model: str = "small.en",
@@ -32,27 +32,7 @@ class VoiceControl:
     ):
         """
         Initialize the VoiceControl instance.
-
-        Parameters:
-        ----------
-            word_to_key_map: Dictionary mapping command words to keyboard keys or key combinations
-                Examples:
-                    {"up": "up"}  # Single key
-                    {"save": ["ctrl", "s"]}  # Key combination
-                    {"select all": ["ctrl", "a"]}  # Multiple words to key combination
-            word_to_word_map: Dictionary mapping words to their replacements
-                Examples:
-                    {"exit": "exit()"}  # Replace "exit" with "exit()"
-                    {"print": "print()"}  # Replace "print" with "print()"
-            word_cooldown: Cooldown period (in seconds) between same command recognition
-            debug: Enable debug printing
-            language: Language for speech recognition
-            model: Model to use for speech recognition
-            key_press_interval: Interval between key presses
-            typing_interval: Interval between typing characters
-            on_command_processed: Optional callback when a command is processed
         """
-        # Store commands in lowercase for case-insensitive matching
         self.word_to_key_map = {k.lower(): v for k, v in (word_to_key_map or {}).items()}
         self.word_to_word_map = word_to_word_map or {}
         self.word_cooldown = word_cooldown
@@ -63,38 +43,31 @@ class VoiceControl:
         self.typing_interval = typing_interval
         self.on_command_processed = on_command_processed
 
-        # Initialize PyAutoGUI settings
         pyautogui.FAILSAFE = True
         pyautogui.PAUSE = self.key_press_interval
 
-        # Set up queues and tracking
         self.key_press_queue = queue.Queue()
         self.typing_queue = queue.Queue()
-        self.recent_words = {}
+        self.recent_commands = {}
 
-        # Create sets of words to filter (both key commands and word transformations)
-        self.key_command_words = set()
-        for cmd in self.word_to_key_map.keys():
-            self.key_command_words.update(cmd.lower().split())
+        # Store complete commands and their word sets separately
+        self.complete_commands = set(self.word_to_key_map.keys())
+        self.command_words = set()
+        for cmd in self.complete_commands:
+            if ' ' not in cmd:  # Only add single-word commands to command_words
+                self.command_words.add(cmd.lower())
 
-        # Compile regex patterns for word matching
         self.non_alpha_pattern = re.compile(r"[^a-zA-Z\s]")
-
-        # Create word transformation patterns
         self.word_transform_patterns = {
             re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE): replacement
             for word, replacement in self.word_to_word_map.items()
         }
 
-        # Initialize worker threads
         self.key_press_thread = threading.Thread(target=self._key_press_worker, daemon=True)
         self.typing_thread = threading.Thread(target=self._typing_worker, daemon=True)
         self.voice_thread = None
 
-        # Event used to signal all threads to stop
         self._stop_event = threading.Event()
-
-        # Initialize recorder
         self.recorder = None
         self._initialize_recorder()
 
@@ -124,12 +97,10 @@ class VoiceControl:
                 self.key_press_queue.task_done()
                 break
             if isinstance(key_combo, (list, tuple)):
-                # Handle key combination (e.g., ["ctrl", "s"])
                 pyautogui.hotkey(*key_combo, interval=self.key_press_interval)
                 if self.debug:
                     logger.debug(f"Pressed key combination: {'+'.join(key_combo)}")
             else:
-                # Handle single key
                 pyautogui.press(key_combo, interval=self.key_press_interval)
                 if self.debug:
                     logger.debug(f"Pressed key: {key_combo}")
@@ -149,20 +120,25 @@ class VoiceControl:
                 logger.debug(f"Typed text: {text}")
             self.typing_queue.task_done()
 
-    def _can_process_word(self, word: str) -> bool:
-        """Check if enough time has passed to process the same word again."""
+    def _can_process_cmd(self, cmd: str) -> bool:
+        """Check if enough time has passed to process the command again."""
         current_time = time.time()
-        if word in self.recent_words and (current_time - self.recent_words[word] < self.word_cooldown):
+        if cmd in self.recent_commands and (current_time - self.recent_commands[cmd] < self.word_cooldown):
             return False
-        self.recent_words[word] = current_time
+        
+        # Only add to cooldown if it's a complete command
+        if cmd.lower() in self.complete_commands:
+            self.recent_commands[cmd] = current_time
+            return True
+            
         return True
 
-    def _clean_recent_words(self) -> None:
-        """Remove words whose cooldown period has expired."""
+    def _clean_recent_commands(self) -> None:
+        """Remove commands whose cooldown period has expired."""
         current_time = time.time()
-        self.recent_words = {
+        self.recent_commands = {
             word: timestamp
-            for word, timestamp in self.recent_words.items()
+            for word, timestamp in self.recent_commands.items()
             if current_time - timestamp <= self.word_cooldown
         }
 
@@ -171,87 +147,61 @@ class VoiceControl:
         if self.debug:
             logger.debug(f"Real-time update received: {text}")
 
-        self._clean_recent_words()
+        self._clean_recent_commands()
 
-        # Only process commands in real-time updates
-        cleaned_for_commands = self.non_alpha_pattern.sub(" ", text).lower()
-        words = cleaned_for_commands.split()
+        # Only process complete commands in real-time updates
+        cleaned_text = self.non_alpha_pattern.sub(" ", text).lower()
+        words = cleaned_text.split()
+        
         i = 0
         while i < len(words):
-            for cmd_len in range(min(4, len(words) - i), 0, -1):
-                potential_cmd = " ".join(words[i : i + cmd_len])
-                if potential_cmd in self.word_to_key_map and self._can_process_word(potential_cmd):
+            found_command = False
+            # First try to match multi-word commands
+            for cmd_len in range(min(4, len(words) - i), 1, -1):
+                potential_cmd = " ".join(words[i:i + cmd_len])
+                if potential_cmd in self.complete_commands and self._can_process_cmd(potential_cmd):
                     key_combo = self.word_to_key_map[potential_cmd]
                     self.key_press_queue.put(key_combo)
                     if self.on_command_processed:
                         self.on_command_processed(potential_cmd, key_combo)
                     i += cmd_len
+                    found_command = True
                     break
-            else:
+            
+            # Then try to match single-word commands
+            if not found_command:
+                word = words[i]
+                if word in self.command_words and self._can_process_cmd(word):
+                    key_combo = self.word_to_key_map[word]
+                    self.key_press_queue.put(key_combo)
+                    if self.on_command_processed:
+                        self.on_command_processed(word, key_combo)
                 i += 1
 
     def _process_text(self, text: str) -> None:
-        """Process the final transcription handling both commands and non-command text."""
+        """Process the final transcription for typing text."""
         if self.debug:
             logger.debug(f"Final transcription received: {text}")
 
-        # Clean and update cooldown state first
-        self._clean_recent_words()
+        # Check if the text contains any complete commands
+        contains_command = False
+        cleaned_text = self.non_alpha_pattern.sub(" ", text).lower()
+        
+        for cmd in self.complete_commands:
+            if cmd in cleaned_text:
+                contains_command = True
+                break
 
-        # First clean punctuation, then split into words for command detection
-        cleaned_for_commands = self.non_alpha_pattern.sub(" ", text).lower()
-        words = [w.strip() for w in cleaned_for_commands.split() if w.strip()]
-
-        # Check for commands in sequence of words
-        i = 0
-        processed_until = 0
-
-        while i < len(words):
-            for cmd_len in range(min(4, len(words) - i), 0, -1):
-                potential_cmd = " ".join(words[i : i + cmd_len])
-                # Add cooldown check here
-                if potential_cmd in self.word_to_key_map and self._can_process_word(potential_cmd):
-                    if self.debug:
-                        logger.debug(f"Found command: {potential_cmd}")
-
-                    key_combo = self.word_to_key_map[potential_cmd]
-                    self.key_press_queue.put(key_combo)
-
-                    if self.on_command_processed:
-                        self.on_command_processed(potential_cmd, key_combo)
-
-                    processed_until = i + cmd_len
-                    i += cmd_len
-                    break
-                elif potential_cmd in self.word_to_key_map:
-                    # Skip this command as it's too soon to process again
-                    processed_until = i + cmd_len
-                    i += cmd_len
-                    break
-            else:
-                i += 1
-
-        # Process remaining text after commands (if any)
-        if processed_until < len(words):
-            remaining_text = text
-            for word in words[:processed_until]:
-                word_pattern = re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
-                match = word_pattern.search(remaining_text)
-                if match:
-                    remaining_text = remaining_text[match.end() :].lstrip()
-
-            # Apply word transformations
-            transformed_text = remaining_text
-            for word, replacement in self.word_to_word_map.items():
-                # Match the word with any surrounding punctuation
-                pattern = re.compile(rf"\b{word}\b[^\s\w]*", re.IGNORECASE)
+        # Only process text if it doesn't contain any commands
+        if not contains_command:
+            transformed_text = text.strip()
+            for pattern, replacement in self.word_transform_patterns.items():
                 transformed_text = pattern.sub(replacement, transformed_text)
 
-            # Queue the transformed text for typing if it's not empty
-            if transformed_text.strip():
+            if transformed_text:
                 if self.debug:
                     logger.debug(f"Queueing transformed text: {transformed_text}")
-                self.typing_queue.put(transformed_text.strip())
+                self.typing_queue.put(transformed_text)
 
     def _voice_worker(self) -> None:
         """Background thread for voice recognition."""
@@ -275,7 +225,6 @@ class VoiceControl:
         for word, key in self.word_to_key_map.items():
             logger.info(f"  Say '{word}' to press '{key}'")
 
-        # Start voice recognition in a background thread
         self.voice_thread = threading.Thread(target=self._voice_worker, daemon=True)
         self.voice_thread.start()
 
@@ -284,17 +233,14 @@ class VoiceControl:
         if self.debug:
             logger.debug("Stopping voice control system...")
 
-        # Signal all threads to stop
         self._stop_event.set()
 
         if self.recorder:
             self.recorder.shutdown()
 
-        # Signal workers to stop by putting None in the queues
         self.key_press_queue.put(None)
         self.typing_queue.put(None)
 
-        # Wait for threads to finish, with a timeout to prevent hanging indefinitely
         if self.key_press_thread.is_alive():
             self.key_press_thread.join(timeout=5)
         if self.typing_thread.is_alive():
@@ -329,8 +275,9 @@ if __name__ == "__main__":
         "paste": ["ctrl", "v"],
         "delete": "delete",
     }
-    WORD_TO_WORD_MAP = {"exit": "exit()",
-                        }
+    WORD_TO_WORD_MAP = {
+        "exit": "exit()",
+    }
 
     # Optional callback function
     def on_command(word, key):
