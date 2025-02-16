@@ -1,5 +1,6 @@
 import logging
 import argparse
+from tkinter import W
 from typing import Optional
 
 from owlsight.app.run_app import run
@@ -65,7 +66,7 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
         Whether to enable voice control, by default False
     """
     args = parse_arguments(default_log_level)
-    setup_logging(args, default_log_level, log_path)
+    setup_logging(args, log_path)
 
     print_logo()
     check_gpu_and_cuda()
@@ -79,11 +80,25 @@ def main(default_log_level="info", log_path: Optional[str] = None, voice_control
     if args.voice or voice_control:
         logger.info("Voice control enabled")
         # Example command mapping
-        WORD_TO_KEY_MAP = {"boom": "left", "bang": "right", "ding": "up", "dong": "down", "sick": "enter"}
+        WORD_TO_KEY_MAP = {"boom": "left", 
+        "bang": "right", 
+        "ding": "up", 
+        "dong": "down", 
+        "sick": "enter",
+        "select all": ["ctrl", "a"],
+        "copy": ["ctrl", "c"],
+        "paste": ["ctrl", "y"],
+        "delete": "delete",
+        }
+        WORD_TO_WORD_MAP = {
+            "Exit": "exit()",
+            "exit": "exit()",
+        }
 
         # Create and start voice control
         vc = VoiceControl(
             word_to_key_map=WORD_TO_KEY_MAP,
+            word_to_word_map=WORD_TO_WORD_MAP,
             debug=False,
         )
         vc.start()  # This now runs in background

@@ -4,33 +4,46 @@ import re
 import threading
 import queue
 import time
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, Union, List
+
+import sys
+
+sys.path.append("src")
 from owlsight.utils.logger import logger
 
 
 class VoiceControl:
     """
     A class to handle voice-controlled keyboard input with real-time speech recognition.
-    Supports command words that trigger key presses and types other spoken words.
+    Supports command words that trigger key combinations and word transformations.
     """
 
     def __init__(
         self,
-        word_to_key_map: Dict[str, str],
-        word_cooldown: float = 0.8,
+        word_to_key_map: Dict[str, Union[str, List[str]]] = None,
+        word_to_word_map: Dict[str, str] = None,
+        word_cooldown: float = 0.9,
         debug: bool = False,
         language: str = "en",
         model: str = "small.en",
         key_press_interval: float = 0.05,
         typing_interval: float = 0.03,
-        on_command_processed: Optional[Callable[[str, str], None]] = None,
+        on_command_processed: Optional[Callable[[str, Union[str, List[str]]], None]] = None,
     ):
         """
         Initialize the VoiceControl instance.
 
         Parameters:
         ----------
-            word_to_key_map: Dictionary mapping command words to keyboard keys
+            word_to_key_map: Dictionary mapping command words to keyboard keys or key combinations
+                Examples:
+                    {"up": "up"}  # Single key
+                    {"save": ["ctrl", "s"]}  # Key combination
+                    {"select all": ["ctrl", "a"]}  # Multiple words to key combination
+            word_to_word_map: Dictionary mapping words to their replacements
+                Examples:
+                    {"exit": "exit()"}  # Replace "exit" with "exit()"
+                    {"print": "print()"}  # Replace "print" with "print()"
             word_cooldown: Cooldown period (in seconds) between same command recognition
             debug: Enable debug printing
             language: Language for speech recognition
@@ -39,7 +52,9 @@ class VoiceControl:
             typing_interval: Interval between typing characters
             on_command_processed: Optional callback when a command is processed
         """
-        self.word_to_key_map = word_to_key_map
+        # Store commands in lowercase for case-insensitive matching
+        self.word_to_key_map = {k.lower(): v for k, v in (word_to_key_map or {}).items()}
+        self.word_to_word_map = word_to_word_map or {}
         self.word_cooldown = word_cooldown
         self.debug = debug
         self.language = language
@@ -56,11 +71,20 @@ class VoiceControl:
         self.key_press_queue = queue.Queue()
         self.typing_queue = queue.Queue()
         self.recent_words = {}
-        self.words_to_filter = set(word_to_key_map.keys())
 
-        # Compile regex patterns
+        # Create sets of words to filter (both key commands and word transformations)
+        self.key_command_words = set()
+        for cmd in self.word_to_key_map.keys():
+            self.key_command_words.update(cmd.lower().split())
+
+        # Compile regex patterns for word matching
         self.non_alpha_pattern = re.compile(r"[^a-zA-Z\s]")
-        self.filter_pattern = re.compile(r"\b(" + "|".join(map(re.escape, self.words_to_filter)) + r")\b")
+
+        # Create word transformation patterns
+        self.word_transform_patterns = {
+            re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE): replacement
+            for word, replacement in self.word_to_word_map.items()
+        }
 
         # Initialize worker threads
         self.key_press_thread = threading.Thread(target=self._key_press_worker, daemon=True)
@@ -79,6 +103,7 @@ class VoiceControl:
             enable_realtime_transcription=True,
             on_realtime_transcription_update=self._trigger_keys,
             spinner=False,
+            silero_use_onnx=True,
         )
 
         if self.debug:
@@ -91,12 +116,19 @@ class VoiceControl:
         if self.debug:
             logger.debug("Key press worker started")
         while True:
-            key = self.key_press_queue.get()
-            if key is None:
+            key_combo = self.key_press_queue.get()
+            if key_combo is None:
                 break
-            pyautogui.press(key, interval=self.key_press_interval)
-            if self.debug:
-                logger.debug(f"Pressed key: {key}")
+            if isinstance(key_combo, (list, tuple)):
+                # Handle key combination (e.g., ["ctrl", "s"])
+                pyautogui.hotkey(*key_combo, interval=self.key_press_interval)
+                if self.debug:
+                    logger.debug(f"Pressed key combination: {'+'.join(key_combo)}")
+            else:
+                # Handle single key
+                pyautogui.press(key_combo, interval=self.key_press_interval)
+                if self.debug:
+                    logger.debug(f"Pressed key: {key_combo}")
             self.key_press_queue.task_done()
 
     def _typing_worker(self) -> None:
@@ -107,11 +139,9 @@ class VoiceControl:
             text = self.typing_queue.get()
             if text is None:
                 break
-            for word in text.split():
-                if word.lower() not in self.word_to_key_map:
-                    pyautogui.write(word + " ", interval=self.typing_interval)
-                    if self.debug:
-                        logger.debug(f"Typed word: {word}")
+            pyautogui.write(text, interval=self.typing_interval)
+            if self.debug:
+                logger.debug(f"Typed text: {text}")
             self.typing_queue.task_done()
 
     def _can_process_word(self, word: str) -> bool:
@@ -132,57 +162,88 @@ class VoiceControl:
         }
 
     def _trigger_keys(self, text: str) -> None:
-        """Process real-time transcription updates and trigger key presses."""
+        """Process real-time transcription updates ONLY for key commands."""
         if self.debug:
-            logger.debug(f"trigger_keys received: {text}")
+            logger.debug(f"Real-time update received: {text}")
 
         self._clean_recent_words()
 
-        for word in text.split():
-            cleaned_word = self.non_alpha_pattern.sub("", word).lower()
-            if self.debug:
-                logger.debug(f"Processed word: {cleaned_word}")
-
-            if cleaned_word in self.word_to_key_map and self._can_process_word(cleaned_word):
-                key = self.word_to_key_map[cleaned_word]
-                self.key_press_queue.put(key)
-                if self.on_command_processed:
-                    self.on_command_processed(cleaned_word, key)
-                if self.debug:
-                    logger.debug(f"Queued key: {key} for word: {cleaned_word}")
+        # Only process commands in real-time updates
+        cleaned_for_commands = self.non_alpha_pattern.sub(" ", text).lower()
+        words = cleaned_for_commands.split()
+        i = 0
+        while i < len(words):
+            for cmd_len in range(min(4, len(words) - i), 0, -1):
+                potential_cmd = " ".join(words[i : i + cmd_len])
+                if potential_cmd in self.word_to_key_map and self._can_process_word(potential_cmd):
+                    key_combo = self.word_to_key_map[potential_cmd]
+                    self.key_press_queue.put(key_combo)
+                    if self.on_command_processed:
+                        self.on_command_processed(potential_cmd, key_combo)
+                    i += cmd_len
+                    break
+            else:
+                i += 1
 
     def _process_text(self, text: str) -> None:
-        """Process the final transcription for typing non-command words."""
-        # First clean any non-alpha characters and convert to lowercase for matching
-        cleaned_text = self.non_alpha_pattern.sub(" ", text).lower()
-        
-        # Split into words and filter out command words
-        words = []
-        for word in cleaned_text.split():
-            if word not in self.word_to_key_map:
-                # Find the original word with its punctuation from the input text
-                # by matching position
-                start_idx = text.lower().find(word)
-                if start_idx != -1:
-                    # Get the original word with its case and punctuation
-                    end_idx = start_idx + len(word)
-                    original_word = text[start_idx:end_idx]
-                    words.append(original_word)
-
-        # Join filtered words back together
-        final_text = " ".join(words)
-        
+        """Process the final transcription handling both commands and non-command text."""
         if self.debug:
-            logger.debug(f"Final transcription after filtering: {final_text}")
-        
-        if final_text.strip():  # Only queue if there's actual text to type
-            self.typing_queue.put(final_text)
+            logger.debug(f"Final transcription received: {text}")
+
+        # First clean punctuation, then split into words for command detection
+        cleaned_for_commands = self.non_alpha_pattern.sub(" ", text).lower()
+        words = [w.strip() for w in cleaned_for_commands.split() if w.strip()]
+
+        # Check for commands in sequence of words
+        i = 0
+        processed_until = 0
+
+        while i < len(words):
+            for cmd_len in range(min(4, len(words) - i), 0, -1):
+                potential_cmd = " ".join(words[i:i + cmd_len])
+                if potential_cmd in self.word_to_key_map:
+                    if self.debug:
+                        logger.debug(f"Found command: {potential_cmd}")
+                    
+                    key_combo = self.word_to_key_map[potential_cmd]
+                    self.key_press_queue.put(key_combo)
+                    
+                    if self.on_command_processed:
+                        self.on_command_processed(potential_cmd, key_combo)
+                    
+                    processed_until = i + cmd_len
+                    i += cmd_len
+                    break
+            else:
+                i += 1
+
+        # Process remaining text after commands (if any)
+        if processed_until < len(words):
+            remaining_text = text
+            for word in words[:processed_until]:
+                word_pattern = re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
+                match = word_pattern.search(remaining_text)
+                if match:
+                    remaining_text = remaining_text[match.end():].lstrip()
+
+            # Apply word transformations
+            transformed_text = remaining_text
+            for word, replacement in self.word_to_word_map.items():
+                # Match the word with any surrounding punctuation
+                pattern = re.compile(rf'\b{word}\b[^\s\w]*', re.IGNORECASE)
+                transformed_text = pattern.sub(replacement, transformed_text)
+                
+            # Queue the transformed text for typing if it's not empty
+            if transformed_text.strip():
+                if self.debug:
+                    logger.debug(f"Queueing transformed text: {transformed_text}")
+                self.typing_queue.put(transformed_text.strip())
 
     def _voice_worker(self) -> None:
         """Background thread for voice recognition."""
         try:
             while True:
-                self.recorder.text(self._process_text)
+                self.recorder.text(on_transcription_finished=self._process_text)
         except KeyboardInterrupt:
             self.stop()
 
@@ -226,10 +287,10 @@ class VoiceControl:
     def is_running(self) -> bool:
         """Check if the voice control system is currently running."""
         return (
-            self.key_press_thread.is_alive() 
-            and self.typing_thread.is_alive() 
-            and self.voice_thread 
-            and self.voice_thread.is_alive() 
+            self.key_press_thread.is_alive()
+            and self.typing_thread.is_alive()
+            and self.voice_thread
+            and self.voice_thread.is_alive()
             and self.recorder is not None
         )
 
@@ -237,14 +298,30 @@ class VoiceControl:
 # Example usage:
 if __name__ == "__main__":
     # Example command mapping
-    WORD_TO_KEY_MAP = {"boom": "left", "bang": "right", "ding": "up", "dong": "down", "sick": "enter"}
+    WORD_TO_KEY_MAP = {
+        "left": "left",
+        "right": "right",
+        "up": "up",
+        "down": "down",
+        "enter": "enter",
+        "select all": ["ctrl", "a"],
+        "copy": ["ctrl", "c"],
+        "paste": ["ctrl", "v"],
+        "delete": "delete",
+    }
+    WORD_TO_WORD_MAP = {"exit": "exit()", "print": "print()"}
 
     # Optional callback function
     def on_command(word, key):
         logger.info(f"Command processed: {word} -> {key}")
 
     # Create and start voice control
-    vc = VoiceControl(word_to_key_map=WORD_TO_KEY_MAP, debug=True, on_command_processed=on_command)
+    vc = VoiceControl(
+        word_to_key_map=WORD_TO_KEY_MAP, 
+        word_to_word_map=WORD_TO_WORD_MAP, 
+        debug=True, 
+        on_command_processed=on_command
+    )
 
     try:
         vc.start()
