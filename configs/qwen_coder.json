@@ -42,7 +42,7 @@
         "search": ""
     },
     "agentic": {
-            "apply_tools": true,
+            "apply_tools": false,
             "max_steps": 5,
             "enable_python_agent": true,
             "additional_information": ""
