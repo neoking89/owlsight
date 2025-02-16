@@ -1,34 +1,101 @@
-from RealtimeSTT import AudioToTextRecorder
-import pyautogui
 import re
 import threading
 import queue
 import time
 from typing import Dict, Optional, Callable, Union, List
 
-import sys
-
-sys.path.append("src")
+from owlsight.utils.helper_functions import validate_input_params
 from owlsight.utils.logger import logger
 
+# Flag to track if voice control dependencies are available
+VOICE_CONTROL_AVAILABLE = False
 
-class VoiceControl:
+try:
+    from RealtimeSTT import AudioToTextRecorder
+    import pyautogui
+
+    VOICE_CONTROL_AVAILABLE = True
+except ImportError:
+    logger.debug(
+        "Voice control dependencies not found. Install with 'pip install owlsight[voice]' to enable voice control."
+    )
+
+
+class VoiceControlBase:
+    """Base class for voice control functionality."""
+
+    def start(self):
+        """Start the voice control system."""
+        pass
+
+    def stop(self):
+        """Stop the voice control system."""
+        pass
+
+    def is_running(self):
+        """Check if the voice control system is running."""
+        return False
+
+
+class DummyVoiceControl(VoiceControlBase):
+    """Dummy implementation when voice control dependencies are not available."""
+
+    def __init__(self, *args, **kwargs):
+        logger.warning(
+            "Voice control dependencies not found. Voice control will be disabled. "
+            "To enable voice control, install the required dependencies with: "
+            "'pip install owlsight[voice]'"
+        )
+
+
+class VoiceControl(VoiceControlBase):
     def __init__(
         self,
         word_to_key_map: Dict[str, Union[str, List[str]]] = None,
         word_to_word_map: Dict[str, str] = None,
-        word_cooldown: float = 1.0,
+        cmd_cooldown: float = 1.0,
         debug: bool = False,
         language: str = "en",
         model: str = "small.en",
         key_press_interval: float = 0.05,
         typing_interval: float = 0.03,
         on_command_processed: Optional[Callable[[str, Union[str, List[str]]], None]] = None,
+        **recorder_kwargs,
     ):
-        """Initialize the VoiceControl instance."""
+        """
+        Initialize the VoiceControl instance.
+
+        Parameters
+        ----------
+        word_to_key_map : Dict[str, Union[str, List[str]]], optional
+            A dictionary mapping words to keys, by default None
+            This is used to map words to key combinations
+            eg: {"zap": ["ctrl", "a"]} means that the word "zap" will be transcribed as "ctrl+a"
+        word_to_word_map : Dict[str, str], optional
+            A dictionary mapping and transcribing words to other words, by default None
+            eg: {"exit": "exit()"} means that the word "exit" will be transcribed as "exit()"
+        cmd_cooldown : float, optional
+            The cooldown between commands, by default 1.0.
+            This is to prevent multiple commands being sent too quickly in a sequence.
+        debug : bool, optional
+            Whether to enable debug mode, by default False
+        language : str, optional
+            The language to use, by default "en"
+        model : str, optional
+            The model to use, by default "small.en"
+        key_press_interval : float, optional
+            The interval between key presses, by default 0.05
+        typing_interval : float, optional
+            The interval between typing, by default 0.03
+        on_command_processed : Optional[Callable[[str, Union[str, List[str]]], None]], optional
+            A function to call when a command is processed, by default None
+        **recorder_kwargs
+            Keyword arguments to pass to the `AudioToTextRecorder` constructor
+        """
+        super().__init__()
         self.word_to_key_map = {k.lower(): v for k, v in (word_to_key_map or {}).items()}
         self.word_to_word_map = word_to_word_map or {}
-        self.word_cooldown = word_cooldown
+        self.cmd_cooldown = cmd_cooldown
         self.debug = debug
         self.language = language
         self.model = model
@@ -66,17 +133,19 @@ class VoiceControl:
 
         self._stop_event = threading.Event()
         self.recorder = None
-        self._initialize_recorder()
+        self._initialize_recorder(**recorder_kwargs)
 
-    def _initialize_recorder(self) -> None:
+    def _initialize_recorder(self, **recorder_kwargs) -> None:
         """Initialize the speech recognition recorder."""
+        validate_input_params(AudioToTextRecorder.__init__, recorder_kwargs)
+
         self.recorder = AudioToTextRecorder(
             language=self.language,
             model=self.model,
             enable_realtime_transcription=True,
             on_realtime_transcription_update=self._trigger_keys,
             spinner=False,
-            silero_use_onnx=True,
+            **recorder_kwargs,
         )
 
         if self.debug:
@@ -120,7 +189,7 @@ class VoiceControl:
     def _can_process_cmd(self, cmd: str) -> bool:
         """Check if enough time has passed to process the command again."""
         current_time = time.time()
-        if cmd in self.recent_commands and (current_time - self.recent_commands[cmd] < self.word_cooldown):
+        if cmd in self.recent_commands and (current_time - self.recent_commands[cmd] < self.cmd_cooldown):
             return False
 
         # Only add to cooldown if it's a complete command
@@ -136,7 +205,7 @@ class VoiceControl:
         self.recent_commands = {
             word: timestamp
             for word, timestamp in self.recent_commands.items()
-            if current_time - timestamp <= self.word_cooldown
+            if current_time - timestamp <= self.cmd_cooldown
         }
 
     def _trigger_keys(self, text: str) -> None:
@@ -282,12 +351,15 @@ if __name__ == "__main__":
         logger.info(f"Command processed: {word} -> {key}")
 
     # Create and start voice control
-    vc = VoiceControl(
-        word_to_key_map=WORD_TO_KEY_MAP,
-        word_to_word_map=WORD_TO_WORD_MAP,
-        debug=True,
-        on_command_processed=on_command,
-    )
+    if VOICE_CONTROL_AVAILABLE:
+        vc = VoiceControl(
+            word_to_key_map=WORD_TO_KEY_MAP,
+            word_to_word_map=WORD_TO_WORD_MAP,
+            debug=True,
+            on_command_processed=on_command,
+        )
+    else:
+        vc = DummyVoiceControl()
 
     try:
         vc.start()
