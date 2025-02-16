@@ -236,7 +236,7 @@ def os_is_windows():
     return os.name == "nt"
 
 
-def check_invalid_input_parameters(func: callable, kwargs: dict):
+def validate_input_params(func: callable, kwargs: dict):
     """
     Validate the keyword arguments passed to a class against the __init__ signature.
 
