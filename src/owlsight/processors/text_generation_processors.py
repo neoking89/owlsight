@@ -29,7 +29,7 @@ from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, Inva
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.deep_learning import get_best_device, bfloat16_is_supported
 from owlsight.hugging_face.constants import SUPPORTED_TASKS
-from owlsight.utils.helper_functions import check_invalid_input_parameters
+from owlsight.utils.helper_functions import validate_input_params
 from owlsight.utils.logger import logger
 
 try:
@@ -880,7 +880,7 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
             **(self.model_kwargs),
         }
 
-        check_invalid_input_parameters(Llama.__init__, _model_kwargs)
+        validate_input_params(Llama.__init__, _model_kwargs)
 
         # load model
         if os.path.exists(model_id):
@@ -1060,6 +1060,6 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         if generation_kwargs:
             _generation_kwargs.update(generation_kwargs)
 
-        check_invalid_input_parameters(self.llm.create_chat_completion, _generation_kwargs)
+        validate_input_params(self.llm.create_chat_completion, _generation_kwargs)
 
         return templated_text, _generation_kwargs
