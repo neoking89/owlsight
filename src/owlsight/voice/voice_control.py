@@ -68,9 +68,9 @@ class VoiceControl(VoiceControlBase):
         Parameters
         ----------
         word_to_key_map : Dict[str, Union[str, List[str]]], optional
-            A dictionary mapping words to keys, by default None
-            This is used to map words to key combinations
-            eg: {"zap": ["ctrl", "a"]} means that the word "zap" will be transcribed as "ctrl+a"
+            A dictionary mapping words to keys/commands, by default None
+            This is used to map words to key/command combinations
+            eg: {"zap": ["ctrl", "a"]} means that the word "zap" will be transcribed (and executed) as "ctrl+a"
         word_to_word_map : Dict[str, str], optional
             A dictionary mapping and transcribing words to other words, by default None
             eg: {"exit": "exit()"} means that the word "exit" will be transcribed as "exit()"
