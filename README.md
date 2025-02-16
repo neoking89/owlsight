@@ -40,6 +40,11 @@ To add multimodal functionality:
 pip install owlsight[multimodal]
 ```
 
+To add voice control functionality:
+```
+pip install owlsight[voice]
+```
+
 When working offline, you can use the offline flag. 
 This will enable access to the tika-server.jar file locally, enabling you to use the `DocumentReader` class (which includes Apache Tika functionality) without an internet connection.
 ```
@@ -51,7 +56,7 @@ To install all packages:
 pip install owlsight[all]
 ```
 
-It is recommended to use the `all` option, as this will install all dependencies and allow you to use all features of Owlsight.
+It is recommended to use the `all` option, as this will install all dependencies for the TextGenerationProcessors, supporting Pytorch, GGUF and ONNX.
 
 NOTE: some libraries like llama-cpp-python and pytorch can be highly dependant on user-specific configurations.
 From Owlsight out of the box, these libraries are installed without any additional configurations.
@@ -116,6 +121,46 @@ The following available commands are available from the mainmenu:
 * **clear history** : Clear the chat history and cache folder.
 * **quit** : Exit the application.
 
+### Voice Control
+
+Owlsight supports voice control functionality when installed with `pip install owlsight[voice]`. This allows you to control the application using voice commands.
+
+To enable voice control, use the `--voice` flag when starting Owlsight:
+```bash
+owlsight --voice
+```
+
+You can customize the voice control behavior using JSON-based configuration:
+
+```bash
+# Custom key mappings (spoken words to keyboard actions)
+owlsight --voice --word-to-key '{
+    "backward": "left",
+    "forward": "right",
+    "save": ["ctrl", "s"],
+    "select all": ["ctrl", "a"]
+}'
+
+# Custom word substitutions
+owlsight --voice --word-to-word '{
+    "print": "print()",
+    "function": "def my_function():",
+    "exit": "exit()"
+}'
+
+# Advanced voice control settings
+owlsight --voice --voicecontrol-kwargs '{
+    "cmd_cooldown": 0.5,
+    "debug": true,
+    "language": "en",
+    "model": "base.en",
+    "key_press_interval": 0.1,
+    "typing_interval": 0.05
+}'
+```
+
+These options can be combined to create a fully customized voice control experience.
+
 ### Example Workflow
 
 You can combine Python variables with language models in Owlsight through special double curly-brackets syntax. For example:
@@ -145,7 +190,7 @@ How can I assist you? > Can you write a function which reads an Excel file?
 python > excel_data = read_excel("path/to/excel")
 ```
 
-## MultiModal Support
+### MultiModal Support
 
 In Owlsight 2, models are supported that require additional input, like images or audio. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. 
 In the CLI, this can be done by setting the *config.model.model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. 
@@ -190,9 +235,7 @@ These are:
 - `owl_save_namespace`: Save namespace to .dill file
 - `owl_load_namespace`: Load namespace from .dill file
 - `owl_tools`: Show available functions for tool calling
-- `owl_search`: Search and get results from the web using DuckDuckGo's API
-
-## Configurations
+- `owl_search`: Search and get results from the web using DuckDuckGo's API## Configurations
 
 Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into five main sections: `main`, `model`,  `generate`, `rag` and `huggingface`. Here's an overview of the application architecture:
 
@@ -335,9 +378,7 @@ During an Owlsight session, a temporary environment is created within the homedi
 
 ## Error Handling and Auto-Fix
 
-Owlsight automatically tries to fix and retry any code that encounters a **ModuleNotFoundError** by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.
-
-## API Examples
+Owlsight automatically tries to fix and retry any code that encounters a **ModuleNotFoundError** by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.## API Examples
 
 Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. 
 
@@ -365,7 +406,7 @@ docs = {
     "doc1": "Quantum mechanics describes nature at atomic scales, introducing wave-particle duality and entanglement.",
     "doc2": "General relativity redefines gravity as spacetime curvature, predicting black holes and gravitational waves.",
     "doc3": "Quantum gravity aims to unify quantum mechanics and relativity, with theories like string theory and LQG.",
-    "doc4": "String theory is a framework for understanding the universe, with models like the Minkowski space-time and the Einstein-Hilbert action."
+    "doc4": "String theory is a framework for understanding the universe, with models like the Minkowski space-time and the Einstein-Hilbert action.",
     "doc5": "LQG is a framework for quantum gravity, with models like the Einstein action and the black hole metric."
 }
 
@@ -382,10 +423,7 @@ searcher = DocumentSearcher(
 
 query = "black holes in quantum gravity"
 results = searcher.search(query, top_k=2)
-```
-
-
-## API Documentation
+```## API Documentation
 
 The following section details all the objects and functions available in the Owlsight API:
 
@@ -1185,11 +1223,7 @@ func : Callable
 Returns
 -------
 str
-    A JSON string describing the function's name, short description, and parameter schema.
-
-
-
-## RELEASE NOTES
+    A JSON string describing the function's name, short description, and parameter schema.## RELEASE NOTES
 
 **1.0.2**
 
@@ -1265,6 +1299,7 @@ TIP: above option can be used to load a sequence of different models as "agents"
 
 **2.3.0**
 
+
 - Added compile mode for the Python interpreter (`config:main:python_compile_mode`), so that the user can both execute single lines ("single") or define multiple lines of code ("exec").
 - added `split_documents_n_sentences` and `split_documents_n_overlap` parameters to `DocumentSearcher` class, which can be used to split a long document into smaller chunks before embedding.
 - Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
@@ -1318,6 +1353,13 @@ In the end, the final response is computed by a last agent. All agents are the c
 owlsight --log log.txt --level DEBUG
 ```
 - Added `additional_information` option to the `config:agentic` section. This option can be used to add additional information to every agent call, for example: "Do NOT use owl_scrape and owl_search, because there is no internet connection."
-
+- Added voice control support with customizable mappings through `owlsight[voice]` package
+Voice control features include:
+  * Customizable word-to-key mappings for keyboard control
+  * Word-to-word substitutions for text input
+  * Configurable settings like command cooldown and typing intervals
+  * Support for multiple languages and speech recognition models
+- Added JSON-based configuration for all voice control settings
+- Improved error handling and graceful degradation when voice dependencies are not available
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com

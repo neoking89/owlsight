@@ -11,8 +11,10 @@ init_path = Path(__file__).parent.parent / "__init__.py"
 # Get API documentation
 api_docs = get_init_docstrings(str(init_path))
 formatted_api_docs = format_docstrings(api_docs)
+json_schema = Schema.get_config_defaults(as_json=True)
+schema_diagram = Schema.generate_diagram()
 
-README = f"""
+README_INTRO = """
 # Owlsight
 
 **Owlsight** is a command-line tool that combines Python programming with open-source language models.
@@ -55,6 +57,11 @@ To add multimodal functionality:
 pip install owlsight[multimodal]
 ```
 
+To add voice control functionality:
+```
+pip install owlsight[voice]
+```
+
 When working offline, you can use the offline flag. 
 This will enable access to the tika-server.jar file locally, enabling you to use the `DocumentReader` class (which includes Apache Tika functionality) without an internet connection.
 ```
@@ -66,7 +73,7 @@ To install all packages:
 pip install owlsight[all]
 ```
 
-It is recommended to use the `all` option, as this will install all dependencies and allow you to use all features of Owlsight.
+It is recommended to use the `all` option, as this will install all dependencies for the TextGenerationProcessors, supporting Pytorch, GGUF and ONNX.
 
 NOTE: some libraries like llama-cpp-python and pytorch can be highly dependant on user-specific configurations.
 From Owlsight out of the box, these libraries are installed without any additional configurations.
@@ -131,13 +138,53 @@ The following available commands are available from the mainmenu:
 * **clear history** : Clear the chat history and cache folder.
 * **quit** : Exit the application.
 
+### Voice Control
+
+Owlsight supports voice control functionality when installed with `pip install owlsight[voice]`. This allows you to control the application using voice commands.
+
+To enable voice control, use the `--voice` flag when starting Owlsight:
+```bash
+owlsight --voice
+```
+
+You can customize the voice control behavior using JSON-based configuration:
+
+```bash
+# Custom key mappings (spoken words to keyboard actions)
+owlsight --voice --word-to-key '{
+    "backward": "left",
+    "forward": "right",
+    "save": ["ctrl", "s"],
+    "select all": ["ctrl", "a"]
+}'
+
+# Custom word substitutions
+owlsight --voice --word-to-word '{
+    "print": "print()",
+    "function": "def my_function():",
+    "exit": "exit()"
+}'
+
+# Advanced voice control settings
+owlsight --voice --voicecontrol-kwargs '{
+    "cmd_cooldown": 0.5,
+    "debug": true,
+    "language": "en",
+    "model": "base.en",
+    "key_press_interval": 0.1,
+    "typing_interval": 0.05
+}'
+```
+
+These options can be combined to create a fully customized voice control experience.
+
 ### Example Workflow
 
 You can combine Python variables with language models in Owlsight through special double curly-brackets syntax. For example:
 
 ```
 python > a = 42
-How can I assist you? > How much is {{{{a}}}} * 5?
+How can I assist you? > How much is {{a}} * 5?
 ```
 
 ```
@@ -160,7 +207,7 @@ How can I assist you? > Can you write a function which reads an Excel file?
 python > excel_data = read_excel("path/to/excel")
 ```
 
-## MultiModal Support
+### MultiModal Support
 
 In Owlsight 2, models are supported that require additional input, like images or audio. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. 
 In the CLI, this can be done by setting the *config.model.model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. 
@@ -206,7 +253,8 @@ These are:
 - `owl_load_namespace`: Load namespace from .dill file
 - `owl_tools`: Show available functions for tool calling
 - `owl_search`: Search and get results from the web using DuckDuckGo's API
-
+"""
+CONFIGURATION = f"""
 ## Configurations
 
 Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into five main sections: `main`, `model`,  `generate`, `rag` and `huggingface`. Here's an overview of the application architecture:
@@ -232,7 +280,9 @@ During an Owlsight session, a temporary environment is created within the homedi
 ## Error Handling and Auto-Fix
 
 Owlsight automatically tries to fix and retry any code that encounters a **ModuleNotFoundError** by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.
+"""
 
+API_EXAMPLES = """
 ## API Examples
 
 Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. 
@@ -257,13 +307,13 @@ Here is an example on how to use the `DocumentSearcher` class for simple documen
 ```python
 from owlsight import DocumentSearcher, SentenceTextSplitter, SemanticTextSplitter
 
-docs = {{
+docs = {
     "doc1": "Quantum mechanics describes nature at atomic scales, introducing wave-particle duality and entanglement.",
     "doc2": "General relativity redefines gravity as spacetime curvature, predicting black holes and gravitational waves.",
     "doc3": "Quantum gravity aims to unify quantum mechanics and relativity, with theories like string theory and LQG.",
-    "doc4": "String theory is a framework for understanding the universe, with models like the Minkowski space-time and the Einstein-Hilbert action."
+    "doc4": "String theory is a framework for understanding the universe, with models like the Minkowski space-time and the Einstein-Hilbert action.",
     "doc5": "LQG is a framework for quantum gravity, with models like the Einstein action and the black hole metric."
-}}
+}
 
 # Experiment with different text splitters
 # splitter = SemanticTextSplitter()
@@ -279,15 +329,17 @@ searcher = DocumentSearcher(
 query = "black holes in quantum gravity"
 results = searcher.search(query, top_k=2)
 ```
+"""
 
-
+API_DOCUMENTATION = f"""
 ## API Documentation
 
 The following section details all the objects and functions available in the Owlsight API:
 
 {formatted_api_docs}
+"""
 
-
+RELEASE_NOTES = """
 ## RELEASE NOTES
 
 **1.0.2**
@@ -364,17 +416,18 @@ TIP: above option can be used to load a sequence of different models as "agents"
 
 **2.3.0**
 
+
 - Added compile mode for the Python interpreter (`config:main:python_compile_mode`), so that the user can both execute single lines ("single") or define multiple lines of code ("exec").
 - added `split_documents_n_sentences` and `split_documents_n_overlap` parameters to `DocumentSearcher` class, which can be used to split a long document into smaller chunks before embedding.
 - Added a `from_cache` method in DocumentSearcher class. This method can be used to load a DocumentSearcher instance from earlier cached documents and embeddings.
 - Removed `transformers__model_kwargs` from config:model, and instead added a `model_kwargs` parameter to all TextGenerationProcessor classes. 
 The advantage is that `model_kwargs` can now also be passed to other TextGenerationProcessor classes. For example, when passed to `TextGenerationProcessorGGUF`, these parameters are now used to initialize the `Llama` class from llama-cpp-python.
 - ESC + V can be used inside the Python Interpreter to show the currently defined objects in a dropdown-menu.
-- ESC + V can be used inside the "How can I assist you?"-option after typing the following: "[[", "{{{{". This will autocomplete the following:
+- ESC + V can be used inside the "How can I assist you?"-option after typing the following: "[[", "{{". This will autocomplete the following:
 "[[" will autocomplete to: "image:", "audio:"
-"{{{{" will autocomplete any available defined objects from the python-namespace.
+"{{" will autocomplete any available defined objects from the python-namespace.
 - Added `owl_tools` function to the Python interpreter. This function can be used to convert all defined functions in the namespace to a dictionary, which can be used for tool/function-calling.
-- Bracket-syntax "{{{{}}}}" for augmenting Python expressions can now also be used inside the `config` section of the CLI. For example, in the Python interpreter, we can store a long string inside a variable and pass it to `config:model:system_prompt` directly.
+- Bracket-syntax "{{}}" for augmenting Python expressions can now also be used inside the `config` section of the CLI. For example, in the Python interpreter, we can store a long string inside a variable and pass it to `config:model:system_prompt` directly.
 - Added new option `dynamic_system_prompt` to config:main section. This option can be used to dynamically generate a fitting system prompt first for a given user input, before passing it to the model.
 The idea is that this might help the model to give a more focused response to the question.
 - Add basic functionality, like select all, copy and paste. Use CTRL+A, CTRL+C and CTRL+Y respectively. This option applies to all editable fields and the Python Interpreter.
@@ -386,7 +439,7 @@ The idea is that this might help the model to give a more focused response to th
 
 *How can I assist you?*
 ```text
-[[load:config-to-model1.json]] Generates a rough draft for the following text: {{{{owl_read("mockup-idea.txt")}}}} [[load:config-to-model2.json]] Validate that the generated draft based on the previous text is relevant and contains all necessary information
+[[load:config-to-model1.json]] Generates a rough draft for the following text: {{owl_read("mockup-idea.txt")}} [[load:config-to-model2.json]] Validate that the generated draft based on the previous text is relevant and contains all necessary information
 ```
 TIP 1: Combing a sequence of different agents together with above method can lead to complex conversation flows.
 TIP 2: Using above tag in combination with `sequence_on_loading` in the configuration json opens lots of new possibilities to control the application.
@@ -401,7 +454,7 @@ TIP 2: Using above tag in combination with `sequence_on_loading` in the configur
 
 *How can I assist you?*
 ```text
-{{{{"".join(f"[[load:config-to-model{{i}}.json]]how much is {{i}} + 1?" for i in range(1, 10))}}}}
+{{"".join(f"[[load:config-to-model{i}.json]]how much is {i} + 1?" for i in range(1, 10))}}
 ```
 
 - Added `SentenceTextSplitter` to the Owlsight API. This can be used to split text into chunks based on sentences.
@@ -417,7 +470,14 @@ In the end, the final response is computed by a last agent. All agents are the c
 owlsight --log log.txt --level DEBUG
 ```
 - Added `additional_information` option to the `config:agentic` section. This option can be used to add additional information to every agent call, for example: "Do NOT use owl_scrape and owl_search, because there is no internet connection."
-
+- Added voice control support with customizable mappings through `owlsight[voice]` package
+Voice control features include:
+  * Customizable word-to-key mappings for keyboard control
+  * Word-to-word substitutions for text input
+  * Configurable settings like command cooldown and typing intervals
+  * Support for multiple languages and speech recognition models
+- Added JSON-based configuration for all voice control settings
+- Improved error handling and graceful degradation when voice dependencies are not available
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
@@ -439,4 +499,11 @@ def write_readme(content: str, filename: str):
 
 
 if __name__ == "__main__":
+    README = "".join([
+        README_INTRO.strip(),
+        CONFIGURATION.strip(),
+        API_EXAMPLES.strip(),
+        API_DOCUMENTATION.strip(),
+        RELEASE_NOTES.strip(),
+    ])
     write_readme(README, "README.md")
