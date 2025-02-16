@@ -53,7 +53,7 @@ class VoiceControl:
         # For command detection
         self.non_alpha_pattern = re.compile(r"[^a-zA-Z\s]")
         
-        # For word transformations - NEW
+        # For word transformations
         self.word_transform_patterns = []
         for word, replacement in self.word_to_word_map.items():
             # Pattern matches the word with optional punctuation
