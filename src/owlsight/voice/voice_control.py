@@ -3,6 +3,7 @@ import threading
 import queue
 import time
 from typing import Dict, Optional, Callable, Union, List
+import logging
 
 from owlsight.utils.helper_functions import validate_input_params
 from owlsight.utils.logger import logger
@@ -110,6 +111,9 @@ if VOICE_CONTROL_AVAILABLE:
             self.key_press_queue = queue.Queue()
             self.typing_queue = queue.Queue()
             self.recent_commands = {}
+            
+            if self.debug:
+                logger.setLevel(logging.DEBUG)
 
             # Store complete commands and their word sets separately
             self.complete_commands = set(self.word_to_key_map.keys())
