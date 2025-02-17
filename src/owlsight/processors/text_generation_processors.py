@@ -598,9 +598,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         try:
             while not generator.is_done():
-                generator.compute_logits()
-                generator.generate_next_token()
-                new_text = self.tokenizer_stream.decode(generator.get_next_tokens()[0])
+                new_text = self._get_text_from_generator(generator)
                 buffer += new_text
                 token_counter += 1
 
@@ -661,9 +659,7 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
 
         try:
             while not generator.is_done():
-                generator.compute_logits()
-                generator.generate_next_token()
-                new_text = self.tokenizer_stream.decode(generator.get_next_tokens()[0])
+                new_text = self._get_text_from_generator(generator)
                 generated_text += new_text
                 yield new_text
 
@@ -716,9 +712,10 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
         input_tokens = self.tokenizer.encode(templated_text)
         params = og.GeneratorParams(self.model)
         params.set_search_options(**search_options)
-        params.input_ids = input_tokens
 
-        return og.Generator(self.model, params)
+        generator = og.Generator(self.model, params)
+        generator.append_tokens(input_tokens)
+        return generator
 
     def _post_validate_model_id(self, model_id: str) -> str:
         """Validate the model_id and model_directory after using `snapshot_download`."""
@@ -736,6 +733,12 @@ class TextGenerationProcessorOnnx(TextGenerationProcessor):
             return model_id
 
         raise FileNotFoundError(f"Config files not found in model directory: {model_id}")
+
+    def _get_text_from_generator(self, generator):
+        generator.generate_next_token()
+        new_token = generator.get_next_tokens()[0]
+        new_text = self.tokenizer_stream.decode(new_token)
+        return new_text
 
     @staticmethod
     def list_valid_repo_files(repo_id: str) -> List[str]:
