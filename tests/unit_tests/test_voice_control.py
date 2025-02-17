@@ -1,6 +1,12 @@
 import pytest
 from unittest.mock import Mock, patch
 import queue
+import importlib.util
+
+# Check if RealtimeSTT is installed
+realtimestt_installed = importlib.util.find_spec("RealtimeSTT") is not None
+if not realtimestt_installed:
+    pytest.skip("RealtimeSTT is not installed. Skipping voice control tests.", allow_module_level=True)
 
 from owlsight.voice.voice_control import VoiceControl
 
