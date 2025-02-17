@@ -12,7 +12,7 @@ VOICE_CONTROL_AVAILABLE = False
 
 try:
     from RealtimeSTT import AudioToTextRecorder
-    import pyautogui
+    from pynput.keyboard import Controller, Key
 
     VOICE_CONTROL_AVAILABLE = True
 except ImportError:
@@ -104,8 +104,7 @@ if VOICE_CONTROL_AVAILABLE:
             self.typing_interval = typing_interval
             self.on_command_processed = on_command_processed
 
-            pyautogui.FAILSAFE = True
-            pyautogui.PAUSE = self.key_press_interval
+            self.keyboard = Controller()
 
             self.key_press_queue = queue.Queue()
             self.typing_queue = queue.Queue()
@@ -118,15 +117,15 @@ if VOICE_CONTROL_AVAILABLE:
                 if " " not in cmd:  # Only add single-word commands to command_words
                     self.command_words.add(cmd.lower())
 
-            # For command detection
-            self.non_alpha_pattern = re.compile(r"[^a-zA-Z\s]")
-
             # For word transformations
             self.word_transform_patterns = []
             for word, replacement in self.word_to_word_map.items():
                 # Pattern matches the word with optional punctuation
                 pattern = re.compile(rf"\b{re.escape(word)}\b[.!,;?]*", re.IGNORECASE)
                 self.word_transform_patterns.append((pattern, replacement))
+
+            # For command detection
+            self.non_alpha_pattern = re.compile(r"[^a-zA-Z\s]")
 
             self.key_press_thread = threading.Thread(target=self._key_press_worker, daemon=True)
             self.typing_thread = threading.Thread(target=self._typing_worker, daemon=True)
@@ -154,60 +153,12 @@ if VOICE_CONTROL_AVAILABLE:
                 for word, key in self.word_to_key_map.items():
                     logger.debug(f"'{word}' -> {key}")
 
-        def _key_press_worker(self) -> None:
-            """Worker thread for processing key presses."""
-            if self.debug:
-                logger.debug("Key press worker started")
-            while True:
-                key_combo = self.key_press_queue.get()
-                if key_combo is None:
-                    self.key_press_queue.task_done()
-                    break
-                if isinstance(key_combo, (list, tuple)):
-                    pyautogui.hotkey(*key_combo, interval=self.key_press_interval)
-                    if self.debug:
-                        logger.debug(f"Pressed key combination: {'+'.join(key_combo)}")
-                else:
-                    pyautogui.press(key_combo, interval=self.key_press_interval)
-                    if self.debug:
-                        logger.debug(f"Pressed key: {key_combo}")
-                self.key_press_queue.task_done()
-
-        def _typing_worker(self) -> None:
-            """Worker thread for processing text typing."""
-            if self.debug:
-                logger.debug("Typing worker started")
-            while True:
-                text = self.typing_queue.get()
-                if text is None:
-                    self.typing_queue.task_done()
-                    break
-                pyautogui.write(text, interval=self.typing_interval)
-                if self.debug:
-                    logger.debug(f"Typed text: {text}")
-                self.typing_queue.task_done()
-
-        def _can_process_cmd(self, cmd: str) -> bool:
-            """Check if enough time has passed to process the command again."""
-            current_time = time.time()
-            if cmd in self.recent_commands and (current_time - self.recent_commands[cmd] < self.cmd_cooldown):
-                return False
-
-            # Only add to cooldown if it's a complete command
-            if cmd.lower() in self.complete_commands:
-                self.recent_commands[cmd] = current_time
-                return True
-
-            return True
-
-        def _clean_recent_commands(self) -> None:
-            """Remove commands whose cooldown period has expired."""
-            current_time = time.time()
-            self.recent_commands = {
-                word: timestamp
-                for word, timestamp in self.recent_commands.items()
-                if current_time - timestamp <= self.cmd_cooldown
-            }
+        def _transform_text(self, text: str) -> str:
+            """Apply word transformations to the text."""
+            transformed_text = text
+            for pattern, replacement in self.word_transform_patterns:
+                transformed_text = pattern.sub(replacement, transformed_text)
+            return transformed_text
 
         def _trigger_keys(self, text: str) -> None:
             """Process real-time transcription updates for key commands."""
@@ -216,14 +167,17 @@ if VOICE_CONTROL_AVAILABLE:
 
             self._clean_recent_commands()
 
-            # Clean text for command processing
-            cleaned_text = self.non_alpha_pattern.sub(" ", text).lower()
-            words = cleaned_text.split()
+            # First apply word transformations
+            transformed_text = self._transform_text(text).lower()
+            
+            # Clean text from any non-alphanumeric characters for command processing
+            # cleaned_text = self.non_alpha_pattern.sub(" ", transformed_text).lower()
+            words = transformed_text.split(" ")
 
             i = 0
             while i < len(words):
                 found_command = False
-                # First try to match multi-word commands
+                # Try to match multi-word commands
                 for cmd_len in range(min(4, len(words) - i), 1, -1):
                     potential_cmd = " ".join(words[i : i + cmd_len])
                     if potential_cmd in self.complete_commands and self._can_process_cmd(potential_cmd):
@@ -250,26 +204,108 @@ if VOICE_CONTROL_AVAILABLE:
             if self.debug:
                 logger.debug(f"Final transcription received: {text}")
 
-            # Check if the text contains any complete commands using cleaned text
-            cleaned_text = self.non_alpha_pattern.sub(" ", text).lower()
+            # First apply word transformations
+            transformed_text = self._transform_text(text)
+            
+            # Check for commands in the transformed text without cleaning
             contains_command = False
             for cmd in self.complete_commands:
-                if cmd in cleaned_text:
+                if cmd in transformed_text.lower():
                     contains_command = True
                     break
 
             # Only process text if it doesn't contain any commands
-            if not contains_command:
-                transformed_text = text
+            if not contains_command and transformed_text.strip():
+                if self.debug:
+                    logger.debug(f"Queueing transformed text: {transformed_text}")
+                self.typing_queue.put(transformed_text)
 
-                # Apply word transformations
-                for pattern, replacement in self.word_transform_patterns:
-                    transformed_text = pattern.sub(replacement, transformed_text)
+        def _can_process_cmd(self, cmd: str) -> bool:
+            """Check if enough time has passed to process the command again."""
+            current_time = time.time()
+            if cmd in self.recent_commands and (current_time - self.recent_commands[cmd] < self.cmd_cooldown):
+                return False
 
-                if transformed_text.strip():
+            # Only add to cooldown if it's a complete command
+            if cmd.lower() in self.complete_commands:
+                self.recent_commands[cmd] = current_time
+                return True
+
+            return True
+
+        def _clean_recent_commands(self) -> None:
+            """Remove commands whose cooldown period has expired."""
+            current_time = time.time()
+            self.recent_commands = {
+                word: timestamp
+                for word, timestamp in self.recent_commands.items()
+                if current_time - timestamp <= self.cmd_cooldown
+            }
+
+        def _key_press_worker(self) -> None:
+            """Worker thread for processing key presses."""
+            if self.debug:
+                logger.debug("Key press worker started")
+            while True:
+                key_combo = self.key_press_queue.get()
+                if key_combo is None:
+                    self.key_press_queue.task_done()
+                    break
+
+                try:
+                    if isinstance(key_combo, (list, tuple)):
+                        # Press all keys in sequence
+                        keys = [getattr(Key, k.lower(), k) if k.lower() in dir(Key) else k for k in key_combo]
+                        for key in keys:
+                            self.keyboard.press(key)
+                            time.sleep(self.key_press_interval)
+                        # Release in reverse order
+                        for key in reversed(keys):
+                            self.keyboard.release(key)
+                            time.sleep(self.key_press_interval)
+                        if self.debug:
+                            logger.debug(f"Pressed key combination: {'+'.join(key_combo)}")
+                    else:
+                        key = getattr(Key, key_combo.lower(), key_combo) if key_combo.lower() in dir(Key) else key_combo
+                        self.keyboard.press(key)
+                        time.sleep(self.key_press_interval)
+                        self.keyboard.release(key)
+                        if self.debug:
+                            logger.debug(f"Pressed key: {key_combo}")
+                except Exception as e:
+                    logger.error(f"Error pressing keys: {e}")
+                self.key_press_queue.task_done()
+
+        def _typing_worker(self) -> None:
+            """Worker thread for processing text typing."""
+            if self.debug:
+                logger.debug("Typing worker started")
+            while True:
+                text = self.typing_queue.get()
+                if text is None:
+                    self.typing_queue.task_done()
+                    break
+                try:
+                    for char in text:
+                        self.keyboard.type(char)
+                        time.sleep(self.typing_interval)
                     if self.debug:
-                        logger.debug(f"Queueing transformed text: {transformed_text}")
-                    self.typing_queue.put(transformed_text)
+                        logger.debug(f"Typed text: {text}")
+                except Exception as e:
+                    logger.error(f"Error typing text: {e}")
+                self.typing_queue.task_done()
+
+        def _voice_worker(self) -> None:
+            """Background thread for voice recognition."""
+            if self.debug:
+                logger.debug("Voice worker started")
+            while not self._stop_event.is_set():
+                try:
+                    self.recorder.text(on_transcription_finished=self._process_text)
+                except Exception as e:
+                    if self.debug:
+                        logger.debug(f"Voice worker encountered exception: {e}")
+                    break
 
         def start(self) -> None:
             """Start the voice control system."""
@@ -306,18 +342,6 @@ if VOICE_CONTROL_AVAILABLE:
 
             logger.info("Voice control system stopped")
 
-        def _voice_worker(self) -> None:
-            """Background thread for voice recognition."""
-            if self.debug:
-                logger.debug("Voice worker started")
-            while not self._stop_event.is_set():
-                try:
-                    self.recorder.text(on_transcription_finished=self._process_text)
-                except Exception as e:
-                    if self.debug:
-                        logger.debug(f"Voice worker encountered exception: {e}")
-                    break
-
         @property
         def is_running(self) -> bool:
             """Check if the voice control system is currently running."""
@@ -334,7 +358,8 @@ else:
         '''Proxy class that inherits from DummyVoiceControl when dependencies are missing'''
         pass
 
-# # Example usage:
+
+# Example usage:
 # if __name__ == "__main__":
 #     WORD_TO_KEY_MAP = {
 #         "left": "left",
@@ -345,7 +370,7 @@ else:
 #         "select all": ["ctrl", "a"],
 #         "copy": ["ctrl", "c"],
 #         "paste": ["ctrl", "v"],
-#         "delete": "delete",
+#         "exit()": "delete",
 #     }
 #     WORD_TO_WORD_MAP = {
 #         "exit": "exit()",
@@ -361,6 +386,7 @@ else:
 #             word_to_key_map=WORD_TO_KEY_MAP,
 #             word_to_word_map=WORD_TO_WORD_MAP,
 #             debug=True,
+#             silero_use_onnx=True,
 #             on_command_processed=on_command,
 #         )
 #     else:
