@@ -93,7 +93,6 @@ def parse_arguments(log_level="info"):
         - Basic configuration:
           {
             "cmd_cooldown": 0.5,
-            "debug": true,
             "language": "en"
           }
         
