@@ -1,6 +1,10 @@
+import gc
+import logging
+import time
 from owlsight.utils.deep_learning import free_cuda_memory
 from owlsight.processors.base import TextGenerationProcessor
 
+logger = logging.getLogger(__name__)
 
 class ProcessorMemoryContext:
     def __init__(self, processor: TextGenerationProcessor):
@@ -22,40 +26,73 @@ class ProcessorMemoryContext:
         """
         if not isinstance(processor, TextGenerationProcessor):
             raise TypeError(f"Processor must be an instance of TextGenerationProcessor, not {type(processor)}")
-
         self.processor = processor
 
     def __enter__(self):
         return self.processor
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.clear_memory()
+        try:
+            self.clear_memory()
+        except Exception as e:
+            logger.error(f"Memory cleanup error: {str(e)}")
 
     def clear_memory(self):
-        """Clear all processor and model memory"""
-        # Clear model memory if it exists
-        if hasattr(self.processor, "model"):
-            if hasattr(self.processor.model, "cpu"):
-                self.processor.model.cpu()
-            del self.processor.model
+        """Clear all processor and model memory using proven methods"""
+        try:
+            # Clear Transformers components first
+            if hasattr(self.processor, 'pipeline'):
+                # Proper pipeline shutdown
+                if hasattr(self.processor.pipeline, 'device'):
+                    self.processor.pipeline.device = None
+                if hasattr(self.processor.pipeline, 'model'):
+                    self.processor.pipeline.model = None
+                del self.processor.pipeline
+                gc.collect()
 
-        # Clear ONNX specific memory
-        if hasattr(self.processor, "_model"):
-            del self.processor._model
+            # Clear model memory if it exists
+            if hasattr(self.processor, "model"):
+                if hasattr(self.processor.model, "cpu"):
+                    self.processor.model.cpu()
+                if hasattr(self.processor.model, "to"):
+                    self.processor.model.to('cpu')
+                del self.processor.model
+                gc.collect()
 
-        # Clear GGUF specific memory
-        if hasattr(self.processor, "llm"):
-            del self.processor.llm
+            # Clear ONNX components
+            if hasattr(self.processor, '_model'):
+                # Release ONNX session resources
+                if hasattr(self.processor._model, 'end_profiling'):
+                    self.processor._model.end_profiling()
+                if hasattr(self.processor._model, 'close'):
+                    self.processor._model.close()
+                del self.processor._model
+                gc.collect()
 
-        # Clear tokenizer
-        if hasattr(self.processor, "tokenizer"):
-            del self.processor.tokenizer
+            # Clear tokenizer and related components
+            for attr in ['tokenizer', 'tokenizer_stream', 'transformers_tokenizer']:
+                if hasattr(self.processor, attr):
+                    delattr(self.processor, attr)
+            gc.collect()
 
-        # Clear pipeline
-        if hasattr(self.processor, "pipeline"):
-            del self.processor.pipeline
+            # Clear GGUF specific memory
+            if hasattr(self.processor, "llm"):
+                del self.processor.llm
+                gc.collect()
 
-        free_cuda_memory()
+            # Clear any remaining components
+            for attr in ['generator', 'params']:
+                if hasattr(self.processor, attr):
+                    delattr(self.processor, attr)
 
-        # Clear processor reference
-        del self.processor
+            # Force memory release
+            free_cuda_memory()
+            
+            # Triple GC for conservative cleanup with small delays
+            for _ in range(3):
+                gc.collect()
+                time.sleep(0.1)  # Small delay to allow OS to reclaim memory
+
+        except Exception as e:
+            logger.error(f"Memory cleanup error: {str(e)}")
+            raise
