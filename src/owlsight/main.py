@@ -9,7 +9,7 @@ from owlsight.ui.logo import print_logo
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.deep_learning import check_gpu_and_cuda, calculate_max_parameters_per_dtype
 from owlsight.voice.constants import WORD_TO_KEY_MAP, WORD_TO_WORD_MAP
-from owlsight.voice.voice_control import VoiceControl
+from owlsight.voice.voice_control import VoiceControl, VOICE_CONTROL_AVAILABLE
 from owlsight.utils.logger import logger
 
 
@@ -188,6 +188,11 @@ def main(
     )
 
     if args.voice or voice_control:
+        if not VOICE_CONTROL_AVAILABLE:
+            logger.error(
+                "Voice control dependencies not found. Install with 'pip install owlsight[voice]' to enable voice control."
+            )
+            return
         logger.info("Voice control enabled")
 
         # Initialize with default mappings
@@ -221,7 +226,7 @@ def main(
                 logger.warning(f"Error parsing word-to-word: {e}. Using defaults.")
 
         # Parse voice control kwargs if provided
-        voice_kwargs = {} or voice_control_kwargs
+        voice_kwargs = voice_control_kwargs or {}
         if args.voice_control_kwargs:
             try:
                 voice_kwargs = json.loads(args.voice_control_kwargs)
