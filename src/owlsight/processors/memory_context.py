@@ -40,9 +40,7 @@ class ProcessorMemoryContext:
     def clear_memory(self):
         """Clear all processor and model memory using proven methods"""
         try:
-            # Clear Transformers components first
             if hasattr(self.processor, 'pipeline'):
-                # Proper pipeline shutdown
                 if hasattr(self.processor.pipeline, 'device'):
                     self.processor.pipeline.device = None
                 if hasattr(self.processor.pipeline, 'model'):
