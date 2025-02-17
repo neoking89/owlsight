@@ -49,6 +49,7 @@ class DummyVoiceControl(VoiceControlBase):
 
 
 if VOICE_CONTROL_AVAILABLE:
+
     class VoiceControl(VoiceControlBase):
         def __init__(
             self,
@@ -114,7 +115,8 @@ if VOICE_CONTROL_AVAILABLE:
             self.complete_commands = set(self.word_to_key_map.keys())
             self.command_words = set()
             for cmd in self.complete_commands:
-                if " " not in cmd:  # Only add single-word commands to command_words
+                # Only add single-word commands to command_words
+                if " " not in cmd:
                     self.command_words.add(cmd.lower())
 
             # For word transformations
@@ -124,8 +126,8 @@ if VOICE_CONTROL_AVAILABLE:
                 pattern = re.compile(rf"\b{re.escape(word)}\b[.!,;?]*", re.IGNORECASE)
                 self.word_transform_patterns.append((pattern, replacement))
 
-            # For command detection
-            self.non_alpha_pattern = re.compile(r"[^a-zA-Z\s]")
+            # For sentence end punctuation
+            self.sentence_end_punct_pattern = re.compile(r"[.!?]+")
 
             self.key_press_thread = threading.Thread(target=self._key_press_worker, daemon=True)
             self.typing_thread = threading.Thread(target=self._typing_worker, daemon=True)
@@ -169,15 +171,16 @@ if VOICE_CONTROL_AVAILABLE:
 
             # First apply word transformations
             transformed_text = self._transform_text(text).lower()
-            
-            # Clean text from any non-alphanumeric characters for command processing
-            # cleaned_text = self.non_alpha_pattern.sub(" ", transformed_text).lower()
-            words = transformed_text.split(" ")
+
+            # Remove only .!? before splitting into words
+            cleaned_text = self.sentence_end_punct_pattern.sub("", transformed_text)
+
+            words = cleaned_text.split()
 
             i = 0
             while i < len(words):
                 found_command = False
-                # Try to match multi-word commands
+                # Try to match multi-word commands (up to 4 words)
                 for cmd_len in range(min(4, len(words) - i), 1, -1):
                     potential_cmd = " ".join(words[i : i + cmd_len])
                     if potential_cmd in self.complete_commands and self._can_process_cmd(potential_cmd):
@@ -206,8 +209,8 @@ if VOICE_CONTROL_AVAILABLE:
 
             # First apply word transformations
             transformed_text = self._transform_text(text)
-            
-            # Check for commands in the transformed text without cleaning
+
+            # Check for commands in the transformed text (case-insensitive)
             contains_command = False
             for cmd in self.complete_commands:
                 if cmd in transformed_text.lower():
@@ -354,12 +357,13 @@ if VOICE_CONTROL_AVAILABLE:
             )
 
 else:
+
     class VoiceControl(DummyVoiceControl):
-        '''Proxy class that inherits from DummyVoiceControl when dependencies are missing'''
+        """Proxy class that inherits from DummyVoiceControl when dependencies are missing"""
         pass
 
 
-# Example usage:
+# Example usage (if run directly):
 # if __name__ == "__main__":
 #     WORD_TO_KEY_MAP = {
 #         "left": "left",
