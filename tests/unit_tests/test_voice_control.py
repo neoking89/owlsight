@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 import queue
 
 from owlsight.voice.voice_control import VoiceControl
