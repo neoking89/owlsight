@@ -64,7 +64,6 @@ offline = []
 # more info: https://pypi.org/project/RealtimeSTT/
 voice = [
     "pyaudio",
-    "PyAutoGUI",
     "RealtimeSTT",
     "ctranslate2==3.24.0",
 ]
