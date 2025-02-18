@@ -120,16 +120,18 @@ async def fetch_page(url: str, session: aiohttp.ClientSession, timeout: int = 30
         return None
 
 
-async def fetch_and_parse_urls(urls: Union[str, List[str]], max_concurrent: int = 5, timeout: int = 30) -> List[str]:
+async def fetch_and_parse_urls(urls: Union[str, List[str]], max_concurrent: int = 5, timeout: int = 30) -> dict:
     """Async process URLs to fetch and extract markdown-formatted content.
 
-    Args:
+    Parameters:
+    ----------
         urls: Single URL or list of URLs to process
         max_concurrent: Maximum simultaneous requests
         timeout: Timeout in seconds for each request
 
     Returns:
-        List of extracted content in markdown format
+    ----------
+        Dictionary mapping URLs to their extracted content in markdown format
     """
     if isinstance(urls, str):
         urls = [urls]
@@ -142,42 +144,42 @@ async def fetch_and_parse_urls(urls: Union[str, List[str]], max_concurrent: int 
     # Configure client session with default timeout and headers
     timeout_config = aiohttp.ClientTimeout(total=timeout)
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
-    
+
     async with aiohttp.ClientSession(timeout=timeout_config, headers=headers) as session:
         # Fetch pages with concurrency control
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def fetch_wrapper(url: str) -> Optional[str]:
+        async def fetch_wrapper(url: str) -> tuple[str, Optional[str]]:
             try:
                 async with semaphore:
-                    return await fetch_page(url, session, timeout)
+                    content = await fetch_page(url, session, timeout)
+                    return url, content
             except Exception as e:
                 logger.error(f"Failed to fetch {url}: {str(e)}")
-                return None
+                return url, None
 
         # Run all fetches concurrently with proper exception handling
         try:
-            html_contents = await asyncio.gather(
-                *(fetch_wrapper(url) for url in valid_urls),
-                return_exceptions=True
-            )
-            
-            # Filter out exceptions and None values
-            html_contents = [
-                content for content in html_contents
-                if content is not None and not isinstance(content, Exception)
-            ]
+            results = await asyncio.gather(*(fetch_wrapper(url) for url in valid_urls), return_exceptions=True)
+
+            # Filter out exceptions and create a dictionary of URL to HTML content
+            html_contents = {
+                url: content for url, content in results if content is not None and not isinstance(content, Exception)
+            }
 
             # Process HTML in async executor to avoid blocking event loop
             loop = asyncio.get_running_loop()
-            parse_tasks = [loop.run_in_executor(None, parse_html, content) for content in html_contents]
-            
-            # Wait for all parsing to complete with timeout
-            parsed_contents = await asyncio.gather(*parse_tasks, return_exceptions=True)
-            return [content for content in parsed_contents if isinstance(content, str)]
-            
+            parsed_contents = {}
+
+            for url, content in html_contents.items():
+                parsed_content = await loop.run_in_executor(None, parse_html, content)
+                if parsed_content:  # Only add non-empty results
+                    parsed_contents[url] = parsed_content
+
+            return parsed_contents
+
         except Exception as e:
             logger.error(f"Error in fetch_and_parse_urls: {str(e)}")
-            return []
+            return {}
