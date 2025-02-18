@@ -391,7 +391,7 @@ class OwlDefaultFunctions:
         self,
         urls: List[str],
         max_concurrent: int = 5,
-    ) -> str:
+    ) -> Dict[str, str]:
         """
         Scrape web content from URLs (use instead of owl_read for web resources).
 
@@ -405,8 +405,8 @@ class OwlDefaultFunctions:
 
         Returns
         -------
-        str
-            Concatenated text content from all URLs
+        dict
+            Dictionary mapping URLs to their extracted content in markdown format
 
         Notes
         -----
@@ -415,7 +415,10 @@ class OwlDefaultFunctions:
         """
         from owlsight.app.url_processor import fetch_and_parse_urls
 
-        return asyncio.run(fetch_and_parse_urls(urls, max_concurrent))
+        content_dict = asyncio.run(fetch_and_parse_urls(urls, max_concurrent))
+        content_dict = {url: content.strip() for url, content in content_dict.items() if content.strip()}
+        return content_dict
+
 
     def owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]:
         """
