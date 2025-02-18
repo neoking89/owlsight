@@ -439,7 +439,7 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
     max_steps = tool_state["max_steps"]
     last_tools = manager._used_tools if manager._used_tools else None
     if current_step > 1 or last_tools:
-        logger.info(f"Current tools found: {last_tools}")
+        logger.info(f"Current used tools found: {last_tools}")
 
         # parse important steps from judge-agent response:
         last_response = parse_html_tags(manager.processor.chat_history[-1]["content"])
