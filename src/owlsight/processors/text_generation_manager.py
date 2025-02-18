@@ -116,8 +116,8 @@ class TextGenerationManager:
                     logger.warning("Correcting Tool Call, as model tried to call a tool it already used")
                     generated_text = self.processor.generate(error_message_for_model, **kwargs)
                     func_name, arguments = parse_function_call(generated_text)
-            self._used_tools.append({"name": func_name, "arguments": arguments})
-            generated_text = function_call_to_python_code(func_name, arguments)
+                self._used_tools.append({"name": func_name, "arguments": arguments})
+                generated_text = function_call_to_python_code(func_name, arguments)
 
         return generated_text
 
