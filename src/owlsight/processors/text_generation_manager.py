@@ -109,8 +109,8 @@ class TextGenerationManager:
         else:
             # else try to parse the generated text if it's a function call. if no function call, return the generated text as is
             func_name, arguments = parse_function_call(generated_text)
-            # if a function call is found, try to process it
-            if func_name:
+            # if a function call is found and arguments are valid, try to process it
+            if func_name and arguments:
                 if not self.process_tool_call(func_name, arguments):
                     error_message_for_model = f"Error: You tried to call tool '{func_name}' with arguments '{arguments}'. This tool was already used with these arguments. Do NOT suggest the following: {self._tool_history}. Please try again."
                     logger.warning("Correcting Tool Call, as model tried to call a tool it already used")
