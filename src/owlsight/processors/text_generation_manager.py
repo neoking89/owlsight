@@ -65,6 +65,7 @@ class TextGenerationManager:
         self.processor: Optional[TextGenerationProcessor] = None
         self._original_generate_method = None
         self._used_tools: List[Dict[str, str]] = []
+        self._tool_history = set()  # Track unique tool+parameter combinations
 
     def generate(self, input_data: str, media_objects: Optional[Dict[str, dict]] = None) -> str:
         """
@@ -108,9 +109,15 @@ class TextGenerationManager:
         else:
             # else try to parse the generated text if it's a function call. if no function call, return the generated text as is
             func_name, arguments = parse_function_call(generated_text)
+            # if a function call is found, try to process it
             if func_name:
-                self._used_tools.append({"name": func_name, "arguments": arguments})
-                generated_text = function_call_to_python_code(func_name, arguments)
+                if not self.process_tool_call(func_name, arguments):
+                    error_message_for_model = f"Error: You tried to call tool '{func_name}' with arguments '{arguments}'. This tool was already used with these arguments. Do NOT suggest the following: {self._tool_history}. Please try again."
+                    logger.warning("Correcting Tool Call, as model tried to call a tool it already used")
+                    generated_text = self.processor.generate(error_message_for_model, **kwargs)
+                    func_name, arguments = parse_function_call(generated_text)
+            self._used_tools.append({"name": func_name, "arguments": arguments})
+            generated_text = function_call_to_python_code(func_name, arguments)
 
         return generated_text
 
@@ -156,7 +163,7 @@ class TextGenerationManager:
                     raise FileNotFoundError(f"Default config file '{value}' not found.")
             with open(get_default_config_on_startup_path(return_cache_path=True), "w") as f:
                 f.write(value)
-                
+
     def _update_model_config(self, inner_key: str, value: Any):
         """Handle updates to model-related configuration."""
         if inner_key == "model_id":
@@ -235,7 +242,6 @@ class TextGenerationManager:
             sentence_transformer_model=sentence_transformer_name_or_path,
         )
         print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
-
 
     def _update_agentic_config(self, inner_key: str, value: Any):
         if inner_key == "apply_tools":
@@ -404,6 +410,13 @@ class TextGenerationManager:
         """
         return self.config_manager.get(key, default)
 
+    def process_tool_call(self, tool_name: str, arguments: Dict) -> bool:
+        """Returns True if tool can be used, False if duplicate"""
+        key = (tool_name, tuple(sorted(arguments.items())))
+        if key in self._tool_history:
+            return False
+        self._tool_history.add(key)
+        return True
 
     def _execute_sequence_on_loading(self):
         """
