@@ -224,16 +224,30 @@ class SemanticTextSplitter(TextSplitter):
         device: Optional[str] = None,
     ):
         """
-        Parameters
+        Splits text documents into semantically coherent chunks using SentenceTransformer embeddings.
+
+        This splitter works by first splitting a document into sentences, then creating a "windowed"
+        version of these sentences to incorporate contextual information. It generates embeddings for
+        each windowed sentence and computes the cosine distance between adjacent embeddings. A semantic
+        breakpoint is determined when the distance exceeds a threshold, which is set as a specific
+        percentile of all computed distances. The document is then split at these breakpoints so that
+        each chunk represents a segment with relatively homogeneous semantic content.
+
+        Attributes
         ----------
         model_name : str
-            Name of the SentenceTransformer model if no model provided
+            The name or identifier of the SentenceTransformer model used for embedding.
+        _model :
+            An instance of the SentenceTransformer model loaded using the specified model_name.
         window_size : int
-            Number of neighbor sentences to include in embedding context
+            The number of neighboring sentences to include on each side when forming a context window
+            for each sentence.
         percentile : float
-            Distance percentile threshold for breakpoints (0.0 to 1.0)
-        device : Optional[str], default None
-            Device to use for Sentence Transformer model
+            The percentile (scaled to 0-100) used to determine the threshold for semantic breakpoints.
+            The higher the percentile, the larger the semantic distance required between adjacent
+            embeddings to consider them as a breakpoint. Thus, a higher value results in fewer splits (i.e., larger chunks).
+        device : Optional[str]
+            The device (e.g., 'cpu' or 'cuda') on which to run the SentenceTransformer model.
         """
         try:
             from sentence_transformers import SentenceTransformer
