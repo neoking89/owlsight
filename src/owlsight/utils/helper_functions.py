@@ -499,7 +499,7 @@ def parse_function_call(input_str: str) -> tuple[str | None, dict | None]:
 
 def function_call_to_python_code(func_name: str, arguments: dict) -> str:
     """
-    Transforms a function name and arguments dict into a Python code string.
+    Transforms a function name and arguments dict into a Python code string in markdown format.
     """
 
     def parse_value(value: str):
