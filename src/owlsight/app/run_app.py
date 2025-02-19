@@ -659,12 +659,12 @@ def _handle_tool_result(
     """
     if not results or not any(r["success"] for r in results):
         logger.warning(f"Tool execution failed or no results. Results: {results}")
-        return ""
-
-    final_result = code_executor.globals_dict.get("final_result", None)
-    if final_result is None:
-        logger.warning(f"No 'final_result' found in globals after tool execution.\nResults: {results}")
-        return ""
+        final_result = ""
+    else:
+        final_result = code_executor.globals_dict.get("final_result", None)
+        if final_result is None:
+            logger.warning(f"No 'final_result' found in globals after tool execution.\nResults: {results}")
+            final_result = ""
 
     logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
 
@@ -692,11 +692,22 @@ Synthesize everything into one coherent final answer.
 """.strip()
     user_question = f"**User Request**:\n{user_choice}\n\n{ctx_to_add}".strip()
 
+    # Disable tool application for final response
     manager.update_config("agentic.apply_tools", False)
     response = manager.generate(user_question)
     manager.update_config("agentic.apply_tools", True)
 
-    return response
+    # Format the final response with clear boundaries
+    formatted_response = f"""
+    ┌────────────────────────────────────────┐
+    │             FINAL RESPONSE             │
+    └────────────────────────────────────────┘
+    {response}
+    ─────────────────────────────────────────
+    """.strip()
+    logger.info(formatted_response)
+
+    return formatted_response
 
 
 def _handle_rag_for_python(user_question: str, manager: TextGenerationManager) -> str:
