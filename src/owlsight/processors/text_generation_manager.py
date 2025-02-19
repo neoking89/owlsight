@@ -134,7 +134,6 @@ class TextGenerationManager:
                     if new_func_name is not None and new_arguments is not None:
                         func_name, arguments = new_func_name, new_arguments
                     else:
-                        # If the new response isn't a valid function call, return an error message
                         return "```python\n# Error: Invalid function call after duplicate tool usage\n```"
                 self._update_tool_history(func_name, arguments)
                 generated_text = function_call_to_python_code(func_name, arguments)
