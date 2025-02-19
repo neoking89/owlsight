@@ -1015,7 +1015,7 @@ This class is open for extension, as possibly more useful functions can be added
   - Read LOCAL FILE CONTENTS with advanced document processing.
 - `owl_save_namespace(self, file_path: str)`
   - Serialize current namespace state to disk.
-- `owl_scrape(self, urls: List[str], max_concurrent: int = 5) -> str`
+- `owl_scrape(self, urls: List[str], max_concurrent: int = 5) -> Dict[str, str]`
   - Scrape web content from URLs (use instead of owl_read for web resources).
 - `owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> list`
   - Execute web search using DuckDuckGo's API.
@@ -1071,6 +1071,21 @@ prompt : str
 
 - `to(self, target_json: str) -> None`
   - Updates the 'system_prompt' field under the 'model' key in the given Owlsight configuration JSON file.
+
+#### VoiceControl
+
+```python
+class VoiceControl(word_to_key_map: Dict[str, Union[str, List[str]]] = None, word_to_word_map: Dict[str, str] = None, cmd_cooldown: float = 1.0, debug: bool = False, language: str = 'en', model: str = 'small.en', key_press_interval: float = 0.05, typing_interval: float = 0.03, on_command_processed: Optional[Callable[[str, Union[str, List[str]]], NoneType]] = None, **recorder_kwargs)
+```
+
+Base class for voice control functionality.
+
+**Methods:**
+
+- `start(self) -> None`
+  - Start the voice control system.
+- `stop(self) -> None`
+  - Stop the voice control system and clean up resources.
 
 
 ### Functions
@@ -1354,12 +1369,12 @@ owlsight --log log.txt --level DEBUG
 ```
 - Added `additional_information` option to the `config:agentic` section. This option can be used to add additional information to every agent call, for example: "Do NOT use owl_scrape and owl_search, because there is no internet connection."
 - Added voice control support with customizable mappings through `owlsight[voice]` package
+This can be used for (close to realtime) transcription of user input to the screen, using faster-whisper.
 Voice control features include:
   * Customizable word-to-key mappings for keyboard control
   * Word-to-word substitutions for text input
   * Configurable settings like command cooldown and typing intervals
   * Support for multiple languages and speech recognition models
 - Added JSON-based configuration for all voice control settings
-- Improved error handling and graceful degradation when voice dependencies are not available
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com

@@ -471,13 +471,13 @@ owlsight --log log.txt --level DEBUG
 ```
 - Added `additional_information` option to the `config:agentic` section. This option can be used to add additional information to every agent call, for example: "Do NOT use owl_scrape and owl_search, because there is no internet connection."
 - Added voice control support with customizable mappings through `owlsight[voice]` package
+This can be used for (close to realtime) transcription of user input to the screen, using faster-whisper.
 Voice control features include:
   * Customizable word-to-key mappings for keyboard control
   * Word-to-word substitutions for text input
   * Configurable settings like command cooldown and typing intervals
   * Support for multiple languages and speech recognition models
 - Added JSON-based configuration for all voice control settings
-- Improved error handling and graceful degradation when voice dependencies are not available
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
