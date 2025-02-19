@@ -31,7 +31,7 @@ def mock_text_generation_manager():
     class MockManager:
         def __init__(self):
             self.processor = MockProcessor()
-            self._used_tools = set(['tool1', 'tool2'])
+            self._tool_history = set(['tool1', 'tool2'])
     return MockManager()
 
 
@@ -135,7 +135,7 @@ def test_clear_history(mock_py_cache, mock_prompt_cache, mock_pickle_cache,
     
     # Assert chat history and used tools are cleared
     assert len(mock_text_generation_manager.processor.chat_history) == 0
-    assert len(mock_text_generation_manager._used_tools) == 0
+    assert len(mock_text_generation_manager._tool_history) == 0
     
     # Assert cache functions were called
     mock_pickle_cache.assert_called_once()

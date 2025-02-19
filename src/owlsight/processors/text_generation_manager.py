@@ -64,8 +64,22 @@ class TextGenerationManager:
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
         self._original_generate_method = None
-        self._used_tools: List[Dict[str, str]] = []
-        self._tool_history = set()  # Track unique tool+parameter combinations
+        self._tool_history: set[str] = set()
+
+    @property
+    def tool_history(self) -> List[Dict[str, str]]:
+        tool_history = []
+        for key in self._tool_history:
+            try:
+                tool_history.append(ast.literal_eval(key))
+            except Exception as e:
+                logger.error(f"Failed to parse tool history item: {key}")
+                logger.error(e)
+        return tool_history
+
+    def _update_tool_history(self, func_name: str, arguments: Dict[str, str]) -> None:
+        key = str({"name": func_name, "arguments": arguments})
+        self._tool_history.add(key)
 
     def generate(self, input_data: str, media_objects: Optional[Dict[str, dict]] = None) -> str:
         """
@@ -110,13 +124,19 @@ class TextGenerationManager:
             # else try to parse the generated text if it's a function call. if no function call, return the generated text as is
             func_name, arguments = parse_function_call(generated_text)
             # if a function call is found and arguments are valid, try to process it
-            if func_name and arguments:
+            if func_name is not None and arguments is not None:
                 if not self.process_tool_call(func_name, arguments):
-                    error_message_for_model = f"Error: You tried to call tool '{func_name}' with arguments '{arguments}'. This tool was already used with these arguments. Do NOT suggest the following: {self._tool_history}. Please try again."
+                    error_message_for_model = f"Error: You tried to call tool '{func_name}' with arguments '{arguments}'. This tool was already used with these arguments. Do NOT suggest the following tools: {self.tool_history}. Please try again."
                     logger.warning("Correcting Tool Call, as model tried to call a tool it already used")
                     generated_text = self.processor.generate(error_message_for_model, **kwargs)
-                    func_name, arguments = parse_function_call(generated_text)
-                self._used_tools.append({"name": func_name, "arguments": arguments})
+                    # Parse the new response and verify it's valid before continuing
+                    new_func_name, new_arguments = parse_function_call(generated_text)
+                    if new_func_name is not None and new_arguments is not None:
+                        func_name, arguments = new_func_name, new_arguments
+                    else:
+                        # If the new response isn't a valid function call, return an error message
+                        return "```python\n# Error: Invalid function call after duplicate tool usage\n```"
+                self._update_tool_history(func_name, arguments)
                 generated_text = function_call_to_python_code(func_name, arguments)
 
         return generated_text
@@ -412,11 +432,20 @@ class TextGenerationManager:
 
     def process_tool_call(self, tool_name: str, arguments: Dict) -> bool:
         """Returns True if tool can be used, False if duplicate"""
-        key = (tool_name, tuple(sorted(arguments.items())))
-        if key in self._tool_history:
+        key = {"name": tool_name, "arguments": arguments}
+        key_str = str(key)
+        if key_str in self._tool_history:
             return False
-        self._tool_history.add(key)
+        self._update_tool_history(tool_name, arguments)
         return True
+
+    # def _create_tool_key(self, tool_name: str, arguments: Dict) -> tuple:
+    #     """Create a hashable key for a tool call by converting any list arguments to tuples."""
+    #     hashable_arguments = {
+    #         k: tuple(v) if isinstance(v, list) else v
+    #         for k, v in arguments.items()
+    #     }
+    #     return (tool_name, tuple(sorted(hashable_arguments.items())))
 
     def _execute_sequence_on_loading(self):
         """

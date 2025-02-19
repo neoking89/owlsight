@@ -273,7 +273,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
     # clear manager state
     if manager.processor is not None:
         manager.processor.chat_history.clear()
-    manager._used_tools.clear()
+    manager._tool_history.clear()
 
     logger.info(f"Cleared files in cachefolder '{get_cache_dir()}' and model chathistory.")
 
@@ -437,7 +437,7 @@ def _create_tool_agent_prompt(user_question: str, tool_state: Dict, manager: Tex
     previous_results = tool_state["previous_results"]
     current_step = tool_state["step"] + 1
     max_steps = tool_state["max_steps"]
-    last_tools = manager._used_tools if manager._used_tools else None
+    last_tools = manager.tool_history if manager.tool_history else None
     if current_step > 1 or last_tools:
         logger.info(f"Current used tools found: {last_tools}")
 
