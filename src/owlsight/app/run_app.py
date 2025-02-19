@@ -697,15 +697,14 @@ Synthesize everything into one coherent final answer.
     response = manager.generate(user_question)
     manager.update_config("agentic.apply_tools", True)
 
-    # Format the final response with clear boundaries
     formatted_response = f"""
-    ┌────────────────────────────────────────┐
-    │             FINAL RESPONSE             │
-    └────────────────────────────────────────┘
-    {response}
-    ─────────────────────────────────────────
-    """.strip()
-    logger.info(formatted_response)
+┌────────────────────────────────────────┐
+│             FINAL RESPONSE             │
+└────────────────────────────────────────┘
+{response}
+─────────────────────────────────────────
+""".strip()
+    print(formatted_response)
 
     return formatted_response
 
