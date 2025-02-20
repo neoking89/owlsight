@@ -264,6 +264,9 @@ class TextGenerationManager:
 
     def _update_agentic_config(self, inner_key: str, value: Any):
         if inner_key == "apply_tools":
+            if self.processor is None:
+                warn_processor_not_loaded()
+                return
             self.processor.apply_tools = self._update_apply_tools(value)
 
     def _update_huggingface_config(self, inner_key: str):
