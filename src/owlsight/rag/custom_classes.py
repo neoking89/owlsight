@@ -2,6 +2,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 import pickle
+from dataclasses import dataclass
 
 
 class SearchMethod(str, Enum):
@@ -11,7 +12,7 @@ class SearchMethod(str, Enum):
     SENTENCE_TRANSFORMER = "sentence-transformer"
     HASHING = "hashing"
 
-
+@dataclass
 class SearchResult:
     """Model to store essential search results with type validation."""
 
