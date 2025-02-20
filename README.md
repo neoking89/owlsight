@@ -290,9 +290,9 @@ Main Menu:
   - agentic settings:
     - back: Return to previous menu
     - apply_tools: Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace., Options: False, True, Type: OptionType.TOGGLE
-    - additional_information: Additional information added to every agent call. Important for the Tool agent, for example: 'Do NOT use owl_scrape and owl_search, because there is no internet connection', Type: OptionType.EDITABLE
     - max_steps: Maximum number of steps for the agentic system., Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Type: OptionType.TOGGLE
     - enable_python_agent: Toggle the inclusion of a Python generation agent. This agent judges the last response of the Tool agent and writes Python code if appropriate, Options: False, True, Type: OptionType.TOGGLE
+    - additional_information: Additional information added to every agent call. Important for the Tool agent, for example: 'Do NOT use owl_scrape and owl_search, because there is no internet connection', Type: OptionType.EDITABLE
   - huggingface settings:
     - back: Return to previous menu
     - search: Search for a model on the Hugging Face Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', Type: OptionType.EDITABLE
@@ -353,9 +353,9 @@ Here's an example of what the default configuration looks like:
     },
     "agentic": {
         "apply_tools": false,
-        "additional_information": "",
         "max_steps": 5,
-        "enable_python_agent": true
+        "enable_python_agent": true,
+        "additional_information": ""
     },
     "huggingface": {
         "search": "",
@@ -446,8 +446,11 @@ if __name__ == "__main__":
     seperator = "-" * 100
     for idx, row in enumerate(df.iterrows(), start=1):
         print(seperator)
-        print(f"Rank {idx}:")
+        score = row[1]["aggregated_score"]
+        print(f"Rank: {idx} (Score: {score:.2f})")
+        print(f"Document name: {row[1]['document_name']}")
         print(row[1]["document"])
+
 ```
 ## API Documentation
 
@@ -1041,9 +1044,9 @@ This class is open for extension, as possibly more useful functions can be added
   - Read LOCAL FILE CONTENTS with advanced document processing.
 - `owl_save_namespace(self, file_path: str)`
   - Serialize current namespace state to disk.
-- `owl_scrape(self, urls: List[str], max_concurrent: int = 5) -> Dict[str, str]`
+- `owl_scrape(self, urls: List[str], max_concurrent: int = 5, timeout: int = 10) -> Dict[str, str]`
   - Scrape web content from URLs (use instead of owl_read for web resources).
-- `owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> list`
+- `owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> Dict[str, str]`
   - Execute web search using DuckDuckGo's API.
 - `owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]`
   - Display active namespace objects with documentation.

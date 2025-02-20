@@ -351,8 +351,11 @@ if __name__ == "__main__":
     seperator = "-" * 100
     for idx, row in enumerate(df.iterrows(), start=1):
         print(seperator)
-        print(f"Rank {idx}:")
+        score = row[1]["aggregated_score"]
+        print(f"Rank: {idx} (Score: {score:.2f})")
+        print(f"Document name: {row[1]['document_name']}")
         print(row[1]["document"])
+
 ```
 """
 
