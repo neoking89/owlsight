@@ -222,6 +222,7 @@ class SemanticTextSplitter(TextSplitter):
         window_size: int = 1,
         percentile: float = 0.90,
         device: Optional[str] = None,
+        target_chunk_length: Optional[int] = None,
     ):
         """
         Splits text documents into semantically coherent chunks using SentenceTransformer embeddings.
@@ -248,6 +249,9 @@ class SemanticTextSplitter(TextSplitter):
             embeddings to consider them as a breakpoint. Thus, a higher value results in fewer splits (i.e., larger chunks).
         device : Optional[str]
             The device (e.g., 'cpu' or 'cuda') on which to run the SentenceTransformer model.
+        target_chunk_length : Optional[int]
+            If set, aims to maintain this as the mean chunk length in characters.
+            This is a soft target that helps balance chunk sizes while preserving semantic relevance.
         """
         try:
             from sentence_transformers import SentenceTransformer
@@ -262,6 +266,7 @@ class SemanticTextSplitter(TextSplitter):
         self.window_size = window_size
         self.percentile = percentile * 100
         self.device = device
+        self.target_chunk_length = target_chunk_length
 
     def split_documents(self, documents: Dict[str, str], show_progress_bar: bool = True, **kwargs) -> Dict[str, str]:
         """Split documents using semantic breakpoint detection."""
@@ -326,17 +331,64 @@ class SemanticTextSplitter(TextSplitter):
             raise TypeError("model must be a str or SentenceTransformer")
 
     def _create_chunks(self, sentences: List[str], breakpoints: List[int]) -> List[str]:
-        """Split sentences into chunks based on breakpoints."""
-        chunks = []
-        start = 0
+        """Split sentences into chunks based on breakpoints and optional target length."""
+        if not breakpoints:
+            return [" ".join(sentences)]
 
+        start = 0
+        total_length = 0
+        chunk_count = 0
+
+        # First pass: create initial chunks based on semantic breakpoints
+        initial_chunks = []
         for bp in breakpoints:
-            end = bp + 1  # breakpoint index is between sentences
-            chunks.append(" ".join(sentences[start:end]))
+            end = bp + 1
+            chunk = " ".join(sentences[start:end])
+            initial_chunks.append((chunk, start, end))
+            total_length += len(chunk)
+            chunk_count += 1
             start = end
 
         # Add remaining sentences
         if start < len(sentences):
-            chunks.append(" ".join(sentences[start:]))
+            chunk = " ".join(sentences[start:])
+            initial_chunks.append((chunk, start, len(sentences)))
+            total_length += len(chunk)
+            chunk_count += 1
 
-        return chunks
+        if not self.target_chunk_length or chunk_count <= 1:
+            return [chunk for chunk, _, _ in initial_chunks]
+
+        # Calculate mean length of current chunks
+        mean_length = total_length / chunk_count
+
+        # If mean length is already close to target (within 20%), keep current chunks
+        if 0.8 <= mean_length / self.target_chunk_length <= 1.2:
+            return [chunk for chunk, _, _ in initial_chunks]
+
+        # Second pass: adjust chunks to better match target length
+        final_chunks = []
+        current_chunk = []
+        current_length = 0
+
+        for sentence in sentences:
+            sentence_length = len(sentence) + 1  # +1 for space
+            
+            # If adding this sentence would make the chunk too far from target,
+            # start a new chunk unless current chunk is too small
+            if (current_length > 0 and 
+                abs(current_length - self.target_chunk_length) < 
+                abs(current_length + sentence_length - self.target_chunk_length)):
+                
+                if current_chunk:
+                    final_chunks.append(" ".join(current_chunk))
+                current_chunk = [sentence]
+                current_length = sentence_length
+            else:
+                current_chunk.append(sentence)
+                current_length += sentence_length
+
+        if current_chunk:
+            final_chunks.append(" ".join(current_chunk))
+
+        return final_chunks
