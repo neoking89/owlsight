@@ -329,6 +329,31 @@ searcher = DocumentSearcher(
 query = "black holes in quantum gravity"
 results = searcher.search(query, top_k=2)
 ```
+
+Or a more advanced example of similarity search, where some websites are scraped and being splitted in chunks based on their semantic similarity.
+```python
+from owlsight import OwlDefaultFunctions, SemanticTextSplitter, DocumentSearcher
+
+if __name__ == "__main__":
+    owl_funcs = OwlDefaultFunctions({})
+
+    # List of AI/ML related URLs to scrape
+    urls = [
+        "https://plato.stanford.edu/entries/artificial-intelligence/",  # Stanford's AI Philosophy
+        "https://www.nature.com/articles/s42256-019-0088-2",  # Nature's Deep Learning overview
+    ]
+
+    scraped_text = owl_funcs.owl_scrape(urls)
+    model_name = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    doc_splitter = SemanticTextSplitter(percentile=0.99, target_chunk_length=400, model_name=model_name)
+    doc_searcher = DocumentSearcher(scraped_text, sentence_transformer_model=model_name, text_splitter=doc_splitter)
+    df = doc_searcher.search("reinforcement learning")
+    seperator = "-" * 100
+    for idx, row in enumerate(df.iterrows(), start=1):
+        print(seperator)
+        print(f"Rank {idx}:")
+        print(row[1]["document"])
+```
 """
 
 API_DOCUMENTATION = f"""
@@ -499,11 +524,13 @@ def write_readme(content: str, filename: str):
 
 
 if __name__ == "__main__":
-    README = "".join([
-        README_INTRO.strip(),
-        CONFIGURATION.strip(),
-        API_EXAMPLES.strip(),
-        API_DOCUMENTATION.strip(),
-        RELEASE_NOTES.strip(),
-    ])
+    README = "".join(
+        [
+            README_INTRO.strip(),
+            CONFIGURATION.strip(),
+            API_EXAMPLES.strip(),
+            "\n" + API_DOCUMENTATION.strip(),
+            RELEASE_NOTES.strip(),
+        ]
+    )
     write_readme(README, "README.md")
