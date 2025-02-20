@@ -177,9 +177,10 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
         """Prepare model initialization kwargs."""
         kwargs = {
             "torch_dtype": self._torch_dtype,
-            "quantization_config": quantization_config,
             "_attn_implementation": "flash" if self._flash_attention_is_available() else "eager",
         }
+        if quantization_config is not None:
+            kwargs["quantization_config"] = quantization_config
         kwargs.update(self.model_kwargs)
         return kwargs
 
