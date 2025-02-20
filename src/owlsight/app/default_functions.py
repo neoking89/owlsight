@@ -177,7 +177,7 @@ class OwlDefaultFunctions:
             print(f"Critical error in owl_read: {str(e)}")
             return f"Critical error: {str(e)}"
 
-    def owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> list:
+    def owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> Dict[str, str]:
         """
         Execute web search using DuckDuckGo's API.
 
@@ -192,11 +192,8 @@ class OwlDefaultFunctions:
 
         Returns
         -------
-        list
-            List of search result dictionaries containing:
-            - title: Result title
-            - href: URL
-            - body: Content snippet
+        Dict[str, str]
+            Dictionary mapping URLs to their extracted content
 
         Raises
         ------
@@ -217,15 +214,16 @@ class OwlDefaultFunctions:
 
                 with DDGS() as ddgs:
                     # Use a generator to avoid loading all results at once
-                    results = []
+                    results = {}
                     for result in ddgs.text(query, max_results=max_results):
-                        results.append(result)
+                        main_text = f"{result['title']}. {result['body']}"
+                        results[result["href"]] = main_text
                         if len(results) >= max_results:
                             break
 
                 if not results:
                     print(f"No results found for query: {query}")
-                    return []
+                    return {}
 
                 print(f"Found {len(results)} results")
                 return results
@@ -391,6 +389,7 @@ class OwlDefaultFunctions:
         self,
         urls: List[str],
         max_concurrent: int = 5,
+        timeout: int = 10,
     ) -> Dict[str, str]:
         """
         Scrape web content from URLs (use instead of owl_read for web resources).
@@ -402,6 +401,8 @@ class OwlDefaultFunctions:
             Does not support local file paths
         max_concurrent : int, default=5
             Simultaneous requests allowed
+        timeout : int, default=10
+            Request timeout in seconds
 
         Returns
         -------
@@ -415,7 +416,7 @@ class OwlDefaultFunctions:
         """
         from owlsight.app.url_processor import fetch_and_parse_urls
 
-        content_dict = asyncio.run(fetch_and_parse_urls(urls, max_concurrent))
+        content_dict = asyncio.run(fetch_and_parse_urls(urls, max_concurrent, timeout))
         content_dict = {url: content.strip() for url, content in content_dict.items() if content.strip()}
         return content_dict
 
