@@ -240,12 +240,6 @@ class Schema:
                 default=False,
                 choices=[False, True],
             ),
-            "additional_information": MenuItem(
-                type=OptionType.EDITABLE,
-                description="Additional information added to every agent call. Important for the Tool agent, for example: 'Do NOT use owl_scrape and owl_search, because there is no internet connection'",
-                default="",
-                choices=None,
-            ),
             "max_steps": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Maximum number of steps for the agentic system.",
@@ -257,6 +251,12 @@ class Schema:
                 description="Toggle the inclusion of a Python generation agent. This agent judges the last response of the Tool agent and writes Python code if appropriate",
                 default=True,
                 choices=[False, True],
+            ),
+            "additional_information": MenuItem(
+                type=OptionType.EDITABLE,
+                description="Additional information added to every agent call. Important for the Tool agent, for example: 'Do NOT use owl_scrape and owl_search, because there is no internet connection'",
+                default="",
+                choices=None,
             ),
         },
         "huggingface": {
