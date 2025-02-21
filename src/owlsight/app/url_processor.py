@@ -1,8 +1,8 @@
 import asyncio
 from typing import List, Optional, Union
-import html5lib
 from urllib.parse import urlparse
 import aiohttp
+import lxml.html
 
 from owlsight.utils.logger import logger
 
@@ -17,162 +17,169 @@ def validate_url(url: str) -> bool:
 
 
 def parse_html(html_content: Optional[str]) -> str:
-    """Parse HTML content and extract text with hyperlinks in markdown format.
-
-    Extracts meaningful content while filtering out:
-    - Navigation elements
-    - Advertisements
-    - Social media widgets
-    - References and citations
-    - Footer content
-    - Redundant links
-    - Boilerplate text
-
-    Hyperlinks are formatted as [link text](URL).
-    """
+    """Parse HTML content and extract text while preserving important formatting."""
     if not html_content:
         return ""
 
     try:
-        document = html5lib.parse(html_content)
+        document = lxml.html.fromstring(html_content)
         result = []
-        seen_texts = set()  # To avoid duplicate lines
+        seen_content = set()
 
-        # Elements that typically contain non-essential content
-        SKIP_CLASSES = {
-            'nav', 'navigation', 'menu', 'footer', 'header', 'sidebar', 
-            'widget', 'ad', 'advertisement', 'social', 'share', 'related',
-            'comments', 'reference', 'footnote', 'citation', 'copyright'
-        }
-        SKIP_IDS = {
-            'nav', 'navigation', 'menu', 'footer', 'header', 'sidebar',
-            'references', 'footnotes', 'citations', 'related-content'
-        }
+        # First pass: identify and mark code blocks to preserve them
+        for elem in document.xpath('//pre|//code|//*[contains(@class, "highlight")]|//*[contains(@class, "code")]'):
+            # Mark this element to prevent its removal
+            elem.set('data-preserve', 'true')
+            # Also mark all parent elements to prevent removal
+            parent = elem.getparent()
+            while parent is not None:
+                parent.set('data-preserve', 'true')
+                parent = parent.getparent()
 
-        def should_skip_element(elem) -> bool:
-            """Determine if the element should be skipped."""
-            # Skip non-content tags
-            if elem.tag in [
-                "{http://www.w3.org/1999/xhtml}script",
-                "{http://www.w3.org/1999/xhtml}style",
-                "{http://www.w3.org/1999/xhtml}noscript",
-                "{http://www.w3.org/1999/xhtml}iframe",
-                "{http://www.w3.org/1999/xhtml}svg",
-            ]:
-                return True
+        # Remove non-content elements, preserving marked elements
+        for elem in document.xpath('//script|//style|//link|//meta|//noscript|//iframe'):
+            if elem.getparent() is not None and not elem.get('data-preserve'):
+                elem.getparent().remove(elem)
 
-            # Skip based on class attribute
-            class_attr = elem.get("class", "")
-            if class_attr:
-                classes = set(class_attr.lower().split())
-                if classes & SKIP_CLASSES:
-                    return True
+        # Find main content area
+        content_selectors = [
+            '//div[@role="main"]',
+            '//main',
+            '//article',
+            '//div[contains(@class, "content")]',
+            '//body'
+        ]
 
-            # Skip based on id attribute
-            id_attr = elem.get("id", "")
-            if id_attr and id_attr.lower() in SKIP_IDS:
-                return True
+        main_content = None
+        max_content_length = 0
+        
+        for selector in content_selectors:
+            elements = document.xpath(selector)
+            for element in elements:
+                # Calculate content length excluding navigation elements
+                content_length = len(''.join(
+                    text for text in element.xpath('.//text()[not(ancestor::nav)]')
+                    if text.strip()
+                ))
+                if content_length > max_content_length:
+                    max_content_length = content_length
+                    main_content = element
 
-            # Skip elements with only whitespace text
-            if not any(text.strip() for text in elem.itertext()):
-                return True
+        if not main_content:
+            return "Could not find main content in the HTML document"
 
-            return False
+        def clean_text(text: str) -> str:
+            """Clean and normalize text while preserving intentional formatting."""
+            if not text:
+                return ""
+            # Don't modify text that appears to be code
+            if any(marker in text for marker in ['```', '    ', '\t', ';', '{', '}', '[', ']']):
+                return text
+            # Normalize regular text
+            lines = []
+            for line in text.split('\n'):
+                line = line.strip()
+                if line:
+                    lines.append(line)
+            return ' '.join(lines)
 
-        def is_meaningful_link(href: str, text: str) -> bool:
-            """Check if a link is meaningful and worth keeping."""
-            if not href or not text:
-                return False
+        def extract_code_block(element) -> Optional[str]:
+            """Extract code block content preserving exact formatting."""
+            try:
+                # Get the raw HTML to preserve exact formatting
+                raw_html = lxml.html.tostring(element, encoding='unicode')
+                # If it's a pre element, preserve all whitespace exactly
+                if element.tag == 'pre':
+                    code = element.text_content()
+                    if code.strip():
+                        return code
+                # For other elements, check if it contains code-like content
+                code = element.text_content()
+                if code.strip() and any(marker in code for marker in [';', '{', '}', '(', ')', '[', ']', '=', 'def ', 'class ']):
+                    return code
+            except Exception:
+                pass
+            return None
 
-            # Filter out common non-content URL patterns
-            if any(pattern in href.lower() for pattern in [
-                'javascript:', '#', 'mailto:', 'tel:',
-                '/tag/', '/category/', '/author/', '/page/',
-                'twitter.com', 'facebook.com', 'linkedin.com',
-                'instagram.com', '/feed/', '/rss/',
-                'policy', 'terms', 'privacy', 'cookie'
-            ]):
-                return False
-
-            # Skip very short link text
-            if len(text.strip()) < 3:
-                return False
-
-            return True
-
-        def add_text(text: str, depth: int):
-            """Normalize text and add to results if meaningful."""
-            norm_text = ' '.join(text.strip().split())
-            if norm_text and norm_text not in seen_texts and len(norm_text) > 2:
-                result.append("  " * depth + norm_text)
-                seen_texts.add(norm_text)
-
-        def process_element(elem, depth=0):
-            """Recursively process an element and its children."""
-            if should_skip_element(elem):
+        def process_element(element, level=0):
+            """Process an element and its children with proper formatting."""
+            if not element.tag:
                 return
 
-            # Process anchor tags differently for markdown formatting
-            if elem.tag == "{http://www.w3.org/1999/xhtml}a":
-                href = elem.get("href")
-                link_text = elem.text or ""
-                norm_text = ' '.join(link_text.strip().split())
-                if href and is_meaningful_link(href, norm_text):
-                    markdown_link = f"[{norm_text}]({href})"
-                    if markdown_link not in seen_texts:
-                        result.append("  " * depth + markdown_link)
-                        seen_texts.add(markdown_link)
-            else:
-                if elem.text:
-                    add_text(elem.text, depth)
+            # Handle code blocks first
+            if (element.tag in ['pre', 'code'] or 
+                any(cls in (element.get('class') or '').lower() for cls in ['highlight', 'code', 'syntax', 'source'])):
+                code = extract_code_block(element)
+                if code and code.strip() and code not in seen_content:
+                    seen_content.add(code)
+                    # For single-line code, use inline code format
+                    if '\n' not in code and len(code) < 100:
+                        result.extend(['', f'`{code.strip()}`', ''])
+                    else:
+                        # For multi-line code, preserve exact formatting
+                        result.extend(['', '```', code, '```', ''])
+                return
 
-            # Recursively process child elements
-            for child in elem:
-                process_element(child, depth + 1)
+            # Handle headers
+            if element.tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                header_text = element.text_content().strip()
+                if header_text and header_text not in seen_content:
+                    seen_content.add(header_text)
+                    level = int(element.tag[1])
+                    result.extend(['', '#' * level + ' ' + header_text, ''])
+                return
 
-            # Process tail text
-            if elem.tail:
-                add_text(elem.tail, depth)
+            # Handle lists
+            if element.tag == 'li':
+                list_text = element.text_content().strip()
+                if list_text and list_text not in seen_content:
+                    seen_content.add(list_text)
+                    result.append('* ' + clean_text(list_text))
+                return
 
-        # Try to target the main content area
-        main_content = document.find(".//{http://www.w3.org/1999/xhtml}main")
-        article = document.find(".//{http://www.w3.org/1999/xhtml}article")
-        content = document.find(".//*[@id='content']")
+            # Handle text content
+            text = element.text.strip() if element.text else ''
+            if text and text not in seen_content and len(text) > 5:
+                seen_content.add(text)
+                if element.tag in ['p', 'div', 'section', 'article']:
+                    result.extend(['', clean_text(text), ''])
+                else:
+                    result.append(clean_text(text))
 
-        if main_content is not None:
-            process_element(main_content)
-        elif article is not None:
-            process_element(article)
-        elif content is not None:
-            process_element(content)
-        else:
-            # Fallback to the body or the whole document
-            body = document.find(".//{http://www.w3.org/1999/xhtml}body")
-            if body is not None:
-                process_element(body)
-            else:
-                process_element(document)
+            # Process children
+            for child in element:
+                process_element(child, level + 1)
+                # Handle tail text
+                if child.tail and child.tail.strip():
+                    tail_text = child.tail.strip()
+                    if tail_text and tail_text not in seen_content and len(tail_text) > 5:
+                        seen_content.add(tail_text)
+                        result.append(clean_text(tail_text))
 
-        # Filter out common unwanted noise patterns
-        filtered_result = []
-        noise_patterns = [
-            'var ', 'function()', '.js', '.css', 'google-analytics', 'disqus',
-            '{', '}', 'cookie', 'subscribe', 'newsletter', 'sign up',
-            'download', 'click here', 'read more', 'learn more'
-        ]
+        # Process the main content
+        process_element(main_content)
+
+        # Clean up the result
+        # Remove empty lines at start and end
+        while result and not result[0].strip():
+            result.pop(0)
+        while result and not result[-1].strip():
+            result.pop()
+
+        # Normalize multiple empty lines to single empty line
+        cleaned = []
+        prev_empty = False
         for line in result:
-            lower_line = line.lower()
-            if any(pattern in lower_line for pattern in noise_patterns):
-                continue
-            clean_line = line.strip()
-            if len(clean_line) < 3 or clean_line.replace(' ', '').isdigit():
-                continue
-            filtered_result.append(clean_line)
+            is_empty = not line.strip()
+            if not (is_empty and prev_empty):
+                cleaned.append(line)
+            prev_empty = is_empty
 
-        return '\n'.join(filtered_result)
+        return '\n'.join(cleaned)
 
     except Exception as e:
         logger.error(f"Error parsing HTML: {str(e)}")
+        logger.debug(f"HTML content preview: {html_content[:200] if html_content else 'None'}")
         return ""
 
 
