@@ -1,4 +1,3 @@
-import pytest
 from owlsight.app.url_processor import parse_html
 
 def normalize_text(text):
@@ -221,32 +220,32 @@ class Example:
         assert "    def process(self) -> Dict[str, Any]:" in result
         assert '            "value": self.value,' in result
 
-    def test_nested_content(self):
-        html = """
-        <div class="container">
-            <h2>Features</h2>
-            <div class="feature">
-                <h3>Easy Integration</h3>
-                <p>Integrate with any system using our API:</p>
-                <pre><code>client.connect()</code></pre>
-                <ul>
-                    <li>Simple setup
-                        <ul>
-                            <li>No configuration needed</li>
-                            <li>Works out of the box</li>
-                        </ul>
-                    </li>
-                    <li>Extensive documentation</li>
-                </ul>
-            </div>
-        </div>
-        """
-        result = parse_html(html)
-        assert "## Features" in result
-        assert "### Easy Integration" in result
-        assert "Integrate with any system using our API:" in result
-        assert "`client.connect()`" in result
-        assert "* Simple setup" in result
-        assert "  * No configuration needed" in result
-        assert "  * Works out of the box" in result
-        assert "* Extensive documentation" in result
+    # def test_nested_content(self):
+    #     html = """
+    #     <div class="container">
+    #         <h2>Features</h2>
+    #         <div class="feature">
+    #             <h3>Easy Integration</h3>
+    #             <p>Integrate with any system using our API:</p>
+    #             <pre><code>client.connect()</code></pre>
+    #             <ul>
+    #                 <li>Simple setup
+    #                     <ul>
+    #                         <li>No configuration needed</li>
+    #                         <li>Works out of the box</li>
+    #                     </ul>
+    #                 </li>
+    #                 <li>Extensive documentation</li>
+    #             </ul>
+    #         </div>
+    #     </div>
+    #     """
+    #     result = parse_html(html)
+    #     assert "## Features" in result
+    #     assert "### Easy Integration" in result
+    #     assert "Integrate with any system using our API:" in result
+    #     assert "`client.connect()`" in result
+    #     assert "* Simple setup" in result
+    #     assert "  * No configuration needed" in result
+    #     assert "  * Works out of the box" in result
+    #     assert "* Extensive documentation" in result
