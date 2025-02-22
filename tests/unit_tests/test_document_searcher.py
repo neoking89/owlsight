@@ -97,12 +97,15 @@ def test_document_searcher_init_basic():
         "doc1": "Python is a programming language",
         "doc2": "Machine learning is fascinating"
     }
+    splitter = SentenceTextSplitter(n_sentences=3, n_overlap=1)
+    expected_documents = splitter.split_documents(documents)
+    
     with patch('owlsight.rag.core.EnsembleSearchEngine', new_callable=MagicMock) as mock_engine:
-        searcher = DocumentSearcher(documents)
+        searcher = DocumentSearcher(documents, text_splitter=splitter)
         
         # Check if the EnsembleSearchEngine was called with the expected arguments
         mock_engine.assert_called_once_with(
-            documents=documents,
+            documents=expected_documents,
             search_methods=[SearchMethod.TFIDF, SearchMethod.SENTENCE_TRANSFORMER],
             cache_dir=None,
             cache_dir_suffix=None,
@@ -111,6 +114,7 @@ def test_document_searcher_init_basic():
                     "pooling_strategy": "mean",
                     "model_name": searcher.sentence_transformer_model,
                     "batch_size": searcher.sentence_transformer_batch_size,
+                    "device": None,
                 }
             }
         )
@@ -146,6 +150,7 @@ def test_document_searcher_init_with_cache():
                     "pooling_strategy": "mean",
                     "model_name": searcher.sentence_transformer_model,
                     "batch_size": searcher.sentence_transformer_batch_size,
+                    "device": None,
                 }
             }
         )
