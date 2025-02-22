@@ -1,29 +1,33 @@
+from __future__ import annotations
 import importlib.util
 import asyncio
 import os
 import inspect
 import traceback
 import re
-from typing import Optional, List, Dict, Union, Iterable, Callable
-from datetime import datetime
-from pathlib import Path
 import subprocess
 import sys
 import json
 import dill
 import time
 import random
+from typing import Optional, List, Dict, Union, Iterable, Callable, TypeVar
+from datetime import datetime
+from pathlib import Path
+
 
 from huggingface_hub import CachedRepoInfo
 
-from owlsight.utils.custom_classes import GlobalPythonVarsDict
-from owlsight.rag.document_reader import DocumentReader
+document_searcher_type = TypeVar("DocumentSearcher")
+document_reader_type = TypeVar("DocumentReader")
+
 
 EXCLUDE_TOOLS = [
     "owl_tools",
     "owl_show",
     "owl_save_namespace",
     "owl_load_namespace",
+    "owl_create_document_searcher",
 ]
 
 
@@ -36,33 +40,23 @@ class OwlDefaultFunctions:
     This class is open for extension, as possibly more useful functions can be added in the future.
     """
 
-    def __init__(self, globals_dict: GlobalPythonVarsDict):
+    def __init__(self, globals_dict: dict):
+        """
+        Initialize the OwlDefaultFunctions class.
+
+        Parameters
+        ----------
+        globals_dict : dict | GlobalPythonVarsDict
+            Dictionary of global variables.
+            If it is only relevant to use methods in this class, pass an empty dict.
+
+        """
         # Add check to make sure every function starts with 'owl_'
         self._check_method_naming_convention()
 
         self.globals_dict = globals_dict
         self._document_reader = None
-
-    def _check_method_naming_convention(self):
-        """Check if all methods in the class start with 'owl_'."""
-        methods = inspect.getmembers(self, predicate=inspect.ismethod)
-        methods = [method for method in methods if not method[0].startswith("_")]
-        for name, _ in methods:
-            if not name.startswith("owl_"):
-                raise ValueError(f"Method '{name}' does not follow the 'owl_' naming convention!")
-
-    def _get_document_reader(
-        self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True
-    ) -> DocumentReader:
-        """
-        Lazy initialization of DocumentReader to prevent overhead.
-        Returns an instance of DocumentReader, creating it if it doesn't exist.
-        """
-        if self._document_reader is None:
-            self._document_reader = DocumentReader(
-                ocr_enabled=ocr_enabled, timeout=timeout, ignore_patterns=ignore_patterns
-            )
-        return self._document_reader
+        self._document_searcher_cache = {}  # Cache for DocumentSearcher instances
 
     def owl_tools(self, as_json: bool = True) -> List[Union[Callable, Dict]]:
         """
@@ -87,7 +81,7 @@ class OwlDefaultFunctions:
 
     def owl_read(
         self,
-        path: Union[str, Path, Iterable[Union[str, Path]]],
+        file_source: Union[str, Path, bytes, Iterable[Union[str, Path]]],
         recursive: bool = False,
         ignore_patterns: Optional[List[str]] = None,
         ocr_enabled: bool = True,
@@ -98,24 +92,41 @@ class OwlDefaultFunctions:
 
         Parameters
         ----------
-        path : Union[str, Path, Iterable[Union[str, Path]]]
-            LOCAL FILE SYSTEM PATHS ONLY. Can be:
-            - Single local file
-            - Directory (requires recursive=True)
-            - List of local files
+        file_source : Union[str, Path, bytes, Iterable[Union[str, Path]]]
+            LOCAL FILE SYSTEM PATHS OR BUFFERS ONLY. Can be:
+            - Single local file path (str or Path)
+            - Single buffer content from a file (bytes)
+            - Directory path (requires recursive=True)
+            - List of local file paths
             DOES NOT SUPPORT WEB URLS
+        recursive : bool, default=False
+            Whether to recursively process subdirectories when file_source is a directory
+        ignore_patterns : List[str], optional
+            List of gitignore-style patterns to exclude
+        ocr_enabled : bool, default=True
+            Whether to enable OCR for image files
+        timeout : int, default=5
+            Timeout in seconds for document processing
+
+        Returns
+        -------
+        Union[str, Dict[str, str]]
+            For single file/buffer: The extracted text content
+            For directory/multiple files: Dict mapping file paths to their content
+            For errors: Error message string
 
         Notes
         -----
         - For web content/URLs use owl_scrape() instead
         - URL inputs will return explicit error messages
+        - Falls back to basic file reading if advanced processing fails
         """
-        if isinstance(path, (str, Path)) and is_url(path):
-            return f"Error: owl_read requires local files. Use owl_scrape() for URLs like '{path}'"
+        if isinstance(file_source, (str, Path)) and is_url(file_source):
+            return f"Error: owl_read requires local files. Use owl_scrape() for URLs like '{file_source}'"
 
-        if isinstance(path, Iterable):
-            for p in path:
-                if is_url(p):
+        if isinstance(file_source, Iterable) and not isinstance(file_source, (str, bytes)):
+            for p in file_source:
+                if isinstance(p, (str, Path)) and is_url(p):
                     return "Error: Detected web URL in paths. Use owl_scrape() instead."
 
         try:
@@ -123,43 +134,51 @@ class OwlDefaultFunctions:
                 timeout=timeout, ignore_patterns=ignore_patterns, ocr_enabled=ocr_enabled
             )
 
+            if isinstance(file_source, bytes):
+                print("Given file_source is a buffer, trying to read as a buffer...")
+                try:
+                    content = reader.read_file(file_source)
+                    return content
+                except Exception as e:
+                    return f"Error reading buffer: {e}"
+
             # handle directory
-            if isinstance(path, (str, Path)):
-                path = Path(path)
-                if path.is_dir():
+            if isinstance(file_source, (str, Path)):
+                file_source = Path(file_source)
+                if file_source.is_dir():
                     results = {}
                     try:
-                        for filepath, content in reader.read_directory(str(path), recursive=recursive):
+                        for filepath, content in reader.read_directory(str(file_source), recursive=recursive):
                             results[filepath] = content
                         return results
                     except Exception as e:
-                        print(f"DocumentReader failed to read directory {path}: {str(e)}")
-                        return f"Error reading directory {path}: {str(e)}"
+                        print(f"DocumentReader failed to read directory {file_source}: {str(e)}")
+                        return f"Error reading directory {file_source}: {str(e)}"
                 else:
                     # Handle single file
                     try:
-                        content = reader.read_file(str(path))
-                        if content is not None:
+                        content = reader.read_file(str(file_source))
+                        if content:
                             return content
                     except Exception:
                         pass  # Silently fall back to basic file reading
 
                     # Fallback to basic file reading
                     try:
-                        with open(path, "r", encoding="utf-8") as file:
+                        with open(file_source, "r", encoding="utf-8") as file:
                             return file.read()
                     except FileNotFoundError:
-                        return f"File not found: {path}"
+                        return f"File not found: {file_source}"
                     except Exception as e:
-                        return f"Error reading file {path}: {str(e)}"
+                        return f"Error reading file {file_source}: {str(e)}"
             else:
                 # Handle iterable of files
                 results = {}
-                for file_path in path:
+                for file_path in file_source:
                     file_path = Path(file_path)
                     try:
                         content = reader.read_file(str(file_path))
-                        if content is not None:
+                        if content:
                             results[str(file_path)] = content
                             continue
                     except Exception:
@@ -205,12 +224,12 @@ class OwlDefaultFunctions:
         - Implements exponential backoff with jitter between retries
         - Results are limited to text-based web content
         """
+        from duckduckgo_search import DDGS
+
         errors = []
         for attempt in range(max_retries):
             try:
                 print(f"Searching for query: {query} (attempt {attempt + 1}/{max_retries})")
-
-                from duckduckgo_search import DDGS
 
                 with DDGS() as ddgs:
                     # Use a generator to avoid loading all results at once
@@ -588,6 +607,87 @@ class OwlDefaultFunctions:
             print(f"Error starting subprocess from inside {current_function_name}: {e}")
             return False
 
+    def owl_create_document_searcher(
+        self,
+        documents: Dict[str, str],
+        sentence_transformer_model_name: str,
+        percentile: float = 0.99,
+        target_chunk_length: int = 400,
+        device: Optional[str] = None,
+        **document_searcher_kwargs,
+    ) -> document_searcher_type:
+        """
+        Create a DocumentSearcher instance from a dictionary of documents.
+        This is useful for semantic search across multiple documents using a sentence transformer model.
+        A semantic text splitter is used first to split documents into smaller, semantically coherent chunks.
+        Both chunking and embedding is done with the model specified by `sentence_transformer_model_name`.
+
+        Parameters
+        ----------
+        documents : Dict[str, str]
+            Dictionary mapping document names (keys) to their text content (values)
+        sentence_transformer_model_name : str
+            Name of the sentence transformer model to use for embeddings
+        percentile : float, default=0.99
+            Percentile threshold for semantic text splitting.
+            The higher the percentile, the larger the semantic distance required between adjacent embeddings, the less
+            splitting is performed.
+        target_chunk_length : int, default=400
+            Target character length for text chunks during splitting
+        device : Optional[str], default=None
+            Device to use for embedding and chunking
+        **document_searcher_kwargs
+            Additional keyword arguments to pass to the DocumentSearcher constructor
+            Examples include: `cache_dir`, `cache_dir_suffix`, `batch_size`
+
+        Returns
+        -------
+        DocumentSearcher
+            Initialized DocumentSearcher instance ready for semantic search queries
+
+        Notes
+        -----
+        - Uses SemanticTextSplitter for intelligent document chunking
+        - Suitable for use with scraped web content or local documents
+        - Use a (domain-specific) sentence transformer model for embeddings.
+        Check https://huggingface.co/spaces/mteb/leaderboard with "Should be sentence-transformers compatible" turned on.
+        - Caches DocumentSearcher instances based on input parameters for reuse
+        """
+        from owlsight.rag.core import DocumentSearcher
+        from owlsight.rag.text_splitters import SemanticTextSplitter
+
+        # Create cache key from all parameters
+        cache_params = {
+            "percentile": percentile,
+            "target_chunk_length": target_chunk_length,
+            **document_searcher_kwargs,
+        }
+        cache_key = self._create_cache_key(documents, sentence_transformer_model_name, **cache_params)
+
+        # Return cached instance if available
+        if cache_key in self._document_searcher_cache:
+            return self._document_searcher_cache[cache_key]
+
+        # Create new instance if not in cache
+        doc_splitter = SemanticTextSplitter(
+            percentile=percentile,
+            target_chunk_length=target_chunk_length,
+            model_name=sentence_transformer_model_name,
+            device=device,
+        )
+
+        searcher = DocumentSearcher(
+            documents,
+            sentence_transformer_model=sentence_transformer_model_name,
+            text_splitter=doc_splitter,
+            device=device,
+            **document_searcher_kwargs,
+        )
+
+        # Cache the new instance
+        self._document_searcher_cache[cache_key] = searcher
+        return searcher
+
     def _get_model_id(self, repo: CachedRepoInfo) -> str:
         """
         Determine the model ID based on the repository content.
@@ -616,6 +716,50 @@ class OwlDefaultFunctions:
     def _start_child_process_owl_press(self, script_path: Path, params: Dict) -> None:
         params_json = json.dumps(params)
         subprocess.Popen([sys.executable, str(script_path), params_json])
+
+    def _get_document_reader(
+        self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True
+    ) -> document_reader_type:
+        """
+        Lazy initialization of DocumentReader to prevent overhead.
+        Returns an instance of DocumentReader, creating it if it doesn't exist.
+        """
+        from owlsight.rag.document_reader import DocumentReader
+
+        if self._document_reader is None:
+            self._document_reader = DocumentReader(
+                ocr_enabled=ocr_enabled, timeout=timeout, ignore_patterns=ignore_patterns
+            )
+        return self._document_reader
+
+    def _check_method_naming_convention(self):
+        """Check if all methods in the class start with 'owl_'."""
+        methods = inspect.getmembers(self, predicate=inspect.ismethod)
+        methods = [method for method in methods if not method[0].startswith("_")]
+        for name, _ in methods:
+            if not name.startswith("owl_"):
+                raise ValueError(f"Method '{name}' does not follow the 'owl_' naming convention!")
+
+    def _create_cache_key(self, documents: Dict[str, str], model_name: str, **kwargs) -> str:
+        """
+        Create a cache key from DocumentSearcher parameters.
+
+        The key is created by combining:
+        1. A hash of the document contents
+        2. The model name
+        3. A hash of all other parameters
+        """
+        import hashlib
+
+        # Hash documents
+        docs_str = json.dumps(documents, sort_keys=True)
+        docs_hash = hashlib.md5(docs_str.encode()).hexdigest()
+
+        # Hash other parameters
+        params_str = json.dumps(kwargs, sort_keys=True)
+        params_hash = hashlib.md5(params_str.encode()).hexdigest()
+
+        return f"{docs_hash}_{model_name}_{params_hash}"
 
 
 # Update get_url to use Django-style regex for better validation
