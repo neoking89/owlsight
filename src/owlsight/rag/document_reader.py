@@ -14,11 +14,12 @@ import os
 import fnmatch
 import socket
 from pathlib import Path
-from typing import Optional, List, Generator, Tuple
+from typing import Optional, List, Generator, Tuple, Union
 import zipfile
 import logging
 import glob
 import hashlib
+from functools import partial
 
 import tika
 from tika import parser
@@ -112,7 +113,9 @@ class DocumentReader:
                     raise FileNotFoundError(f"Tika server jar not found at {tika_server_jar_path}")
                 self.tika_server_jar_path = tika_server_jar_path
             else:
-                zip_files = glob.glob(os.path.join(os.path.dirname(os.path.dirname(__file__)), "blobs", "tika-server-standard*.zip"))
+                zip_files = glob.glob(
+                    os.path.join(os.path.dirname(os.path.dirname(__file__)), "blobs", "tika-server-standard*.zip")
+                )
                 if not zip_files:
                     raise RuntimeError(
                         "No internet connection detected and no Tika server zip found in blobs/\n"
@@ -194,31 +197,48 @@ class DocumentReader:
 
         return any(filepath.lower().endswith(ext.lower()) for ext in self.supported_extensions)
 
-    def read_file(self, filepath: str) -> Optional[str]:
+    def read_file(self, file_source: Union[str, bytes]) -> str:
         """
-        Read and extract text content from a single file.
+        Read and extract text content from either a file path or file content buffer.
 
         Parameters
         ----------
-        filepath : str
-            Path to the file to read
+        file_source : Union[str, bytes]
+            Either a path to the file to read (str) or the raw file content buffer (bytes).
+            For file paths, the file must exist and be readable.
+            For bytes content, it should be the raw file content buffer.
 
         Returns
         -------
-        str or None
-            Extracted text content if successful, None otherwise
+        str
+            Extracted text content, or an empty string if reading fails
+        --------
+        >>> reader = DocumentReader()
+        >>> # Reading from file path
+        >>> content = reader.read_file("path/to/document.pdf")
+        >>> # Reading from bytes buffer
+        >>> with open("document.pdf", "rb") as f:
+        ...     content = reader.read_file(f.read())
         """
+        is_file = not isinstance(file_source, bytes)
+        if not is_file:
+            parse_func = parser.from_buffer
+        else:
+            parse_func = partial(
+                parser.from_file,
+                service="text" if self.text_only else "all",
+            )
+
         try:
             # Parse the file using Tika with timeout, requesting only text content
-            parsed = parser.from_file(
-                filepath,
-                service="text" if self.text_only else "all",
+            parsed = parse_func(
+                file_source,
                 requestOptions={"timeout": self.timeout},
             )
 
             if parsed.get("status") != 200:
-                logger.warning(f"Failed to parse {filepath}. Status: {parsed.get('status')}")
-                return None
+                logger.warning(f"Failed to parse {'file buffer' if not is_file else file_source}. Status: {parsed.get('status')}")
+                return ""
 
             content = parsed.get("content", "")
 
@@ -231,11 +251,11 @@ class DocumentReader:
                 content = content.replace("\r\n", "\n")
                 return content
 
-            return None
+            return ""
 
         except Exception as e:
-            logger.error(f"Error processing {filepath}: {str(e)}")
-            return None
+            logger.error(f"Error processing {'file buffer' if not is_file else file_source}: {str(e)}")
+            return ""
 
     def read_directory(self, directory: str, recursive: bool = True) -> Generator[Tuple[str, str], None, None]:
         """
