@@ -36,10 +36,11 @@ def parse_html(html_content: Optional[str]) -> str:
                 parent.set('data-preserve', 'true')
                 parent = parent.getparent()
 
-        # Remove non-content elements, preserving marked elements
-        for elem in document.xpath('//script|//style|//link|//meta|//noscript|//iframe'):
-            if elem.getparent() is not None and not elem.get('data-preserve'):
-                elem.getparent().remove(elem)
+        # Remove non-content elements
+        for selector in ['//nav', '//footer', '//script', '//style', '//*[contains(@class, "ad")]']:
+            for elem in document.xpath(selector):
+                if elem.get('data-preserve') != 'true':
+                    elem.getparent().remove(elem)
 
         # Find main content area
         content_selectors = [
@@ -85,41 +86,33 @@ def parse_html(html_content: Optional[str]) -> str:
 
         def extract_code_block(element) -> Optional[str]:
             """Extract code block content preserving exact formatting."""
-            try:
-                # Get the raw HTML to preserve exact formatting
-                raw_html = lxml.html.tostring(element, encoding='unicode')
-                # If it's a pre element, preserve all whitespace exactly
-                if element.tag == 'pre':
-                    code = element.text_content()
-                    if code.strip():
-                        return code
-                # For other elements, check if it contains code-like content
-                code = element.text_content()
-                if code.strip() and any(marker in code for marker in [';', '{', '}', '(', ')', '[', ']', '=', 'def ', 'class ']):
-                    return code
-            except Exception:
-                pass
+            if element.tag == 'pre':
+                return f'```\n{element.text_content()}\n```'
+            elif element.tag == 'code':
+                return f'`{element.text_content()}`'
             return None
 
-        def process_element(element, level=0):
+        def process_element(element, list_level=0):
             """Process an element and its children with proper formatting."""
             if not element.tag:
                 return
 
-            # Handle code blocks first
-            if (element.tag in ['pre', 'code'] or 
-                any(cls in (element.get('class') or '').lower() for cls in ['highlight', 'code', 'syntax', 'source'])):
-                code = extract_code_block(element)
-                if code and code.strip() and code not in seen_content:
-                    seen_content.add(code)
-                    # For single-line code, use inline code format
-                    if '\n' not in code and len(code) < 100:
-                        result.extend(['', f'`{code.strip()}`', ''])
-                    else:
-                        # For multi-line code, preserve exact formatting
-                        result.extend(['', '```', code, '```', ''])
+            # Handle code blocks
+            code = extract_code_block(element)
+            if code and code.strip() and code not in seen_content:
+                seen_content.add(code)
+                result.extend(['', code, ''])
                 return
 
+            # Handle lists
+            if element.tag in ['ul', 'ol']:
+                list_level += 1
+            elif element.tag == 'li':
+                indent = '  ' * (list_level - 1)
+                result.append(f'{indent}* {clean_text(element.text_content())}')
+                # Process children with current list level
+                for child in element:
+                    process_element(child, list_level)
             # Handle headers
             if element.tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
                 header_text = element.text_content().strip()
@@ -127,14 +120,6 @@ def parse_html(html_content: Optional[str]) -> str:
                     seen_content.add(header_text)
                     level = int(element.tag[1])
                     result.extend(['', '#' * level + ' ' + header_text, ''])
-                return
-
-            # Handle lists
-            if element.tag == 'li':
-                list_text = element.text_content().strip()
-                if list_text and list_text not in seen_content:
-                    seen_content.add(list_text)
-                    result.append('* ' + clean_text(list_text))
                 return
 
             # Handle text content
@@ -146,9 +131,17 @@ def parse_html(html_content: Optional[str]) -> str:
                 else:
                     result.append(clean_text(text))
 
+            # Handle inline code
+            elif element.tag == 'code':
+                code_text = clean_text(element.text_content())
+                if list_level > 0:  # Inside a list
+                    result.append(f'`{code_text}`')
+                else:
+                    result.extend(['```', code_text, '```'])
+
             # Process children
             for child in element:
-                process_element(child, level + 1)
+                process_element(child, list_level)
                 # Handle tail text
                 if child.tail and child.tail.strip():
                     tail_text = child.tail.strip()
@@ -157,7 +150,7 @@ def parse_html(html_content: Optional[str]) -> str:
                         result.append(clean_text(tail_text))
 
         # Process the main content
-        process_element(main_content)
+        process_element(main_content, 0)
 
         # Clean up the result
         # Remove empty lines at start and end
