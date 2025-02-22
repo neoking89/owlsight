@@ -420,6 +420,53 @@ class OwlDefaultFunctions:
         content_dict = {url: content.strip() for url, content in content_dict.items() if content.strip()}
         return content_dict
 
+    def owl_search_and_scrape(
+        self,
+        query: str,
+        max_results: int = 10,
+        max_concurrent: int = 5,
+        timeout: int = 10,
+        max_retries: int = 3,
+    ) -> Dict[str, str]:
+        """
+        Combines web search and content scraping into a single operation.
+        First searches for URLs using DuckDuckGo, then scrapes content from the found URLs.
+
+        Parameters
+        ----------
+        query : str
+            Search phrase to look up
+        max_results : int, default=10
+            Maximum number of results to return from search (1-20)
+        max_concurrent : int, default=5
+            Maximum number of simultaneous scraping requests allowed
+        timeout : int, default=10
+            Request timeout in seconds for scraping
+        max_retries : int, default=3
+            Number of retry attempts for failed search requests
+
+        Returns
+        -------
+        Dict[str, str]
+            Dictionary mapping URLs to their extracted content in markdown format
+
+        Notes
+        -----
+        - Combines functionality of owl_search and owl_scrape
+        - First performs search to get URLs, then scrapes content from those URLs
+        - Uses exponential backoff with jitter for search retries
+        - Scrapes content concurrently up to max_concurrent limit
+        """
+        # First perform the search to get URLs
+        search_results = self.owl_search(query, max_results=max_results, max_retries=max_retries)
+
+        # Get the URLs from the search results
+        urls = list(search_results.keys())
+
+        # Then scrape content from those URLs
+        scraped_results = self.owl_scrape(urls, max_concurrent=max_concurrent, timeout=timeout)
+
+        return scraped_results
 
     def owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]:
         """
