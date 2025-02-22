@@ -234,12 +234,10 @@ class SemanticTextSplitter(TextSplitter):
         percentile of all computed distances. The document is then split at these breakpoints so that
         each chunk represents a segment with relatively homogeneous semantic content.
 
-        Attributes
+        Parameters
         ----------
         model_name : str
             The name or identifier of the SentenceTransformer model used for embedding.
-        _model :
-            An instance of the SentenceTransformer model loaded using the specified model_name.
         window_size : int
             The number of neighboring sentences to include on each side when forming a context window
             for each sentence.
@@ -252,6 +250,12 @@ class SemanticTextSplitter(TextSplitter):
         target_chunk_length : Optional[int]
             If set, aims to maintain this as the mean chunk length in characters.
             This is a soft target that helps balance chunk sizes while preserving semantic relevance.
+
+        Attributes
+        ----------
+        All above parameters are passed to the `SentenceTransformer` constructor.
+        _model : Optional[SentenceTransformer]
+            An instance of the SentenceTransformer model loaded using the specified model_name.
         """
         try:
             from sentence_transformers import SentenceTransformer
