@@ -80,6 +80,7 @@ class DocumentSearcher:
         text_splitter: Optional[TextSplitter] = None,
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
+        device: Optional[str] = None,
     ) -> None:
         self.documents = documents
         self.cache_dir = cache_dir
@@ -95,6 +96,7 @@ class DocumentSearcher:
                 "pooling_strategy": "mean",
                 "model_name": self.sentence_transformer_model,
                 "batch_size": self.sentence_transformer_batch_size,
+                "device": device,
             }
         }
         self.engine = EnsembleSearchEngine(
