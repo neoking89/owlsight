@@ -66,7 +66,8 @@ def parse_html(html_content: Optional[str]) -> str:
                     max_content_length = content_length
                     main_content = element
 
-        if not main_content:
+        # Use an explicit check to see if a main content element was found
+        if main_content is None:
             return "Could not find main content in the HTML document"
 
         def clean_text(text: str) -> str:
