@@ -74,7 +74,7 @@ def test_read_file_failure(mock_parser, reader):
     """Test failed file reading."""
     mock_parser.return_value = FAILED_PARSE
     content = reader.read_file("test.pdf")
-    assert content is None
+    assert content == ""
 
 
 @patch("tika.parser.from_file")
@@ -82,7 +82,7 @@ def test_read_file_exception(mock_parser, reader):
     """Test exception handling during file reading."""
     mock_parser.side_effect = Exception("Test error")
     content = reader.read_file("test.pdf")
-    assert content is None
+    assert content == ""
 
 
 @patch("tika.parser.from_file")
@@ -170,3 +170,30 @@ async def test_init_no_blobs_with_internet():
             # Restore blobs directory if it existed
             if temp_dir.exists():
                 shutil.move(str(temp_dir), str(blobs_dir))
+
+
+@patch("tika.parser.from_buffer")
+def test_read_file_bytes_success(mock_parser, reader):
+    """Test successful file reading from bytes buffer."""
+    mock_parser.return_value = SAMPLE_PDF_CONTENT
+    content = reader.read_file(b"sample bytes content")
+    assert content == SAMPLE_TEXT
+    mock_parser.assert_called_once_with(b"sample bytes content", requestOptions={"timeout": 5})
+
+
+@patch("tika.parser.from_buffer")
+def test_read_file_bytes_failure(mock_parser, reader):
+    """Test failed file reading from bytes buffer."""
+    mock_parser.return_value = FAILED_PARSE
+    content = reader.read_file(b"invalid bytes content")
+    assert content == ""
+    mock_parser.assert_called_once_with(b"invalid bytes content", requestOptions={"timeout": 5})
+
+
+@patch("tika.parser.from_buffer")
+def test_read_file_bytes_exception(mock_parser, reader):
+    """Test exception handling during bytes buffer reading."""
+    mock_parser.side_effect = Exception("Test error")
+    content = reader.read_file(b"problematic bytes content")
+    assert content == ""
+    mock_parser.assert_called_once_with(b"problematic bytes content", requestOptions={"timeout": 5})
