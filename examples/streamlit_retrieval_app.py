@@ -12,6 +12,11 @@ Features:
 - GPU/CPU processing support
 - Real-time search results with source links
 - Export results to CSV
+
+run with:
+```bash
+streamlit run examples/streamlit_retrieval_app.py
+```
 """
 
 
