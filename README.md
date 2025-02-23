@@ -235,7 +235,9 @@ These are:
 - `owl_save_namespace`: Save namespace to .dill file
 - `owl_load_namespace`: Load namespace from .dill file
 - `owl_tools`: Show available functions for tool calling
-- `owl_search`: Search and get results from the web using DuckDuckGo's API## Configurations
+- `owl_search`: Search and get results from the web using DuckDuckGo's API
+
+## Configurations
 
 Owlsight uses a configuration file in JSON-format to adjust various parameters. The configuration is divided into five main sections: `main`, `model`,  `generate`, `rag` and `huggingface`. Here's an overview of the application architecture:
 
@@ -378,7 +380,9 @@ During an Owlsight session, a temporary environment is created within the homedi
 
 ## Error Handling and Auto-Fix
 
-Owlsight automatically tries to fix and retry any code that encounters a **ModuleNotFoundError** by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.## API Examples
+Owlsight automatically tries to fix and retry any code that encounters a **ModuleNotFoundError** by installing the required package and re-executing the code. It can also attempt to fix errors in its own generated code. This feature can be controlled by the *max_retries_on_error* parameter in the configuration file.
+
+## API Examples
 
 Owlsight can also be used as a library in Python scripts. The main classes are the `TextGenerationProcessor` family, which can be imported from the `owlsight` package. 
 
@@ -452,6 +456,7 @@ if __name__ == "__main__":
         print(row[1]["document"])
 
 ```
+
 ## API Documentation
 
 The following section details all the objects and functions available in the Owlsight API:
@@ -1271,7 +1276,9 @@ func : Callable
 Returns
 -------
 str
-    A JSON string describing the function's name, short description, and parameter schema.## RELEASE NOTES
+    A JSON string describing the function's name, short description, and parameter schema.
+
+## RELEASE NOTES
 
 **1.0.2**
 

@@ -530,13 +530,14 @@ def write_readme(content: str, filename: str):
 
 
 if __name__ == "__main__":
+    seperator = "\n\n"
     README = "".join(
         [
             README_INTRO.strip(),
-            CONFIGURATION.strip(),
-            API_EXAMPLES.strip(),
-            "\n" + API_DOCUMENTATION.strip(),
-            RELEASE_NOTES.strip(),
+            seperator + CONFIGURATION.strip(),
+            seperator + API_EXAMPLES.strip(),
+            seperator + API_DOCUMENTATION.strip(),
+            seperator + RELEASE_NOTES.strip(),
         ]
     )
     write_readme(README, "README.md")
