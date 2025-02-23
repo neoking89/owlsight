@@ -39,7 +39,7 @@ def parse_html(html_content: Optional[str]) -> str:
         # Remove non-content elements
         for selector in ['//nav', '//footer', '//script', '//style', '//*[contains(@class, "ad")]']:
             for elem in document.xpath(selector):
-                if elem.get('data-preserve') != 'true':
+                if elem.get('data-preserve') != 'true' and elem.getparent() is not None:
                     elem.getparent().remove(elem)
 
         # Find main content area
