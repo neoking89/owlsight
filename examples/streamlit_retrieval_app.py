@@ -1,3 +1,20 @@
+"""
+Intelligent Document Search Application
+------------------------------------
+A Streamlit-based application build on Owlsight, that provides two main functionalities:
+1. Web Search: Search and analyze online content using DuckDuckGo
+2. Document Search: Upload and search through local documents, using Apache Tika. 
+The power of Apache Tika lies in its ability to extract text from a wide range of file formats, including PDF, DOCX, and more.
+
+Features:
+- Semantic search using sentence transformers
+- Configurable chunk size for text processing
+- GPU/CPU processing support
+- Real-time search results with source links
+- Export results to CSV
+"""
+
+
 import sys
 import streamlit as st
 import hashlib
