@@ -742,7 +742,7 @@ Split text into chunks based on semantic similarity breakpoints.
 #### DocumentSearcher
 
 ```python
-class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, text_splitter: Optional[owlsight.rag.text_splitters.TextSplitter] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None) -> None
+class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, text_splitter: Optional[owlsight.rag.text_splitters.TextSplitter] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, device: Optional[str] = None) -> None
 ```
 
 Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
@@ -829,8 +829,8 @@ for processing large directories.
   - Check if a file is supported based on its extension and ignore patterns.
 - `read_directory(self, directory: str, recursive: bool = True) -> Generator[Tuple[str, str], NoneType, NoneType]`
   - Read all supported files in a directory and yield their content.
-- `read_file(self, filepath: str) -> Optional[str]`
-  - Read and extract text content from a single file.
+- `read_file(self, file_source: Union[str, bytes]) -> str`
+  - Read and extract text content from either a file path or file content buffer.
 - `should_ignore_file(self, filepath: str) -> bool`
   - Check if a file should be ignored based on gitignore-style patterns.
 
@@ -1021,7 +1021,7 @@ Notes
 #### OwlDefaultFunctions
 
 ```python
-class OwlDefaultFunctions(globals_dict: owlsight.utils.custom_classes.GlobalPythonVarsDict)
+class OwlDefaultFunctions(globals_dict: 'dict')
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -1032,27 +1032,31 @@ This class is open for extension, as possibly more useful functions can be added
 
 **Methods:**
 
-- `owl_import(self, file_path: str)`
+- `owl_create_document_searcher(self, documents: 'Dict[str, str]', sentence_transformer_model_name: 'str', percentile: 'float' = 0.99, target_chunk_length: 'int' = 400, device: 'Optional[str]' = None, **document_searcher_kwargs) -> 'document_searcher_type'`
+  - Create a DocumentSearcher instance from a dictionary of documents.
+- `owl_import(self, file_path: 'str')`
   - Import Python module into the current execution environment.
-- `owl_load_namespace(self, file_path: str)`
+- `owl_load_namespace(self, file_path: 'str')`
   - Load namespace using dill.
-- `owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]`
+- `owl_models(self, cache_dir: 'Optional[str]' = None, show_task: 'bool' = False) -> 'List[str]'`
   - Audit Hugging Face model cache.
-- `owl_press(self, sequence: List[str], exit_python_before_sequence: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12) -> bool`
+- `owl_press(self, sequence: 'List[str]', exit_python_before_sequence: 'bool' = True, time_before_sequence: 'float' = 0.5, time_between_keys: 'float' = 0.12) -> 'bool'`
   - Simulate keyboard input for application control.
-- `owl_read(self, path: Union[str, pathlib.Path, Iterable[Union[str, pathlib.Path]]], recursive: bool = False, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5) -> Union[str, Dict[str, str]]`
+- `owl_read(self, file_source: 'Union[str, Path, bytes, Iterable[Union[str, Path]]]', recursive: 'bool' = False, ignore_patterns: 'Optional[List[str]]' = None, ocr_enabled: 'bool' = True, timeout: 'int' = 5) -> 'Union[str, Dict[str, str]]'`
   - Read LOCAL FILE CONTENTS with advanced document processing.
-- `owl_save_namespace(self, file_path: str)`
+- `owl_save_namespace(self, file_path: 'str')`
   - Serialize current namespace state to disk.
-- `owl_scrape(self, urls: List[str], max_concurrent: int = 5, timeout: int = 10) -> Dict[str, str]`
+- `owl_scrape(self, urls: 'List[str]', max_concurrent: 'int' = 5, timeout: 'int' = 10) -> 'Dict[str, str]'`
   - Scrape web content from URLs (use instead of owl_read for web resources).
-- `owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> Dict[str, str]`
+- `owl_search(self, query: 'str', max_results: 'int' = 10, max_retries: 'int' = 3) -> 'Dict[str, str]'`
   - Execute web search using DuckDuckGo's API.
-- `owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]`
+- `owl_search_and_scrape(self, query: 'str', max_results: 'int' = 10, max_concurrent: 'int' = 5, timeout: 'int' = 10, max_retries: 'int' = 3) -> 'Dict[str, str]'`
+  - Combines web search and content scraping into a single operation.
+- `owl_show(self, docs: 'bool' = True, return_str: 'bool' = False) -> 'List[str]'`
   - Display active namespace objects with documentation.
-- `owl_tools(self, as_json: bool = True) -> List[Union[Callable, Dict]]`
+- `owl_tools(self, as_json: 'bool' = True) -> 'List[Union[Callable, Dict]]'`
   - Retrieve available tool-callable functions in OpenAI-compatible format.
-- `owl_write(self, file_path: str, content: str) -> None`
+- `owl_write(self, file_path: 'str', content: 'str') -> 'None'`
   - Write text content to filesystem.
 
 #### ExpertPrompts
@@ -1217,7 +1221,7 @@ to decide the processor type. Otherwise, it will use the model_id string to make
 #### is_url
 
 ```python
-def is_url(url: str) -> bool
+def is_url(url: 'str') -> 'bool'
 ```
 
 Check if a string is a valid URL.
@@ -1405,5 +1409,8 @@ Voice control features include:
   * Configurable settings like command cooldown and typing intervals
   * Support for multiple languages and speech recognition models
 - Added JSON-based configuration for all voice control settings
+- Added `owl_search_and_scrape` function to the Python interpreter. This function can be used to search and scrape the web using DuckDuckGo's API.
+- Added `owl_create_document_searcher` function to the Python interpreter. This utilityfunction can be used to create a `DocumentSearcher` instance with a given set of documents and a text splitter.
+- Several minog bugfixes and improvements.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
