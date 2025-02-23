@@ -508,7 +508,7 @@ Voice control features include:
 - Added JSON-based configuration for all voice control settings
 - Added `owl_search_and_scrape` function to the Python interpreter. This function can be used to search and scrape the web using DuckDuckGo's API.
 - Added `owl_create_document_searcher` function to the Python interpreter. This utilityfunction can be used to create a `DocumentSearcher` instance with a given set of documents and a text splitter.
-- Several minog bugfixes and improvements.
+- Several minor bugfixes and improvements.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
