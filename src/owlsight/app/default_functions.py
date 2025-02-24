@@ -11,7 +11,7 @@ import json
 import dill
 import time
 import random
-from typing import Optional, List, Dict, Union, Iterable, Callable, TypeVar
+from typing import Optional, List, Dict, Union, Iterable, Callable, TypeVar, Any
 from datetime import datetime
 from pathlib import Path
 
@@ -611,13 +611,14 @@ class OwlDefaultFunctions:
         self,
         documents: Dict[str, str],
         sentence_transformer_model_name: str,
+        sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
         percentile: float = 0.99,
         target_chunk_length: int = 400,
         device: Optional[str] = None,
         **document_searcher_kwargs,
     ) -> document_searcher_type:
         """
-        Create a DocumentSearcher instance from a dictionary of documents.
+        Utility function to create a DocumentSearcher instance from a dictionary of documents.
         This is useful for semantic search across multiple documents using a sentence transformer model.
         A semantic text splitter is used first to split documents into smaller, semantically coherent chunks.
         Both chunking and embedding is done with the model specified by `sentence_transformer_model_name`.
@@ -628,6 +629,9 @@ class OwlDefaultFunctions:
             Dictionary mapping document names (keys) to their text content (values)
         sentence_transformer_model_name : str
             Name of the sentence transformer model to use for embeddings
+        sentence_transformer_kwargs : Optional[Dict[str, Any]], default=None
+            Keyword arguments to pass to the SentenceTransformer constructor. 
+            For example: `sentence_transformer_kwargs={"prompts": {"query": "query: ", "passage": "passage: "}}`
         percentile : float, default=0.99
             Percentile threshold for semantic text splitting.
             The higher the percentile, the larger the semantic distance required between adjacent embeddings, the less
@@ -662,6 +666,9 @@ class OwlDefaultFunctions:
             "target_chunk_length": target_chunk_length,
             **document_searcher_kwargs,
         }
+        if sentence_transformer_kwargs is not None:
+            cache_params.update(sentence_transformer_kwargs)
+
         cache_key = self._create_cache_key(documents, sentence_transformer_model_name, **cache_params)
 
         # Return cached instance if available
@@ -674,6 +681,7 @@ class OwlDefaultFunctions:
             target_chunk_length=target_chunk_length,
             model_name=sentence_transformer_model_name,
             device=device,
+            sentence_transformer_kwargs=sentence_transformer_kwargs,
         )
 
         searcher = DocumentSearcher(
@@ -681,7 +689,7 @@ class OwlDefaultFunctions:
             sentence_transformer_model=sentence_transformer_model_name,
             text_splitter=doc_splitter,
             device=device,
-            **document_searcher_kwargs,
+            sentence_transformer_kwargs=sentence_transformer_kwargs,
         )
 
         # Cache the new instance
