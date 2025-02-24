@@ -82,6 +82,7 @@ class DocumentSearcher:
         cache_dir_suffix: Optional[str] = None,
         device: Optional[str] = None,
         sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
+        encode_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.documents = documents
         self.cache_dir = cache_dir
@@ -92,7 +93,7 @@ class DocumentSearcher:
 
         self.sentence_transformer_model = sentence_transformer_model
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
-        
+
         # Initialize base arguments
         st_init_args = {
             "pooling_strategy": "mean",
@@ -100,14 +101,15 @@ class DocumentSearcher:
             "batch_size": self.sentence_transformer_batch_size,
             "device": device,
         }
-        
+
         # Only add sentence_transformer_kwargs if provided
         if sentence_transformer_kwargs is not None:
             st_init_args["sentence_transformer_kwargs"] = sentence_transformer_kwargs
-            
-        engine_init_arguments = {
-            SearchMethod.SENTENCE_TRANSFORMER: st_init_args
-        }
+
+        if encode_kwargs is not None:
+            st_init_args["encode_kwargs"] = encode_kwargs
+
+        engine_init_arguments = {SearchMethod.SENTENCE_TRANSFORMER: st_init_args}
         self.engine = EnsembleSearchEngine(
             documents=self.documents,
             search_methods=[SearchMethod.TFIDF, SearchMethod.SENTENCE_TRANSFORMER],
@@ -486,6 +488,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         cache_dir_suffix: Optional[str] = None,
         batch_size: int = 64,
         sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
+        encode_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the Sentence Transformer search engine.
@@ -512,6 +515,8 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
             Batch size for embedding creation
         sentence_transformer_kwargs : Optional[Dict[str, Any]], default None
             Additional keyword arguments to pass to the SentenceTransformer constructor
+        encode_kwargs : Optional[Dict[str, Any]], default None
+            Additional keyword arguments to pass to the SentenceTransformer encode method
         """
         self._check_pooling_strategy(pooling_strategy)
         if cache_dir_suffix:
@@ -526,14 +531,15 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         self.obj_names = list(documents.keys())
         self.model_name = model_name
         self.device = device or get_best_device()
-        
+
         # Initialize model with additional kwargs if provided
         model_kwargs = {"device": self.device, "trust_remote_code": True}
         if sentence_transformer_kwargs:
             model_kwargs.update(sentence_transformer_kwargs)
         self.model = SentenceTransformer(model_name, **model_kwargs)
-        
+
         self.batch_size = batch_size
+        self.encode_kwargs = encode_kwargs or {}
         self.embeddings = None
         self._pooling_strategy = pooling_strategy
 
@@ -585,7 +591,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
 
                     # Encode flattened sentences
                     batch_embeddings = self.model.encode(
-                        flat_sentences, convert_to_tensor=True, show_progress_bar=False
+                        flat_sentences, convert_to_tensor=True, show_progress_bar=False, **self.encode_kwargs
                     )
 
                     # Reshape embeddings back to document structure
@@ -609,7 +615,9 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
                         embeddings_list.append(torch.stack(doc_embeddings))
                 else:
                     # Direct encoding for single texts
-                    batch_embeddings = self.model.encode(batch_texts, convert_to_tensor=True, show_progress_bar=False)
+                    batch_embeddings = self.model.encode(
+                        batch_texts, convert_to_tensor=True, show_progress_bar=False, **self.encode_kwargs
+                    )
                     embeddings_list.append(batch_embeddings)
 
             if not embeddings_list:
@@ -631,7 +639,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
             return []
 
         try:
-            query_embedding = self.model.encode(query, convert_to_tensor=True)
+            query_embedding = self.model.encode(query, convert_to_tensor=True, **self.encode_kwargs)
             query_embedding = query_embedding.to(self.embeddings.device)
             query_embedding = query_embedding.view(1, -1)
             embeddings = self.embeddings.view(len(self.embeddings), -1)

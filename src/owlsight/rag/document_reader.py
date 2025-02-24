@@ -341,11 +341,3 @@ class DocumentReader:
         if actual_hash != expected_hash:
             raise ValueError(f"MD5 mismatch for {jar_path.name}\nExpected: {expected_hash}\nActual:   {actual_hash}")
 
-
-if __name__ == "__main__":
-    # Create a DocumentReader instance
-    reader = DocumentReader()
-
-    # Read the current directory
-    for filepath, content in reader.read_directory(".", recursive=False):
-        print(f"Found {len(content)} characters in {filepath}")
