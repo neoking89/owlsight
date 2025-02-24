@@ -3,7 +3,7 @@ Intelligent Document Search Application
 ------------------------------------
 A Streamlit-based application build on Owlsight, that provides two main functionalities:
 1. Web Search: Search and analyze online content using DuckDuckGo
-2. Document Search: Upload and search through local documents, using Apache Tika. 
+2. Document Search: Upload and search through local documents, using Apache Tika.
 The power of Apache Tika lies in its ability to extract text from a wide range of file formats, including PDF, DOCX, and more.
 
 Features:
@@ -19,7 +19,6 @@ streamlit run examples/streamlit_retrieval_app.py
 ```
 """
 
-
 import sys
 import streamlit as st
 import hashlib
@@ -29,6 +28,7 @@ import torch
 sys.path.append("src")
 
 from owlsight import OwlDefaultFunctions
+# from owlsight.huggingface.leaderboards import get_mteb_leaderboard
 
 
 def capture_console_output(func, *args, **kwargs):
@@ -91,7 +91,7 @@ def calculate_files_hash(uploaded_files):
     return hasher.hexdigest()
 
 
-def run_search(query, max_results, transformer_model, device, chunk_length):
+def run_search(query, max_results, transformer_model, device, chunk_length, sentence_transformer_kwargs=None):
     """
     Runs the document search via web scraping and captures console output.
     """
@@ -110,6 +110,7 @@ def run_search(query, max_results, transformer_model, device, chunk_length):
             sentence_transformer_model_name=transformer_model,
             device=device,
             target_chunk_length=chunk_length,
+            sentence_transformer_kwargs=sentence_transformer_kwargs,
         )
 
         # Capture console output while performing search
@@ -127,7 +128,9 @@ def run_search(query, max_results, transformer_model, device, chunk_length):
         return None, f"Error occurred: {str(e)}"
 
 
-def process_uploaded_documents(uploaded_files, transformer_model, device, chunk_length):
+def process_uploaded_documents(
+    uploaded_files, transformer_model, device, chunk_length, sentence_transformer_kwargs=None
+):
     """
     Process uploaded documents and create a searcher.
     """
@@ -146,6 +149,7 @@ def process_uploaded_documents(uploaded_files, transformer_model, device, chunk_
             sentence_transformer_model_name=transformer_model,
             device=device,
             target_chunk_length=chunk_length,
+            sentence_transformer_kwargs=sentence_transformer_kwargs,
         )
 
         return searcher, console_output
@@ -171,7 +175,12 @@ def search_documents(searcher, query):
 
 def main():
     # Set page configuration
-    st.set_page_config(page_title="🦉 Intelligent Document Search", layout="wide", initial_sidebar_state="expanded", page_icon="🦉",)
+    st.set_page_config(
+        page_title="🦉 Intelligent Document Search",
+        layout="wide",
+        initial_sidebar_state="expanded",
+        page_icon="🦉",
+    )
 
     # Custom CSS for a more professional look
     st.markdown(
@@ -209,6 +218,8 @@ def main():
         st.session_state.document_searcher = None
     if "processing_console_output" not in st.session_state:
         st.session_state.processing_console_output = ""
+    if "sentence_transformer_kwargs" not in st.session_state:
+        st.session_state.sentence_transformer_kwargs = None
 
     # Dashboard Header with improved styling
     st.title("🦉 Intelligent Document Search")
@@ -239,10 +250,12 @@ def main():
             value="all-MiniLM-L6-v2",
             help="Specify the embedding model (Sentence Transformer) for document retrieval",
         )
-
+        devices = ["🔷 cuda", "💠 cpu"]
+        if sys.platform == "darwin":
+            devices.append("mps")
         device = st.selectbox(
             "Processing Unit",
-            ["🔷 cuda", "💠 cpu"],
+            devices,
             index=0 if torch.cuda.is_available() else 1,
             format_func=lambda x: x.split()[-1],
             help="Select the processing unit for computations",
@@ -257,6 +270,42 @@ def main():
             step=50,
             help="Adjust the character chunk size for retrieval with a semantic-based approach. The size is a target value, but the actual chunk size may vary depending on the content.",
         )
+
+#         prompts = st.text_area(
+#             "Prompts (Optional)",
+#             value="",
+#             help="""Some models require additional prompts in JSON format to prepend before text encoding. Leave empty for no prompts.
+
+# Example format:
+# {
+#     "query": "query: ",
+#     "passage": "passage: "
+# }
+
+# The prompts will be prepended before any text to encode:
+# - When encoding a query: "query: your search text"
+# - When encoding a passage: "passage: your document text"
+# """,
+#         )
+
+#         if prompts.strip():
+#             try:
+#                 import json
+
+#                 prompts_dict = json.loads(prompts)
+
+#                 # Validate the prompts format
+#                 if not isinstance(prompts_dict, dict):
+#                     st.warning("Prompts must be a JSON object/dictionary.")
+#                 elif not all(isinstance(k, str) and isinstance(v, str) for k, v in prompts_dict.items()):
+#                     st.warning("All keys and values in prompts must be strings.")
+#                 else:
+#                     st.session_state.sentence_transformer_kwargs = {"prompts": prompts_dict}
+#                     st.success("✅ Prompts format is valid!")
+#             except json.JSONDecodeError as e:
+#                 st.warning(f"Invalid JSON format: {str(e)}")
+#         else:
+#             st.session_state.sentence_transformer_kwargs = None
 
     # Main content area
     if search_mode == "🌍 Online Search":
@@ -278,7 +327,14 @@ def main():
         if st.button("🚀 Search Web", use_container_width=True):
             if query:
                 with st.spinner("🔄 Searching and analyzing documents..."):
-                    df, console_output = run_search(query, max_results, transformer_model, device, chunk_length)
+                    df, console_output = run_search(
+                        query,
+                        max_results,
+                        transformer_model,
+                        device,
+                        chunk_length,
+                        st.session_state.sentence_transformer_kwargs,
+                    )
 
                 if df is not None:
                     st.success("✅ Search completed!")
@@ -340,7 +396,11 @@ def main():
             ):
                 with st.spinner("🔄 Processing documents..."):
                     searcher, console_output = process_uploaded_documents(
-                        uploaded_files, transformer_model, device, chunk_length
+                        uploaded_files,
+                        transformer_model,
+                        device,
+                        chunk_length,
+                        st.session_state.sentence_transformer_kwargs,
                     )
 
                     if searcher is not None:
