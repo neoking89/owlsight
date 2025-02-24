@@ -29,6 +29,7 @@ dependencies = [
     "html5lib",
     "aiohttp",
     "duckduckgo_search",
+    "gradio"
 ]
 
 [project.optional-dependencies]
@@ -97,6 +98,7 @@ all = [
     "sentence-transformers",
     "pytesseract",
     "pillow",
+    "gradio",
 ]
 
 [tool.pytest.ini_options]
