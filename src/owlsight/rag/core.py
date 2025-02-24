@@ -36,40 +36,6 @@ class DocumentSearcher:
 
     And then use the `search` method to combine the results:
     [Combine TF-IDF and Sentence Transformer results]
-
-    Parameters
-    ----------
-    documents : Dict[str, str]
-        Dictionary mapping document IDs to their content
-    sentence_transformer_model : str, default='Alibaba-NLP/gte-base-en-v1.5'
-        Name or path of the Sentence Transformer model
-    sentence_transformer_batch_size : int, default=64
-        Batch size for computing embeddings
-    text_splitter : Optional[TextSplitter], default=None
-        Strategy for splitting documents into chunks. If None, no splitting is done.
-    cache_dir : str, optional
-        Directory to cache embeddings and results
-    cache_dir_suffix : str, optional
-        Suffix for cache directory name.
-        Recommended is to use a name which is unique and descriptive to the documents.
-
-    Notes
-    -----
-    - Uses both TF-IDF and neural embeddings for robust search
-    - Has caching capabilities in pickled files
-    - Supports batch processing for efficient embedding computation
-    - Supports custom text splitting strategies through the TextSplitter interface
-
-    Examples
-    --------
-    >>> docs = {
-    ...     "doc1": "Python is a programming language",
-    ...     "doc2": "Machine learning is fascinating"
-    ... }
-    >>> # Using default sentence-based splitting
-    >>> splitter = SentenceTextSplitter(n_sentences=3, n_overlap=1)
-    >>> searcher = DocumentSearcher(docs, text_splitter=splitter, cache_dir="document_cache", cache_dir_suffix="programming")
-    >>> results = searcher.search("python programming", top_k=3)
     """
 
     def __init__(
@@ -84,6 +50,49 @@ class DocumentSearcher:
         sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
         encode_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """
+        Initialize the DocumentSearcher.
+
+        Parameters
+        ----------
+        documents : Dict[str, str]
+            Dictionary mapping document IDs to their content
+        sentence_transformer_model : str, default='Alibaba-NLP/gte-base-en-v1.5'
+            Name or path of the Sentence Transformer model
+        sentence_transformer_batch_size : int, default=64
+            Batch size for computing embeddings
+        text_splitter : Optional[TextSplitter], default=None
+            Strategy for splitting documents into chunks. If None, no splitting is done.
+        cache_dir : str, optional
+            Directory to cache embeddings and results
+        cache_dir_suffix : str, optional
+            Suffix for cache directory name.
+            Recommended is to use a name which is unique and descriptive to the documents.
+        device : Optional[str], default=None
+            Device to use for Sentence Transformer model
+        sentence_transformer_kwargs : Optional[Dict[str, Any]], default=None
+            Additional keyword arguments to pass to the SentenceTransformer constructor
+        encode_kwargs : Optional[Dict[str, Any]], default=None
+            Additional keyword arguments to pass to the SentenceTransformer `encode` method
+
+        Notes
+        -----
+        - Uses both TF-IDF and neural embeddings for robust search
+        - Has caching capabilities in pickled files
+        - Supports batch processing for efficient embedding computation
+        - Supports custom text splitting strategies through the TextSplitter interface
+
+        Examples
+        --------
+        >>> docs = {
+        ...     "doc1": "Python is a programming language",
+        ...     "doc2": "Machine learning is fascinating"
+        ... }
+        >>> # Using default sentence-based splitting
+        >>> splitter = SentenceTextSplitter(n_sentences=3, n_overlap=1)
+        >>> searcher = DocumentSearcher(docs, text_splitter=splitter, cache_dir="document_cache", cache_dir_suffix="programming")
+        >>> results = searcher.search("python programming", top_k=3)
+        """
         self.documents = documents
         self.cache_dir = cache_dir
         self.cache_dir_suffix = cache_dir_suffix
@@ -434,48 +443,6 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
 
     This search engine uses neural embeddings to find semantically similar documents,
     making it effective for concept-based search rather than just keyword matching.
-
-    Parameters
-    ----------
-    documents : Dict[str, str]
-        Dictionary mapping document IDs to their content
-    model_name : str, default='Alibaba-NLP/gte-base-en-v1.5'
-        Name or path of the Sentence Transformer model
-    pooling_strategy : {'mean', 'max', None}, default='mean'
-        Strategy for pooling sentence embeddings:
-        - 'mean': Average embeddings (better for context)
-        - 'max': Maximum values (better for key concepts)
-        - None: No pooling (for single-sentence documents)
-    device : str, optional
-        Device to run model on ('cpu', 'cuda', etc.)
-    cache_dir : str, optional
-        Directory to cache embeddings
-    cache_dir_suffix : str, optional
-        Suffix for cache directory name
-    batch_size : int, default=64
-        Batch size for computing embeddings
-    sentence_transformer_kwargs : Optional[Dict[str, Any]], default None
-        Additional keyword arguments to pass to the SentenceTransformer constructor
-
-    Notes
-    -----
-    - Provides semantic search capability
-    - Automatically handles sentence splitting and pooling
-    - Supports GPU acceleration
-    - Caches embeddings for better performance
-
-    Examples
-    --------
-    >>> docs = {
-    ...     "doc1": "Python is great for machine learning",
-    ...     "doc2": "Deep learning revolutionized AI"
-    ... }
-    >>> engine = SentenceTransformerSearchEngine(
-    ...     docs,
-    ...     model_name='all-MiniLM-L6-v2',
-    ...     pooling_strategy='mean'
-    ... )
-    >>> results = engine.search("AI and ML", top_k=1)
     """
 
     def __init__(
@@ -516,7 +483,27 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         sentence_transformer_kwargs : Optional[Dict[str, Any]], default None
             Additional keyword arguments to pass to the SentenceTransformer constructor
         encode_kwargs : Optional[Dict[str, Any]], default None
-            Additional keyword arguments to pass to the SentenceTransformer encode method
+            Additional keyword arguments to pass to the SentenceTransformer `encode` method
+
+        Notes
+        -----
+        - Provides semantic search capability
+        - Automatically handles sentence splitting and pooling
+        - Supports GPU acceleration
+        - Caches embeddings for better performance
+
+        Examples
+        --------
+        >>> docs = {
+        ...     "doc1": "Python is great for machine learning",
+        ...     "doc2": "Deep learning revolutionized AI"
+        ... }
+        >>> engine = SentenceTransformerSearchEngine(
+        ...     docs,
+        ...     model_name='all-MiniLM-L6-v2',
+        ...     pooling_strategy='mean'
+        ... )
+        >>> results = engine.search("AI and ML", top_k=1)
         """
         self._check_pooling_strategy(pooling_strategy)
         if cache_dir_suffix:
