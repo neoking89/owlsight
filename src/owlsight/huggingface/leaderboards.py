@@ -12,7 +12,6 @@ import pandas as pd
 from gradio_client import Client
 
 
-@lru_cache(maxsize=64)
 def extract_leaderboard_data(api_text: str) -> str:
     """
     Extract the leaderboard data dictionary from the API usage text.
@@ -55,6 +54,7 @@ def extract_leaderboard_data(api_text: str) -> str:
     raise ValueError("Could not find end of data structure")
 
 
+@lru_cache(maxsize=64)
 def get_leaderboard_data(leaderboard_id: str) -> pd.DataFrame:
     """
     Fetch and parse data from a Hugging Face leaderboard.
@@ -117,63 +117,49 @@ def convert_params_to_number(value_str: str) -> float | None:
 
 def parse_huggingface_repo(input_text: str) -> Dict[str, Optional[str]]:
     """Parse Hugging Face repository references from various formats.
-    
+
     Parameters
     ----------
         input_text: String in format of markdown link, direct path (org/model),
                    or full HF URL
-    
+
     Returns:
     -------
-        Dict with keys: organization, model_name, full_path, original_input
-        
+        Dict with keys: organization, model_name, full_path, original_input, url
+
     Example:
     ---------
         >>> parse_huggingface_repo("Lajavaness/bilingual-embedding-large")
         {'organization': 'Lajavaness', 'model_name': 'bilingual-embedding-large', ...}
     """
     # Initialize default return structure
-    result = {
-        "organization": None,
-        "model_name": None,
-        "full_path": None,
-        "original_input": input_text
-    }
-    
-    # Regular expressions for different formats
-    markdown_link_regex = r"\[(.*?)\]\((https?:\/\/[^)]+)\)"
-    direct_path_regex = r"^([^/\s]+)\/([^/\s]+)$"
-    url_regex = r"https?:\/\/(?:www\.)?huggingface\.co\/([^/\s]+)\/([^/\s]+)"
-    
-    # Try parsing markdown link format
-    markdown_match = re.search(markdown_link_regex, input_text)
+    result = {"organization": None, "model_name": None, "full_path": None, "original_input": input_text, "url": None}
+
+    # Extract URL from markdown link if present
+    markdown_match = re.search(r"\[(.*?)\]\((https?:\/\/[^)]+)\)", input_text)
     if markdown_match:
-        # Extract URL from markdown link
         input_text = markdown_match.group(2)
-    
-    # Check if it's a direct URL
-    url_match = re.search(url_regex, input_text)
+
+    # Try to match URL or direct path format
+    url_match = re.search(r"(?:https?:\/\/(?:www\.)?huggingface\.co\/)?([^/\s]+)\/([^/\s]+)", input_text)
+
     if url_match:
         result["organization"] = url_match.group(1)
         result["model_name"] = url_match.group(2)
         result["full_path"] = f"{result['organization']}/{result['model_name']}"
-        return result
-    
-    # Check if it's a direct path format (org/model)
-    direct_match = re.search(direct_path_regex, input_text)
-    if direct_match:
-        result["organization"] = direct_match.group(1)
-        result["model_name"] = direct_match.group(2)
-        result["full_path"] = f"{result['organization']}/{result['model_name']}"
-        return result
-    
-    # If no matches found, return the initialized result
+
+        # Only set URL if it's not already a URL
+        if "huggingface.co" in input_text:
+            result["url"] = input_text
+        else:
+            result["url"] = f"https://huggingface.co/{result['full_path']}"
+
     return result
+
 
 def get_mteb_leaderboard(max_params: Optional[int] = None) -> pd.DataFrame:
     """
-    Fetch and parse data from the MTEB leaderboard.
-    This leaderboard is focussing on text embedding models.
+    Fetch and parse data from the MTEB leaderboard, focussed on text embedding models.
 
     Parameters:
     ----------
@@ -188,7 +174,9 @@ def get_mteb_leaderboard(max_params: Optional[int] = None) -> pd.DataFrame:
     leaderboard = "mteb/leaderboard"
     df = get_leaderboard_data(leaderboard)
     df["Number of Parameters"] = df["Number of Parameters"].apply(convert_params_to_number)
-    df["Model"] = df["Model"].apply(lambda x: parse_huggingface_repo(x)["full_path"])
+    _ = df["Model"].apply(parse_huggingface_repo)
+    df["Model"] = _.apply(lambda x: x["full_path"])
+    df["Url"] = _.apply(lambda x: x["url"])
     if max_params is not None:
-        df = df.where(df["Number of Parameters"] < max_params).dropna()
+        df = df.where(df["Number of Parameters"] < max_params)
     return df
