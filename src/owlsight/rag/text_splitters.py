@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import re
-from typing import Dict, List, Optional, TypeVar, Union
+from typing import Dict, List, Optional, TypeVar, Union, Any
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -218,11 +218,12 @@ class SemanticTextSplitter(TextSplitter):
 
     def __init__(
         self,
-        model_name: Optional[str] = SENTENCETRANSFORMER_DEFAULT_MODEL,
-        window_size: int = 1,
+        model_name: str = SENTENCETRANSFORMER_DEFAULT_MODEL,
+        window_size: int = 0,
         percentile: float = 0.90,
         device: Optional[str] = None,
         target_chunk_length: Optional[int] = None,
+        sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Splits text documents into semantically coherent chunks using SentenceTransformer embeddings.
@@ -238,18 +239,22 @@ class SemanticTextSplitter(TextSplitter):
         ----------
         model_name : str
             The name or identifier of the SentenceTransformer model used for embedding.
-        window_size : int
-            The number of neighboring sentences to include on each side when forming a context window
-            for each sentence.
-        percentile : float
-            The percentile (scaled to 0-100) used to determine the threshold for semantic breakpoints.
-            The higher the percentile, the larger the semantic distance required between adjacent
-            embeddings to consider them as a breakpoint. Thus, a higher value results in fewer splits (i.e., larger chunks).
+            This can be a local path or a model identifier from the Hugging Face Hub.
+        window_size : int, default 0
+            The number of sentences to consider in each window when calculating similarity scores.
+            A larger window size considers more context but may result in larger chunks.
+            Ideally, this is kept to 0 when using sentence_transformers to embed every sentence.
+        percentile : float, default 0.90
+            The percentile threshold for similarity scores when deciding chunk boundaries.
+            Higher values create more chunks, lower values create fewer but larger chunks.
         device : Optional[str]
             The device (e.g., 'cpu' or 'cuda') on which to run the SentenceTransformer model.
+            If None, automatically selects the best available device.
         target_chunk_length : Optional[int]
             If set, aims to maintain this as the mean chunk length in characters.
             This is a soft target that helps balance chunk sizes while preserving semantic relevance.
+        sentence_transformer_kwargs : Optional[Dict[str, Any]], default None
+            Additional keyword arguments to pass to the SentenceTransformer constructor
 
         Attributes
         ----------
@@ -266,11 +271,16 @@ class SemanticTextSplitter(TextSplitter):
             raise ImportError("Please install `sentence-transformers` to use SemanticTextSplitter.")
 
         self.model_name = model_name
-        self._model = SentenceTransformer(model_name, trust_remote_code=True, device=device) if model_name else None
+        # Initialize model with additional kwargs if provided
+        model_kwargs = {"trust_remote_code": True, "device": device}
+        if sentence_transformer_kwargs:
+            model_kwargs.update(sentence_transformer_kwargs)
+        self._model = SentenceTransformer(model_name, **model_kwargs) if model_name else None
         self.window_size = window_size
         self.percentile = percentile * 100
         self.device = device
         self.target_chunk_length = target_chunk_length
+        self._sentence_transformer_kwargs = sentence_transformer_kwargs
 
     def split_documents(self, documents: Dict[str, str], show_progress_bar: bool = True, **kwargs) -> Dict[str, str]:
         """Split documents using semantic breakpoint detection."""
@@ -292,11 +302,16 @@ class SemanticTextSplitter(TextSplitter):
                 continue
 
             # Create windowed sentences
-            windowed_sentences = [
-                " ".join(sentences[max(0, i - self.window_size) : i + self.window_size + 1])
-                for i in range(len(sentences))
-            ]
-
+            if self.window_size == 0:
+                # Each sentence is embedded individually
+                windowed_sentences = sentences.copy()
+            else:
+                # Use the existing windowing logic
+                windowed_sentences = [
+                    " ".join(sentences[max(0, i - self.window_size) : i + self.window_size + 1])
+                    for i in range(len(sentences))
+                ]
+                
             # Generate embeddings
             embeddings = self._model.encode(
                 windowed_sentences, convert_to_numpy=True, show_progress_bar=show_progress_bar
@@ -324,10 +339,19 @@ class SemanticTextSplitter(TextSplitter):
         return final_results
 
     def set_model(self, model: Union[str, SENCENCETRANSFORMER_TYPE]) -> None:
-        """Set the model for the splitter."""
+        """Set or update the model used for generating embeddings.
+
+        Parameters
+        ----------
+        model : Union[str, SentenceTransformer]
+            Either a string specifying the model name/path or a pre-initialized SentenceTransformer instance
+        """
         if isinstance(model, str):
-            self._model = SentenceTransformer(model, trust_remote_code=True, device=self.device)
-            self.model_name = model
+            # Initialize model with additional kwargs if provided
+            model_kwargs = {"trust_remote_code": True, "device": self.device}
+            if hasattr(self, '_sentence_transformer_kwargs') and self._sentence_transformer_kwargs:
+                model_kwargs.update(self._sentence_transformer_kwargs)
+            self._model = SentenceTransformer(model, **model_kwargs)
         elif isinstance(model, SentenceTransformer):
             self._model = model
             self.model_name = str(model)[:10]

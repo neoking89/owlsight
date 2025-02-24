@@ -81,6 +81,7 @@ class DocumentSearcher:
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
         device: Optional[str] = None,
+        sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.documents = documents
         self.cache_dir = cache_dir
@@ -91,13 +92,21 @@ class DocumentSearcher:
 
         self.sentence_transformer_model = sentence_transformer_model
         self.sentence_transformer_batch_size = sentence_transformer_batch_size
+        
+        # Initialize base arguments
+        st_init_args = {
+            "pooling_strategy": "mean",
+            "model_name": self.sentence_transformer_model,
+            "batch_size": self.sentence_transformer_batch_size,
+            "device": device,
+        }
+        
+        # Only add sentence_transformer_kwargs if provided
+        if sentence_transformer_kwargs is not None:
+            st_init_args["sentence_transformer_kwargs"] = sentence_transformer_kwargs
+            
         engine_init_arguments = {
-            SearchMethod.SENTENCE_TRANSFORMER: {
-                "pooling_strategy": "mean",
-                "model_name": self.sentence_transformer_model,
-                "batch_size": self.sentence_transformer_batch_size,
-                "device": device,
-            }
+            SearchMethod.SENTENCE_TRANSFORMER: st_init_args
         }
         self.engine = EnsembleSearchEngine(
             documents=self.documents,
@@ -443,6 +452,8 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         Suffix for cache directory name
     batch_size : int, default=64
         Batch size for computing embeddings
+    sentence_transformer_kwargs : Optional[Dict[str, Any]], default None
+        Additional keyword arguments to pass to the SentenceTransformer constructor
 
     Notes
     -----
@@ -474,6 +485,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         cache_dir: Optional[str] = None,
         cache_dir_suffix: Optional[str] = None,
         batch_size: int = 64,
+        sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the Sentence Transformer search engine.
@@ -498,6 +510,8 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
             Suffix to append to cache directory. Required if cache_dir is specified
         batch_size : int, default 32
             Batch size for embedding creation
+        sentence_transformer_kwargs : Optional[Dict[str, Any]], default None
+            Additional keyword arguments to pass to the SentenceTransformer constructor
         """
         self._check_pooling_strategy(pooling_strategy)
         if cache_dir_suffix:
@@ -512,7 +526,13 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         self.obj_names = list(documents.keys())
         self.model_name = model_name
         self.device = device or get_best_device()
-        self.model = SentenceTransformer(model_name, device=self.device, trust_remote_code=True)
+        
+        # Initialize model with additional kwargs if provided
+        model_kwargs = {"device": self.device, "trust_remote_code": True}
+        if sentence_transformer_kwargs:
+            model_kwargs.update(sentence_transformer_kwargs)
+        self.model = SentenceTransformer(model_name, **model_kwargs)
+        
         self.batch_size = batch_size
         self.embeddings = None
         self._pooling_strategy = pooling_strategy
@@ -663,7 +683,11 @@ class EnsembleSearchEngine:
             List of search methods to use. These get linked to the corresponding SearchEngine classes.
         init_arguments : Optional[Dict[str, Dict]], default None
             Dictionary containing initialization arguments for each SearchEngine
-            Example: {SearchMethod.TFIDF: {"ngram_range": (1, 2)}}
+            Example: {SearchMethod.TFIDF: {"ngram_range": (1, 2)},
+                     SearchMethod.SENTENCE_TRANSFORMER: {
+                         "model_name": "all-MiniLM-L6-v2",
+                         "sentence_transformer_kwargs": {"normalize_embeddings": True}
+                     }}
         """
         self.documents = documents
         self.cache_dir = cache_dir
@@ -687,7 +711,12 @@ class EnsembleSearchEngine:
             if method == SearchMethod.TFIDF:
                 engine = TFIDFSearchEngine(**engine_kwargs)
             elif method == SearchMethod.SENTENCE_TRANSFORMER:
-                engine = SentenceTransformerSearchEngine(**engine_kwargs)
+                # Extract sentence_transformer_kwargs if present, don't add if not present
+                if "sentence_transformer_kwargs" in engine_kwargs:
+                    st_kwargs = engine_kwargs.pop("sentence_transformer_kwargs")
+                    engine = SentenceTransformerSearchEngine(**engine_kwargs, sentence_transformer_kwargs=st_kwargs)
+                else:
+                    engine = SentenceTransformerSearchEngine(**engine_kwargs)
             elif method == SearchMethod.HASHING:
                 engine = HashingVectorizerSearchEngine(**engine_kwargs)
             else:
