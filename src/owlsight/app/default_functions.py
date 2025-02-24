@@ -630,7 +630,7 @@ class OwlDefaultFunctions:
         sentence_transformer_model_name : str
             Name of the sentence transformer model to use for embeddings
         sentence_transformer_kwargs : Optional[Dict[str, Any]], default=None
-            Keyword arguments to pass to the SentenceTransformer constructor. 
+            Keyword arguments to pass to the SentenceTransformer constructor.
             For example: `sentence_transformer_kwargs={"prompts": {"query": "query: ", "passage": "passage: "}}`
         percentile : float, default=0.99
             Percentile threshold for semantic text splitting.
@@ -640,9 +640,9 @@ class OwlDefaultFunctions:
             Target character length for text chunks during splitting
         device : Optional[str], default=None
             Device to use for embedding and chunking
-        **document_searcher_kwargs
-            Additional keyword arguments to pass to the DocumentSearcher constructor
-            Examples include: `cache_dir`, `cache_dir_suffix`, `batch_size`
+        **document_searcher_kwargs :
+            Additional keyword arguments to pass to the DocumentSearcher constructor.
+            Examples are `cache_dir` and `cache_dir_suffix`.
 
         Returns
         -------
@@ -690,6 +690,7 @@ class OwlDefaultFunctions:
             text_splitter=doc_splitter,
             device=device,
             sentence_transformer_kwargs=sentence_transformer_kwargs,
+            **document_searcher_kwargs,
         )
 
         # Cache the new instance

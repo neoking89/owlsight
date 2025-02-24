@@ -224,7 +224,6 @@ class SemanticTextSplitter(TextSplitter):
         device: Optional[str] = None,
         target_chunk_length: Optional[int] = None,
         sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
-        encode_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Splits text documents into semantically coherent chunks using SentenceTransformer embeddings.
@@ -282,7 +281,6 @@ class SemanticTextSplitter(TextSplitter):
         self.device = device
         self.target_chunk_length = target_chunk_length
         self._sentence_transformer_kwargs = sentence_transformer_kwargs
-        self._encode_kwargs = encode_kwargs or {}
 
     def split_documents(self, documents: Dict[str, str], show_progress_bar: bool = True, **kwargs) -> Dict[str, str]:
         """Split documents using semantic breakpoint detection."""
@@ -316,7 +314,7 @@ class SemanticTextSplitter(TextSplitter):
 
             # Generate embeddings
             embeddings = self._model.encode(
-                windowed_sentences, convert_to_numpy=True, show_progress_bar=show_progress_bar, **self._encode_kwargs
+                windowed_sentences, convert_to_numpy=True, show_progress_bar=show_progress_bar
             )
 
             # Calculate adjacency distances

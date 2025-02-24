@@ -48,7 +48,6 @@ class DocumentSearcher:
         cache_dir_suffix: Optional[str] = None,
         device: Optional[str] = None,
         sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
-        encode_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Initialize the DocumentSearcher.
@@ -72,8 +71,6 @@ class DocumentSearcher:
             Device to use for Sentence Transformer model
         sentence_transformer_kwargs : Optional[Dict[str, Any]], default=None
             Additional keyword arguments to pass to the SentenceTransformer constructor
-        encode_kwargs : Optional[Dict[str, Any]], default=None
-            Additional keyword arguments to pass to the SentenceTransformer `encode` method
 
         Notes
         -----
@@ -114,9 +111,6 @@ class DocumentSearcher:
         # Only add sentence_transformer_kwargs if provided
         if sentence_transformer_kwargs is not None:
             st_init_args["sentence_transformer_kwargs"] = sentence_transformer_kwargs
-
-        if encode_kwargs is not None:
-            st_init_args["encode_kwargs"] = encode_kwargs
 
         engine_init_arguments = {SearchMethod.SENTENCE_TRANSFORMER: st_init_args}
         self.engine = EnsembleSearchEngine(
@@ -455,7 +449,6 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         cache_dir_suffix: Optional[str] = None,
         batch_size: int = 64,
         sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
-        encode_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the Sentence Transformer search engine.
@@ -482,8 +475,6 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
             Batch size for embedding creation
         sentence_transformer_kwargs : Optional[Dict[str, Any]], default None
             Additional keyword arguments to pass to the SentenceTransformer constructor
-        encode_kwargs : Optional[Dict[str, Any]], default None
-            Additional keyword arguments to pass to the SentenceTransformer `encode` method
 
         Notes
         -----
@@ -526,7 +517,6 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         self.model = SentenceTransformer(model_name, **model_kwargs)
 
         self.batch_size = batch_size
-        self.encode_kwargs = encode_kwargs or {}
         self.embeddings = None
         self._pooling_strategy = pooling_strategy
 
@@ -578,7 +568,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
 
                     # Encode flattened sentences
                     batch_embeddings = self.model.encode(
-                        flat_sentences, convert_to_tensor=True, show_progress_bar=False, **self.encode_kwargs
+                        flat_sentences, convert_to_tensor=True, show_progress_bar=False
                     )
 
                     # Reshape embeddings back to document structure
@@ -603,7 +593,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
                 else:
                     # Direct encoding for single texts
                     batch_embeddings = self.model.encode(
-                        batch_texts, convert_to_tensor=True, show_progress_bar=False, **self.encode_kwargs
+                        batch_texts, convert_to_tensor=True, show_progress_bar=False
                     )
                     embeddings_list.append(batch_embeddings)
 
@@ -626,7 +616,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
             return []
 
         try:
-            query_embedding = self.model.encode(query, convert_to_tensor=True, **self.encode_kwargs)
+            query_embedding = self.model.encode(query, convert_to_tensor=True)
             query_embedding = query_embedding.to(self.embeddings.device)
             query_embedding = query_embedding.view(1, -1)
             embeddings = self.embeddings.view(len(self.embeddings), -1)
