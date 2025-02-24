@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any, Dict, List, Union
 
-from owlsight.hugging_face.constants import HUGGINGFACE_TASKS
+from owlsight.huggingface.constants import HUGGINGFACE_TASKS
 from owlsight.processors.custom_classes import GGUF_Utils
 from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.ui.custom_classes import MenuItem, OptionType

@@ -3,7 +3,7 @@ import os
 
 from transformers.pipelines import get_task
 
-from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
+from owlsight.huggingface.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.multimodal_processors import MultiModalProcessorTransformers
 from owlsight.processors.text_generation_processors import (

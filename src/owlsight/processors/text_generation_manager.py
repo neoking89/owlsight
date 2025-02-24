@@ -13,8 +13,8 @@ from owlsight.ui.custom_classes import AppDTO
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
-from owlsight.hugging_face.core import show_and_return_model_data
-from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
+from owlsight.huggingface.core import show_and_return_model_data
+from owlsight.huggingface.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.utils.helper_functions import (
     convert_to_real_type,
     parse_python_placeholders,

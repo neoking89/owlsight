@@ -28,7 +28,7 @@ from owlsight.utils.threads import ThreadNotKilledError
 from owlsight.utils.custom_exceptions import QuantizationNotSupportedError, InvalidGGUFFileError
 from owlsight.utils.custom_classes import StopWordCriteria
 from owlsight.utils.deep_learning import get_best_device, bfloat16_is_supported
-from owlsight.hugging_face.constants import SUPPORTED_TASKS
+from owlsight.huggingface.constants import SUPPORTED_TASKS
 from owlsight.utils.helper_functions import validate_input_params
 from owlsight.utils.logger import logger
 

@@ -27,7 +27,7 @@ from .rag.core import (
 from .rag.text_splitters import SemanticTextSplitter, SentenceTextSplitter
 from .rag.document_reader import DocumentReader
 from .app.default_functions import OwlDefaultFunctions, is_url
-from .hugging_face.core import get_model_data
+from .huggingface.core import get_model_data
 from .prompts.system_prompts import ExpertPrompts, AgentPrompts, PromptWriter
 from .prompts.helper_functions import function_to_json_for_tool_calling
 from.voice.voice_control import VoiceControl

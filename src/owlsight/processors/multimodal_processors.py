@@ -7,7 +7,7 @@ import requests
 import numpy as np
 import re
 
-from owlsight.hugging_face.constants import HUGGINGFACE_MEDIA_TASKS
+from owlsight.huggingface.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.processors.base import TextGenerationProcessor
 from owlsight.processors.text_generation_processors import (
     TextGenerationProcessorTransformers,
