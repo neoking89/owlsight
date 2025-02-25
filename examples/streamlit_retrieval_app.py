@@ -23,7 +23,6 @@ import sys
 import streamlit as st
 import hashlib
 from io import StringIO
-import torch
 
 sys.path.append("src")
 
@@ -91,7 +90,7 @@ def calculate_files_hash(uploaded_files):
     return hasher.hexdigest()
 
 
-def run_search(query, max_results, transformer_model, device, chunk_length, sentence_transformer_kwargs=None):
+def run_web_search(query, max_results, transformer_model, device, chunk_length, top_k, query_prefix=None, document_prefix=None):
     """
     Runs the document search via web scraping and captures console output.
     """
@@ -103,6 +102,10 @@ def run_search(query, max_results, transformer_model, device, chunk_length, sent
             owl_funcs.owl_search_and_scrape, query, max_results=max_results
         )
 
+        # Add prefix to documents if specified
+        if document_prefix:
+            documents = {k: f"{document_prefix} {v}" for k, v in documents.items()}
+
         # Capture console output while creating document searcher
         searcher, console_output_2 = capture_console_output(
             owl_funcs.owl_create_document_searcher,
@@ -110,11 +113,13 @@ def run_search(query, max_results, transformer_model, device, chunk_length, sent
             sentence_transformer_model_name=transformer_model,
             device=device,
             target_chunk_length=chunk_length,
-            sentence_transformer_kwargs=sentence_transformer_kwargs,
         )
 
+        # Add prefix to query if specified
+        search_query = f"{query_prefix} {query}" if query_prefix else query
+
         # Capture console output while performing search
-        df, console_output_3 = capture_console_output(searcher.search, query, top_k=50)
+        df, console_output_3 = capture_console_output(searcher.search, search_query, top_k=top_k)
 
         # Add source column and reorder columns
         df["source"] = df["document_name"].apply(lambda x: x.split("__split")[0])
@@ -128,9 +133,7 @@ def run_search(query, max_results, transformer_model, device, chunk_length, sent
         return None, f"Error occurred: {str(e)}"
 
 
-def process_uploaded_documents(
-    uploaded_files, transformer_model, device, chunk_length, sentence_transformer_kwargs=None
-):
+def process_uploaded_documents(uploaded_files, transformer_model, device, chunk_length, document_prefix=None):
     """
     Process uploaded documents and create a searcher.
     """
@@ -140,6 +143,8 @@ def process_uploaded_documents(
     try:
         for uploaded_file in uploaded_files:
             document = owl_funcs.owl_read(uploaded_file.getvalue())
+            if document_prefix:
+                document = f"{document_prefix} {document}"
             documents[uploaded_file.name] = document
 
         # Create document searcher
@@ -149,7 +154,6 @@ def process_uploaded_documents(
             sentence_transformer_model_name=transformer_model,
             device=device,
             target_chunk_length=chunk_length,
-            sentence_transformer_kwargs=sentence_transformer_kwargs,
         )
 
         return searcher, console_output
@@ -157,12 +161,15 @@ def process_uploaded_documents(
         return None, f"Error occurred: {str(e)}"
 
 
-def search_documents(searcher, query):
+def search_documents(searcher, query, top_k,query_prefix=None):
     """
     Search through processed documents with a query.
     """
     try:
-        df, console_output = capture_console_output(searcher.search, query, top_k=50)
+        # Add prefix to query if specified
+        search_query = f"{query_prefix} {query}" if query_prefix else query
+
+        df, console_output = capture_console_output(searcher.search, search_query, top_k=top_k)
 
         # Add source column and reorder columns
         df["source"] = df["document_name"].apply(lambda x: x.split("__split")[0])
@@ -218,8 +225,12 @@ def main():
         st.session_state.document_searcher = None
     if "processing_console_output" not in st.session_state:
         st.session_state.processing_console_output = ""
-    if "sentence_transformer_kwargs" not in st.session_state:
-        st.session_state.sentence_transformer_kwargs = None
+    if "query_prefix" not in st.session_state:
+        st.session_state.query_prefix = ""
+    if "document_prefix" not in st.session_state:
+        st.session_state.document_prefix = ""
+    if "top_k" not in st.session_state:
+        st.session_state.top_k = 20
 
     # Dashboard Header with improved styling
     st.title("🦉 Intelligent Document Search")
@@ -245,67 +256,77 @@ def main():
 
     # Advanced Settings in an expander
     with st.sidebar.expander("⚙️ Advanced Settings"):
-        transformer_model = st.text_input(
-            "Sentence Transformer Model",
-            value="all-MiniLM-L6-v2",
-            help="Specify the embedding model (Sentence Transformer) for document retrieval",
+        # Model Settings
+        st.markdown("#### 🤖 Model Settings")
+        transformer_model = st.selectbox(
+            "Transformer Model",
+            ["sentence-transformers/all-mpnet-base-v2", "sentence-transformers/all-MiniLM-L6-v2"],
+            help="Choose the transformer model for semantic search",
         )
-        devices = ["🔷 cuda", "💠 cpu"]
-        if sys.platform == "darwin":
-            devices.append("mps")
+        
+        devices = ["cuda", "cpu", "mps"]
         device = st.selectbox(
-            "Processing Unit",
+            "💻 Device",
             devices,
-            index=0 if torch.cuda.is_available() else 1,
-            format_func=lambda x: x.split()[-1],
-            help="Select the processing unit for computations",
+            help="Choose the device for processing",
         )
-        device = device.split()[-1].lower()
+        
+        st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+        
+        # Search Settings
+        st.markdown("#### 🔍 Search Settings")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.session_state.top_k = st.number_input(
+                "Top K Results",
+                min_value=1,
+                max_value=200,
+                value=20,
+                step=5,
+                help="Number of top retrieval results to show",
+            )
+            
+            max_results = st.number_input(
+                "Web Search Results",
+                min_value=1,
+                max_value=200,
+                value=10,
+                step=5,
+                help="Amount of results to use from web search",
+            )
+            
+        with col2:
+            chunk_length = st.number_input(
+                "Chunk Length",
+                min_value=100,
+                max_value=2000,
+                value=400,
+                step=50,
+                help="Length of text chunks (in characters) for text splitting",
+            )
+        
+        st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+        
+        # Text Prompt Settings
+        st.markdown("#### 📝 Text Prompt Settings")
+        col3, col4 = st.columns(2)
 
-        chunk_length = st.slider(
-            "Chunk Length",
-            min_value=100,
-            max_value=1000,
-            value=400,
-            step=50,
-            help="Adjust the character chunk size for retrieval with a semantic-based approach. The size is a target value, but the actual chunk size may vary depending on the content.",
-        )
+        with col3:
+            st.session_state.query_prefix = st.text_input(
+                "Query Prefix",
+                value="",
+                help="Optional prefix to add before each search query (e.g., 'query:')",
+                placeholder="e.g., query:",
+            )
 
-#         prompts = st.text_area(
-#             "Prompts (Optional)",
-#             value="",
-#             help="""Some models require additional prompts in JSON format to prepend before text encoding. Leave empty for no prompts.
-
-# Example format:
-# {
-#     "query": "query: ",
-#     "passage": "passage: "
-# }
-
-# The prompts will be prepended before any text to encode:
-# - When encoding a query: "query: your search text"
-# - When encoding a passage: "passage: your document text"
-# """,
-#         )
-
-#         if prompts.strip():
-#             try:
-#                 import json
-
-#                 prompts_dict = json.loads(prompts)
-
-#                 # Validate the prompts format
-#                 if not isinstance(prompts_dict, dict):
-#                     st.warning("Prompts must be a JSON object/dictionary.")
-#                 elif not all(isinstance(k, str) and isinstance(v, str) for k, v in prompts_dict.items()):
-#                     st.warning("All keys and values in prompts must be strings.")
-#                 else:
-#                     st.session_state.sentence_transformer_kwargs = {"prompts": prompts_dict}
-#                     st.success("✅ Prompts format is valid!")
-#             except json.JSONDecodeError as e:
-#                 st.warning(f"Invalid JSON format: {str(e)}")
-#         else:
-#             st.session_state.sentence_transformer_kwargs = None
+        with col4:
+            st.session_state.document_prefix = st.text_input(
+                "Document Prefix",
+                value="",
+                help="Optional prefix to add before each document text (e.g., 'passage:')",
+                placeholder="e.g., passage:",
+            )
 
     # Main content area
     if search_mode == "🌍 Online Search":
@@ -315,25 +336,18 @@ def main():
             "Enter your search query", placeholder="Insert query here", help="Enter keywords or phrases to search for"
         )
 
-        max_results = st.slider(
-            "Number of results",
-            min_value=5,
-            max_value=50,
-            value=20,
-            step=5,
-            help="Adjust the maximum number of search results",
-        )
-
         if st.button("🚀 Search Web", use_container_width=True):
             if query:
                 with st.spinner("🔄 Searching and analyzing documents..."):
-                    df, console_output = run_search(
+                    df, console_output = run_web_search(
                         query,
                         max_results,
                         transformer_model,
                         device,
                         chunk_length,
-                        st.session_state.sentence_transformer_kwargs,
+                        st.session_state.top_k,
+                        st.session_state.query_prefix,
+                        st.session_state.document_prefix,
                     )
 
                 if df is not None:
@@ -400,7 +414,7 @@ def main():
                         transformer_model,
                         device,
                         chunk_length,
-                        st.session_state.sentence_transformer_kwargs,
+                        st.session_state.document_prefix,
                     )
 
                     if searcher is not None:
@@ -422,7 +436,9 @@ def main():
                 if st.button("🔍 Search Documents", use_container_width=True):
                     if query:
                         with st.spinner("🔄 Searching..."):
-                            df, search_console_output = search_documents(st.session_state.document_searcher, query)
+                            df, search_console_output = search_documents(
+                                st.session_state.document_searcher, query, st.session_state.top_k, st.session_state.query_prefix
+                            )
 
                         if df is not None:
                             st.success("✅ Search complete")
