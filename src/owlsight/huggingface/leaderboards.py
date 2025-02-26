@@ -165,7 +165,7 @@ def parse_huggingface_repo(input_text: str) -> Dict[str, Optional[str]]:
     return result
 
 
-def get_mteb_leaderboard(max_params: Optional[int] = None) -> pd.DataFrame:
+def get_mteb_leaderboard_data(max_params: Optional[int] = None) -> pd.DataFrame:
     """
     Fetch and parse data from the MTEB leaderboard, focussed on text embedding models.
 

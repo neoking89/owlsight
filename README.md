@@ -1180,6 +1180,24 @@ Parameters:
 Returns:
     Dictionary containing model information
 
+#### get_mteb_leaderboard_data
+
+```python
+def get_mteb_leaderboard_data(max_params: Optional[int] = None) -> pandas.core.frame.DataFrame
+```
+
+Fetch and parse data from the MTEB leaderboard, focussed on text embedding models.
+
+Parameters:
+----------
+max_params : Optional[int], default None
+    Maximum number of parameters for filtering
+
+Returns:
+-------
+pd.DataFrame
+    DataFrame containing the MTEB leaderboard data with appropriate columns
+
 #### function_to_json_for_tool_calling
 
 ```python
@@ -1340,6 +1358,7 @@ Voice control features include:
 - Added JSON-based configuration for all voice control settings
 - Added `owl_search_and_scrape` function to the Python interpreter. This function can be used to search and scrape the web using DuckDuckGo's API.
 - Added `owl_create_document_searcher` function to the Python interpreter. This utilityfunction can be used to create a `DocumentSearcher` instance with a given set of documents and a text splitter.
+- Added `get_mteb_leaderboard_data` function to the backend API. This function can be used to fetch the MTEB leaderboard data.
 - Several minor bugfixes and improvements.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com

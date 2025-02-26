@@ -28,6 +28,7 @@ from .rag.text_splitters import SemanticTextSplitter, SentenceTextSplitter
 from .rag.document_reader import DocumentReader
 from .app.default_functions import OwlDefaultFunctions, is_url
 from .huggingface.core import get_model_data
+from .huggingface.leaderboards import get_mteb_leaderboard_data
 from .prompts.system_prompts import ExpertPrompts, AgentPrompts, PromptWriter
 from .prompts.helper_functions import function_to_json_for_tool_calling
 from .voice.voice_control import VoiceControl
@@ -57,6 +58,7 @@ __all__ = [
     "OwlDefaultFunctions",
     "is_url",
     "get_model_data",
+    "get_mteb_leaderboard_data",
     "ExpertPrompts",
     "AgentPrompts",
     "PromptWriter",
