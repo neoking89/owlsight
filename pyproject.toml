@@ -29,7 +29,6 @@ dependencies = [
     "html5lib",
     "aiohttp",
     "duckduckgo_search",
-    "gradio"
 ]
 
 [project.optional-dependencies]
@@ -40,6 +39,10 @@ dev = [
     "pytest-asyncio<=0.24",
     "ruff",
     "black",
+]
+
+huggingface = [
+    "gradio",
 ]
 
 gguf = [

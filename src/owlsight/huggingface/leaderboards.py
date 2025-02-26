@@ -9,7 +9,7 @@ import ast
 from functools import lru_cache
 
 import pandas as pd
-from gradio_client import Client
+
 
 
 def extract_leaderboard_data(api_text: str) -> str:
@@ -71,7 +71,16 @@ def get_leaderboard_data(leaderboard_id: str) -> pd.DataFrame:
     Raises:
     ------
     ValueError: If the leaderboard data cannot be parsed
+    ImportError: If gradio is not installed
     """
+    try:
+        from gradio import Client
+    except ImportError:
+        raise ImportError(
+            "gradio is required for this function. "
+            "Please install it with 'pip install owlsight[huggingface]' or 'pip install gradio'"
+        )
+    
     client = Client(leaderboard_id)
     data_str = extract_leaderboard_data(str(client))
     data_dict: Dict[str, Any] = ast.literal_eval(data_str)
