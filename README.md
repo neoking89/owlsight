@@ -236,6 +236,8 @@ These are:
 - `owl_load_namespace`: Load namespace from .dill file
 - `owl_tools`: Show available functions for tool calling
 - `owl_search`: Search and get results from the web using DuckDuckGo's API
+- `owl_search_and_scrape`: Search and scrape the web using DuckDuckGo's API. Uses both the `owl_search` and `owl_scrape` functions combined.
+- `owl_create_document_searcher`: Create a DocumentSearcher instance with a given set of documents and a text splitter
 
 ## Configurations
 
@@ -732,7 +734,7 @@ Split text into chunks based on sentences.
 #### SemanticTextSplitter
 
 ```python
-class SemanticTextSplitter(model_name: Optional[str] = 'Alibaba-NLP/gte-base-en-v1.5', window_size: int = 1, percentile: float = 0.9, device: Optional[str] = None, target_chunk_length: Optional[int] = None)
+class SemanticTextSplitter(model_name: str = 'Alibaba-NLP/gte-base-en-v1.5', window_size: int = 0, percentile: float = 0.9, device: Optional[str] = None, target_chunk_length: Optional[int] = None, sentence_transformer_kwargs: Optional[Dict[str, Any]] = None)
 ```
 
 Split text into chunks based on semantic similarity breakpoints.
@@ -740,14 +742,14 @@ Split text into chunks based on semantic similarity breakpoints.
 **Methods:**
 
 - `set_model(self, model: Union[str, ~SentenceTransformer]) -> None`
-  - Set the model for the splitter.
+  - Set or update the model used for generating embeddings.
 - `split_documents(self, documents: Dict[str, str], show_progress_bar: bool = True, **kwargs) -> Dict[str, str]`
   - Split documents using semantic breakpoint detection.
 
 #### DocumentSearcher
 
 ```python
-class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, text_splitter: Optional[owlsight.rag.text_splitters.TextSplitter] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, device: Optional[str] = None) -> None
+class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: str = 'Alibaba-NLP/gte-base-en-v1.5', sentence_transformer_batch_size: int = 64, text_splitter: Optional[owlsight.rag.text_splitters.TextSplitter] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, device: Optional[str] = None, sentence_transformer_kwargs: Optional[Dict[str, Any]] = None) -> None
 ```
 
 Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
@@ -764,43 +766,6 @@ Order in __init__is like so:
 
 And then use the `search` method to combine the results:
 [Combine TF-IDF and Sentence Transformer results]
-
-Parameters
-----------
-documents : Dict[str, str]
-    Dictionary mapping document IDs to their content
-sentence_transformer_model : str, default='Alibaba-NLP/gte-base-en-v1.5'
-    Name or path of the Sentence Transformer model
-sentence_transformer_batch_size : int, default=64
-    Batch size for computing embeddings
-text_splitter : Optional[TextSplitter], default=None
-    Strategy for splitting documents into chunks. If None, no splitting is done.
-cache_dir : str, optional
-    Directory to cache embeddings and results
-cache_dir_suffix : str, optional
-    Suffix for cache directory name.
-    Recommended is to use a name which is unique and descriptive to the documents.
-
-Notes
------
-- Uses both TF-IDF and neural embeddings for robust search
-- Has caching capabilities in pickled files
-- Supports batch processing for efficient embedding computation
-- Supports custom text splitting strategies through the TextSplitter interface
-
-**Examples:**
-
-```python
---------
->>> docs = {
-...     "doc1": "Python is a programming language",
-...     "doc2": "Machine learning is fascinating"
-... }
->>> # Using default sentence-based splitting
->>> splitter = SentenceTextSplitter(n_sentences=3, n_overlap=1)
->>> searcher = DocumentSearcher(docs, text_splitter=splitter, cache_dir="document_cache", cache_dir_suffix="programming")
->>> results = searcher.search("python programming", top_k=3)
-```
 
 **Methods:**
 
@@ -957,56 +922,13 @@ Notes
 #### SentenceTransformerSearchEngine
 
 ```python
-class SentenceTransformerSearchEngine(documents: Dict[str, str], model_name: str = 'Alibaba-NLP/gte-base-en-v1.5', pooling_strategy: Literal['mean', 'max', None] = 'mean', device: Optional[str] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, batch_size: int = 64)
+class SentenceTransformerSearchEngine(documents: Dict[str, str], model_name: str = 'Alibaba-NLP/gte-base-en-v1.5', pooling_strategy: Literal['mean', 'max', None] = 'mean', device: Optional[str] = None, cache_dir: Optional[str] = None, cache_dir_suffix: Optional[str] = None, batch_size: int = 64, sentence_transformer_kwargs: Optional[Dict[str, Any]] = None)
 ```
 
 Search engine using Sentence Transformer embeddings.
 
 This search engine uses neural embeddings to find semantically similar documents,
 making it effective for concept-based search rather than just keyword matching.
-
-Parameters
-----------
-documents : Dict[str, str]
-    Dictionary mapping document IDs to their content
-model_name : str, default='Alibaba-NLP/gte-base-en-v1.5'
-    Name or path of the Sentence Transformer model
-pooling_strategy : {'mean', 'max', None}, default='mean'
-    Strategy for pooling sentence embeddings:
-    - 'mean': Average embeddings (better for context)
-    - 'max': Maximum values (better for key concepts)
-    - None: No pooling (for single-sentence documents)
-device : str, optional
-    Device to run model on ('cpu', 'cuda', etc.)
-cache_dir : str, optional
-    Directory to cache embeddings
-cache_dir_suffix : str, optional
-    Suffix for cache directory name
-batch_size : int, default=64
-    Batch size for computing embeddings
-
-Notes
------
-- Provides semantic search capability
-- Automatically handles sentence splitting and pooling
-- Supports GPU acceleration
-- Caches embeddings for better performance
-
-**Examples:**
-
-```python
---------
->>> docs = {
-...     "doc1": "Python is great for machine learning",
-...     "doc2": "Deep learning revolutionized AI"
-... }
->>> engine = SentenceTransformerSearchEngine(
-...     docs,
-...     model_name='all-MiniLM-L6-v2',
-...     pooling_strategy='mean'
-... )
->>> results = engine.search("AI and ML", top_k=1)
-```
 
 **Methods:**
 
@@ -1037,8 +959,8 @@ This class is open for extension, as possibly more useful functions can be added
 
 **Methods:**
 
-- `owl_create_document_searcher(self, documents: 'Dict[str, str]', sentence_transformer_model_name: 'str', percentile: 'float' = 0.99, target_chunk_length: 'int' = 400, device: 'Optional[str]' = None, **document_searcher_kwargs) -> 'document_searcher_type'`
-  - Create a DocumentSearcher instance from a dictionary of documents.
+- `owl_create_document_searcher(self, documents: 'Dict[str, str]', sentence_transformer_model_name: 'str', sentence_transformer_kwargs: 'Optional[Dict[str, Any]]' = None, percentile: 'float' = 0.99, target_chunk_length: 'int' = 400, device: 'Optional[str]' = None, **document_searcher_kwargs) -> 'document_searcher_type'`
+  - Utility function to create a DocumentSearcher instance from a dictionary of documents.
 - `owl_import(self, file_path: 'str')`
   - Import Python module into the current execution environment.
 - `owl_load_namespace(self, file_path: 'str')`
@@ -1418,6 +1340,6 @@ Voice control features include:
 - Added JSON-based configuration for all voice control settings
 - Added `owl_search_and_scrape` function to the Python interpreter. This function can be used to search and scrape the web using DuckDuckGo's API.
 - Added `owl_create_document_searcher` function to the Python interpreter. This utilityfunction can be used to create a `DocumentSearcher` instance with a given set of documents and a text splitter.
-- Several minog bugfixes and improvements.
+- Several minor bugfixes and improvements.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com

@@ -253,6 +253,8 @@ These are:
 - `owl_load_namespace`: Load namespace from .dill file
 - `owl_tools`: Show available functions for tool calling
 - `owl_search`: Search and get results from the web using DuckDuckGo's API
+- `owl_search_and_scrape`: Search and scrape the web using DuckDuckGo's API. Uses both the `owl_search` and `owl_scrape` functions combined.
+- `owl_create_document_searcher`: Create a DocumentSearcher instance with a given set of documents and a text splitter
 """
 CONFIGURATION = f"""
 ## Configurations
