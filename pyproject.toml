@@ -41,7 +41,7 @@ dev = [
     "black",
 ]
 
-huggingface = [
+huggingface_metadata = [
     "gradio",
 ]
 
@@ -101,7 +101,6 @@ all = [
     "sentence-transformers",
     "pytesseract",
     "pillow",
-    "gradio",
 ]
 
 [tool.pytest.ini_options]
