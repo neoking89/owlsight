@@ -11,7 +11,6 @@ from functools import lru_cache
 import pandas as pd
 
 
-
 def extract_leaderboard_data(api_text: str) -> str:
     """
     Extract the leaderboard data dictionary from the API usage text.
@@ -80,7 +79,7 @@ def get_leaderboard_data(leaderboard_id: str) -> pd.DataFrame:
             "gradio is required for this function. "
             "Please install it with 'pip install owlsight[huggingface]' or 'pip install gradio'"
         )
-    
+
     client = Client(leaderboard_id)
     data_str = extract_leaderboard_data(str(client))
     data_dict: Dict[str, Any] = ast.literal_eval(data_str)
