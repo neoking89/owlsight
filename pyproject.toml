@@ -18,7 +18,6 @@ dependencies = [
     "accelerate",
     "sentencepiece",
     "prompt_toolkit==2.0.10",
-    "keyboard",
     "scikit-learn",
     "beautifulsoup4",
     "jinja2",
@@ -26,7 +25,6 @@ dependencies = [
     "pynput",
     "dill",
     "tika",
-    "html5lib",
     "aiohttp",
     "duckduckgo_search",
 ]
@@ -84,7 +82,6 @@ all = [
     "accelerate",
     "sentencepiece",
     "prompt_toolkit<=2.0.10",
-    "keyboard",
     "scikit-learn",
     "beautifulsoup4",
     "jinja2",
@@ -92,7 +89,6 @@ all = [
     "pynput",
     "tika",
     "aiohttp",
-    "html5lib",
     "duckduckgo_search",
     # Optional dependencies
     "llama-cpp-python",
