@@ -1,10 +1,24 @@
 import asyncio
 from typing import List, Optional, Union
 from urllib.parse import urlparse
-import aiohttp
-import lxml.html
 
 from owlsight.utils.logger import logger
+
+# Check if required packages are installed
+AIOHTTP_AVAILABLE = False
+LXML_AVAILABLE = False
+
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    logger.warning("aiohttp package not found. Web scraping functionality will be disabled.")
+
+try:
+    import lxml.html
+    LXML_AVAILABLE = True
+except ImportError:
+    logger.warning("lxml package not found. HTML parsing functionality will be disabled.")
 
 
 def validate_url(url: str) -> bool:
@@ -20,7 +34,11 @@ def parse_html(html_content: Optional[str]) -> str:
     """Parse HTML content and extract text while preserving important formatting."""
     if not html_content:
         return ""
-
+    
+    if not LXML_AVAILABLE:
+        logger.warning("Cannot parse HTML content: lxml package not installed.")
+        return html_content  # Return raw content as fallback
+        
     try:
         document = lxml.html.fromstring(html_content)
         result = []
@@ -177,8 +195,28 @@ def parse_html(html_content: Optional[str]) -> str:
         return ""
 
 
-async def fetch_page(url: str, session: aiohttp.ClientSession, timeout: int = 30) -> Optional[str]:
-    """Asynchronously fetch a webpage's content."""
+async def fetch_page(url: str, session = None, timeout: int = 30) -> Optional[str]:
+    """
+    Asynchronously fetch a webpage's content.
+    
+    Parameters:
+    ----------
+    url: str
+        URL of the page to fetch
+    session: aiohttp.ClientSession, optional
+        Existing aiohttp client session to use
+    timeout: int, optional
+        Timeout in seconds for the request
+    """
+    if not AIOHTTP_AVAILABLE:
+        logger.warning(f"Cannot fetch URL {url}: aiohttp package not installed.")
+        return None
+    
+    if not session:
+        # Create a new session if one wasn't provided
+        async with aiohttp.ClientSession() as new_session:
+            return await fetch_page(url, new_session, timeout)
+    
     try:
         logger.info(f"Fetching {url}")
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as response:
@@ -198,14 +236,17 @@ async def fetch_page(url: str, session: aiohttp.ClientSession, timeout: int = 30
 
 
 async def fetch_and_parse_urls(urls: Union[str, List[str]], max_concurrent: int = 5, timeout: int = 30) -> dict:
-    """Async process URLs to fetch and extract markdown-formatted content.
+    """
+    Async process URLs to fetch and extract markdown-formatted content.
 
     Parameters:
+    ----------
         urls: Single URL or list of URLs to process
         max_concurrent: Maximum simultaneous requests
         timeout: Timeout in seconds for each request
 
     Returns:
+    ----------
         Dictionary mapping URLs to their extracted content in markdown format
     """
     if isinstance(urls, str):
@@ -217,6 +258,10 @@ async def fetch_and_parse_urls(urls: Union[str, List[str]], max_concurrent: int 
         raise ValueError("No valid URLs provided")
 
     # Configure client session with default timeout and headers
+    if not AIOHTTP_AVAILABLE:
+        logger.warning("Cannot fetch URLs: aiohttp package not installed.")
+        return {url: "Error: The aiohttp package is required for web scraping functionality but is not installed. Please install using 'pip install owlsight[search]'" for url in valid_urls}
+
     timeout_config = aiohttp.ClientTimeout(total=timeout)
     headers = {
         "User-Agent": (
