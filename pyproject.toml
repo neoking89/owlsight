@@ -10,6 +10,7 @@ authors = [{ name = "Vincent Ouwendijk" }]
 license = { text = "MIT" }
 readme = "README.md"
 dependencies = [
+    "psutil",
     "transformers",
     "pandas",
     "numpy",
@@ -19,14 +20,11 @@ dependencies = [
     "sentencepiece",
     "prompt_toolkit==2.0.10",
     "scikit-learn",
-    "beautifulsoup4",
     "jinja2",
     "tqdm",
     "pynput",
     "dill",
     "tika",
-    "aiohttp",
-    "duckduckgo_search",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +37,7 @@ dev = [
     "black",
 ]
 
+# useful for getting leaderboards from the Hugging Face Hub
 huggingface_metadata = [
     "gradio",
 ]
@@ -52,15 +51,22 @@ onnx = [
     "onnxruntime-genai-cuda",
 ]
 
+# useful for web search and scraping
 search = [
+    "lxml",
+    "aiohttp",
+    "duckduckgo_search",
     "sentence-transformers",
 ]
 
+# for huggingface (transformers) models which require additional input like images or audio
 multimodal = [
     "pytesseract",
     "pillow",
+    "beautifulsoup4",
 ]
 
+# for offline document reading using Apache Tika
 offline = []
 
 # more info: https://pypi.org/project/RealtimeSTT/
@@ -70,7 +76,7 @@ voice = [
     "ctranslate2==3.24.0",
 ]
 
-# Define the "all" option to include everything (base + optional dependencies)
+# Define the "all" option to include most useful features (base + optional dependencies)
 all = [
     # Base dependencies
     "psutil",
@@ -83,11 +89,11 @@ all = [
     "sentencepiece",
     "prompt_toolkit<=2.0.10",
     "scikit-learn",
-    "beautifulsoup4",
     "jinja2",
     "tqdm",
     "pynput",
     "tika",
+    "lxml",
     "aiohttp",
     "duckduckgo_search",
     # Optional dependencies
@@ -96,6 +102,7 @@ all = [
     "onnxruntime-genai-cuda",
     "sentence-transformers",
     "pytesseract",
+    "beautifulsoup4",
     "pillow",
 ]
 
