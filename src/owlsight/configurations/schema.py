@@ -230,9 +230,10 @@ class Schema:
                 choices=None,
             ),
         },
-        "agentic":{
+        "agentic": {
             "back": MenuItem(
-                type=OptionType.ACTION, description="Orchestrate a sequential multi-agent workflow: Tool → Python → Judge agents process data, feeding their collective output to an Answer agent for final synthesis"
+                type=OptionType.ACTION,
+                description="Orchestrate a sequential multi-agent workflow: Tool → Python → Judge agents process data, feeding their collective output to an Answer agent for final synthesis",
             ),
             "apply_tools": MenuItem(
                 type=OptionType.TOGGLE,
@@ -305,7 +306,9 @@ class Schema:
         ),
         "save": MenuItem(type=OptionType.EDITABLE, description="Save current configuration as JSON-file", default=""),
         "load": MenuItem(type=OptionType.EDITABLE, description="Load a configuration from a JSON-file", default=""),
-        "clear history": MenuItem(type=OptionType.ACTION, description="Clear owlsight cache (directory called '.owlsight') and chat history"),
+        "clear history": MenuItem(
+            type=OptionType.ACTION, description="Clear owlsight cache (directory called '.owlsight') and chat history"
+        ),
         "quit": MenuItem(type=OptionType.ACTION, description="Exit application"),
     }
 

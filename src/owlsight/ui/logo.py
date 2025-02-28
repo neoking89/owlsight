@@ -1,10 +1,11 @@
 from owlsight.ui.constants import COLOR_CODES
 
+
 def print_logo():
     BOLD = "\033[1m"
     CYAN = COLOR_CODES["cyan"]
     RESET = COLOR_CODES["reset"]
-    
+
     logo = """
 ZZZmmmwwwwqqqqqppppdddddddbbbbkkhkkbka#*Z|!pohhhhhaahhhhaaaa
 ZZZmZmmwwwwqqqqpppppppdbkkhhhkkkkho#owv_:^:qohhhaahhaahaaaaa

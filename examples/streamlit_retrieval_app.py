@@ -90,7 +90,9 @@ def calculate_files_hash(uploaded_files):
     return hasher.hexdigest()
 
 
-def run_web_search(query, max_results, transformer_model, device, chunk_length, top_k, query_prefix=None, document_prefix=None):
+def run_web_search(
+    query, max_results, transformer_model, device, chunk_length, top_k, query_prefix=None, document_prefix=None
+):
     """
     Runs the document search via web scraping and captures console output.
     """
@@ -161,7 +163,7 @@ def process_uploaded_documents(uploaded_files, transformer_model, device, chunk_
         return None, f"Error occurred: {str(e)}"
 
 
-def search_documents(searcher, query, top_k,query_prefix=None):
+def search_documents(searcher, query, top_k, query_prefix=None):
     """
     Search through processed documents with a query.
     """
@@ -263,20 +265,20 @@ def main():
             ["sentence-transformers/all-mpnet-base-v2", "sentence-transformers/all-MiniLM-L6-v2"],
             help="Choose the transformer model for semantic search",
         )
-        
+
         devices = ["cuda", "cpu", "mps"]
         device = st.selectbox(
             "💻 Device",
             devices,
             help="Choose the device for processing",
         )
-        
+
         st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-        
+
         # Search Settings
         st.markdown("#### 🔍 Search Settings")
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.session_state.top_k = st.number_input(
                 "Top K Results",
@@ -286,7 +288,7 @@ def main():
                 step=5,
                 help="Number of top retrieval results to show",
             )
-            
+
             max_results = st.number_input(
                 "Web Search Results",
                 min_value=1,
@@ -295,7 +297,7 @@ def main():
                 step=5,
                 help="Amount of results to use from web search",
             )
-            
+
         with col2:
             chunk_length = st.number_input(
                 "Chunk Length",
@@ -305,9 +307,9 @@ def main():
                 step=50,
                 help="Length of text chunks (in characters) for text splitting",
             )
-        
+
         st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-        
+
         # Text Prompt Settings
         st.markdown("#### 📝 Text Prompt Settings")
         col3, col4 = st.columns(2)
@@ -437,7 +439,10 @@ def main():
                     if query:
                         with st.spinner("🔄 Searching..."):
                             df, search_console_output = search_documents(
-                                st.session_state.document_searcher, query, st.session_state.top_k, st.session_state.query_prefix
+                                st.session_state.document_searcher,
+                                query,
+                                st.session_state.top_k,
+                                st.session_state.query_prefix,
                             )
 
                         if df is not None:

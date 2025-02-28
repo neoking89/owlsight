@@ -61,7 +61,7 @@ def show_and_return_model_data(
     # Print header
     print("\n" + create_separator(WIDTH))
     header = f"Available Models for '{model_search}' (Top {top_n_models})"
-    print(f"║{header.center(WIDTH-2)}║")
+    print(f"║{header.center(WIDTH - 2)}║")
     print(create_separator(WIDTH, "="))
 
     # Print column headers

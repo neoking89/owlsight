@@ -1,6 +1,5 @@
 """Define a custom logger class with colored output for logging to the console and/or a file and instantiate it"""
 
-
 import logging
 import os
 from typing import Optional, Union
@@ -38,7 +37,7 @@ class EnhancedFormatter(logging.Formatter):
         process = psutil.Process(os.getpid())
         record.cpu_usage = f"{psutil.cpu_percent(interval=None)}%"
         record.memory_usage = f"{psutil.virtual_memory().percent}%"
-        record.process_mem = f"{process.memory_info().rss / (1024 ** 2):.2f} MB"
+        record.process_mem = f"{process.memory_info().rss / (1024**2):.2f} MB"
         return super().format(record)
 
 
@@ -94,7 +93,7 @@ class ColoredLogger(logging.Logger):
 
     def log_to_file(self, filename: str, mode: str = "a+") -> None:
         """Add file logging to the current logger.
-        
+
         Args:
             filename: Path to the log file
             mode: File open mode, defaults to "a+" (append and read)
@@ -110,7 +109,7 @@ class ColoredLogger(logging.Logger):
         mode: str = "a+",
     ) -> None:
         """Configure file logging with custom debug level.
-        
+
         Args:
             filename: Path to the log file
             level: Log level for the file handler. Can be an integer (e.g. logging.DEBUG)
@@ -120,7 +119,7 @@ class ColoredLogger(logging.Logger):
         # Convert string level to int if necessary
         if isinstance(level, str):
             level = getattr(logging, level.upper())
-            
+
         # Create and configure file handler
         handler = logging.FileHandler(filename, mode=mode)
         handler.setFormatter(self._get_formatter(self.name, for_file=True))
@@ -136,7 +135,7 @@ class ColoredLogger(logging.Logger):
     def _get_formatter(self, name: Optional[str], for_file: bool = False) -> logging.Formatter:
         """Get the appropriate formatter based on settings and handler type"""
         fmt, date_fmt = self._get_formatting(name)
-        
+
         if self.log_cpu_and_memory_usage:
             if for_file:
                 return EnhancedFormatter(fmt, datefmt=date_fmt)

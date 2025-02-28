@@ -1,5 +1,6 @@
 from owlsight.utils.helper_functions import parse_function_call_to_python_code
 
+
 def test_valid_json_pattern():
     """
     Test that a valid JSON tool call string is correctly transformed into a
@@ -11,6 +12,7 @@ def test_valid_json_pattern():
     result = parse_function_call_to_python_code(input_str)
     assert result == expected_output
 
+
 def test_no_json_pattern():
     """
     Test that if the input string does not contain a JSON tool call pattern,
@@ -19,6 +21,7 @@ def test_no_json_pattern():
     input_str = "This is a simple string without any JSON pattern."
     result = parse_function_call_to_python_code(input_str)
     assert result == input_str
+
 
 def test_invalid_json_arguments():
     """
@@ -29,6 +32,7 @@ def test_invalid_json_arguments():
     result = parse_function_call_to_python_code(input_str)
     assert result == input_str
 
+
 def test_extra_whitespace_in_pattern():
     """
     Test that extra whitespace around keys and values does not affect the parsing.
@@ -38,6 +42,7 @@ def test_extra_whitespace_in_pattern():
     expected_output = f"```python\n{expected_code_line}\n```"
     result = parse_function_call_to_python_code(input_str)
     assert result == expected_output
+
 
 def test_mixed_argument_types():
     """

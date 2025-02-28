@@ -15,6 +15,7 @@ from owlsight.huggingface.constants import HUGGINGFACE_MEDIA_TASKS
 from owlsight.processors.multimodal_processors import MultiModalProcessorTransformers
 from owlsight.utils.custom_classes import MediaObject
 from owlsight.multimodal.tesseract import find_tesseract_installation
+
 pytesseract.pytesseract.tesseract_cmd = find_tesseract_installation()
 
 

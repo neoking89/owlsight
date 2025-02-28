@@ -1,5 +1,6 @@
 from owlsight import DocumentSearcher, SentenceTextSplitter
 
+
 def main():
     # Sample documents on Quantum Mechanics and General Relativity
     docs = {
@@ -39,20 +40,17 @@ def main():
             "but studies of black hole thermodynamics, the holographic principle, and potential observable effects in the early "
             "universe continue to provide insights. The resolution of this conflict between the two pillars of modern physics "
             "may fundamentally alter our understanding of reality and the nature of the universe."
-        )
+        ),
     }
 
     splitter = SentenceTextSplitter(n_sentences=4, n_overlap=1)
     searcher = DocumentSearcher(
-        documents=docs,
-        text_splitter=splitter,
-        cache_dir="document_cache",
-        cache_dir_suffix="physics"
+        documents=docs, text_splitter=splitter, cache_dir="document_cache", cache_dir_suffix="physics"
     )
-    
+
     query = "quantum gravity and black holes"
     results = searcher.search(query, top_k=5)
-    
+
     print(f"\nSearch Results for '{query}':")
     print("=" * 80)
     for _, row in results.iterrows():
@@ -60,6 +58,7 @@ def main():
         print(f"Score: {row['aggregated_score']:.4f}")
         print(f"Content: {row['document']}")
         print("-" * 40)
+
 
 if __name__ == "__main__":
     main()

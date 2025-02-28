@@ -143,7 +143,9 @@ class MultiModalProcessor(TextGenerationProcessor):
         ]
         text_processor_type = next((i for i in possible_classes if i.__name__.endswith(text_processor_type)), None)
         if text_processor_type is None:
-            raise ValueError(f"TextGenerationProcessor type {text_processor_type} not supported. Is it in {possible_classes}?")
+            raise ValueError(
+                f"TextGenerationProcessor type {text_processor_type} not supported. Is it in {possible_classes}?"
+            )
         self.text_processor: TextGenerationProcessor = text_processor_type(model_id=model_id, **kwargs)
         self.media_preprocessor = MediaPreprocessor()
 

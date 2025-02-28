@@ -1,0 +1,10 @@
+ruff check --select=I --fix . - Remove all unused imports
+ruff check --select=I001 --fix . - Sort all imports
+ruff check --fix . - Fix all auto-fixable issues
+ruff format . - Format all files (similar to Black)
+ruff check --select=E,F . - Check for errors and potential bugs
+ruff check --select=N . - Check for PEP8 naming conventions
+ruff check --select=UP . - Upgrade syntax to newer Python versions
+ruff check --select=B . - Check for common bugs and design issues
+ruff check --statistics . - Show statistics about rule violations
+ruff check --select=ALL . - Run all available rules

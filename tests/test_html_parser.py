@@ -1,11 +1,13 @@
 from owlsight.app.url_processor import parse_html
 
+
 def normalize_text(text):
     """Normalize text for comparison by removing extra whitespace."""
     if not text:
         return ""
-    lines = [line.strip() for line in text.split('\n')]
-    return '\n'.join(line for line in lines if line)
+    lines = [line.strip() for line in text.split("\n")]
+    return "\n".join(line for line in lines if line)
+
 
 class TestHTMLParser:
     def test_empty_input(self):
@@ -39,7 +41,7 @@ class TestHTMLParser:
         result = parse_html(html)
         assert "```" in result
         assert "def example():" in result
-        assert "    return \"Hello\"" in result
+        assert '    return "Hello"' in result
 
     def test_inline_code(self):
         html = "<p>Use <code>print()</code> function</p>"
@@ -106,7 +108,7 @@ class TestHTMLParser:
             "### Configuration",
             "Configure using a dictionary",
             '"host": "localhost"',
-            '"port": 8080'
+            '"port": 8080',
         ]
         for element in expected_elements:
             assert element in result

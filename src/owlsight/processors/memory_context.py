@@ -6,6 +6,7 @@ from owlsight.processors.base import TextGenerationProcessor
 
 logger = logging.getLogger(__name__)
 
+
 class ProcessorMemoryContext:
     def __init__(self, processor: TextGenerationProcessor):
         """Context that wraps text generation processors to clean memory and ensure proper cleanup.
@@ -40,10 +41,10 @@ class ProcessorMemoryContext:
     def clear_memory(self):
         """Clear all processor and model memory using proven methods"""
         try:
-            if hasattr(self.processor, 'pipeline'):
-                if hasattr(self.processor.pipeline, 'device'):
+            if hasattr(self.processor, "pipeline"):
+                if hasattr(self.processor.pipeline, "device"):
                     self.processor.pipeline.device = None
-                if hasattr(self.processor.pipeline, 'model'):
+                if hasattr(self.processor.pipeline, "model"):
                     self.processor.pipeline.model = None
                 del self.processor.pipeline
                 gc.collect()
@@ -53,22 +54,22 @@ class ProcessorMemoryContext:
                 if hasattr(self.processor.model, "cpu"):
                     self.processor.model.cpu()
                 if hasattr(self.processor.model, "to"):
-                    self.processor.model.to('cpu')
+                    self.processor.model.to("cpu")
                 del self.processor.model
                 gc.collect()
 
             # Clear ONNX components
-            if hasattr(self.processor, '_model'):
+            if hasattr(self.processor, "_model"):
                 # Release ONNX session resources
-                if hasattr(self.processor._model, 'end_profiling'):
+                if hasattr(self.processor._model, "end_profiling"):
                     self.processor._model.end_profiling()
-                if hasattr(self.processor._model, 'close'):
+                if hasattr(self.processor._model, "close"):
                     self.processor._model.close()
                 del self.processor._model
                 gc.collect()
 
             # Clear tokenizer and related components
-            for attr in ['tokenizer', 'tokenizer_stream', 'transformers_tokenizer']:
+            for attr in ["tokenizer", "tokenizer_stream", "transformers_tokenizer"]:
                 if hasattr(self.processor, attr):
                     delattr(self.processor, attr)
             gc.collect()
@@ -79,13 +80,13 @@ class ProcessorMemoryContext:
                 gc.collect()
 
             # Clear any remaining components
-            for attr in ['generator', 'params']:
+            for attr in ["generator", "params"]:
                 if hasattr(self.processor, attr):
                     delattr(self.processor, attr)
 
             # Force memory release
             free_cuda_memory()
-            
+
             # Triple GC for conservative cleanup with small delays
             for _ in range(3):
                 gc.collect()

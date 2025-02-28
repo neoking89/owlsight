@@ -4,6 +4,7 @@ import pytest
 sys.path.append("src")
 from owlsight.app.default_functions import is_url
 
+
 def test_is_url():
     # Arrange
     test_cases = [
@@ -17,7 +18,6 @@ def test_is_url():
         ("https://123.123.123.123", True),
         ("https://example.com:8080", True),
         ("https://example.com/path/to/page", True),
-
         # Invalid URLs
         ("www.google.nl", False),  # Missing protocol
         ("htp://missing-t.com", False),  # Invalid protocol
@@ -36,6 +36,7 @@ def test_is_url():
     for url, expected in test_cases:
         result = is_url(url)
         assert result == expected, f"Test failed for URL: {url}. Expected: {expected}, Got: {result}"
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

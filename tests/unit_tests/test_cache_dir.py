@@ -109,5 +109,6 @@ def test_path_separators(test_env):
     expected_path = os.path.normpath(full_test_path)
     assert os.path.normpath(result) == expected_path, f"Unexpected path formatting: {result}"
 
+
 if __name__ == "__main__":
     pytest.main(["-vv", "-s", __file__])

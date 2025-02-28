@@ -81,6 +81,7 @@ def test_owl_press_executed_successfully(owl_instance: OwlDefaultFunctions):
         # Assert return value
         assert executed_successfully is True
 
+
 def test_owl_press_keys_executed_successfully(owl_instance: OwlDefaultFunctions):
     """Test that owl_press executes successfully with mocked key presses."""
     with patch.object(Controller, "press") as mock_press, patch.object(Controller, "release") as mock_release:
@@ -94,16 +95,20 @@ def test_owl_press_keys_executed_successfully(owl_instance: OwlDefaultFunctions)
             mock_press.assert_called_with(key)
             mock_release.assert_called_with(key)
 
+
 def test_owl_tools_executed_successfully(owl_instance: OwlDefaultFunctions):
     """Test that owl_tools returns a list of defined functions as strings."""
+
     def test():
         return 42
+
     owl_instance.globals_dict["test"] = test
     tools = owl_instance.owl_tools()
     assert isinstance(tools, list)
     assert len(tools) > 0
     for tool in tools:
         assert isinstance(tool, dict)
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

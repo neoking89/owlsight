@@ -18,9 +18,7 @@ def test_single_module_install(mock_sys_path, mock_check_call):
     result = install_python_modules("some-package", "pip", target_dir, "--upgrade")
 
     # Assert that the pip command was called correctly
-    mock_check_call.assert_called_once_with(
-        ["pip", "install", "--target", target_dir, "some-package", "--upgrade"]
-    )
+    mock_check_call.assert_called_once_with(["pip", "install", "--target", target_dir, "some-package", "--upgrade"])
 
     # Assert that the target_dir was added to sys.path
     assert target_dir in mock_sys_path

@@ -89,7 +89,7 @@ from PIL import Image
 
 # Contrast on a scale -10 -> 10
 contrast = 10
-density = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|" "()1{}[]?-_+~<>i!lI;:,\"^`'.            "
+density = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,\"^`'.            "
 density = density[: -11 + contrast]
 n = len(density)
 

@@ -10,6 +10,7 @@ import pytest
 from owlsight.utils.helper_functions import parse_python_placeholders, parse_media_tags
 from owlsight.utils.custom_classes import MediaObject
 
+
 # Fixture for test data
 @pytest.fixture
 def test_context():
@@ -172,6 +173,7 @@ def test_basic_media_syntax(test_id, input_string, var_dict, expected_text, expe
     assert result_text == expected_text
     assert result_media == expected_media
 
+
 # Python expression integration
 @pytest.mark.parametrize(
     "test_id, input_string, var_dict, expected_text, expected_media",
@@ -196,6 +198,7 @@ def test_python_expression_integration(test_id, input_string, var_dict, expected
     result_text, result_media = parse_media_tags(input_string, var_dict)
     assert result_text == expected_text
     assert result_media == expected_media
+
 
 # Multiple media objects and options
 @pytest.mark.parametrize(
@@ -231,6 +234,7 @@ def test_multiple_media_and_options(test_id, input_string, var_dict, expected_te
     assert result_text == expected_text
     assert result_media == expected_media
 
+
 # Mixed content
 @pytest.mark.parametrize(
     "test_id, input_string, var_dict, expected_text, expected_media",
@@ -261,18 +265,22 @@ def test_mixed_content(test_id, input_string, var_dict, expected_text, expected_
     assert result_text == expected_text
     assert result_media == expected_media
 
+
 # Error handling
 def test_invalid_media_type():
     with pytest.raises(ValueError):
         parse_media_tags("[[invalid:test.jpg]]", {})
 
+
 def test_missing_path():
     with pytest.raises(ValueError):
         parse_media_tags("[[image:]]", {})
 
+
 def test_invalid_option_format():
     with pytest.raises(ValueError):
         parse_media_tags("[[image:test.jpg||invalid_option]]", {})
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

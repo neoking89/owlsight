@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append("src")
 
 import pytest
@@ -38,7 +39,7 @@ def test_gguf_token_count_within_tolerance(setup_processor):
     # Tokenize response and calculate new tokens
     response_tokens = tokenizer.tokenize(response)
     prompt_tokens = tokenizer.tokenize(prompt)
-    new_tokens = response_tokens[len(prompt_tokens):]
+    new_tokens = response_tokens[len(prompt_tokens) :]
 
     # Calculate acceptable range
     lower_bound = max_new_tokens - (max_new_tokens * tolerance_fraction)
@@ -64,12 +65,14 @@ def test_gguf_prompt_tokens_exclusion(setup_processor):
 
     assert len(response_tokens) > len(prompt_tokens), "Response tokens should exceed prompt tokens."
 
+
 def test_get_max_context_length(setup_processor):
     """Test that the GGUF processor returns the correct max context length."""
     processor, _ = setup_processor
     max_context_length = processor.get_max_context_length()
     assert isinstance(max_context_length, int), "Max context length should be an integer."
     assert max_context_length > 0, "Max context length should be greater than zero."
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

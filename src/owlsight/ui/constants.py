@@ -37,5 +37,6 @@ COLOR_CODES = {
     "reset": "\033[0m",  # Resets to default color
 }
 
+
 class INSTRUCTIONS:
     MAIN_MENU = " Use ↑/↓ to navigate, ←/→ to toggle/edit, Enter to select "

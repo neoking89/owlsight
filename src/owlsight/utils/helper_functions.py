@@ -440,17 +440,17 @@ def extract_square_bracket_tags(
 def parse_html_tags(text: str) -> dict:
     """
     Parse HTML-like tags from text into a dictionary.
-    
+
     Parameters
     ----------
     text : str
         The text containing HTML-like tags to parse
-    
+
     Returns
     -------
     dict
         Dictionary with tag names as keys and their content as values
-    
+
     Example
     -------
     >>> text = '<goal>My goal</goal><step>Step 1</step>'
@@ -459,20 +459,21 @@ def parse_html_tags(text: str) -> dict:
     """
     # Strip any leading/trailing whitespace
     text = text.strip()
-    
+
     # Dictionary to store results
     result = {}
-    
+
     # Find all tags and their content
-    pattern = r'<(\w+)>(.*?)</\1>'
+    pattern = r"<(\w+)>(.*?)</\1>"
     matches = re.findall(pattern, text, re.DOTALL)
-    
+
     # Store each tag's content in the dictionary
     # Strip whitespace and newlines from the beginning and end of content
     for tag, content in matches:
         result[tag] = content.strip()
-    
+
     return result
+
 
 def parse_function_call(input_str: str) -> tuple[str | None, dict | None]:
     """
@@ -544,23 +545,23 @@ def parse_function_call_to_python_code(input_str: str) -> str:
     try:
         # Parse input with JSON loader to handle whitespace and types
         data = json.loads(input_str)
-        name = data.get('name', '')
-        arguments = data.get('arguments', {})
-        
+        name = data.get("name", "")
+        arguments = data.get("arguments", {})
+
         # Convert arguments with proper type handling
         args = []
         for key, value in arguments.items():
             if isinstance(value, bool):
-                args.append(f'{key}={str(value)}')
+                args.append(f"{key}={str(value)}")
             elif value is None:
-                args.append(f'{key}=None')
+                args.append(f"{key}=None")
             elif isinstance(value, str):
-                args.append(f'{key}={repr(value)}')
+                args.append(f"{key}={repr(value)}")
             else:
-                args.append(f'{key}={value}')
-        
-        code_line = f'final_result = {name}({", ".join(args)})'
-        return f'```python\n{code_line}\n```'
+                args.append(f"{key}={value}")
+
+        code_line = f"final_result = {name}({', '.join(args)})"
+        return f"```python\n{code_line}\n```"
     except json.JSONDecodeError:
         return input_str
 

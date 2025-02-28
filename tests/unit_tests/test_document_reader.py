@@ -154,16 +154,16 @@ async def test_init_no_blobs_with_internet():
         shutil.move(str(blobs_dir), str(temp_dir))
         try:
             # Mock internet connection check to return True
-            with patch('owlsight.rag.document_reader._has_internet_connection', return_value=True):
+            with patch("owlsight.rag.document_reader._has_internet_connection", return_value=True):
                 # Initialize DocumentReader
                 reader = DocumentReader()
-                
+
                 # Verify reader was initialized correctly
                 assert reader.ocr_enabled is True
                 assert reader.timeout == 5
-                
+
                 # Test basic functionality
-                with patch('tika.parser.from_file', return_value=SAMPLE_PDF_CONTENT):
+                with patch("tika.parser.from_file", return_value=SAMPLE_PDF_CONTENT):
                     content = reader.read_file("test.pdf")
                     assert content == SAMPLE_TEXT
         finally:

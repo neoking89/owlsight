@@ -20,6 +20,7 @@ try:
 except ImportError:
     logger.warning("pytesseract is not installed. Please install it using 'pip install pytesseract'.")
 
+
 def setup_tesseract() -> str:
     """Initialize Tesseract. Return the path to the Tesseract executable."""
     if not os_is_windows():

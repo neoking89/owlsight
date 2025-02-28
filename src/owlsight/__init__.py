@@ -49,7 +49,7 @@ __all__ = [
     "MultiModalProcessorTransformers",
     "PythonLibSearcher",
     "SentenceTextSplitter",
-    'SemanticTextSplitter',
+    "SemanticTextSplitter",
     "DocumentSearcher",
     "DocumentReader",
     "HashingVectorizerSearchEngine",
@@ -63,5 +63,5 @@ __all__ = [
     "AgentPrompts",
     "PromptWriter",
     "function_to_json_for_tool_calling",
-    "VoiceControl"
+    "VoiceControl",
 ]
