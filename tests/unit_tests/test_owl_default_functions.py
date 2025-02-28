@@ -3,14 +3,11 @@ import tempfile
 import os
 from pathlib import Path
 from unittest.mock import patch, Mock
-import sys
 
 from pynput.keyboard import Controller
 
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.app._child_process_owl_press import KEY_MAP, execute_key_sequence
-
-sys.path.append("src")
 
 
 @pytest.fixture
