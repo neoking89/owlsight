@@ -23,21 +23,30 @@ You can install Owlsight using pip:
 pip install owlsight
 ```
 
-By default, only the transformers library is installed for working with language models.
+### Installation Options and Dependencies
 
-To add GGUF functionality:
+A basic installation includes only the core dependencies needed for the transformers library and basic functionality. For access to specific features, you will need to install optional dependency groups:
+
+#### Optional Feature Modules
+
+To add GGUF model support (using llama-cpp-python):
 ```
 pip install owlsight[gguf]
 ```
 
-To add ONNX functionality:
+To add ONNX model support (optimized model inference):
 ```
 pip install owlsight[onnx]
 ```
 
-To add multimodal functionality:
+To add multimodal functionality (image processing, OCR):
 ```
 pip install owlsight[multimodal]
+```
+
+To add web search and scraping capabilities:
+```
+pip install owlsight[search]
 ```
 
 To add voice control functionality:
@@ -45,22 +54,36 @@ To add voice control functionality:
 pip install owlsight[voice]
 ```
 
-When working offline, you can use the offline flag. 
-This will enable access to the tika-server.jar file locally, enabling you to use the `DocumentReader` class (which includes Apache Tika functionality) without an internet connection.
+For offline operation with tika-server.jar file, enabling you to use the `DocumentReader` class (which includes Apache Tika functionality):
 ```
 pip install owlsight[offline]
 ```
 
-To install all packages:
+#### Comprehensive Installation
+To install all packages and features:
 ```
 pip install owlsight[all]
 ```
 
-It is recommended to use the `all` option, as this will install all dependencies for the TextGenerationProcessors, supporting Pytorch, GGUF and ONNX.
+### Available Features Based on Installation
 
-NOTE: some libraries like llama-cpp-python and pytorch can be highly dependant on user-specific configurations.
-From Owlsight out of the box, these libraries are installed without any additional configurations.
-You might need to reinstall them after installing Owlsight with settings that match your requirements.
+| Feature | Basic Install | Required Extra |
+|---------|---------------|----------------|
+| Transformers models | ✓ | - |
+| GGUF models | ✗ | [gguf] |
+| ONNX models | ✗ | [onnx] |
+| Image processing | ✗ | [multimodal] |
+| Web search/scraping | ✗ | [search] |
+| Voice control | ✗ | [voice] |
+| Offline document reading (using Apache Tika) | ✗ | [offline] |
+| Development | ✗ | [dev] |
+
+### Security and Performance Notes
+
+- Using multiple flags is a conscious design choice to give users more control over the behavior of the application and prevent "dependency hell".
+- The application is designed to gracefully handle missing dependencies - you will receive helpful warning/error messages if you attempt to use a feature without the required dependencies.
+- Some libraries like llama-cpp-python and pytorch may require specific configurations depending on your hardware.
+- If you want most useful features out of the box, it is recommendded to pip install Owlsight with the [all] option.
 
 ## Usage
 
