@@ -9,7 +9,6 @@ from typing import Union
 from urllib.parse import urlparse
 
 import requests
-from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from owlsight.utils.helper_functions import os_is_windows
@@ -19,6 +18,7 @@ try:
     import pytesseract
 except ImportError:
     logger.warning("pytesseract is not installed. Please install it using 'pip install pytesseract'.")
+
 
 def setup_tesseract() -> str:
     """Initialize Tesseract. Return the path to the Tesseract executable."""
@@ -97,6 +97,12 @@ def download_tesseract(output_dir=".", timeout=10) -> Union[str, None]:
     Union[str, None]
         The name of the downloaded file, or None if the download failed.
     """
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError as e:
+        raise ImportError(
+            "BeautifulSoup is not installed. Please install it using 'pip install beautifulsoup4'."
+        ) from e
     tesseract_url = "https://github.com/UB-Mannheim/tesseract/wiki"
     try:
         res = requests.get(tesseract_url, timeout=timeout)
@@ -142,7 +148,8 @@ def is_admin():
     """Check if the script is running with administrative privileges."""
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
-    except:
+    except Exception as e:
+        logger.error(f"Error checking admin status: {e}")
         return False
 
 
