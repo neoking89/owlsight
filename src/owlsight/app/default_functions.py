@@ -224,7 +224,15 @@ class OwlDefaultFunctions:
         - Implements exponential backoff with jitter between retries
         - Results are limited to text-based web content
         """
-        from duckduckgo_search import DDGS
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            error_msg = (
+                "The duckduckgo_search package is required for web search functionality "
+                "but is not installed. Please install using 'pip install owlsight[search]'"
+            )
+            print(error_msg)
+            return {"error": error_msg}
 
         errors = []
         for attempt in range(max_retries):
@@ -433,7 +441,22 @@ class OwlDefaultFunctions:
         - Respects robots.txt and website rate limits
         - Extracts main article content when possible
         """
-        from owlsight.app.url_processor import fetch_and_parse_urls
+        from owlsight.app.url_processor import fetch_and_parse_urls, AIOHTTP_AVAILABLE, LXML_AVAILABLE
+        
+        if not AIOHTTP_AVAILABLE or not LXML_AVAILABLE:
+            missing_packages = []
+            if not AIOHTTP_AVAILABLE:
+                missing_packages.append("aiohttp")
+            if not LXML_AVAILABLE:
+                missing_packages.append("lxml")
+                
+            error_msg = (
+                f"The following packages are required for web scraping functionality "
+                f"but are not installed: {', '.join(missing_packages)}. "
+                f"Please install using 'pip install owlsight[search]'"
+            )
+            print(error_msg)
+            return {"error": error_msg}
 
         content_dict = asyncio.run(fetch_and_parse_urls(urls, max_concurrent, timeout))
         content_dict = {url: content.strip() for url, content in content_dict.items() if content.strip()}
@@ -476,8 +499,41 @@ class OwlDefaultFunctions:
         - Uses exponential backoff with jitter for search retries
         - Scrapes content concurrently up to max_concurrent limit
         """
+        # Check for required packages
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            error_msg = (
+                "The duckduckgo_search package is required for web search functionality "
+                "but is not installed. Please install using 'pip install owlsight[search]'"
+            )
+            print(error_msg)
+            return {"error": error_msg}
+
+        # Try importing from url_processor to check if aiohttp and lxml are available
+        from owlsight.app.url_processor import AIOHTTP_AVAILABLE, LXML_AVAILABLE
+        
+        if not AIOHTTP_AVAILABLE or not LXML_AVAILABLE:
+            missing_packages = []
+            if not AIOHTTP_AVAILABLE:
+                missing_packages.append("aiohttp")
+            if not LXML_AVAILABLE:
+                missing_packages.append("lxml")
+                
+            error_msg = (
+                f"The following packages are required for web scraping functionality "
+                f"but are not installed: {', '.join(missing_packages)}. "
+                f"Please install using 'pip install owlsight[search]'"
+            )
+            print(error_msg)
+            return {"error": error_msg}
+            
         # First perform the search to get URLs
         search_results = self.owl_search(query, max_results=max_results, max_retries=max_retries)
+        
+        # If there was an error in the search, return it
+        if "error" in search_results:
+            return search_results
 
         # Get the URLs from the search results
         urls = list(search_results.keys())
