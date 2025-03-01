@@ -474,7 +474,7 @@ def parse_html_tags(text: str) -> dict:
     
     return result
 
-def parse_function_call(input_str: str) -> tuple[str | None, dict | None]:
+def parse_function_call(input_str: str) -> tuple[Union[str, None], Union[dict, None]]:
     """
     Parses a string for a JSON-like function call pattern of the form:
     {"name": "function_name", "arguments": { ... }}

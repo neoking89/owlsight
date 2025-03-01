@@ -40,13 +40,13 @@ class OwlDefaultFunctions:
     This class is open for extension, as possibly more useful functions can be added in the future.
     """
 
-    def __init__(self, globals_dict: dict):
+    def __init__(self, globals_dict: Union[dict]):
         """
         Initialize the OwlDefaultFunctions class.
 
         Parameters
         ----------
-        globals_dict : dict | GlobalPythonVarsDict
+        globals_dict : Union[dict, GlobalPythonVarsDict]
             Dictionary of global variables.
             If it is only relevant to use methods in this class, pass an empty dict.
 

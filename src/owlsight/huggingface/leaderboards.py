@@ -4,7 +4,7 @@ Provides functionality to fetch and parse leaderboard data into pandas DataFrame
 """
 
 import re
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Union
 import ast
 from functools import lru_cache
 
@@ -86,7 +86,7 @@ def get_leaderboard_data(leaderboard_id: str) -> pd.DataFrame:
     return pd.DataFrame(data_dict["data"], columns=data_dict["headers"])
 
 
-def convert_params_to_number(value_str: str) -> float | None:
+def convert_params_to_number(value_str: str) -> Union[float, None]:
     """
     Convert string numbers with 'B' (billions) or 'M' (millions) to float values.
 
@@ -96,7 +96,7 @@ def convert_params_to_number(value_str: str) -> float | None:
 
     Returns:
     -------
-    float | None: Numerical value in the base unit, or None if conversion fails
+    Union[float, None]: Numerical value in the base unit, or None if conversion fails
     """
     try:
         # Handle 'Unknown' case
