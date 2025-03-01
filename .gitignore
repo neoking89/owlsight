@@ -27,6 +27,7 @@ build.bat
 src/owlsight.egg-info/*
 build_commands.txt
 TODO
+/test_logs
 
 # windsurf rules
 .windsurfrules
