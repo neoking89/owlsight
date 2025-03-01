@@ -73,7 +73,7 @@ def get_leaderboard_data(leaderboard_id: str) -> pd.DataFrame:
     ImportError: If gradio is not installed
     """
     try:
-        from gradio import Client
+        from gradio_client import Client
     except ImportError:
         raise ImportError(
             "gradio is required for this function. "
