@@ -153,6 +153,7 @@ def get_pyenv_path() -> Path:
 def get_pip_path(pyenv_path: Union[str, Path]) -> Path:
     """
     Get the path to the pip executable within the (virtual) python environment.
+    Also supports uv as an alternative package manager.
 
     Parameters
     ----------
@@ -162,14 +163,40 @@ def get_pip_path(pyenv_path: Union[str, Path]) -> Path:
     Returns
     -------
     Path
-        The path to the pip executable.
+        The path to the pip or uv executable.
     """
     pyenv_path = Path(pyenv_path)
-    pip_path = pyenv_path / ('Scripts' if os_is_windows() else 'bin') / ('pip3.exe' if os_is_windows() else 'pip3')
-    if not pip_path.exists():
-        raise FileNotFoundError(f"Could not find pip executable at {pip_path}")
+    scripts_dir = 'Scripts' if os_is_windows() else 'bin'
     
-    return pip_path
+    # First check for pip3
+    pip_path = pyenv_path / scripts_dir / ('pip3.exe' if os_is_windows() else 'pip3')
+    if pip_path.exists():
+        return pip_path
+    
+    # Then check for pip
+    pip_path = pyenv_path / scripts_dir / ('pip.exe' if os_is_windows() else 'pip')
+    if pip_path.exists():
+        return pip_path
+    
+    # Finally check for uv
+    uv_path = pyenv_path / scripts_dir / ('uv.exe' if os_is_windows() else 'uv')
+    if uv_path.exists():
+        return uv_path
+        
+    # If none of the package managers are found, also check system PATH
+    import shutil
+    package_managers = ['pip3', 'pip', 'uv']
+    for pm in package_managers:
+        pm_exe = f"{pm}.exe" if os_is_windows() else pm
+        path = shutil.which(pm_exe)
+        if path:
+            return Path(path)
+    
+    # If still nothing is found, raise an error with helpful message
+    raise FileNotFoundError(
+        f"Could not find pip or uv executable in {pyenv_path / scripts_dir}. "
+        "Please ensure either pip or uv is installed in your virtual environment."
+    )
 
 
 def get_temp_dir(suffix: str) -> Path:
@@ -199,18 +226,18 @@ def install_python_modules(
     *args: Any
 ) -> bool:
     """
-    Install one or more Python modules using pip into a specified directory and add it to sys.path.
+    Install one or more Python modules using pip or uv into a specified directory and add it to sys.path.
 
     Parameters
     ----------
     module_names : Union[str, List[str]]
         The name of the module(s) to install. Can be a single module as a string or a list of modules.
     pip_path : Union[str, Path]
-        The path to the pip executable.
+        The path to the pip or uv executable.
     target_dir : Union[str, Path]
         The directory where the module(s) should be installed.
     *args : Any
-        Additional arguments to pass to the pip install command (e.g., --extra-index-url).
+        Additional arguments to pass to the install command (e.g., --extra-index-url).
 
     Returns
     -------
@@ -219,16 +246,22 @@ def install_python_modules(
     """
     target_dir_str = str(Path(target_dir))
     pip_path_str = str(Path(pip_path))
+    is_uv = "uv" in Path(pip_path_str).name.lower()
     
     # Convert module_names to a list if it's a string
     if isinstance(module_names, str):
         module_names = [name.strip() for name in module_names.split(" ")]
 
-
     # Install each module separately to match test expectations
     for module in module_names:
         try:
-            cmd = [pip_path_str, "install", "--target", target_dir_str, module, *args]
+            if is_uv:
+                # uv uses a different command structure
+                cmd = [pip_path_str, "pip", "install", "--target", target_dir_str, module, *args]
+            else:
+                # pip command structure
+                cmd = [pip_path_str, "install", "--target", target_dir_str, module, *args]
+                
             subprocess.check_call(cmd)
             logger.info(f"Successfully installed {module} into {target_dir}")
             
