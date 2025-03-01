@@ -54,7 +54,7 @@ To add voice control functionality:
 pip install owlsight[voice]
 ```
 
-For offline operation with tika-server.jar file, enabling you to use the `DocumentReader` class (which includes Apache Tika functionality):
+For operating in an offline environment with tika-server.jar file, enabling you to use the `DocumentReader` class (which includes Apache Tika functionality):
 ```
 pip install owlsight[offline]
 ```
@@ -83,7 +83,8 @@ pip install owlsight[all]
 - Using multiple flags is a conscious design choice to give users more control over the behavior of the application and prevent "dependency hell".
 - The application is designed to gracefully handle missing dependencies - you will receive helpful warning/error messages if you attempt to use a feature without the required dependencies.
 - Some libraries like llama-cpp-python and pytorch may require specific configurations depending on your hardware.
-- If you want most useful features out of the box, it is recommendded to pip install Owlsight with the [all] option.
+- If you want most useful features out of the box, it is recommended to pip install Owlsight with the [all] option. This will install owlsight with the following flags: gguf, onnx, multimodal, search
+- Recommended python versions: 3.10, 3.11, 3.12. Lower or higher python versions may not support all features, especially due to package incompatibilities.
 
 ## Usage
 
@@ -182,11 +183,12 @@ owlsight --voice --voicecontrol-kwargs '{
 }'
 ```
 
-These options can be combined to create a fully customized voice control experience.
+These options can be combined to create a fully customized voice control experience, which you can also utilize outside of the application.
 
 ### Example Workflow
 
-You can combine Python variables with language models in Owlsight through special double curly-brackets syntax. For example:
+You can combine Python variables defined in the Python Interpreter together with language models in Owlsight through special double curly-brackets syntax.
+For example:
 
 ```
 python > a = 42
@@ -199,7 +201,7 @@ answer -> 210
 
 Additionally, you can also ask a model to write pythoncode and access that in the python interpreter.
 
-From a model response, all generated python code will be extracted and can be edited or executed afterwards. This choice is always optional. After execution, the defined objects will be saved in the global namespace of the python interpreter for the remainder of the current active session. This is a powerful feature, which allows build-as-you-go for a wide range of tasks.
+From a model response, all generated python code will be extracted and can be edited or executed afterwards. This choice is always optional. After execution, the defined objects will be saved in the global namespace of the python interpreter for the remainder of the current active session. This is a powerful feature, which allows build-as-you-go for a wide range of complex tasks.
 
 Example:
 
@@ -215,8 +217,9 @@ python > excel_data = read_excel("path/to/excel")
 
 ### MultiModal Support
 
-In Owlsight 2, models are supported that require additional input, like images or audio. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. 
-In the CLI, this can be done by setting the *config.model.model_id* to a multimodal model from the Huggingface modelhub. The model should be a Pytorch model. 
+In Owlsight 2, special multimodal support is available for certain models that require additional input, like images or audio. In the backend, this is made possible with the **MultiModalProcessorTransformers** class. 
+In the CLI, this can be done by setting the *config.model.model_id* to a multimodal model from the Huggingface modelhub. 
+Keep in mind that this model should be a Pytorch model (so not GGUF or ONNX).
 For convenience, it is recommended to select a model through the new Huggingface API in the configuration-settings (read below for more information).
 
 The following tasks are supported for multimodal models:
@@ -260,7 +263,7 @@ These are:
 - `owl_tools`: Show available functions for tool calling
 - `owl_search`: Search and get results from the web using DuckDuckGo's API
 - `owl_search_and_scrape`: Search and scrape the web using DuckDuckGo's API. Uses both the `owl_search` and `owl_scrape` functions combined.
-- `owl_create_document_searcher`: Create a DocumentSearcher instance with a given set of documents and a text splitter
+- `owl_create_document_searcher`: Create a DocumentSearcher instance with a given set of documents and a text splitter. This class is great for usage in a RAG scenario.
 
 ## Configurations
 
@@ -971,7 +974,7 @@ making it effective for concept-based search rather than just keyword matching.
 #### OwlDefaultFunctions
 
 ```python
-class OwlDefaultFunctions(globals_dict: 'dict')
+class OwlDefaultFunctions(globals_dict: 'Union[dict]')
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -1381,7 +1384,12 @@ Voice control features include:
 - Added JSON-based configuration for all voice control settings
 - Added `owl_search_and_scrape` function to the Python interpreter. This function can be used to search and scrape the web using DuckDuckGo's API.
 - Added `owl_create_document_searcher` function to the Python interpreter. This utilityfunction can be used to create a `DocumentSearcher` instance with a given set of documents and a text splitter.
+
+**2.4.0(stable)**
 - Added `get_mteb_leaderboard_data` function to the backend API. This function can be used to fetch the MTEB leaderboard data.
+- Added support for `uv` as an alternative package manager. Also improved current support for `pip` environments.
 - Several minor bugfixes and improvements.
+
+
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
