@@ -101,6 +101,7 @@ pip install owlsight[all]
 - The application is designed to gracefully handle missing dependencies - you will receive helpful warning/error messages if you attempt to use a feature without the required dependencies.
 - Some libraries like llama-cpp-python and pytorch may require specific configurations depending on your hardware.
 - If you want most useful features out of the box, it is recommendded to pip install Owlsight with the [all] option.
+- Recommended python versions: 3.10, 3.11, 3.12. Lower python versions may not support all features, especially due to package incompatibilities.
 
 ## Usage
 
@@ -533,8 +534,13 @@ Voice control features include:
 - Added JSON-based configuration for all voice control settings
 - Added `owl_search_and_scrape` function to the Python interpreter. This function can be used to search and scrape the web using DuckDuckGo's API.
 - Added `owl_create_document_searcher` function to the Python interpreter. This utilityfunction can be used to create a `DocumentSearcher` instance with a given set of documents and a text splitter.
+
+**2.4.0(stable)**
 - Added `get_mteb_leaderboard_data` function to the backend API. This function can be used to fetch the MTEB leaderboard data.
+- Added support for `uv` as an alternative package manager. Also improved current support for `pip` environments.
 - Several minor bugfixes and improvements.
+
+
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
