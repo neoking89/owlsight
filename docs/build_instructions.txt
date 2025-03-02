@@ -19,9 +19,9 @@
 # TROUBLESHOOTING
 
 I want to replace the latest git tag:
-- find last tag
+1. find last tag
 git tag 
-- delete last tag
+2. delete last tag
 git tag -d <tag_name>
-- push changes
+3. push changes
 git push origin --delete <tag_name>
