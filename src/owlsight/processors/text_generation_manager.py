@@ -77,10 +77,6 @@ class TextGenerationManager:
                 logger.error(e)
         return tool_history
 
-    def _update_tool_history(self, func_name: str, arguments: Dict[str, str]) -> None:
-        key = str({"name": func_name, "arguments": arguments})
-        self._tool_history.add(key)
-
     def generate(self, input_data: str, media_objects: Optional[Dict[str, dict]] = None) -> str:
         """
         Generate text using the processor.
@@ -171,6 +167,10 @@ class TextGenerationManager:
             self._update_agentic_config(inner_key, value)
         elif outer_key == "huggingface":
             self._update_huggingface_config(inner_key)
+
+    def _update_tool_history(self, func_name: str, arguments: Dict[str, str]) -> None:
+        key = str({"name": func_name, "arguments": arguments})
+        self._tool_history.add(key)
 
     def _update_main_config(self, inner_key: str, value: Any):
         """Handle updates to main configuration."""
@@ -440,14 +440,6 @@ class TextGenerationManager:
             return False
         self._update_tool_history(tool_name, arguments)
         return True
-
-    # def _create_tool_key(self, tool_name: str, arguments: Dict) -> tuple:
-    #     """Create a hashable key for a tool call by converting any list arguments to tuples."""
-    #     hashable_arguments = {
-    #         k: tuple(v) if isinstance(v, list) else v
-    #         for k, v in arguments.items()
-    #     }
-    #     return (tool_name, tuple(sorted(hashable_arguments.items())))
 
     def _execute_sequence_on_loading(self):
         """
