@@ -27,6 +27,7 @@ EXCLUDE_TOOLS = [
     "owl_save_namespace",
     "owl_load_namespace",
     "owl_create_document_searcher",
+    "owl_context_length",
 ]
 
 
