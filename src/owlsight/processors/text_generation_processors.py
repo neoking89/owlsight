@@ -1033,9 +1033,11 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
         self.update_history(input_data, generated_text.strip())
 
     def get_max_context_length(self) -> Optional[int]:
-        max_length = self.llm.metadata.get("llama.context_length", None)
-        if max_length is not None:
-            return int(max_length)
+        context_length_key = next(filter(lambda metadata: "context_length" in metadata, self.llm.metadata), None)
+        if context_length_key:
+            val = self.llm.metadata.get(context_length_key, None)
+            if val is not None:
+                return int(val)
         return None
 
     # override the original apply_chat_template method
