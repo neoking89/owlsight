@@ -361,6 +361,18 @@ class CodeExecutor:
 
         self.globals_dict["owl_history"] = owl_history
 
+        def owl_context_length() -> int:
+            """
+            Show max context length of the current loaded model.
+            Return 0 if no model is loaded or metadata about context length is not available.
+            """
+            processor = self.manager.get_processor()
+            if processor:
+                return processor.get_max_context_length()
+            return 0
+
+        self.globals_dict["owl_context_length"] = owl_context_length
+
     def _validate_python_compile_mode(self, python_compile_mode: str) -> None:
         modes = ["exec", "single", "eval"]
         if python_compile_mode not in modes:
