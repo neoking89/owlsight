@@ -542,6 +542,8 @@ Voice control features include:
 - Added support for `uv` as an alternative package manager. Also improved current support for `pip` environments.
 - Several minor bugfixes and improvements.
 
+**2.5.0(stable)**
+- Added `owl_context_length` function to the Python interpreter. This function can be used to get the context length of the currently loaded model.
 
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
