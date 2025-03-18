@@ -788,6 +788,20 @@ Use it to assist in answering the user's question.
     return user_question
 
 
+def get_last_used_tool(code_executor: "CodeExecutor", response: str) -> Dict[str, str]:
+    """
+    Parse the last used tool from the response, along with its function body.
+    If none is found, returns an empty dict.
+    """
+    tool_code = ""
+    possible_tool_names = code_executor.globals_dict.get_public_keys()
+    tool_name = next((name for name in possible_tool_names if name in response), None)
+    if tool_name:
+        bound_tool = code_executor.globals_dict.get(tool_name, None)
+        if bound_tool:
+            tool_code = inspect.getsource(bound_tool).strip()
+
+    return {tool_name: tool_code} if tool_name else {}
 
 
 # Replace the old process_user_question with the new orchestrated version
