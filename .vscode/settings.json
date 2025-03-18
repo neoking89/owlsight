@@ -1,5 +1,6 @@
 {
     "python.terminal.activateEnvironment": true,
+    "python.analysis.fixAll" : ["source.unusedImports"],
     "pylint.args": [
         "--rcfile=${workspaceFolder}/.pylintrc"
     ],
