@@ -253,72 +253,6 @@ class ToolSelectionAgent:
         return {"response": tool_response, "should_continue": True, "context": updated_context}
 
 
-class ToolExecutorAgent:
-    """Agent responsible for executing the tools selected by the planning agent."""
-
-    @staticmethod
-    def get_last_used_tool(code_executor: "CodeExecutor", response: str) -> Dict[str, str]:
-        """
-        Parse the last used tool from the response, along with its function body.
-        If none is found, returns an empty dict.
-        """
-        tool_code = ""
-        possible_tool_names = code_executor.globals_dict.get_public_keys()
-        tool_name = next((name for name in possible_tool_names if name in response), None)
-        if tool_name:
-            bound_tool = code_executor.globals_dict.get(tool_name, None)
-            if bound_tool:
-                tool_code = inspect.getsource(bound_tool).strip()
-
-        return {tool_name: tool_code} if tool_name else {}
-
-    def process(
-        self,
-        user_question: str,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
-        context: Optional[AgentContext] = None,
-    ) -> Dict[str, Any]:
-        """Process tool execution."""
-        context = context or {}
-
-        # Get the tool response from the planning agent
-        tool_response = context.get("tool_response", "")
-
-        # Execute the tool call if not already executed
-        if "code_execution_results" not in context:
-            code_execution_results = execute_code_with_feedback(
-                response=tool_response,
-                original_question=user_question,
-                code_executor=code_executor,
-                prompt_code_execution=False,  # Always execute tool calls
-                prompt_retry_on_error=False,
-            )
-        else:
-            code_execution_results = context.get("code_execution_results", [])
-
-        # Extract tool information
-        last_used_tool = context.get("last_used_tool") or self.get_last_used_tool(code_executor, tool_response)
-        tool_result = code_executor.globals_dict.get("final_result", [])
-
-        # Check if we need to continue to the python agent
-        python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
-        should_continue_to_python = python_agent_is_enabled and not tool_result
-
-        # Update context for the next agent
-        updated_context = context.copy()
-        updated_context.update(
-            {
-                "code_execution_results": code_execution_results,
-                "last_used_tool": last_used_tool,
-                "tool_result": tool_result,
-                "should_continue": should_continue_to_python,
-            }
-        )
-
-        return {"response": tool_response, "should_continue": should_continue_to_python, "context": updated_context}
-
-
 class PythonAgent:
     """Agent responsible for Python code validation and refinement."""
 
@@ -648,7 +582,6 @@ class AgentOrchestrator:
     def __init__(self, agents: List[Type[Agent]] = None):
         self.agents = agents or [
             ToolSelectionAgent,
-            ToolExecutorAgent,
             PythonAgent,
             ValidationAgent,
             ResponseSynthesisAgent,
