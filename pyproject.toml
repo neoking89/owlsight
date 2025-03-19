@@ -35,6 +35,7 @@ dev = [
     "pytest-asyncio<=0.24",
     "ruff",
     "black",
+    "pylint",
 ]
 
 # useful for getting leaderboards from the Hugging Face Hub
@@ -133,3 +134,19 @@ line-length = 120
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"
+
+[tool.pylint]
+max-line-length = 120
+disable = [
+    "C0111",  # missing-docstring
+    "C0103",  # invalid-name
+    "C0303",  # trailing-whitespace
+    "C0330",  # bad-continuation
+    "C1801",  # len-as-condition
+    "W0511",  # fixme
+    "R0903",  # too-few-public-methods
+    "R0913",  # too-many-arguments
+    "R0914",  # too-many-locals
+]
+ignore = ["CVS", ".git", ".pytest_cache", "__pycache__", "build", "dist"]
+ignore-patterns = ["test_.*\\.py", "conftest\\.py"]
