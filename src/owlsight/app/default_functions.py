@@ -28,6 +28,8 @@ EXCLUDE_TOOLS = [
     "owl_load_namespace",
     "owl_create_document_searcher",
     "owl_context_length",
+    "owl_press",
+    "owl_history"
 ]
 
 
@@ -40,7 +42,7 @@ class OwlDefaultFunctions:
     This class is open for extension, as possibly more useful functions can be added in the future.
     """
 
-    def __init__(self, globals_dict: Union[dict]):
+    def __init__(self, globals_dict: Dict):
         """
         Initialize the OwlDefaultFunctions class.
 
@@ -76,6 +78,8 @@ class OwlDefaultFunctions:
         - Excludes itself from the returned tools to prevent recursion
         - Maintains compatibility with OpenAI's tool calling specifications
         """
+        if not hasattr(self.globals_dict, "get_tools"):
+            raise ValueError("get_tools method not found in globals_dict. Use GlobalPythonVarsDict instead.")
         tools = self.globals_dict.get_tools(exclude_keys=EXCLUDE_TOOLS, as_json=as_json).copy()
         return tools
 
