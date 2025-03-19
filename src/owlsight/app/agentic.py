@@ -88,13 +88,15 @@ class Agent(Protocol):
         """
         Process a user question and return a result dict.
 
-        Args:
+        Parameters:
+        ----------
             user_question: The question or request from the user
             code_executor: The code executor instance
             manager: The text generation manager instance
             context: Additional context from previous agent executions
 
         Returns:
+        ---------
             Dict containing at least:
                 - 'response': str - The agent's response
                 - 'should_continue': bool - Whether to continue to next agent
