@@ -17,6 +17,8 @@ from owlsight.utils.helper_functions import (
 )
 from owlsight.utils.constants import get_pickle_cache
 from owlsight.prompts.system_prompts import ExpertPrompts
+from owlsight.app.default_functions import OwlDefaultFunctions
+from owlsight.utils.custom_classes import GlobalPythonVarsDict
 from owlsight.utils.logger import logger
 
 
@@ -108,6 +110,64 @@ class Agent(Protocol):
 class ToolSelectionAgent:
     """Agent responsible for creating plans and selecting tools."""
 
+    def process(
+        self,
+        user_question: str,
+        code_executor: "CodeExecutor",
+        manager: "TextGenerationManager",
+        context: Optional[AgentContext] = None,
+    ) -> Dict[str, Any]:
+        """Process the user question using the planning agent."""
+        context = context or {}
+
+        # Create the tool agent prompt
+        tool_state = {
+            "step": context.get("step", 0),
+            "max_steps": context.get("max_steps", 3),
+            "previous_results": context.get("previous_results", code_executor.globals_dict.get("tool_results", [])),
+        }
+        tool_question = self._create_tool_agent_prompt(user_question, tool_state, manager)
+
+        # Define the system prompt for the planning agent
+        tool_agent_system_prompt = (
+            "You are an expert planner, specialized in thinking through the next steps "
+            "and choosing the appropriate tools to facilitate them. Always use one of the "
+            "available tools to answer the user's question."
+        )
+
+        # Execute the tool agent
+        with AgenticRole(
+            tool_question, tool_agent_system_prompt, manager, code_executor, disable_tools=False
+        ) as tool_agent:
+            tool_response = tool_agent.manager.generate(tool_agent.question)
+
+        # Execute the tool call and get results
+        code_execution_results = execute_code_with_feedback(
+            response=tool_response,
+            original_question=tool_question,
+            code_executor=code_executor,
+            prompt_code_execution=False,  # Always execute tool calls
+            prompt_retry_on_error=False,
+        )
+
+        # Extract the tool information for use by the next agent
+        last_used_tool = get_last_used_tool(code_executor, tool_response)
+        tool_result = code_executor.globals_dict.get("final_result", [])
+
+        # Prepare the context for the next agent
+        updated_context = context.copy()
+        updated_context.update(
+            {
+                "tool_response": tool_response,
+                "code_execution_results": code_execution_results,
+                "last_used_tool": last_used_tool,
+                "tool_result": tool_result,
+                "should_continue": True,
+            }
+        )
+
+        return {"response": tool_response, "should_continue": True, "context": updated_context}
+
     @staticmethod
     def _create_tool_agent_prompt(user_question: str, context: AgentContext, manager: TextGenerationManager) -> str:
         """
@@ -196,6 +256,10 @@ class ToolSelectionAgent:
 """
         return f"# User Request:\n{user_question}\n\n{tool_prompt}".strip()
 
+
+class PythonAgent:
+    """Agent responsible for Python code validation and refinement."""
+
     def process(
         self,
         user_question: str,
@@ -203,60 +267,28 @@ class ToolSelectionAgent:
         manager: "TextGenerationManager",
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
-        """Process the user question using the planning agent."""
+        """Process Python code validation and refinement."""
         context = context or {}
 
-        # Create the tool agent prompt
-        tool_state = {
-            "step": context.get("step", 0),
-            "max_steps": context.get("max_steps", 3),
-            "previous_results": context.get("previous_results", code_executor.globals_dict.get("tool_results", [])),
-        }
-        tool_question = self._create_tool_agent_prompt(user_question, tool_state, manager)
+        last_used_tool = context.get("last_used_tool", {})
 
-        # Define the system prompt for the planning agent
-        tool_agent_system_prompt = (
-            "You are an expert planner, specialized in thinking through the next steps "
-            "and choosing the appropriate tools to facilitate them. Always use one of the "
-            "available tools to answer the user's question."
-        )
+        # Skip Python agent if not enabled
+        python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
+        if not python_agent_is_enabled:
+            return {"response": context.get("tool_response", ""), "should_continue": True, "context": context}
 
-        # Execute the tool agent
-        with AgenticRole(
-            tool_question, tool_agent_system_prompt, manager, code_executor, disable_tools=False
-        ) as tool_agent:
-            tool_response = tool_agent.manager.generate(tool_question)
+        # Process with Python agent
+        python_response = self._handle_python_agent(user_question, manager, code_executor, last_used_tool)
 
-        # Execute the tool call and get results
-        code_execution_results = execute_code_with_feedback(
-            response=tool_response,
-            original_question=tool_question,
-            code_executor=code_executor,
-            prompt_code_execution=False,  # Always execute tool calls
-            prompt_retry_on_error=False,
-        )
-
-        # Extract the tool information for use by the next agent
-        last_used_tool = get_last_used_tool(code_executor, tool_response)
-        tool_result = code_executor.globals_dict.get("final_result", [])
-
-        # Prepare the context for the next agent
+        # Update context
         updated_context = context.copy()
-        updated_context.update(
-            {
-                "tool_response": tool_response,
-                "code_execution_results": code_execution_results,
-                "last_used_tool": last_used_tool,
-                "tool_result": tool_result,
-                "should_continue": True,
-            }
-        )
+        updated_context.update({"python_response": python_response, "should_continue": True})
 
-        return {"response": tool_response, "should_continue": True, "context": updated_context}
-
-
-class PythonAgent:
-    """Agent responsible for Python code validation and refinement."""
+        return {
+            "response": python_response or context.get("tool_response", ""),
+            "should_continue": True,
+            "context": updated_context,
+        }
 
     def _handle_python_agent(
         self,
@@ -332,6 +364,10 @@ final_result = solution(...)
             logger.warning("Code validation failed, returning empty string.")
             return ""
 
+
+class ValidationAgent:
+    """Agent responsible for validating if enough information has been gathered."""
+
     def process(
         self,
         user_question: str,
@@ -339,33 +375,60 @@ final_result = solution(...)
         manager: "TextGenerationManager",
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
-        """Process Python code validation and refinement."""
+        """Validate if enough information has been gathered."""
         context = context or {}
 
-        last_used_tool = context.get("last_used_tool", {})
-        tool_result = context.get("tool_result", [])
+        # Get results from previous steps
+        code_execution_results = context.get("code_execution_results", [])
+        current_step = context.get("step", 0)
+        max_steps = context.get("max_steps", 3)
 
-        # Skip Python agent if not enabled or if we already have a result
-        python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
-        if not python_agent_is_enabled or tool_result:
-            return {"response": context.get("tool_response", ""), "should_continue": True, "context": context}
+        # Extract final result
+        if not code_execution_results or not any(r["success"] for r in code_execution_results):
+            logger.warning(f"Tool execution failed or no results. Results: {code_execution_results}")
+            final_result = ""
+        else:
+            final_result = code_executor.globals_dict.get("final_result", None)
+            if final_result is None:
+                logger.warning("No 'final_result' found in globals after tool execution.")
+                final_result = ""
 
-        # Process with Python agent
-        python_response = self._handle_python_agent(user_question, manager, code_executor, last_used_tool)
+        logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
+
+        # Check if answer is appropriate
+        answer_is_appropriate = self._handle_answer_validation(user_question, final_result, manager, code_executor)
+
+        if answer_is_appropriate:
+            logger.info("Enough information gathered to generate a final answer.")
+        else:
+            logger.info("More information needed to generate a final answer.")
+
+        # Update tool results in globals
+        tool_results = code_executor.globals_dict.get("tool_results", [])
+        tool_results.append(final_result)
+        code_executor.globals_dict["tool_results"] = tool_results
+
+        # Determine if we should continue to another cycle
+        if current_step + 1 >= max_steps:
+            # If at max steps, we want to go to ResponseSynthesisAgent regardless
+            should_continue = True
+        else:
+            # If not at max steps and answer is not appropriate, continue to next step
+            should_continue = not answer_is_appropriate
 
         # Update context
         updated_context = context.copy()
-        updated_context.update({"python_response": python_response, "should_continue": True})
+        updated_context.update(
+            {
+                "final_result": final_result,
+                "answer_is_appropriate": answer_is_appropriate,
+                "tool_results": tool_results,
+                "step": current_step + 1,
+                "should_continue": should_continue,
+            }
+        )
 
-        return {
-            "response": python_response or context.get("tool_response", ""),
-            "should_continue": True,
-            "context": updated_context,
-        }
-
-
-class ValidationAgent:
-    """Agent responsible for validating if enough information has been gathered."""
+        return {"response": final_result, "should_continue": should_continue, "context": updated_context}
 
     @staticmethod
     def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
@@ -460,74 +523,26 @@ Possible judgments:
             response = judge_agent.manager.generate(judge_agent.question)
 
             try:
-                judgment_str = re.findall(r"<judgment>(.*?)</judgment>", response, re.DOTALL)[0].strip()
+                judgment_str = re.findall(r"<judgment>(.*?)</judgment>", response, re.DOTALL)[0].strip().lower()
                 logger.info(f"Answer validation judgment: {judgment_str}")
-                if judgment_str.lower() == "yes":
+                
+                if judgment_str == "yes":
                     logger.info("Answer 'yes' found in judgment.")
                     return True
+                elif judgment_str == "partial":
+                    logger.info("Answer 'partial' found in judgment. More information needed.")
+                    return False
+                elif judgment_str == "no":
+                    logger.info("Answer 'no' found in judgment. Information is incorrect or missing.")
+                    return False
+                else:
+                    logger.warning(f"Unknown judgment value: {judgment_str}. Treating as not appropriate.")
+                    return False
             except Exception as e:
                 logger.error(f"Error parsing judgment: {str(e)}")
 
-        logger.info("Did not find 'yes' in judgment.")
+        logger.info("No valid judgment found. Treating as not appropriate.")
         return False
-
-    def process(
-        self,
-        user_question: str,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
-        context: Optional[AgentContext] = None,
-    ) -> Dict[str, Any]:
-        """Validate if enough information has been gathered."""
-        context = context or {}
-
-        # Get results from previous steps
-        code_execution_results = context.get("code_execution_results", [])
-        tool_result = context.get("tool_result", [])
-        current_step = context.get("step", 0)
-        max_steps = context.get("max_steps", 3)
-
-        # Extract final result
-        if not code_execution_results or not any(r["success"] for r in code_execution_results):
-            logger.warning(f"Tool execution failed or no results. Results: {code_execution_results}")
-            final_result = ""
-        else:
-            final_result = code_executor.globals_dict.get("final_result", None)
-            if final_result is None:
-                logger.warning("No 'final_result' found in globals after tool execution.")
-                final_result = ""
-
-        logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
-
-        # Check if answer is appropriate
-        answer_is_appropriate = self._handle_answer_validation(user_question, final_result, manager, code_executor)
-
-        if answer_is_appropriate:
-            logger.info("Enough information gathered to generate a final answer.")
-        else:
-            logger.info("More information needed to generate a final answer.")
-
-        # Update tool results in globals
-        tool_results = code_executor.globals_dict.get("tool_results", [])
-        tool_results.append(final_result)
-        code_executor.globals_dict["tool_results"] = tool_results
-
-        # Determine if we should continue to another cycle
-        should_continue = current_step + 1 < max_steps and not answer_is_appropriate
-
-        # Update context
-        updated_context = context.copy()
-        updated_context.update(
-            {
-                "final_result": final_result,
-                "answer_is_appropriate": answer_is_appropriate,
-                "tool_results": tool_results,
-                "step": current_step + 1,
-                "should_continue": should_continue,
-            }
-        )
-
-        return {"response": final_result, "should_continue": should_continue, "context": updated_context}
 
 
 class ResponseSynthesisAgent:
@@ -638,21 +653,54 @@ class AgentOrchestrator:
 
         # Process through agents
         response = ""
+        skip_to_response_synthesis = False
+        last_agent_class = None
+
+        logger.info(f"Starting agent processing for user request: {user_question}")
+        available_tools = [getattr(obj, "__name__", None) for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)]
+        logger.info(f"Available tools: {available_tools}")
         for agent_class in self.agents:
-            logger.info(f"Using {agent_class.__name__}, step {context['step']+1}/{context['max_steps']}")
+            # Skip ResponseSynthesisAgent unless we've got a "yes" judgment or reached max steps
+            if agent_class == ResponseSynthesisAgent and not skip_to_response_synthesis:
+                # Skip ResponseSynthesisAgent if judgment wasn't "yes" and we haven't reached max_steps
+                current_step = context.get("step", 0)
+                if (
+                    last_agent_class == ValidationAgent
+                    and not context.get("answer_is_appropriate", False)
+                    and current_step < max_steps
+                ):
+                    logger.info(f"Skipping ResponseSynthesisAgent - step {current_step}/{max_steps}")
+                    continue
+
+            logger.info(f"Using {agent_class.__name__}, step {context['step'] + 1}/{context['max_steps']}")
             agent = agent_class()
             result = agent.process(user_question, code_executor, manager, context)
 
             # Update context with agent results
             context = result["context"]
             response = result["response"]
+            last_agent_class = agent_class
 
             # Check if we should continue to the next agent
             if not result["should_continue"]:
                 break
 
+            # Set flag for ResponseSynthesisAgent if ValidationAgent returned a "yes" judgment or max_steps reached
+            if agent_class == ValidationAgent:
+                # Check if ValidationAgent returned "yes" or if we've reached max_steps
+                current_step = context.get("step", 0)
+                if context.get("answer_is_appropriate", False) or current_step >= max_steps:
+                    logger.info(f"Setting skip_to_response_synthesis to True - step {current_step}/{max_steps}")
+                    skip_to_response_synthesis = True
+
         # Check if we need to restart the process for another iteration
-        if context.get("should_continue", False):
+        if context.get("should_continue", False) and (
+            last_agent_class != ValidationAgent or (
+                last_agent_class == ValidationAgent 
+                and not context.get("answer_is_appropriate", False) 
+                and context.get("step", 0) < max_steps
+            )
+        ):
             return self.process_user_question(
                 user_choice,
                 code_executor,
@@ -660,6 +708,13 @@ class AgentOrchestrator:
                 max_steps=max_steps,
                 current_step=context.get("step", current_step + 1),
             )
+
+        # Ensure ResponseSynthesisAgent is called if ValidationAgent yields "yes" judgment
+        if last_agent_class == ValidationAgent and context.get("answer_is_appropriate", False):
+            logger.info("ValidationAgent yielded 'yes' judgment, proceeding to ResponseSynthesisAgent")
+            response_agent = ResponseSynthesisAgent()
+            result = response_agent.process(user_question, code_executor, manager, context)
+            response = result["response"]
 
         return response
 
@@ -702,6 +757,7 @@ Use it to assist in answering the user's question.
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
         logger.info(f"Context added (~{len(context.split())} words).")
     return user_question
+
 
 def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationManager) -> None:
     """
