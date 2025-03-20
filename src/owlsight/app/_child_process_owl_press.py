@@ -17,16 +17,16 @@ KEY_MAP = {
     "ENTER": Key.enter,
     " ": Key.space,
     "DEL": Key.delete,
-    "CTRL+A": (Key.ctrl, 'a'),
-    "CTRL+C": (Key.ctrl, 'c'),
-    "CTRL+Y": (Key.ctrl, 'y')
+    "CTRL+A": (Key.ctrl, "a"),
+    "CTRL+C": (Key.ctrl, "c"),
+    "CTRL+Y": (Key.ctrl, "y"),
 }
 
 
 def execute_key_sequence(sequence: List[str], time_before_sequence: float, time_between_keys: float):
     time.sleep(time_before_sequence)
     controller = Controller()
-    
+
     for item in sequence:
         if item.startswith("SLEEP:"):
             try:
@@ -34,7 +34,7 @@ def execute_key_sequence(sequence: List[str], time_before_sequence: float, time_
             except Exception as e:
                 print(f"Invalid sleep time {item}: ", e)
             continue
-        
+
         if item in KEY_MAP:
             key = KEY_MAP[item]
             if isinstance(key, tuple):

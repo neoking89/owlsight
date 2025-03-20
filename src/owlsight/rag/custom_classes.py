@@ -12,6 +12,7 @@ class SearchMethod(str, Enum):
     SENTENCE_TRANSFORMER = "sentence-transformer"
     HASHING = "hashing"
 
+
 @dataclass
 class SearchResult:
     """Model to store essential search results with type validation."""

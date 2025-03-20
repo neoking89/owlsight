@@ -592,9 +592,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
                         embeddings_list.append(torch.stack(doc_embeddings))
                 else:
                     # Direct encoding for single texts
-                    batch_embeddings = self.model.encode(
-                        batch_texts, convert_to_tensor=True, show_progress_bar=False
-                    )
+                    batch_embeddings = self.model.encode(batch_texts, convert_to_tensor=True, show_progress_bar=False)
                     embeddings_list.append(batch_embeddings)
 
             if not embeddings_list:

@@ -2,7 +2,8 @@ import subprocess
 import os
 from typing import Optional
 
-def open_file_dialog(initial_dir: Optional[str]=None):
+
+def open_file_dialog(initial_dir: Optional[str] = None):
     """
     Opens a file dialog and returns the selected file path.
 
@@ -27,9 +28,7 @@ def open_file_dialog(initial_dir: Optional[str]=None):
         }}
         """
 
-        result = subprocess.run(
-            ["powershell", "-Command", command], capture_output=True, text=True
-        )
+        result = subprocess.run(["powershell", "-Command", command], capture_output=True, text=True)
 
         if result.stdout.strip():
             return result.stdout.strip()
@@ -40,10 +39,10 @@ def open_file_dialog(initial_dir: Optional[str]=None):
         return None
 
 
-def save_file_dialog(initial_dir: Optional[str]=None, default_filename: Optional[str]=None) -> Optional[str]:
+def save_file_dialog(initial_dir: Optional[str] = None, default_filename: Optional[str] = None) -> Optional[str]:
     """
     Opens a save file dialog and returns the selected file path.
-    
+
     Parameters
     ----------
     initial_dir: str
@@ -70,9 +69,7 @@ def save_file_dialog(initial_dir: Optional[str]=None, default_filename: Optional
         }}
         """
 
-        result = subprocess.run(
-            ["powershell", "-Command", command], capture_output=True, text=True
-        )
+        result = subprocess.run(["powershell", "-Command", command], capture_output=True, text=True)
 
         if result.stdout.strip():
             return result.stdout.strip()

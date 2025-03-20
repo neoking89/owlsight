@@ -237,7 +237,9 @@ class DocumentReader:
             )
 
             if parsed.get("status") != 200:
-                logger.warning(f"Failed to parse {'file buffer' if not is_file else file_source}. Status: {parsed.get('status')}")
+                logger.warning(
+                    f"Failed to parse {'file buffer' if not is_file else file_source}. Status: {parsed.get('status')}"
+                )
                 return ""
 
             content = parsed.get("content", "")
@@ -340,4 +342,3 @@ class DocumentReader:
 
         if actual_hash != expected_hash:
             raise ValueError(f"MD5 mismatch for {jar_path.name}\nExpected: {expected_hash}\nActual:   {actual_hash}")
-

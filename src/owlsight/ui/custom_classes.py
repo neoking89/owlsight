@@ -20,6 +20,7 @@ class MenuItem:
     default: Any = None
     choices: Optional[Union[List, Any]] = None
 
+
 @dataclass
 class AppDTO:
     """
@@ -36,6 +37,7 @@ class AppDTO:
         This option is added to prevent ambiguity, as some keys might be shared among config options.
         Eg: "search" might be present in both config:rag and config:huggingface.
     """
+
     return_value_only: bool = False
     start_index: int = 0
     last_config_choice: str = ""

@@ -349,7 +349,7 @@ class SemanticTextSplitter(TextSplitter):
         if isinstance(model, str):
             # Initialize model with additional kwargs if provided
             model_kwargs = {"trust_remote_code": True, "device": self.device}
-            if hasattr(self, '_sentence_transformer_kwargs') and self._sentence_transformer_kwargs:
+            if hasattr(self, "_sentence_transformer_kwargs") and self._sentence_transformer_kwargs:
                 model_kwargs.update(self._sentence_transformer_kwargs)
             self._model = SentenceTransformer(model, **model_kwargs)
         elif isinstance(model, SentenceTransformer):
@@ -401,13 +401,13 @@ class SemanticTextSplitter(TextSplitter):
 
         for sentence in sentences:
             sentence_length = len(sentence) + 1  # +1 for space
-            
+
             # If adding this sentence would make the chunk too far from target,
             # start a new chunk unless current chunk is too small
-            if (current_length > 0 and 
-                abs(current_length - self.target_chunk_length) < 
-                abs(current_length + sentence_length - self.target_chunk_length)):
-                
+            if current_length > 0 and abs(current_length - self.target_chunk_length) < abs(
+                current_length + sentence_length - self.target_chunk_length
+            ):
+
                 if current_chunk:
                     final_chunks.append(" ".join(current_chunk))
                 current_chunk = [sentence]

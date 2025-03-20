@@ -141,7 +141,9 @@ class OptionSelectorApp:
 
         self._last_config_choice = ""
         self._global_dict = GlobalPythonVarsDict()
-        self._db_tag_completer = ItemCompleter(items=[f"{tag}:" for tag in _AVAILBLE_DB_TAGS], trigger="[[", start_position=0)
+        self._db_tag_completer = ItemCompleter(
+            items=[f"{tag}:" for tag in _AVAILBLE_DB_TAGS], trigger="[[", start_position=0
+        )
 
     def set_current_description(self) -> None:
         """

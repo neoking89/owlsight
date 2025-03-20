@@ -29,7 +29,7 @@ EXCLUDE_TOOLS = [
     "owl_create_document_searcher",
     "owl_context_length",
     "owl_press",
-    "owl_history"
+    "owl_history",
 ]
 
 
@@ -446,14 +446,14 @@ class OwlDefaultFunctions:
         - Extracts main article content when possible
         """
         from owlsight.app.url_processor import fetch_and_parse_urls, AIOHTTP_AVAILABLE, LXML_AVAILABLE
-        
+
         if not AIOHTTP_AVAILABLE or not LXML_AVAILABLE:
             missing_packages = []
             if not AIOHTTP_AVAILABLE:
                 missing_packages.append("aiohttp")
             if not LXML_AVAILABLE:
                 missing_packages.append("lxml")
-                
+
             error_msg = (
                 f"The following packages are required for web scraping functionality "
                 f"but are not installed: {', '.join(missing_packages)}. "
@@ -516,14 +516,14 @@ class OwlDefaultFunctions:
 
         # Try importing from url_processor to check if aiohttp and lxml are available
         from owlsight.app.url_processor import AIOHTTP_AVAILABLE, LXML_AVAILABLE
-        
+
         if not AIOHTTP_AVAILABLE or not LXML_AVAILABLE:
             missing_packages = []
             if not AIOHTTP_AVAILABLE:
                 missing_packages.append("aiohttp")
             if not LXML_AVAILABLE:
                 missing_packages.append("lxml")
-                
+
             error_msg = (
                 f"The following packages are required for web scraping functionality "
                 f"but are not installed: {', '.join(missing_packages)}. "
@@ -531,10 +531,10 @@ class OwlDefaultFunctions:
             )
             print(error_msg)
             return {"error": error_msg}
-            
+
         # First perform the search to get URLs
         search_results = self.owl_search(query, max_results=max_results, max_retries=max_retries)
-        
+
         # If there was an error in the search, return it
         if "error" in search_results:
             return search_results

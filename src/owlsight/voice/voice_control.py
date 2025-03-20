@@ -111,7 +111,7 @@ if VOICE_CONTROL_AVAILABLE:
             self.key_press_queue = queue.Queue()
             self.typing_queue = queue.Queue()
             self.recent_commands = {}
-            
+
             if self.debug:
                 logger.setLevel(logging.DEBUG)
 
@@ -364,6 +364,7 @@ else:
 
     class VoiceControl(DummyVoiceControl):
         """Proxy class that inherits from DummyVoiceControl when dependencies are missing"""
+
         pass
 
 
