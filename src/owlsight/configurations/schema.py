@@ -258,6 +258,10 @@ class Schema:
                 default="",
                 choices=None,
             ),
+            "show_available_tools": MenuItem(
+                type=OptionType.ACTION,
+                description="Show available tools added to the Python Interpreter namespace. These tools can be used by the Tool agent.",
+            ),
         },
         "huggingface": {
             "back": MenuItem(

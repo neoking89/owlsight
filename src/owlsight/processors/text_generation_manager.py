@@ -268,6 +268,12 @@ class TextGenerationManager:
                 warn_processor_not_loaded()
                 return
             self.processor.apply_tools = self._update_apply_tools(value)
+        elif inner_key == "show_available_tools":
+            sep = "#" * 50
+            available_tools = f"\n{sep}\n".join(
+                str(obj) for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=True)
+            )
+            print(f"Available tools:\n{sep}\n{available_tools}")
 
     def _update_huggingface_config(self, inner_key: str):
         """Handle updates to Hugging Face-related configuration."""
