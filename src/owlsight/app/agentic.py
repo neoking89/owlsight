@@ -68,13 +68,29 @@ class AgenticRole:
         self.manager.processor.chat_history = self.original_state["chat_history"] + self.manager.processor.chat_history
 
 
-class AgentContext(TypedDict):
+class AgentContext(TypedDict, total=False):
     """TypedDict representing the context for agent operations."""
 
-    step: int
-    max_steps: int
-    previous_results: List[str]
-    media_objects: Optional[Dict[str, str]]
+    # Core context fields used by AgentOrchestrator
+    step: int  # Current processing step
+    max_steps: int  # Maximum allowed steps
+    previous_results: List[str]  # Results from previous agents
+    media_objects: Optional[Dict[str, str]]  # Media objects associated with the query
+    should_continue: bool  # Whether to continue to the next agent or cycle
+
+    # Fields introduced by ToolSelectionAgent
+    tool_response: str  # Response from the tool agent
+    code_execution_results: Dict[str, Any]  # Results from code execution
+    last_used_tool: Dict[str, str]  # Information about the last used tool
+    tool_result: Any  # Result from the tool execution
+
+    # Fields introduced by PythonAgent
+    python_response: str  # Response from the Python agent
+    refined_code: str  # Refined code from the Python agent
+
+    # Fields introduced by ValidationAgent
+    final_result: str  # Final synthesized result
+    answer_is_appropriate: bool  # Whether the answer is appropriate/complete
 
 
 class Agent(Protocol):
@@ -118,9 +134,10 @@ class ToolSelectionAgent:
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
         """Process the user question using the planning agent."""
+        # Initialize context if not provided
         context = context or {}
 
-        # Create the tool agent prompt
+        # Create the tool agent prompt with current state information
         tool_state = {
             "step": context.get("step", 0),
             "max_steps": context.get("max_steps", 3),
@@ -135,13 +152,13 @@ class ToolSelectionAgent:
             "available tools to answer the user's question."
         )
 
-        # Execute the tool agent
+        # Step 1: Execute the tool agent to get a plan with tool selection
         with AgenticRole(
             tool_question, tool_agent_system_prompt, manager, code_executor, disable_tools=False
         ) as tool_agent:
             tool_response = tool_agent.manager.generate(tool_agent.question)
 
-        # Execute the tool call and get results
+        # Step 2: Execute the selected tool and capture results
         code_execution_results = execute_code_with_feedback(
             response=tool_response,
             original_question=tool_question,
@@ -150,23 +167,18 @@ class ToolSelectionAgent:
             prompt_retry_on_error=False,
         )
 
-        # Extract the tool information for use by the next agent
+        # Step 3: Extract tool information for use by subsequent agents
         last_used_tool = get_last_used_tool(code_executor, tool_response)
         tool_result = code_executor.globals_dict.get("final_result", [])
 
-        # Prepare the context for the next agent
-        updated_context = context.copy()
-        updated_context.update(
-            {
-                "tool_response": tool_response,
-                "code_execution_results": code_execution_results,
-                "last_used_tool": last_used_tool,
-                "tool_result": tool_result,
-                "should_continue": True,
-            }
-        )
+        # Update the context directly with new information
+        context["tool_response"] = tool_response
+        context["code_execution_results"] = code_execution_results
+        context["last_used_tool"] = last_used_tool
+        context["tool_result"] = tool_result
+        context["should_continue"] = True
 
-        return {"response": tool_response, "should_continue": True, "context": updated_context}
+        return {"response": tool_response, "should_continue": True, "context": context}
 
     @staticmethod
     def _create_tool_agent_prompt(user_question: str, context: AgentContext, manager: TextGenerationManager) -> str:
@@ -280,14 +292,14 @@ class PythonAgent:
         # Process with Python agent
         python_response = self._handle_python_agent(user_question, manager, code_executor, last_used_tool)
 
-        # Update context
-        updated_context = context.copy()
-        updated_context.update({"python_response": python_response, "should_continue": True})
+        # Update the context directly
+        context["python_response"] = python_response
+        context["should_continue"] = True
 
         return {
             "response": python_response or context.get("tool_response", ""),
             "should_continue": True,
-            "context": updated_context,
+            "context": context,
         }
 
     def _handle_python_agent(
@@ -416,19 +428,14 @@ class ValidationAgent:
             # If not at max steps and answer is not appropriate, continue to next step
             should_continue = not answer_is_appropriate
 
-        # Update context
-        updated_context = context.copy()
-        updated_context.update(
-            {
-                "final_result": final_result,
-                "answer_is_appropriate": answer_is_appropriate,
-                "tool_results": tool_results,
-                "step": current_step + 1,
-                "should_continue": should_continue,
-            }
-        )
+        # Update context directly
+        context["final_result"] = final_result
+        context["answer_is_appropriate"] = answer_is_appropriate
+        context["tool_results"] = tool_results
+        context["should_continue"] = should_continue
+        context["step"] = current_step + 1
 
-        return {"response": final_result, "should_continue": should_continue, "context": updated_context}
+        return {"response": final_result, "should_continue": should_continue, "context": context}
 
     @staticmethod
     def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
@@ -525,7 +532,7 @@ Possible judgments:
             try:
                 judgment_str = re.findall(r"<judgment>(.*?)</judgment>", response, re.DOTALL)[0].strip().lower()
                 logger.info(f"Answer validation judgment: {judgment_str}")
-                
+
                 if judgment_str == "yes":
                     logger.info("Answer 'yes' found in judgment.")
                     return True
@@ -597,11 +604,12 @@ class AgentOrchestrator:
     """Orchestrates the execution of multiple agents in sequence."""
 
     def __init__(self, agents: List[Type[Agent]] = None):
+        # Default agent pipeline - each agent is responsible for a specific aspect of processing
         self.agents = agents or [
-            ToolSelectionAgent,
-            PythonAgent,
-            ValidationAgent,
-            ResponseSynthesisAgent,
+            ToolSelectionAgent,  # Selects and executes appropriate tools
+            PythonAgent,  # Refines Python code (if enabled)
+            ValidationAgent,  # Determines if enough information has been gathered
+            ResponseSynthesisAgent,  # Synthesizes the final response
         ]
 
     def process_user_question(
@@ -657,7 +665,10 @@ class AgentOrchestrator:
         last_agent_class = None
 
         logger.info(f"Starting agent processing for user request: {user_question}")
-        available_tools = [getattr(obj, "__name__", None) for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)]
+        available_tools = [
+            getattr(obj, "__name__", None)
+            for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)
+        ]
         logger.info(f"Available tools: {available_tools}")
         for agent_class in self.agents:
             # Skip ResponseSynthesisAgent unless we've got a "yes" judgment or reached max steps
@@ -695,9 +706,10 @@ class AgentOrchestrator:
 
         # Check if we need to restart the process for another iteration
         if context.get("should_continue", False) and (
-            last_agent_class != ValidationAgent or (
-                last_agent_class == ValidationAgent 
-                and not context.get("answer_is_appropriate", False) 
+            last_agent_class != ValidationAgent
+            or (
+                last_agent_class == ValidationAgent
+                and not context.get("answer_is_appropriate", False)
                 and context.get("step", 0) < max_steps
             )
         ):
