@@ -52,8 +52,6 @@ def process_user_question(
     """
     Process the user's choice and generate a response.
     Optionally involves multi-step tool usage and result validation.
-
-    Uses AgentMemory to track state between agent processing steps.
     """
     orchestrator = AgentOrchestrator()
     return orchestrator.process_user_question(user_choice, code_executor, manager, max_steps, current_step)
