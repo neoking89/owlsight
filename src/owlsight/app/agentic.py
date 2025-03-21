@@ -78,6 +78,12 @@ class AgentContext(TypedDict, total=False):
     media_objects: Optional[Dict[str, str]]  # Media objects associated with the query
     should_continue: bool  # Whether to continue to the next agent or cycle
 
+    # Fields introduced by RouterPlanningAgent
+    router_response: str  # Response from the router agent
+    planning_result: Dict[str, Any]  # Structured planning result with steps and reasoning
+    current_plan_index: int  # Current index in the execution plan
+    current_planning_steps: List[Dict[str, Any]]  # The steps defined in the plan
+
     # Fields introduced by ToolSelectionAgent
     tool_response: str  # Response from the tool agent
     code_execution_results: Dict[str, Any]  # Results from code execution
@@ -441,9 +447,9 @@ class ValidationAgent:
     def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
         """
         Builds a prompt for a specialized validation agent that checks if all
-        required steps/data are present to fulfill the user's request.
+        required info has been gathered to fulfill the user's request.
         """
-        return f"""
+        return """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                    TASK                                      ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -569,13 +575,13 @@ class ResponseSynthesisAgent:
         tool_results = context.get("tool_results", code_executor.globals_dict.get("tool_results", []))
 
         # Create synthetic prompt
-        ctx_to_add = f"""
+        ctx_to_add = """
 Use ALL the following gathered data:
 Previous Results: {tool_results}
 
 Synthesize everything into one coherent final answer.
-""".strip()
-        user_prompt = f"**User Request**:\n{user_question}\n\n{ctx_to_add}".strip()
+""".strip().format(tool_results=tool_results)
+        user_prompt = "**User Request**:\n{user_question}\n\n{ctx_to_add}".strip().format(user_question=user_question, ctx_to_add=ctx_to_add)
 
         # Disable tool application for final response
         original_tools_setting = manager.config_manager.get("agentic.apply_tools", True)
@@ -588,16 +594,155 @@ Synthesize everything into one coherent final answer.
         manager.update_config("agentic.apply_tools", original_tools_setting)
 
         # Format the response
-        formatted_response = f"""
+        formatted_response = """
 ┌────────────────────────────────────────┐
 │             FINAL RESPONSE             │
 └────────────────────────────────────────┘
 {response}
 ─────────────────────────────────────────
-""".strip()
+""".strip().format(response=response)
         print(formatted_response)
 
         return {"response": formatted_response, "should_continue": False, "context": context}
+
+
+class RouterPlanningAgent:
+    """Agent responsible for planning and routing tasks to the appropriate agents."""
+
+    def process(
+        self,
+        user_question: str,
+        code_executor: "CodeExecutor",
+        manager: "TextGenerationManager",
+        context: Optional[AgentContext] = None,
+    ) -> Dict[str, Any]:
+        """Process the user question to create a plan and route to appropriate agents."""
+        # Initialize context if not provided
+        context = context or {}
+
+        # Create router agent prompt with current state information
+        router_prompt = self._create_router_agent_prompt(user_question, manager)
+
+        # Define the system prompt for the router/planning agent
+        router_system_prompt = """
+You are an expert planner and router for AI tasks. Your purpose is to analyze complex user questions and:
+1. Break them down into smaller, atomic sub-tasks when appropriate
+2. Determine the most suitable agent to handle each sub-task
+3. Create a clear execution plan
+
+AVAILABLE AGENTS:
+- ToolSelectionAgent: Best for tasks requiring information from external sources, API calls, or data retrieval.
+- PythonAgent: Best for computational tasks, code generation, or when all information is already available.
+
+ROUTER INSTRUCTIONS:
+- If the user's question is simple and direct, you may keep it as a single step
+- For complex questions, break them into 2-5 logical sub-tasks
+- For each sub-task, assign it to either the ToolSelectionAgent or PythonAgent
+- Assign a sub-task to ToolSelectionAgent if external information is needed
+- Assign a sub-task to PythonAgent if it's purely computational or all required information is present
+- Be thoughtful and precise in your planning
+"""
+
+        # Step 1: Execute the router agent to get a plan
+        with AgenticRole(
+            router_prompt, router_system_prompt, manager, code_executor, disable_tools=True
+        ) as router_agent:
+            router_response = router_agent.manager.generate(router_agent.question)
+
+        # Extract plan information from response
+        planning_result = self._extract_planning_from_response(router_response)
+
+        # Update context directly with new information
+        context["router_response"] = router_response
+        context["planning_result"] = planning_result
+        context["should_continue"] = True
+
+        # Log the planning results
+        logger.info(f"Planning result: {planning_result}")
+
+        return {"response": router_response, "should_continue": True, "context": context}
+
+    @staticmethod
+    def _create_router_agent_prompt(user_question: str, manager: TextGenerationManager) -> str:
+        """
+        Create a prompt for the router/planning agent that guides it to
+        analyze the user question and create an execution plan.
+        """
+        # Get available tools to consider in planning
+        available_tools = [
+            getattr(obj, "__name__", None)
+            for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)
+        ]
+        
+        return """
+User Question: {user_question}
+
+Your task is to analyze this question and create a plan of execution. If appropriate, break it down into smaller sub-tasks.
+
+Available tools: {available_tools}
+
+RESPONSE FORMAT (REQUIRED):
+<plan>
+Step 1: [Description of first sub-task]
+Agent: [ToolSelectionAgent or PythonAgent]
+Reason: [Brief justification for agent selection]
+
+Step 2: [Description of second sub-task, if needed]
+Agent: [ToolSelectionAgent or PythonAgent]
+Reason: [Brief justification for agent selection]
+
+[Additional steps as needed...]
+</plan>
+
+<reasoning>
+[Your detailed analysis of the user's question and why you chose this plan]
+</reasoning>
+""".strip().format(user_question=user_question, available_tools=available_tools)
+
+    @staticmethod
+    def _extract_planning_from_response(response: str) -> Dict[str, Any]:
+        """
+        Extract planning information from the router agent's response.
+        """
+        # Extract the plan section using regex
+        plan_match = re.search(r"<plan>(.*?)</plan>", response, re.DOTALL)
+        reasoning_match = re.search(r"<reasoning>(.*?)</reasoning>", response, re.DOTALL)
+        
+        if not plan_match:
+            logger.warning("No plan found in router response.")
+            return {"steps": [], "reasoning": ""}
+        
+        plan_text = plan_match.group(1).strip()
+        reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
+        
+        # Parse the steps from the plan
+        steps = []
+        current_step = {}
+        
+        for line in plan_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.startswith("Step "):
+                # If we were working on a previous step, save it
+                if current_step and "description" in current_step:
+                    steps.append(current_step)
+                    
+                # Start a new step
+                current_step = {"description": line}
+            elif line.startswith("Agent:"):
+                if current_step:
+                    current_step["agent"] = line[len("Agent:"):].strip()
+            elif line.startswith("Reason:"):
+                if current_step:
+                    current_step["reason"] = line[len("Reason:"):].strip()
+        
+        # Add the last step if it exists
+        if current_step and "description" in current_step:
+            steps.append(current_step)
+            
+        return {"steps": steps, "reasoning": reasoning}
 
 
 class AgentOrchestrator:
@@ -606,6 +751,7 @@ class AgentOrchestrator:
     def __init__(self, agents: List[Type[Agent]] = None):
         # Default agent pipeline - each agent is responsible for a specific aspect of processing
         self.agents = agents or [
+            RouterPlanningAgent,  # Plans and routes tasks to appropriate agents
             ToolSelectionAgent,  # Selects and executes appropriate tools
             PythonAgent,  # Refines Python code (if enabled)
             ValidationAgent,  # Determines if enough information has been gathered
@@ -661,16 +807,120 @@ class AgentOrchestrator:
 
         # Process through agents
         response = ""
-        skip_to_response_synthesis = False
-        last_agent_class = None
-
-        logger.info(f"Starting agent processing for user request: {user_question}")
+        
+        logger.info("Starting agent processing for user request: {user_question}".format(user_question=user_question))
         available_tools = [
             getattr(obj, "__name__", None)
             for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)
         ]
-        logger.info(f"Available tools: {available_tools}")
-        for agent_class in self.agents:
+        logger.info("Available tools: {available_tools}".format(available_tools=available_tools))
+        
+        # First, always run the RouterPlanningAgent
+        router_agent = RouterPlanningAgent()
+        logger.info("Using RouterPlanningAgent, step {step}/{max_steps}".format(step=context['step'] + 1, max_steps=context['max_steps']))
+        router_result = router_agent.process(user_question, code_executor, manager, context)
+        context = router_result["context"]
+        
+        # Get the planning result
+        planning_result = context.get("planning_result", {})
+        planning_steps = planning_result.get("steps", [])
+        
+        # If no planning steps were generated, use the default sequence
+        if not planning_steps:
+            logger.info("No planning steps generated. Using default agent sequence.")
+            return self._process_with_default_sequence(
+                user_question, code_executor, manager, context
+            )
+        
+        # Process each step in the plan
+        for idx, step in enumerate(planning_steps):
+            # Update context with current plan step
+            context["current_plan_index"] = idx
+            
+            # Determine which agent to use based on the plan
+            agent_type = step.get("agent", "")
+            step_description = step.get("description", f"Step {idx + 1}")
+            
+            logger.info("Processing plan step {step_num}/{total_steps}: {description}".format(step_num=idx + 1, total_steps=len(planning_steps), description=step_description))
+            logger.info("Using {0}, step {1}/{2}".format(
+                agent_type,
+                context.get('step', 0) + 1,
+                context.get('max_steps', 3)
+            ))
+            
+            # Select and run the appropriate agent
+            if agent_type == "ToolSelectionAgent":
+                agent = ToolSelectionAgent()
+                result = agent.process(user_question, code_executor, manager, context)
+                context = result["context"]
+                response = result["response"]
+                
+                if not result["should_continue"]:
+                    logger.info("Agent {agent_type} indicated to stop processing.".format(agent_type=agent_type))
+                    break
+            
+            elif agent_type == "PythonAgent":
+                # Check if Python agent is enabled
+                python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
+                if python_agent_is_enabled:
+                    agent = PythonAgent()
+                    result = agent.process(user_question, code_executor, manager, context)
+                    context = result["context"]
+                    response = result["response"]
+                    
+                    if not result["should_continue"]:
+                        logger.info("Agent {agent_type} indicated to stop processing.".format(agent_type=agent_type))
+                        break
+                else:
+                    logger.info("PythonAgent is disabled. Skipping.")
+            
+            else:
+                logger.warning("Unknown agent type: {agent_type}. Skipping.".format(agent_type=agent_type))
+        
+        # After processing all steps, run ValidationAgent
+        validation_agent = ValidationAgent()
+        logger.info("Using ValidationAgent after completing plan steps")
+        validation_result = validation_agent.process(user_question, code_executor, manager, context)
+        context = validation_result["context"]
+        response = validation_result["response"]
+        
+        # Get the validation judgment
+        answer_is_appropriate = context.get("answer_is_appropriate", False)
+        current_step = context.get("step", 0)
+        
+        # If we need more information and haven't reached max steps, recurse
+        if not answer_is_appropriate and current_step < max_steps:
+            logger.info("ValidationAgent indicates more information needed. Starting new cycle.")
+            return self.process_user_question(
+                user_choice,
+                code_executor,
+                manager,
+                max_steps=max_steps,
+                current_step=current_step,
+            )
+        
+        # Otherwise, run ResponseSynthesisAgent
+        logger.info("Running ResponseSynthesisAgent to synthesize final response")
+        response_agent = ResponseSynthesisAgent()
+        result = response_agent.process(user_question, code_executor, manager, context)
+        response = result["response"]
+
+        return response
+    
+    def _process_with_default_sequence(
+        self,
+        user_question: str,
+        code_executor: "CodeExecutor",
+        manager: "TextGenerationManager",
+        context: AgentContext,
+    ) -> str:
+        """Process with the default sequential agent pipeline."""
+        response = ""
+        skip_to_response_synthesis = False
+        last_agent_class = None
+        
+        # Skip RouterPlanningAgent since we've already run it
+        for agent_class in self.agents[1:]:
             # Skip ResponseSynthesisAgent unless we've got a "yes" judgment or reached max steps
             if agent_class == ResponseSynthesisAgent and not skip_to_response_synthesis:
                 # Skip ResponseSynthesisAgent if judgment wasn't "yes" and we haven't reached max_steps
@@ -678,12 +928,16 @@ class AgentOrchestrator:
                 if (
                     last_agent_class == ValidationAgent
                     and not context.get("answer_is_appropriate", False)
-                    and current_step < max_steps
+                    and current_step < context.get("max_steps", 3)
                 ):
-                    logger.info(f"Skipping ResponseSynthesisAgent - step {current_step}/{max_steps}")
+                    logger.info("Skipping ResponseSynthesisAgent - step {current_step}/{max_steps}".format(current_step=current_step, max_steps=context.get('max_steps', 3)))
                     continue
 
-            logger.info(f"Using {agent_class.__name__}, step {context['step'] + 1}/{context['max_steps']}")
+            logger.info("Using {0}, step {1}/{2}".format(
+                agent_class.__name__,
+                context.get('step', 0) + 1,
+                context.get('max_steps', 3)
+            ))
             agent = agent_class()
             result = agent.process(user_question, code_executor, manager, context)
 
@@ -700,8 +954,8 @@ class AgentOrchestrator:
             if agent_class == ValidationAgent:
                 # Check if ValidationAgent returned "yes" or if we've reached max_steps
                 current_step = context.get("step", 0)
-                if context.get("answer_is_appropriate", False) or current_step >= max_steps:
-                    logger.info(f"Setting skip_to_response_synthesis to True - step {current_step}/{max_steps}")
+                if context.get("answer_is_appropriate", False) or current_step >= context.get("max_steps", 3):
+                    logger.info("Setting skip_to_response_synthesis to True - step {current_step}/{max_steps}".format(current_step=current_step, max_steps=context.get('max_steps', 3)))
                     skip_to_response_synthesis = True
 
         # Check if we need to restart the process for another iteration
@@ -710,15 +964,15 @@ class AgentOrchestrator:
             or (
                 last_agent_class == ValidationAgent
                 and not context.get("answer_is_appropriate", False)
-                and context.get("step", 0) < max_steps
+                and context.get("step", 0) < context.get("max_steps", 3)
             )
         ):
             return self.process_user_question(
-                user_choice,
+                user_question,
                 code_executor,
                 manager,
-                max_steps=max_steps,
-                current_step=context.get("step", current_step + 1),
+                max_steps=context.get("max_steps", 3),
+                current_step=context.get("step", 0),
             )
 
         # Ensure ResponseSynthesisAgent is called if ValidationAgent yields "yes" judgment
@@ -755,19 +1009,19 @@ def _handle_rag_for_python(user_question: str, manager: TextGenerationManager) -
     rag_is_active = manager.get_config_key("rag.active", False)
     library_to_rag = manager.get_config_key("rag.target_library", "")
     if rag_is_active and library_to_rag:
-        logger.info(f"RAG search enabled. Adding docs from python library '{library_to_rag}'.")
-        ctx_to_add = f"""
+        logger.info("RAG search enabled. Adding docs from python library '{library_to_rag}'.".format(library_to_rag=library_to_rag))
+        ctx_to_add = """
 # CONTEXT:
 Below is documentation from the Python library '{library_to_rag}'.
 Use it to assist in answering the user's question.
-"""
+""".format(library_to_rag=library_to_rag)
         searcher = PythonLibSearcher()
         context = searcher.search(
             library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=get_pickle_cache()
         )
         ctx_to_add += context
-        user_question = f"{user_question}\n\n{ctx_to_add}".strip()
-        logger.info(f"Context added (~{len(context.split())} words).")
+        user_question = "{user_question}\n\n{ctx_to_add}".format(user_question=user_question, ctx_to_add=ctx_to_add).strip()
+        logger.info("Context added (~{len_context_split} words).".format(len_context_split=len(context.split())))
     return user_question
 
 
