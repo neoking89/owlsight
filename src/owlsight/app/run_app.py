@@ -47,14 +47,13 @@ def process_user_question(
     code_executor: CodeExecutor,
     manager: TextGenerationManager,
     max_steps: int = 3,
-    current_step: int = 0,
 ) -> str:
     """
     Process the user's choice and generate a response.
     Optionally involves multi-step tool usage and result validation.
     """
-    orchestrator = AgentOrchestrator()
-    return orchestrator.process_user_question(user_choice, code_executor, manager, max_steps, current_step)
+    orchestrator = AgentOrchestrator(code_executor, manager, max_steps)
+    return orchestrator.process_user_question(user_choice)
 
 
 def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, code_executor: CodeExecutor) -> None:
