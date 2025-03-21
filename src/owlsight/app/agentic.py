@@ -105,8 +105,6 @@ class Agent(Protocol):
     def process(
         self,
         user_question: str,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
         """
@@ -115,8 +113,6 @@ class Agent(Protocol):
         Parameters:
         ----------
             user_question: The question or request from the user
-            code_executor: The code executor instance
-            manager: The text generation manager instance
             context: Additional context from previous agent executions
 
         Returns:
@@ -131,11 +127,13 @@ class Agent(Protocol):
 class RouterPlanningAgent:
     """Agent responsible for planning and routing tasks to the appropriate agents."""
 
+    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+        self.code_executor = code_executor
+        self.manager = manager
+
     def process(
         self,
         user_question: str,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
         """Process the user question to create a plan and route to appropriate agents."""
@@ -168,7 +166,7 @@ You are an expert planner and router for AI tasks. Your purpose is to analyze co
 
         # Step 1: Execute the router agent to get a plan
         with AgenticRole(
-            router_prompt, router_system_prompt, manager, code_executor, disable_tools=True
+            router_prompt, router_system_prompt, self.manager, self.code_executor, disable_tools=True
         ) as router_agent:
             router_response = router_agent.manager.generate(router_agent.question)
 
@@ -275,11 +273,13 @@ Reason: [Brief justification for agent selection]
 class ToolSelectionAgent:
     """Agent responsible for creating plans and selecting tools."""
 
+    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+        self.code_executor = code_executor
+        self.manager = manager
+
     def process(
         self,
         user_question: str,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
         """Process the user question using the planning agent."""
@@ -290,9 +290,9 @@ class ToolSelectionAgent:
         tool_state = {
             "step": context.get("step", 0),
             "max_steps": context.get("max_steps", 3),
-            "previous_results": context.get("previous_results", code_executor.globals_dict.get("tool_results", [])),
+            "previous_results": context.get("previous_results", self.code_executor.globals_dict.get("tool_results", [])),
         }
-        tool_question = self._create_tool_agent_prompt(user_question, tool_state, manager)
+        tool_question = self._create_tool_agent_prompt(user_question, tool_state, self.manager)
 
         # Define the system prompt for the planning agent
         tool_agent_system_prompt = (
@@ -303,7 +303,7 @@ class ToolSelectionAgent:
 
         # Step 1: Execute the tool agent to get a plan with tool selection
         with AgenticRole(
-            tool_question, tool_agent_system_prompt, manager, code_executor, disable_tools=False
+            tool_question, tool_agent_system_prompt, self.manager, self.code_executor, disable_tools=False
         ) as tool_agent:
             tool_response = tool_agent.manager.generate(tool_agent.question)
 
@@ -311,14 +311,14 @@ class ToolSelectionAgent:
         code_execution_results = execute_code_with_feedback(
             response=tool_response,
             original_question=tool_question,
-            code_executor=code_executor,
+            code_executor=self.code_executor,
             prompt_code_execution=False,  # Always execute tool calls
             prompt_retry_on_error=False,
         )
 
         # Step 3: Extract tool information for use by subsequent agents
-        last_used_tool = get_last_used_tool(code_executor, tool_response)
-        tool_result = code_executor.globals_dict.get("final_result", [])
+        last_used_tool = get_last_used_tool(self.code_executor, tool_response)
+        tool_result = self.code_executor.globals_dict.get("final_result", [])
 
         # Update the context directly with new information
         context["tool_response"] = tool_response
@@ -421,11 +421,13 @@ class ToolSelectionAgent:
 class PythonAgent:
     """Agent responsible for Python code validation and refinement."""
 
+    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+        self.code_executor = code_executor
+        self.manager = manager
+
     def process(
         self,
         user_question: str,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
         """Process Python code validation and refinement."""
@@ -434,12 +436,12 @@ class PythonAgent:
         last_used_tool = context.get("last_used_tool", {})
 
         # Skip Python agent if not enabled
-        python_agent_is_enabled = manager.config_manager.get("agentic.enable_python_agent", False)
+        python_agent_is_enabled = self.manager.config_manager.get("agentic.enable_python_agent", False)
         if not python_agent_is_enabled:
             return {"response": context.get("tool_response", ""), "should_continue": True, "context": context}
 
         # Process with Python agent
-        python_response = self._handle_python_agent(user_question, manager, code_executor, last_used_tool)
+        python_response = self._handle_python_agent(user_question, last_used_tool)
 
         # Update the context directly
         context["python_response"] = python_response
@@ -454,8 +456,6 @@ class PythonAgent:
     def _handle_python_agent(
         self,
         user_request: str,
-        manager: TextGenerationManager,
-        code_executor: "CodeExecutor",
         tool_name: Dict[str, str],
     ) -> str:
         """
@@ -516,7 +516,7 @@ final_result = solution(...)
 ## Validation Checklist
 {validation_rules}
 """.strip()
-        with AgenticRole(user_prompt, system_prompt, manager, code_executor) as agent:
+        with AgenticRole(user_prompt, system_prompt, self.manager, self.code_executor) as agent:
             new_response = agent.manager.generate(agent.question)
 
             if all(keyword in new_response for keyword in validation_checks):
@@ -529,11 +529,13 @@ final_result = solution(...)
 class ValidationAgent:
     """Agent responsible for validating if enough information has been gathered."""
 
+    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+        self.code_executor = code_executor
+        self.manager = manager
+
     def process(
         self,
         user_question: str,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
         """Validate if enough information has been gathered."""
@@ -549,7 +551,7 @@ class ValidationAgent:
             logger.warning(f"Tool execution failed or no results. Results: {code_execution_results}")
             final_result = ""
         else:
-            final_result = code_executor.globals_dict.get("final_result", None)
+            final_result = self.code_executor.globals_dict.get("final_result", None)
             if final_result is None:
                 logger.warning("No 'final_result' found in globals after tool execution.")
                 final_result = ""
@@ -557,7 +559,7 @@ class ValidationAgent:
         logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
 
         # Check if answer is appropriate
-        answer_is_appropriate = self._handle_answer_validation(user_question, final_result, manager, code_executor)
+        answer_is_appropriate = self._handle_answer_validation(user_question, final_result)
 
         if answer_is_appropriate:
             logger.info("Enough information gathered to generate a final answer.")
@@ -565,9 +567,9 @@ class ValidationAgent:
             logger.info("More information needed to generate a final answer.")
 
         # Update tool results in globals
-        tool_results = code_executor.globals_dict.get("tool_results", [])
+        tool_results = self.code_executor.globals_dict.get("tool_results", [])
         tool_results.append(final_result)
-        code_executor.globals_dict["tool_results"] = tool_results
+        self.code_executor.globals_dict["tool_results"] = tool_results
 
         # Determine if we should continue to another cycle
         if current_step + 1 >= max_steps:
@@ -653,8 +655,6 @@ Possible judgments:
         self,
         user_request: str,
         final_result: str,
-        manager: TextGenerationManager,
-        code_executor: "CodeExecutor",
     ) -> bool:
         """
         Engages a specialized 'validation agent' to confirm whether all necessary info
@@ -663,7 +663,7 @@ Possible judgments:
         Returns a boolean indicating whether the answer is appropriate.
         """
         response = ""
-        assistant_context = [d for d in manager.processor.chat_history if d["role"] == "assistant"]
+        assistant_context = [d for d in self.manager.processor.chat_history if d["role"] == "assistant"]
         old_chat_history = format_chat_history_as_string(assistant_context)
         system_prompt = (
             "You are an expert at verifying completeness. Focus on whether enough data is present, "
@@ -675,7 +675,7 @@ Possible judgments:
             final_result=final_result,
         )
 
-        with AgenticRole(question, system_prompt, manager, code_executor) as judge_agent:
+        with AgenticRole(question, system_prompt, self.manager, self.code_executor) as judge_agent:
             response = judge_agent.manager.generate(judge_agent.question)
 
             try:
@@ -704,18 +704,20 @@ Possible judgments:
 class ResponseSynthesisAgent:
     """Agent responsible for synthesizing the final response."""
 
+    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+        self.code_executor = code_executor
+        self.manager = manager
+
     def process(
         self,
         user_question: str,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
         context: Optional[AgentContext] = None,
     ) -> Dict[str, Any]:
         """Synthesize a final response."""
         context = context or {}
 
         # Get tool results
-        tool_results = context.get("tool_results", code_executor.globals_dict.get("tool_results", []))
+        tool_results = context.get("tool_results", self.code_executor.globals_dict.get("tool_results", []))
 
         # Create synthetic prompt
         ctx_to_add = f"""
@@ -727,14 +729,14 @@ Synthesize everything into one coherent final answer.
         user_prompt = f"**User Request**:\n{user_question}\n\n{ctx_to_add}".strip()
 
         # Disable tool application for final response
-        original_tools_setting = manager.config_manager.get("agentic.apply_tools", True)
-        manager.update_config("agentic.apply_tools", False)
+        original_tools_setting = self.manager.config_manager.get("agentic.apply_tools", True)
+        self.manager.update_config("agentic.apply_tools", False)
 
         # Generate final response
-        response = manager.generate(user_prompt)
+        response = self.manager.generate(user_prompt)
 
         # Restore original setting
-        manager.update_config("agentic.apply_tools", original_tools_setting)
+        self.manager.update_config("agentic.apply_tools", original_tools_setting)
 
         # Format the response
         formatted_response = f"""
@@ -761,11 +763,11 @@ class AgentOrchestrator:
     ):
         # Default agent pipeline - each agent is responsible for a specific aspect of processing
         self.agents = agents or [
-            RouterPlanningAgent,  # Plans and routes tasks to appropriate agents
-            ToolSelectionAgent,  # Selects and executes appropriate tools
-            PythonAgent,  # Refines Python code (if enabled)
-            ValidationAgent,  # Determines if enough information has been gathered
-            ResponseSynthesisAgent,  # Synthesizes the final response
+            RouterPlanningAgent,
+            ToolSelectionAgent,
+            PythonAgent,
+            ValidationAgent,
+            ResponseSynthesisAgent,
         ]
         self.code_executor = code_executor
         self.manager = manager
@@ -822,9 +824,9 @@ class AgentOrchestrator:
         logger.info(f"Available tools: {available_tools}")
 
         # First, always run the RouterPlanningAgent
-        router_agent = RouterPlanningAgent()
+        router_agent = RouterPlanningAgent(self.code_executor, self.manager)
         logger.info(f"Using RouterPlanningAgent, step {context['step'] + 1}/{context['max_steps']}")
-        router_result = router_agent.process(user_question, self.code_executor, self.manager, context)
+        router_result = router_agent.process(user_question, context)
         context = router_result["context"]
 
         # Get the planning result
@@ -847,8 +849,8 @@ class AgentOrchestrator:
 
         # Otherwise, run ResponseSynthesisAgent
         logger.info("Running ResponseSynthesisAgent to synthesize final response")
-        response_agent = ResponseSynthesisAgent()
-        result = response_agent.process(user_question, self.code_executor, self.manager, context)
+        response_agent = ResponseSynthesisAgent(self.code_executor, self.manager)
+        result = response_agent.process(user_question, context)
         response = result["response"]
 
         return response
@@ -873,8 +875,8 @@ class AgentOrchestrator:
 
             # Select and run the appropriate agent
             if agent_type == "ToolSelectionAgent":
-                agent = ToolSelectionAgent()
-                result = agent.process(user_question, self.code_executor, self.manager, context)
+                agent = ToolSelectionAgent(self.code_executor, self.manager)
+                result = agent.process(user_question, context)
                 context = result["context"]
                 response = result["response"]
 
@@ -886,8 +888,8 @@ class AgentOrchestrator:
                 # Check if Python agent is enabled
                 python_agent_is_enabled = self.manager.config_manager.get("agentic.enable_python_agent", False)
                 if python_agent_is_enabled:
-                    agent = PythonAgent()
-                    result = agent.process(user_question, self.code_executor, self.manager, context)
+                    agent = PythonAgent(self.code_executor, self.manager)
+                    result = agent.process(user_question, context)
                     context = result["context"]
                     response = result["response"]
 
@@ -901,9 +903,9 @@ class AgentOrchestrator:
                 logger.warning(f"Unknown agent type: {agent_type}. Skipping.")
 
         # After processing all steps, run ValidationAgent
-        validation_agent = ValidationAgent()
+        validation_agent = ValidationAgent(self.code_executor, self.manager)
         logger.info("Using ValidationAgent after completing plan steps")
-        validation_result = validation_agent.process(user_question, self.code_executor, self.manager, context)
+        validation_result = validation_agent.process(user_question, context)
         context = validation_result["context"]
         response = validation_result["response"]
 
