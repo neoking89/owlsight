@@ -247,12 +247,6 @@ class Schema:
                 default=5,
                 choices=[n for n in range(1, 21)],
             ),
-            "enable_python_agent": MenuItem(
-                type=OptionType.TOGGLE,
-                description="Toggle the inclusion of a Python generation agent. This agent judges the last response of the Tool agent and writes Python code if appropriate",
-                default=True,
-                choices=[False, True],
-            ),
             "additional_information": MenuItem(
                 type=OptionType.EDITABLE,
                 description="Additional information added to every agent call. Important for the Tool agent, for example: 'Do NOT use owl_scrape and owl_search, because there is no internet connection'",
