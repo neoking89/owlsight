@@ -12,7 +12,7 @@
     "model": {
         "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
         "apply_chat_history": true,
-        "system_prompt": "You are a helpful assistant. Use one of the available tools to answer the user's question. ALWAYS use tools.",
+        "system_prompt": "You are a helpful assistant, specialized in giving answers to user questions.",
         "model_kwargs": {},
         "transformers__device": null,
         "transformers__quantization_bits": null,
@@ -44,7 +44,6 @@
     "agentic": {
             "apply_tools": true,
             "max_steps": 5,
-            "enable_python_agent": true,
             "additional_information": ""
         },
     "huggingface": {
