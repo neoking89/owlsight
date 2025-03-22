@@ -79,7 +79,7 @@ class AgentContext:
     previous_results: List[str] = field(default_factory=list)  # Results from previous agents
     media_objects: Optional[Dict[str, str]] = field(default_factory=dict)  # Media objects associated with the query
     should_continue: bool = True  # Whether to continue to the next agent or cycle
-    final_results: List[Any] = field(default_factory=list)  # Final results from all agents per step
+    final_results: List[Dict[str, Any]] = field(default_factory=list)  # Final results from all agents per step
 
     # Fields introduced by RouterPlanningAgent
     planning: Dict[str, Any] = field(default_factory=dict)  # Structured planning result with steps and reasoning
@@ -407,6 +407,9 @@ class PythonAgent:
         # Process with Python agent
         python_response = self._handle_python_agent(user_question, last_used_tool)
         final_result = _get_final_result_from_python_code(python_response, user_question, self.code_executor)
+        # make sure final result is a dictionary
+        if not isinstance(final_result, dict):
+            final_result = {f"result of user request '{user_question}'": final_result}
         context.final_results.append(final_result)
 
         # Update the context directly
@@ -901,6 +904,7 @@ def list_of_dicts_to_llm_context(data: List[Dict[str, str]]) -> str:
     # Iterate over each dictionary in the list
     for entry_dict in data:
         for source, content in entry_dict.items():
+            content = str(content)
             # Create a header and a clear separator for each file or URL.
             header = f"---\nSource: {source}\n---"
             # Strip any leading/trailing whitespace from content.
