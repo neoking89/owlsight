@@ -4,15 +4,15 @@ It includes agent implementations, context management, and orchestration.
 """
 
 import inspect
-import re
-from typing import Any, Dict, List, Optional, Protocol, Type, TypedDict
+from typing import Any, Dict, List, Optional, Protocol, Type, TypedDict, Tuple
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
 from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.utils.helper_functions import (
     parse_media_tags,
-    parse_html_tags,
+    parse_xml_tags_to_dict,
+    parse_xml,
     format_chat_history_as_string,
 )
 from owlsight.utils.constants import get_pickle_cache
@@ -80,7 +80,7 @@ class AgentContext(TypedDict, total=False):
 
     # Fields introduced by RouterPlanningAgent
     router_response: str  # Response from the router agent
-    planning_result: Dict[str, Any]  # Structured planning result with steps and reasoning
+    planning: Dict[str, Any]  # Structured planning result with steps and reasoning
     current_plan_index: int  # Current index in the execution plan
     current_planning_steps: List[Dict[str, Any]]  # The steps defined in the plan
 
@@ -97,6 +97,7 @@ class AgentContext(TypedDict, total=False):
     # Fields introduced by ValidationAgent
     final_result: str  # Final synthesized result
     answer_is_appropriate: bool  # Whether the answer is appropriate/complete
+    completed_steps: Dict[str, Dict[str, str]]  # Completed steps and their results
 
 
 class Agent(Protocol):
@@ -105,7 +106,7 @@ class Agent(Protocol):
     def process(
         self,
         user_question: str,
-        context: Optional[AgentContext] = None,
+        context: AgentContext,
     ) -> Dict[str, Any]:
         """
         Process a user question and return a result dict.
@@ -134,12 +135,9 @@ class RouterPlanningAgent:
     def process(
         self,
         user_question: str,
-        context: Optional[AgentContext] = None,
+        context: AgentContext,
     ) -> Dict[str, Any]:
         """Process the user question to create a plan and route to appropriate agents."""
-        # Initialize context if not provided
-        context = context or {}
-
         # Create router agent prompt with current state information
         router_prompt = self._create_router_agent_prompt(user_question)
 
@@ -171,15 +169,15 @@ You are an expert planner and router for AI tasks. Your purpose is to analyze co
             router_response = router_agent.manager.generate(router_agent.question)
 
         # Extract plan information from response
-        planning_result = self._extract_planning_from_response(router_response)
+        planning = self._extract_planning_from_response(router_response)
 
         # Update context directly with new information
         context["router_response"] = router_response
-        context["planning_result"] = planning_result
+        context["planning"] = planning
         context["should_continue"] = True
 
         # Log the planning results
-        logger.info(f"Planning result: {planning_result}")
+        logger.info(f"Planning result: {planning}")
 
         return {"response": router_response, "should_continue": True, "context": context}
 
@@ -230,15 +228,15 @@ Reason: [Brief justification for agent selection]
         Extract planning information from the router agent's response.
         """
         # Extract the plan section using regex
-        plan_match = re.search(r"<plan>(.*?)</plan>", response, re.DOTALL)
-        reasoning_match = re.search(r"<reasoning>(.*?)</reasoning>", response, re.DOTALL)
+        plan_match = parse_xml(response, "plan")
+        reasoning_match = parse_xml(response, "reasoning")
 
         if not plan_match:
             logger.warning("No plan found in router response.")
             return {"steps": [], "reasoning": ""}
 
-        plan_text = plan_match.group(1).strip()
-        reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
+        plan_text = plan_match.strip()
+        reasoning = reasoning_match.strip() if reasoning_match else ""
 
         # Parse the steps from the plan
         steps = []
@@ -280,17 +278,16 @@ class ToolSelectionAgent:
     def process(
         self,
         user_question: str,
-        context: Optional[AgentContext] = None,
+        context: AgentContext,
     ) -> Dict[str, Any]:
         """Process the user question using the planning agent."""
-        # Initialize context if not provided
-        context = context or {}
-
         # Create the tool agent prompt with current state information
         tool_state = {
             "step": context.get("step", 0),
             "max_steps": context.get("max_steps", 3),
-            "previous_results": context.get("previous_results", self.code_executor.globals_dict.get("tool_results", [])),
+            "previous_results": context.get(
+                "previous_results", self.code_executor.globals_dict.get("tool_results", [])
+            ),
         }
         tool_question = self._create_tool_agent_prompt(user_question, tool_state, self.manager)
 
@@ -324,7 +321,7 @@ class ToolSelectionAgent:
         context["tool_response"] = tool_response
         context["code_execution_results"] = code_execution_results
         context["last_used_tool"] = last_used_tool
-        context["tool_result"] = tool_result
+        context["final_result"] = tool_result
         context["should_continue"] = True
 
         return {"response": tool_response, "should_continue": True, "context": context}
@@ -345,7 +342,7 @@ class ToolSelectionAgent:
 
             # parse important steps from validation agent response:
             if manager.processor.chat_history:
-                last_response = parse_html_tags(manager.processor.chat_history[-1]["content"])
+                last_response = parse_xml_tags_to_dict(manager.processor.chat_history[-1]["content"])
                 required_steps = last_response.get("required_steps", "")
                 step_completion_status = last_response.get("step_completion_status", "")
                 next_steps = last_response.get("next_steps", "")
@@ -428,17 +425,10 @@ class PythonAgent:
     def process(
         self,
         user_question: str,
-        context: Optional[AgentContext] = None,
+        context: AgentContext,
     ) -> Dict[str, Any]:
         """Process Python code validation and refinement."""
-        context = context or {}
-
         last_used_tool = context.get("last_used_tool", {})
-
-        # Skip Python agent if not enabled
-        python_agent_is_enabled = self.manager.config_manager.get("agentic.enable_python_agent", False)
-        if not python_agent_is_enabled:
-            return {"response": context.get("tool_response", ""), "should_continue": True, "context": context}
 
         # Process with Python agent
         python_response = self._handle_python_agent(user_question, last_used_tool)
@@ -476,10 +466,10 @@ class PythonAgent:
         }
 
         system_prompt = """
-# Role
+# ROLE
 You are an expert Python developer.
 
-# Task
+# TASK
 Write Python code based on a user request.
 
 ```python
@@ -492,7 +482,7 @@ def solution_<descriptive_name>(...) -> <return_type>:
 final_result = solution(...)
 ```
 
-## Code Requirements
+## CODE REQUIREMENTS
 - Function with clear, declarative name and type hints
 - Concise docstring in Numpy-style format
 - Error handling
@@ -501,7 +491,7 @@ final_result = solution(...)
 - Testable verification code for deterministic solutions
 - The variable name "final_result" is defined with the created function
 
-## Forbidden Patterns
+## FORBIDDEN PATTERNS
 - eval/exec
 - Unsafe deserialization
 - Bare except clauses
@@ -513,7 +503,7 @@ final_result = solution(...)
         user_prompt = f"""
 **User Request**: {user_request}
 
-## Validation Checklist
+## VALIDATION CHECKLIST
 {validation_rules}
 """.strip()
         with AgenticRole(user_prompt, system_prompt, self.manager, self.code_executor) as agent:
@@ -536,11 +526,9 @@ class ValidationAgent:
     def process(
         self,
         user_question: str,
-        context: Optional[AgentContext] = None,
+        context: AgentContext,
     ) -> Dict[str, Any]:
         """Validate if enough information has been gathered."""
-        context = context or {}
-
         # Get results from previous steps
         code_execution_results = context.get("code_execution_results", [])
         current_step = context.get("step", 0)
@@ -559,7 +547,7 @@ class ValidationAgent:
         logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
 
         # Check if answer is appropriate
-        answer_is_appropriate = self._handle_answer_validation(user_question, final_result)
+        answer_is_appropriate, response = self._handle_answer_validation(user_question, final_result)
 
         if answer_is_appropriate:
             logger.info("Enough information gathered to generate a final answer.")
@@ -586,7 +574,7 @@ class ValidationAgent:
         context["should_continue"] = should_continue
         context["step"] = current_step + 1
 
-        return {"response": final_result, "should_continue": should_continue, "context": context}
+        return {"response": response, "should_continue": should_continue, "context": context}
 
     @staticmethod
     def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
@@ -635,7 +623,19 @@ Possible judgments:
 </required_steps>
 
 <step_completion_status>
-[For each step, show COMPLETED/PENDING, plus source (chat/final_result)]
+[For each step, show step description, COMPLETED/PENDING, and source (chat/final_result)
+Output format should be XML like this:
+<step1>
+    <step>step description</step>
+    <status>COMPLETED</status>
+    <source>chat</source>
+</step1>
+<step2>
+    <step>step description</step>
+    <status>PENDING</status>
+    <source>final_result</source>
+</step2>
+]
 </step_completion_status>
 
 <judgment>
@@ -674,31 +674,32 @@ Possible judgments:
             old_chat_history=old_chat_history,
             final_result=final_result,
         )
+        judgment = False
 
         with AgenticRole(question, system_prompt, self.manager, self.code_executor) as judge_agent:
             response = judge_agent.manager.generate(judge_agent.question)
 
             try:
-                judgment_str = re.findall(r"<judgment>(.*?)</judgment>", response, re.DOTALL)[0].strip().lower()
+                judgment_str = parse_xml(response, "judgment").strip().lower()
                 logger.info(f"Answer validation judgment: {judgment_str}")
 
                 if judgment_str == "yes":
                     logger.info("Answer 'yes' found in judgment.")
-                    return True
+                    judgment = True
                 elif judgment_str == "partial":
                     logger.info("Answer 'partial' found in judgment. More information needed.")
-                    return False
+                    judgment = False
                 elif judgment_str == "no":
                     logger.info("Answer 'no' found in judgment. Information is incorrect or missing.")
-                    return False
+                    judgment = False
                 else:
                     logger.warning(f"Unknown judgment value: {judgment_str}. Treating as not appropriate.")
-                    return False
+                    judgment = False
             except Exception as e:
                 logger.error(f"Error parsing judgment: {str(e)}")
 
         logger.info("No valid judgment found. Treating as not appropriate.")
-        return False
+        return judgment, response
 
 
 class ResponseSynthesisAgent:
@@ -711,11 +712,9 @@ class ResponseSynthesisAgent:
     def process(
         self,
         user_question: str,
-        context: Optional[AgentContext] = None,
+        context: AgentContext,
     ) -> Dict[str, Any]:
         """Synthesize a final response."""
-        context = context or {}
-
         # Get tool results
         tool_results = context.get("tool_results", self.code_executor.globals_dict.get("tool_results", []))
 
@@ -825,13 +824,13 @@ class AgentOrchestrator:
 
         # First, always run the RouterPlanningAgent
         router_agent = RouterPlanningAgent(self.code_executor, self.manager)
-        logger.info(f"Using RouterPlanningAgent, step {context['step'] + 1}/{context['max_steps']}")
+        logger.info(f"Using RouterPlanningAgent, iteration {context['step'] + 1}/{context['max_steps']}")
         router_result = router_agent.process(user_question, context)
         context = router_result["context"]
 
         # Get the planning result
-        planning_result = context.get("planning_result", {})
-        planning_steps = planning_result.get("steps", [])
+        planning = context.get("planning", {})
+        planning_steps = planning.get("steps", [])
 
         # If no planning steps were generated, use the default sequence
         if not planning_steps:
@@ -841,17 +840,24 @@ class AgentOrchestrator:
         answer_is_appropriate = False
 
         while not answer_is_appropriate and context["step"] < self.max_steps:
-            response, answer_is_appropriate = self.process_planning_steps(
+            answer_is_appropriate, context = self.process_planning_steps(
                 user_question,
                 context,
                 planning_steps,
             )
+            # get the first value which is not completed and update planning steps
+            steps_status = [step["status"].lower() for step in context["completed_steps"].values()]
+            index_not_completed = next((i for i, status in enumerate(steps_status) if status != "completed"), None)
+            
+            if index_not_completed is not None:
+                planning_steps = planning_steps[index_not_completed:]
+            else:
+                break
 
-        # Otherwise, run ResponseSynthesisAgent
+
         logger.info("Running ResponseSynthesisAgent to synthesize final response")
         response_agent = ResponseSynthesisAgent(self.code_executor, self.manager)
-        result = response_agent.process(user_question, context)
-        response = result["response"]
+        response = response_agent.process(user_question, context)
 
         return response
 
@@ -860,7 +866,7 @@ class AgentOrchestrator:
         user_question: str,
         context: AgentContext,
         planning_steps: list,
-    ):
+    ) -> Tuple[bool, AgentContext]:
         # Process each step in the plan
         for idx, step in enumerate(planning_steps):
             # Update context with current plan step
@@ -878,26 +884,19 @@ class AgentOrchestrator:
                 agent = ToolSelectionAgent(self.code_executor, self.manager)
                 result = agent.process(user_question, context)
                 context = result["context"]
-                response = result["response"]
 
                 if not result["should_continue"]:
                     logger.info(f"Agent {agent_type} indicated to stop processing.")
                     break
 
             elif agent_type == "PythonAgent":
-                # Check if Python agent is enabled
-                python_agent_is_enabled = self.manager.config_manager.get("agentic.enable_python_agent", False)
-                if python_agent_is_enabled:
-                    agent = PythonAgent(self.code_executor, self.manager)
-                    result = agent.process(user_question, context)
-                    context = result["context"]
-                    response = result["response"]
+                agent = PythonAgent(self.code_executor, self.manager)
+                result = agent.process(user_question, context)
+                context = result["context"]
 
-                    if not result["should_continue"]:
-                        logger.info(f"Agent {agent_type} indicated to stop processing.")
-                        break
-                else:
-                    logger.info("PythonAgent is disabled. Skipping.")
+                if not result["should_continue"]:
+                    logger.info(f"Agent {agent_type} indicated to stop processing.")
+                    break
 
             else:
                 logger.warning(f"Unknown agent type: {agent_type}. Skipping.")
@@ -907,12 +906,16 @@ class AgentOrchestrator:
         logger.info("Using ValidationAgent after completing plan steps")
         validation_result = validation_agent.process(user_question, context)
         context = validation_result["context"]
-        response = validation_result["response"]
 
         # Get the validation judgment
         answer_is_appropriate = context.get("answer_is_appropriate", False)
+        validation_response = validation_result.get("response", "")
+        step_completion_status = parse_xml(validation_response, "step_completion_status")
+        completed_steps = parse_xml_tags_to_dict(step_completion_status)
+        completed_steps = {step: parse_xml_tags_to_dict(v) for step, v in completed_steps.items()}
+        context["completed_steps"] = completed_steps
 
-        return response, answer_is_appropriate
+        return answer_is_appropriate, context
 
 
 def get_last_used_tool(code_executor: "CodeExecutor", response: str) -> Dict[str, str]:
