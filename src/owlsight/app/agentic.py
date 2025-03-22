@@ -77,6 +77,7 @@ class AgentContext(TypedDict, total=False):
     previous_results: List[str]  # Results from previous agents
     media_objects: Optional[Dict[str, str]]  # Media objects associated with the query
     should_continue: bool  # Whether to continue to the next agent or cycle
+    final_results: List[Any]  # Final results from all agents per step
 
     # Fields introduced by RouterPlanningAgent
     router_response: str  # Response from the router agent
@@ -304,24 +305,15 @@ class ToolSelectionAgent:
         ) as tool_agent:
             tool_response = tool_agent.manager.generate(tool_agent.question)
 
-        # Step 2: Execute the selected tool and capture results
-        code_execution_results = execute_code_with_feedback(
-            response=tool_response,
-            original_question=tool_question,
-            code_executor=self.code_executor,
-            prompt_code_execution=False,  # Always execute tool calls
-            prompt_retry_on_error=False,
-        )
+        final_result = _get_final_result_from_python_code(tool_response, user_question, self.code_executor)
+        context["final_results"].append(final_result)
 
         # Step 3: Extract tool information for use by subsequent agents
         last_used_tool = get_last_used_tool(self.code_executor, tool_response)
-        tool_result = self.code_executor.globals_dict.get("final_result", [])
 
         # Update the context directly with new information
         context["tool_response"] = tool_response
-        context["code_execution_results"] = code_execution_results
         context["last_used_tool"] = last_used_tool
-        context["final_result"] = tool_result
         context["should_continue"] = True
 
         return {"response": tool_response, "should_continue": True, "context": context}
@@ -432,14 +424,8 @@ class PythonAgent:
 
         # Process with Python agent
         python_response = self._handle_python_agent(user_question, last_used_tool)
-        # final_result = execute_code_with_feedback(
-        #     response=python_response,
-        #     original_question=user_question,
-        #     code_executor=self.code_executor,
-        #     prompt_code_execution=self.manager.config_manager.get("main.prompt_code_execution", True),
-        #     prompt_retry_on_error=self.manager.config_manager.get("main.prompt_retry_on_error", True),
-        # )
-        # final_result = final_result["response"]
+        final_result = _get_final_result_from_python_code(python_response, user_question, self.code_executor)
+        context["final_results"].append(final_result)
 
         # Update the context directly
         context["python_response"] = python_response
@@ -856,12 +842,11 @@ class AgentOrchestrator:
             # get the first value which is not completed and update planning steps
             steps_status = [step["status"].lower() for step in context["completed_steps"].values()]
             index_not_completed = next((i for i, status in enumerate(steps_status) if status != "completed"), None)
-            
+
             if index_not_completed is not None:
                 planning_steps = planning_steps[index_not_completed:]
             else:
                 break
-
 
         logger.info("Running ResponseSynthesisAgent to synthesize final response")
         response_agent = ResponseSynthesisAgent(self.code_executor, self.manager)
@@ -979,3 +964,15 @@ def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationMan
         new_system_prompt = manager.generate(user_question)
         manager.update_config("model.system_prompt", new_system_prompt)
         manager.update_config("main.dynamic_system_prompt", False)
+
+
+def _get_final_result_from_python_code(response: str, original_question: str, code_executor: CodeExecutor) -> List[str]:
+    _ = execute_code_with_feedback(
+        response=response,
+        original_question=original_question,
+        code_executor=code_executor,
+        prompt_code_execution=False,  # Always execute tool calls
+        prompt_retry_on_error=False,
+    )
+    final_result = code_executor.globals_dict.get("final_result", [])
+    return final_result
