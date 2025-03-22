@@ -4,7 +4,8 @@ It includes agent implementations, context management, and orchestration.
 """
 
 import inspect
-from typing import Any, Dict, List, Optional, Protocol, Type, TypedDict, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Protocol, Type, Tuple
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
@@ -68,37 +69,27 @@ class AgenticRole:
         self.manager.processor.chat_history = self.original_state["chat_history"] + self.manager.processor.chat_history
 
 
-class AgentContext(TypedDict, total=False):
-    """TypedDict representing the context for agent operations."""
+@dataclass
+class AgentContext:
+    """Dataclass representing the context for agent operations."""
 
     # Core context fields used by AgentOrchestrator
-    step: int  # Current processing step
-    max_steps: int  # Maximum allowed steps
-    previous_results: List[str]  # Results from previous agents
-    media_objects: Optional[Dict[str, str]]  # Media objects associated with the query
-    should_continue: bool  # Whether to continue to the next agent or cycle
-    final_results: List[Any]  # Final results from all agents per step
+    step: int = 0  # Current processing step
+    max_steps: int = 3  # Maximum allowed steps
+    previous_results: List[str] = field(default_factory=list)  # Results from previous agents
+    media_objects: Optional[Dict[str, str]] = field(default_factory=dict)  # Media objects associated with the query
+    should_continue: bool = True  # Whether to continue to the next agent or cycle
+    final_results: List[Any] = field(default_factory=list)  # Final results from all agents per step
 
     # Fields introduced by RouterPlanningAgent
-    router_response: str  # Response from the router agent
-    planning: Dict[str, Any]  # Structured planning result with steps and reasoning
-    current_plan_index: int  # Current index in the execution plan
-    current_planning_steps: List[Dict[str, Any]]  # The steps defined in the plan
+    planning: Dict[str, Any] = field(default_factory=dict)  # Structured planning result with steps and reasoning
+    current_plan_index: int = 0  # Current index in the execution plan
 
     # Fields introduced by ToolSelectionAgent
-    tool_response: str  # Response from the tool agent
-    code_execution_results: Dict[str, Any]  # Results from code execution
-    last_used_tool: Dict[str, str]  # Information about the last used tool
-    tool_result: Any  # Result from the tool execution
+    last_used_tool: Dict[str, str] = field(default_factory=dict)  # Information about the last used tool
 
-    # Fields introduced by PythonAgent
-    python_response: str  # Response from the Python agent
-    refined_code: str  # Refined code from the Python agent
-
-    # Fields introduced by ValidationAgent
-    final_result: str  # Final synthesized result
-    answer_is_appropriate: bool  # Whether the answer is appropriate/complete
-    completed_steps: Dict[str, Dict[str, str]]  # Completed steps and their results
+    answer_is_appropriate: bool = False  # Whether the answer is appropriate/complete
+    completed_steps: Dict[str, Dict[str, str]] = field(default_factory=dict)  # Completed steps and their results
 
 
 class Agent(Protocol):
@@ -173,9 +164,8 @@ You are an expert planner and router for AI tasks. Your purpose is to analyze co
         planning = self._extract_planning_from_response(router_response)
 
         # Update context directly with new information
-        context["router_response"] = router_response
-        context["planning"] = planning
-        context["should_continue"] = True
+        context.planning = planning
+        context.should_continue = True
 
         # Log the planning results
         logger.info(f"Planning result: {planning}")
@@ -283,14 +273,7 @@ class ToolSelectionAgent:
     ) -> Dict[str, Any]:
         """Process the user question using the planning agent."""
         # Create the tool agent prompt with current state information
-        tool_state = {
-            "step": context.get("step", 0),
-            "max_steps": context.get("max_steps", 3),
-            "previous_results": context.get(
-                "previous_results", self.code_executor.globals_dict.get("tool_results", [])
-            ),
-        }
-        tool_question = self._create_tool_agent_prompt(user_question, tool_state, self.manager)
+        tool_question = self._create_tool_agent_prompt(user_question, context, self.manager)
 
         # Define the system prompt for the planning agent
         tool_agent_system_prompt = (
@@ -306,15 +289,14 @@ class ToolSelectionAgent:
             tool_response = tool_agent.manager.generate(tool_agent.question)
 
         final_result = _get_final_result_from_python_code(tool_response, user_question, self.code_executor)
-        context["final_results"].append(final_result)
+        context.final_results.append(final_result)
 
         # Step 3: Extract tool information for use by subsequent agents
         last_used_tool = get_last_used_tool(self.code_executor, tool_response)
 
         # Update the context directly with new information
-        context["tool_response"] = tool_response
-        context["last_used_tool"] = last_used_tool
-        context["should_continue"] = True
+        context.last_used_tool = last_used_tool
+        context.should_continue = True
 
         return {"response": tool_response, "should_continue": True, "context": context}
 
@@ -324,9 +306,9 @@ class ToolSelectionAgent:
         Enhance the user question with tool-calling instructions and context from previous steps,
         guiding the LLM to produce the next-step plan in JSON format.
         """
-        previous_results = context.get("previous_results", [])
-        current_step = context.get("step", 0) + 1
-        max_steps = context.get("max_steps", 3)
+        previous_results = context.previous_results
+        current_step = context.step + 1
+        max_steps = context.max_steps
         last_tools = manager.tool_history if manager.tool_history else None
 
         if current_step > 1 or last_tools:
@@ -420,16 +402,15 @@ class PythonAgent:
         context: AgentContext,
     ) -> Dict[str, Any]:
         """Process Python code validation and refinement."""
-        last_used_tool = context.get("last_used_tool", {})
+        last_used_tool = context.last_used_tool
 
         # Process with Python agent
         python_response = self._handle_python_agent(user_question, last_used_tool)
         final_result = _get_final_result_from_python_code(python_response, user_question, self.code_executor)
-        context["final_results"].append(final_result)
+        context.final_results.append(final_result)
 
         # Update the context directly
-        context["python_response"] = python_response
-        context["should_continue"] = True
+        context.should_continue = True
 
         return {
             "response": python_response,
@@ -523,35 +504,17 @@ class ValidationAgent:
         context: AgentContext,
     ) -> Dict[str, Any]:
         """Validate if enough information has been gathered."""
-        # Get results from previous steps
-        code_execution_results = context.get("code_execution_results", [])
-        current_step = context.get("step", 0)
-        max_steps = context.get("max_steps", 3)
-
-        # Extract final result
-        if not code_execution_results or not any(r["success"] for r in code_execution_results):
-            logger.warning(f"Tool execution failed or no results. Results: {code_execution_results}")
-            final_result = ""
-        else:
-            final_result = self.code_executor.globals_dict.get("final_result", None)
-            if final_result is None:
-                logger.warning("No 'final_result' found in globals after tool execution.")
-                final_result = ""
-
-        logger.info(f"Tool result (Step {current_step + 1}/{max_steps}): {final_result}")
+        current_step = context.step
+        max_steps = context.max_steps
+        final_results = list_of_dicts_to_llm_context(context.final_results)
 
         # Check if answer is appropriate
-        answer_is_appropriate, response = self._handle_answer_validation(user_question, final_result)
+        answer_is_appropriate, response = self._handle_answer_validation(user_question, final_results)
 
         if answer_is_appropriate:
             logger.info("Enough information gathered to generate a final answer.")
         else:
             logger.info("More information needed to generate a final answer.")
-
-        # Update tool results in globals
-        tool_results = self.code_executor.globals_dict.get("tool_results", [])
-        tool_results.append(final_result)
-        self.code_executor.globals_dict["tool_results"] = tool_results
 
         # Determine if we should continue to another cycle
         if current_step + 1 >= max_steps:
@@ -562,16 +525,14 @@ class ValidationAgent:
             should_continue = not answer_is_appropriate
 
         # Update context directly
-        context["final_result"] = final_result
-        context["answer_is_appropriate"] = answer_is_appropriate
-        context["tool_results"] = tool_results
-        context["should_continue"] = should_continue
-        context["step"] = current_step + 1
+        context.answer_is_appropriate = answer_is_appropriate
+        context.should_continue = should_continue
+        context.step = current_step + 1
 
         return {"response": response, "should_continue": should_continue, "context": context}
 
     @staticmethod
-    def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_result: str) -> str:
+    def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_results: str) -> str:
         """
         Builds a prompt for a specialized validation agent that checks if all
         required info has been gathered to fulfill the user's request.
@@ -602,8 +563,8 @@ Possible judgments:
 ▓▓▓ CHAT HISTORY ▓▓▓
 {old_chat_history}
 
-▓▓▓ FINAL RESULT ▓▓▓
-{final_result}
+▓▓▓ FINAL RESULTS ▓▓▓
+{final_results}
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                          RESPONSE FORMAT (REQUIRED)                          ║
@@ -648,7 +609,7 @@ Output format should be XML like this:
     def _handle_answer_validation(
         self,
         user_request: str,
-        final_result: str,
+        final_results: str,
     ) -> bool:
         """
         Engages a specialized 'validation agent' to confirm whether all necessary info
@@ -660,13 +621,13 @@ Output format should be XML like this:
         assistant_context = [d for d in self.manager.processor.chat_history if d["role"] == "assistant"]
         old_chat_history = format_chat_history_as_string(assistant_context)
         system_prompt = (
-            "You are an expert at verifying completeness. Focus on whether enough data is present, "
-            "especially around 'final_result'. Do NOT solve the problem yourself."
+            "You are an expert at verifying completeness. Focus on whether enough data is present."
+            "Do NOT solve the problem yourself."
         )
         question = self._create_validation_agent_prompt(
             user_request=user_request,
             old_chat_history=old_chat_history,
-            final_result=final_result,
+            final_results=final_results,
         )
         judgment = False
 
@@ -678,7 +639,7 @@ Output format should be XML like this:
                 logger.info(f"Answer validation judgment: {judgment_str}")
 
                 if judgment_str == "yes":
-                    logger.info("Answer 'yes' found in judgment.")
+                    logger.info("Answer 'yes' found in judgment. Enough information present to generate a final answer.")
                     judgment = True
                 elif judgment_str == "partial":
                     logger.info("Answer 'partial' found in judgment. More information needed.")
@@ -692,7 +653,6 @@ Output format should be XML like this:
             except Exception as e:
                 logger.error(f"Error parsing judgment: {str(e)}")
 
-        logger.info("No valid judgment found. Treating as not appropriate.")
         return judgment, response
 
 
@@ -706,16 +666,13 @@ class ResponseSynthesisAgent:
     def process(
         self,
         user_question: str,
-        context: AgentContext,
-    ) -> Dict[str, Any]:
+        final_results: str,
+    ) -> str:
         """Synthesize a final response."""
-        # Get tool results
-        tool_results = context.get("tool_results", self.code_executor.globals_dict.get("tool_results", []))
-
         # Create synthetic prompt
         ctx_to_add = f"""
 Use ALL the following gathered data:
-Previous Results: {tool_results}
+Previous Results: {final_results}
 
 Synthesize everything into one coherent final answer.
 """.strip()
@@ -741,7 +698,7 @@ Synthesize everything into one coherent final answer.
 """.strip()
         print(formatted_response)
 
-        return {"response": formatted_response, "should_continue": False, "context": context}
+        return formatted_response
 
 
 class AgentOrchestrator:
@@ -799,12 +756,13 @@ class AgentOrchestrator:
             return response
 
         # Initialize context
-        context: AgentContext = {
-            "step": 0,
-            "max_steps": self.max_steps,
-            "previous_results": self.code_executor.globals_dict.get("tool_results", []),
-            "media_objects": media_objects,
-        }
+        context = AgentContext(
+            step=0,
+            max_steps=self.max_steps,
+            previous_results=self.code_executor.globals_dict.get("tool_results", []),
+            media_objects=media_objects,
+            final_results=[],
+        )
 
         # Process through agents
         response = ""
@@ -818,12 +776,12 @@ class AgentOrchestrator:
 
         # First, always run the RouterPlanningAgent
         router_agent = RouterPlanningAgent(self.code_executor, self.manager)
-        logger.info(f"Using RouterPlanningAgent, iteration {context['step'] + 1}/{context['max_steps']}")
+        logger.info(f"Using RouterPlanningAgent, iteration {context.step + 1}/{context.max_steps}")
         router_result = router_agent.process(user_question, context)
         context = router_result["context"]
 
         # Get the planning result
-        planning = context.get("planning", {})
+        planning = context.planning
         planning_steps = planning.get("steps", [])
 
         # If no planning steps were generated, use the default sequence
@@ -833,14 +791,15 @@ class AgentOrchestrator:
 
         answer_is_appropriate = False
 
-        while not answer_is_appropriate and context["step"] < self.max_steps:
+        # Process planning steps until final answer is appropriate to answer user question or max steps is reached
+        while not answer_is_appropriate and context.step < self.max_steps:
             answer_is_appropriate, context = self.process_planning_steps(
                 user_question,
                 context,
                 planning_steps,
             )
             # get the first value which is not completed and update planning steps
-            steps_status = [step["status"].lower() for step in context["completed_steps"].values()]
+            steps_status = [step["status"].lower() for step in context.completed_steps.values()]
             index_not_completed = next((i for i, status in enumerate(steps_status) if status != "completed"), None)
 
             if index_not_completed is not None:
@@ -850,7 +809,9 @@ class AgentOrchestrator:
 
         logger.info("Running ResponseSynthesisAgent to synthesize final response")
         response_agent = ResponseSynthesisAgent(self.code_executor, self.manager)
-        response = response_agent.process(user_question, context)
+        # TODO: add RAG here?
+        final_results = list_of_dicts_to_llm_context(context.final_results)
+        response = response_agent.process(user_question, final_results)
 
         return response
 
@@ -863,14 +824,14 @@ class AgentOrchestrator:
         # Process each step in the plan
         for idx, step in enumerate(planning_steps):
             # Update context with current plan step
-            context["current_plan_index"] = idx
+            context.current_plan_index = idx
 
             # Determine which agent to use based on the plan
             agent_type = step.get("agent", "")
             step_description = step.get("description", f"Step {idx + 1}")
 
             logger.info(f"Processing planstep {idx + 1}/{len(planning_steps)}: {step_description}")
-            logger.info(f"Using {agent_type}, iteration {context.get('step', 0) + 1}/{context.get('max_steps', 3)}")
+            logger.info(f"Using {agent_type}, iteration {context.step + 1}/{context.max_steps}")
 
             # Select and run the appropriate agent
             if agent_type == "ToolSelectionAgent":
@@ -901,12 +862,12 @@ class AgentOrchestrator:
         context = validation_result["context"]
 
         # Get the validation judgment
-        answer_is_appropriate = context.get("answer_is_appropriate", False)
+        answer_is_appropriate = context.answer_is_appropriate
         validation_response = validation_result.get("response", "")
         step_completion_status = parse_xml(validation_response, "step_completion_status")
         completed_steps = parse_xml_tags_to_dict(step_completion_status)
         completed_steps = {step: parse_xml_tags_to_dict(v) for step, v in completed_steps.items()}
-        context["completed_steps"] = completed_steps
+        context.completed_steps = completed_steps
 
         return answer_is_appropriate, context
 
@@ -925,6 +886,29 @@ def get_last_used_tool(code_executor: "CodeExecutor", response: str) -> Dict[str
             tool_code = inspect.getsource(bound_tool).strip()
 
     return {tool_name: tool_code} if tool_name else {}
+
+
+def list_of_dicts_to_llm_context(data: List[Dict[str, str]]) -> str:
+    """
+    Convert a list of dictionaries (each with {filename_or_url: content}) to a formatted string
+    optimized for LLM context input.
+
+    For each dictionary in the list, each key-value pair is formatted with a header showing
+    the filename/URL, followed by its associated content. A delimiter is used to separate entries.
+    """
+    context_parts = []
+
+    # Iterate over each dictionary in the list
+    for entry_dict in data:
+        for source, content in entry_dict.items():
+            # Create a header and a clear separator for each file or URL.
+            header = f"---\nSource: {source}\n---"
+            # Strip any leading/trailing whitespace from content.
+            entry = f"{header}\n{content.strip()}"
+            context_parts.append(entry)
+
+    # Combine all entries with two newlines for readability.
+    return "\n".join(context_parts)
 
 
 def _handle_rag_for_python(user_question: str, manager: TextGenerationManager) -> str:
