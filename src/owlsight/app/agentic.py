@@ -432,13 +432,21 @@ class PythonAgent:
 
         # Process with Python agent
         python_response = self._handle_python_agent(user_question, last_used_tool)
+        # final_result = execute_code_with_feedback(
+        #     response=python_response,
+        #     original_question=user_question,
+        #     code_executor=self.code_executor,
+        #     prompt_code_execution=self.manager.config_manager.get("main.prompt_code_execution", True),
+        #     prompt_retry_on_error=self.manager.config_manager.get("main.prompt_retry_on_error", True),
+        # )
+        # final_result = final_result["response"]
 
         # Update the context directly
         context["python_response"] = python_response
         context["should_continue"] = True
 
         return {
-            "response": python_response or context.get("tool_response", ""),
+            "response": python_response,
             "should_continue": True,
             "context": context,
         }
@@ -800,7 +808,7 @@ class AgentOrchestrator:
                 original_question=user_question,
                 code_executor=self.code_executor,
                 prompt_code_execution=self.manager.config_manager.get("main.prompt_code_execution", True),
-                prompt_retry_on_error=self.manager.config_manager.get("main.prompt_retry_on_error", False),
+                prompt_retry_on_error=self.manager.config_manager.get("main.prompt_retry_on_error", True),
             )
             return response
 
