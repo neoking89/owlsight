@@ -405,7 +405,7 @@ class PythonAgent:
         last_used_tool = context.last_used_tool
 
         # Process with Python agent
-        python_response = self._handle_python_agent(user_question, last_used_tool)
+        python_response = self._handle_python_agent(user_question, last_used_tool, context)
         final_result = _get_final_result_from_python_code(python_response, user_question, self.code_executor)
         # make sure final result is a dictionary
         if not isinstance(final_result, dict):
@@ -425,6 +425,7 @@ class PythonAgent:
         self,
         user_request: str,
         tool_name: Dict[str, str],
+        context: AgentContext,
     ) -> str:
         """
         Expert Python agent for code validation and refinement with enhanced security
@@ -474,15 +475,21 @@ final_result = solution(...)
 - Unsafe deserialization
 - Bare except clauses
 - Fabricated information (written code should be factual and accurate)
+- Placeholders
 """
 
         validation_rules = "\n".join([f"- {desc} check" for desc in validation_checks.values()])
+        additional_info = list_of_dicts_to_llm_context(context.final_results)
 
         user_prompt = f"""
 **User Request**: {user_request}
 
 ## VALIDATION CHECKLIST
 {validation_rules}
+
+## ADDITIONAL INFORMATION
+The following information has been gathered so far:
+{additional_info}
 """.strip()
         with AgenticRole(user_prompt, system_prompt, self.manager, self.code_executor) as agent:
             new_response = agent.manager.generate(agent.question)
