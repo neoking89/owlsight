@@ -17,6 +17,36 @@ from owlsight.utils.custom_classes import MediaObject, DoubleBracketsTag, _AVAIL
 from owlsight.utils.logger import logger
 
 
+def parse_xml(string: str, tag: str) -> str:
+    """
+    Parse XML-like tags from text into a string.
+
+    Parameters
+    ----------
+    string : str
+        The text containing XML-like tags to parse.
+    tag : str
+        The tag name to extract.
+
+    Returns
+    -------
+    str
+        The content of the specified tag, or an empty string if not found.
+
+    Example
+    -------
+    >>> text = '<goal>My goal</goal><step>Step 1</step>'
+    >>> parse_xml(text, 'goal')
+    'My goal'
+    >>> parse_xml(text, 'step')
+    'Step 1'
+    >>> parse_xml(text, 'missing')
+    ''
+    """
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", string, re.DOTALL)
+    return match.group(1) if match else ""
+
+
 def parse_markdown(md_string: str) -> List[Tuple[str, str]]:
     """
     Parses language and code blocks from a markdown string.
@@ -437,14 +467,14 @@ def extract_square_bracket_tags(
     return result
 
 
-def parse_html_tags(text: str) -> dict:
+def parse_xml_tags_to_dict(text: str) -> dict:
     """
-    Parse HTML-like tags from text into a dictionary.
+    Parse XML-like tags from text into a dictionary.
 
     Parameters
     ----------
     text : str
-        The text containing HTML-like tags to parse
+        The text containing XML-like tags to parse
 
     Returns
     -------
@@ -454,7 +484,7 @@ def parse_html_tags(text: str) -> dict:
     Example
     -------
     >>> text = '<goal>My goal</goal><step>Step 1</step>'
-    >>> parse_html_tags(text)
+    >>> parse_xml_tags(text)
     {'goal': 'My goal', 'step': 'Step 1'}
     """
     # Strip any leading/trailing whitespace
@@ -560,7 +590,7 @@ def parse_function_call_to_python_code(input_str: str) -> str:
             else:
                 args.append(f"{key}={value}")
 
-        code_line = f'final_result = {name}({", ".join(args)})'
+        code_line = f"final_result = {name}({', '.join(args)})"
         return f"```python\n{code_line}\n```"
     except json.JSONDecodeError:
         return input_str
