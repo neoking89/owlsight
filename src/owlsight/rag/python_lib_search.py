@@ -135,7 +135,7 @@ class PythonLibSearcher:
         }
 
         # Get or create search engine
-        engine_key = self._get_engine_key(library, sentence_transformer_model)
+        engine_key = self._get_engine_key(library, sentence_transformer_model, methods_weights)
         engine, methods_weights = self._get_or_create_engine(
             engine_key, documents, methods_weights, cache_dir, library, sentence_transformer_model
         )
@@ -169,9 +169,12 @@ class PythonLibSearcher:
             for key in keys_to_remove:
                 del self._engine_cache[key]
 
-    def _get_engine_key(self, library: str, model: str) -> str:
+    def _get_engine_key(self, library: str, model: str, methods_weights: Dict[SearchMethod, float]) -> str:
         """Generate a unique cache key for the search engine configuration."""
-        return f"{library}_{model}"
+        # Include active methods in the key to handle weight changes
+        active_methods = sorted([method.value for method, weight in methods_weights.items() if weight > 0])
+        active_methods_str = "_".join(active_methods)
+        return f"{library}_{model}_{active_methods_str}"
 
     def _create_search_engine(
         self,
@@ -182,9 +185,12 @@ class PythonLibSearcher:
         sentence_transformer_model: str,
     ) -> Tuple[EnsembleSearchEngine, Dict[SearchMethod, float]]:
         try:
+            # Only include search methods with non-zero weights
+            active_methods = [method for method, weight in methods_weights.items() if weight > 0]
+
             engine = EnsembleSearchEngine(
                 documents=documents,
-                search_methods=list(methods_weights.keys()),
+                search_methods=active_methods,
                 cache_dir=cache_dir,
                 cache_dir_suffix=library,
                 init_arguments={
