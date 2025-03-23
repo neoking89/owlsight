@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Protocol, Type, Tuple
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
+from owlsight.rag.core import DocumentSearcher
 from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.utils.helper_functions import (
     parse_media_tags,
@@ -679,7 +680,6 @@ class ResponseSynthesisAgent:
         final_results: str,
     ) -> str:
         """Synthesize a final response."""
-        # Create synthetic prompt
         ctx_to_add = f"""
 Use ALL the following gathered data:
 Previous Results: {final_results}
