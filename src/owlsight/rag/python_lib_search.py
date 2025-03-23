@@ -114,7 +114,7 @@ class PythonLibSearcher:
             Weight for the TFIDF search method
         sentence_transformer_weight : float, default 0.0
             Weight for the Sentence Transformer search method
-        sentence_transformer_model : str, default "Alibaba-NLP/gte-base-en-v1.5"
+        sentence_transformer_model : str, default: SENTENCETRANSFORMER_DEFAULT_MODEL constant
             Sentence Transformer model to use
 
         Returns:
