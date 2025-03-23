@@ -63,6 +63,7 @@ class TextGenerationManager:
 
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
+        
         self._original_generate_method = None
         self._tool_history: set[str] = set()
         self._init_excluded_tools = EXCLUDE_TOOLS.copy()
