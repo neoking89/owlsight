@@ -140,6 +140,7 @@ class ConfigManager:
             "max_steps": self._get_toggle_choice("agentic", "max_steps"),
             "additional_information": self._get_basic_choice("agentic", "additional_information"),
             "show_available_tools": None,
+            "exclude_tools": str(self._get_basic_choice("agentic", "exclude_tools")),
         }
 
     def _create_huggingface_choices(self):

@@ -24,7 +24,7 @@ from owlsight.utils.helper_functions import (
 from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
 from owlsight.utils.constants import get_pickle_cache, get_default_config_on_startup_path
 from owlsight.utils.custom_classes import GlobalPythonVarsDict
-from owlsight.app.default_functions import OwlDefaultFunctions
+from owlsight.app.default_functions import OwlDefaultFunctions, EXCLUDE_TOOLS
 from owlsight.utils.logger import logger
 
 
@@ -65,6 +65,7 @@ class TextGenerationManager:
         self.processor: Optional[TextGenerationProcessor] = None
         self._original_generate_method = None
         self._tool_history: set[str] = set()
+        self._init_excluded_tools = EXCLUDE_TOOLS.copy()
 
     @property
     def tool_history(self) -> List[Dict[str, str]]:
@@ -274,6 +275,23 @@ class TextGenerationManager:
                 str(obj) for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=True)
             )
             print(f"Available tools:\n{sep}\n{available_tools}")
+        elif inner_key == "exclude_tools":
+            available_tool_names = [
+                obj.__name__ for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)
+            ]
+
+            # Reset EXCLUDE_TOOLS to initial state before updating
+            EXCLUDE_TOOLS.clear()
+            EXCLUDE_TOOLS.extend(self._init_excluded_tools)
+
+            # Add new tools to exclude
+            for tool in value:
+                if tool not in available_tool_names:
+                    logger.error(f"Tool '{tool}' not found in available tools. Skipping.")
+                    continue
+                if tool not in EXCLUDE_TOOLS:
+                    logger.info(f"Adding tool to exclude list: {tool}")
+                    EXCLUDE_TOOLS.append(tool)
 
     def _update_huggingface_config(self, inner_key: str):
         """Handle updates to Hugging Face-related configuration."""

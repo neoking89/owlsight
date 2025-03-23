@@ -245,17 +245,23 @@ class Schema:
                 type=OptionType.TOGGLE,
                 description="Maximum number of steps for the agentic system.",
                 default=5,
-                choices=[n for n in range(1, 21)],
+                choices=list(range(1, 21)),
             ),
             "additional_information": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Additional information added to every agent call. Important for the Tool agent, for example: 'Do NOT use owl_scrape and owl_search, because there is no internet connection'",
+                description="Additional information specifically for the Tool agent. E.g. 'Do NOT use owl_scrape and owl_search, because there is no internet connection'",
                 default="",
                 choices=None,
             ),
             "show_available_tools": MenuItem(
                 type=OptionType.ACTION,
                 description="Show available tools added to the Python Interpreter namespace. These tools can be used by the Tool agent.",
+            ),
+            "exclude_tools": MenuItem(
+                type=OptionType.EDITABLE,
+                description="Comma-separated list of tools (as string) to exclude from the available tools. These tools can be used by the Tool agent. E.g. ['owl_scrape,owl_search']",
+                default=[],
+                choices=None,
             ),
         },
         "huggingface": {
