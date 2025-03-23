@@ -25,7 +25,7 @@ class DocumentSearcher:
     """Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
 
     This class provides document search capability by combining traditional TF-IDF
-    with modern neural embeddings. The idea behind this is two-fold:
+    with embeddings from Sentence Transformer-based models. The idea behind this is two-fold:
     - TFIDF can capture relevant words an embedding model was not trained on.
     - Embeddings can capture context better than TFIDF.
 
@@ -56,7 +56,7 @@ class DocumentSearcher:
         ----------
         documents : Dict[str, str]
             Dictionary mapping document IDs to their content
-        sentence_transformer_model : str, default='Alibaba-NLP/gte-base-en-v1.5'
+        sentence_transformer_model : str, default=SENTENCETRANSFORMER_DEFAULT_MODEL constant
             Name or path of the Sentence Transformer model
         sentence_transformer_batch_size : int, default=64
             Batch size for computing embeddings
