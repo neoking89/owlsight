@@ -819,7 +819,6 @@ class AgentOrchestrator:
 
         logger.info("Running ResponseSynthesisAgent to synthesize final response")
         response_agent = ResponseSynthesisAgent(self.code_executor, self.manager)
-        # TODO: add RAG here?
         final_results = list_of_dicts_to_llm_context(context.final_results)
         response = response_agent.process(user_question, final_results)
 
@@ -831,12 +830,25 @@ class AgentOrchestrator:
         context: AgentContext,
         planning_steps: list,
     ) -> Tuple[bool, AgentContext]:
-        # Process each step in the plan
-        for idx, step in enumerate(planning_steps):
-            # Update context with current plan step
-            context.current_plan_index = idx
+        """
+        Process each step in the plan.
 
-            # Determine which agent to use based on the plan
+        Parameters
+        ----------
+        user_question : str
+            The user's question.
+        context : AgentContext
+            The current context of the agent.
+        planning_steps : list
+            The list of planning steps.
+
+        Returns
+        -------
+        Tuple[bool, AgentContext]
+            A tuple containing a boolean indicating if the answer is appropriate and the updated context.
+        """
+        for idx, step in enumerate(planning_steps):
+            context.current_plan_index = idx
             agent_type = step.get("agent", "")
             step_description = step.get("description", f"Step {idx + 1}")
 
@@ -898,6 +910,7 @@ def get_last_used_tool(code_executor: "CodeExecutor", response: str) -> Dict[str
     return {tool_name: tool_code} if tool_name else {}
 
 
+# TODO: add RAG here to heavily filter information due to long context
 def list_of_dicts_to_llm_context(data: List[Dict[str, str]]) -> str:
     """
     Convert a list of dictionaries (each with {filename_or_url: content}) to a formatted string
@@ -905,20 +918,24 @@ def list_of_dicts_to_llm_context(data: List[Dict[str, str]]) -> str:
 
     For each dictionary in the list, each key-value pair is formatted with a header showing
     the filename/URL, followed by its associated content. A delimiter is used to separate entries.
+
+    Parameters:
+    ---------
+        data (List[Dict[str, str]]): A list of dictionaries, each containing a filename_or_url and its associated content.
+
+    Returns:
+    --------
+        str: A formatted string containing the context for the LLM.
     """
     context_parts = []
 
-    # Iterate over each dictionary in the list
     for entry_dict in data:
         for source, content in entry_dict.items():
             content = str(content)
-            # Create a header and a clear separator for each file or URL.
             header = f"---\nSource: {source}\n---"
-            # Strip any leading/trailing whitespace from content.
             entry = f"{header}\n{content.strip()}"
             context_parts.append(entry)
 
-    # Combine all entries with two newlines for readability.
     return "\n".join(context_parts)
 
 
