@@ -927,9 +927,12 @@ def list_of_dicts_to_llm_context(data: List[Dict[str, str]]) -> str:
     --------
         str: A formatted string containing the context for the LLM.
     """
+
     context_parts = []
 
     for entry_dict in data:
+        if not isinstance(entry_dict, dict):
+            entry_dict = {"unknown_source": str(entry_dict)}
         for source, content in entry_dict.items():
             content = str(content)
             header = f"---\nSource: {source}\n---"
