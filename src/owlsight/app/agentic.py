@@ -121,7 +121,7 @@ class Agent(Protocol):
 class RouterPlanningAgent:
     """Agent responsible for planning and routing tasks to the appropriate agents."""
 
-    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
         self.code_executor = code_executor
         self.manager = manager
 
@@ -263,7 +263,7 @@ Reason: [Brief justification for agent selection]
 class ToolSelectionAgent:
     """Agent responsible for creating plans and selecting tools."""
 
-    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
         self.code_executor = code_executor
         self.manager = manager
 
@@ -393,7 +393,7 @@ class ToolSelectionAgent:
 class PythonAgent:
     """Agent responsible for Python code validation and refinement."""
 
-    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
         self.code_executor = code_executor
         self.manager = manager
 
@@ -505,7 +505,7 @@ The following information has been gathered so far:
 class ValidationAgent:
     """Agent responsible for validating if enough information has been gathered."""
 
-    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
         self.code_executor = code_executor
         self.manager = manager
 
@@ -670,7 +670,7 @@ Output format should be XML like this:
 class ResponseSynthesisAgent:
     """Agent responsible for synthesizing the final response."""
 
-    def __init__(self, code_executor: "CodeExecutor", manager: "TextGenerationManager"):
+    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
         self.code_executor = code_executor
         self.manager = manager
 
@@ -716,8 +716,8 @@ class AgentOrchestrator:
 
     def __init__(
         self,
-        code_executor: "CodeExecutor",
-        manager: "TextGenerationManager",
+        code_executor: CodeExecutor,
+        manager: TextGenerationManager,
         max_steps: int,
         agents: List[Type[Agent]] = None,
     ):
@@ -894,7 +894,7 @@ class AgentOrchestrator:
         return answer_is_appropriate, context
 
 
-def get_last_used_tool(code_executor: "CodeExecutor", response: str) -> Dict[str, str]:
+def get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str, str]:
     """
     Parse the last used tool from the response, along with its function body.
     If none is found, returns an empty dict.
