@@ -277,7 +277,7 @@ class TextGenerationManager:
             print(f"Available tools:\n{sep}\n{available_tools}")
         elif inner_key == "exclude_tools":
             available_tool_names = [
-                obj.__name__ for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)
+                getattr(obj, "__name__") for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False) if hasattr(obj, "__name__")
             ]
 
             # Reset EXCLUDE_TOOLS to initial state before updating

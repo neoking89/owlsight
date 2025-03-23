@@ -553,7 +553,7 @@ class ValidationAgent:
 ║                                    TASK                                      ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 IMPORTANT: Your task is ONLY to validate if enough information has been gathered.
-Do NOT calculate or provide the final answer yourself.
+Do NOT solve the problem yourself.
 
 Validation rules:
 1. Multi-step: ALL steps must be addressed to respond "YES".
@@ -779,8 +779,9 @@ class AgentOrchestrator:
 
         logger.info(f"Starting agent processing for user request: {user_question}")
         available_tools = [
-            getattr(obj, "__name__", None)
+            getattr(obj, "__name__")
             for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)
+            if hasattr(obj, "__name__")
         ]
         logger.info(f"Available tools: {available_tools}")
 
@@ -794,7 +795,6 @@ class AgentOrchestrator:
         planning = context.planning
         planning_steps = planning.get("steps", [])
 
-        # If no planning steps were generated, use the default sequence
         if not planning_steps:
             logger.info("No planning steps generated!")
             return "No planning steps generated!"
