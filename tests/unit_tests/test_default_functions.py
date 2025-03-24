@@ -1,7 +1,5 @@
-import sys
 import pytest
 
-sys.path.append("src")
 from owlsight.app.default_functions import is_url
 
 def test_is_url():

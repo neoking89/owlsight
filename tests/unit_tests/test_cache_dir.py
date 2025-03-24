@@ -3,9 +3,7 @@ import pytest
 import shutil
 from unittest.mock import patch
 import tempfile
-import sys
 
-sys.path.append("src")
 from owlsight.utils.constants import create_directory, create_file
 from owlsight.utils.helper_functions import os_is_windows
 

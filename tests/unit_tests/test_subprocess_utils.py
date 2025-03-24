@@ -1,9 +1,6 @@
 import subprocess
-import sys
-
 import pytest
 
-sys.path.append("src")
 from owlsight.utils.subprocess_utils import parse_globals_from_stdout
 from owlsight.utils.helper_functions import os_is_windows
 

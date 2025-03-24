@@ -2,10 +2,7 @@ from pathlib import Path
 import requests
 import io
 import ast
-import sys
 import pytesseract
-
-sys.path.append("src")
 
 from PIL import Image
 import numpy as np

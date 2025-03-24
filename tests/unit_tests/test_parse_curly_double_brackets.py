@@ -1,10 +1,7 @@
-import sys
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 
-sys.path.append("src")
-
+import pandas as pd
+import numpy as np
 import pytest
 
 from owlsight.utils.helper_functions import parse_python_placeholders, parse_media_tags

@@ -1,6 +1,3 @@
-import sys
-sys.path.append("src")
-
 import pytest
 from transformers import AutoTokenizer
 from owlsight.processors.text_generation_processors import TextGenerationProcessorGGUF

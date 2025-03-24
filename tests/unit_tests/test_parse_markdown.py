@@ -1,6 +1,3 @@
-import sys
-sys.path.append("src")
-
 from owlsight.utils.helper_functions import parse_markdown
 
 

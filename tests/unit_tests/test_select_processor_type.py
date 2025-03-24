@@ -1,7 +1,3 @@
-import sys
-
-sys.path.append("src")
-
 import pytest
 from owlsight import (
     TextGenerationProcessorTransformers,
