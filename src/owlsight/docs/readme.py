@@ -544,7 +544,10 @@ Voice control features include:
 
 **2.5.0(stable)**
 - Added `owl_context_length` function to the Python interpreter. This function can be used to get the context length of the currently loaded model.
-- Improved flow of agentic system, which is now: RouterPlanningAgent -> ToolAgent | PythonAgent -> ValidationAgent -> [Until max_steps is reached or all data is collected for final answer] -> ResponseSynthesisAgent
+- Improved flow of agentic system, which is now: `RouterPlanningAgent` -> `ToolAgent` | `PythonAgent` -> `ValidationAgent` -> [Until max_steps is reached or all data is collected for final answer] -> `ResponseSynthesisAgent`
+- Added new options to `config:agentic`:
+  * `show_available_tools`: Show all available tools (available from the Python interpreter) to the `ToolAgent`.
+  * `exclude_tools`: Exclude certain tools from the `ToolAgent`.
 - Implement lazy loading in all classes where SentenceTransformer models are used, so that they only get loaded if `sentence_transformer_weight` is more than 0. First, SentenceTransformer models were loaded without being sure that they would be used.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
