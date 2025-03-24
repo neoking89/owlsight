@@ -12,7 +12,7 @@ except ImportError:
     SentenceTransformer = None
 
 from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
-
+from owlsight.utils.logger import logger
 
 class TextSplitter(ABC):
     """Abstract base class for text splitting strategies."""
@@ -33,7 +33,6 @@ class TextSplitter(ABC):
         Dict[str, str]
             Dictionary with new document names as keys and chunks as values.
         """
-        pass
 
 
 class SentenceTextSplitter(TextSplitter):
@@ -169,6 +168,7 @@ class SentenceTextSplitter(TextSplitter):
             Dictionary with new document names as keys and sentence chunks as values.
             New document names follow the pattern: [document_name]__split[n]
         """
+        logger.info(f"Splitting documents [{self.__class__.__name__}] with {self.n_sentences} sentences per chunk and {self.n_overlap} overlap")
         split_docs = {}
         for doc_name, doc_text in documents.items():
             # Handle empty documents
@@ -275,6 +275,7 @@ class SemanticTextSplitter(TextSplitter):
         model_kwargs = {"trust_remote_code": True, "device": device}
         if sentence_transformer_kwargs:
             model_kwargs.update(sentence_transformer_kwargs)
+        logger.info(f"Initializing SentenceTransformer model {model_name} for {self.__class__.__name__}")
         self._model = SentenceTransformer(model_name, **model_kwargs) if model_name else None
         self.window_size = window_size
         self.percentile = percentile * 100
@@ -284,6 +285,7 @@ class SemanticTextSplitter(TextSplitter):
 
     def split_documents(self, documents: Dict[str, str], show_progress_bar: bool = True, **kwargs) -> Dict[str, str]:
         """Split documents using semantic breakpoint detection."""
+        logger.info(f"Splitting documents [{self.__class__.__name__}] with {self.target_chunk_length} target chunk length")
         final_results = {}
 
         for doc_name, doc_text in documents.items():
