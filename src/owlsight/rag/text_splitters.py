@@ -258,7 +258,6 @@ class SemanticTextSplitter(TextSplitter):
 
         Attributes
         ----------
-        All above parameters are passed to the `SentenceTransformer` constructor.
         _model : Optional[SentenceTransformer]
             An instance of the SentenceTransformer model loaded using the specified model_name.
         """
