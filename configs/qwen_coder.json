@@ -44,7 +44,8 @@
     "agentic": {
             "apply_tools": true,
             "max_steps": 5,
-            "additional_information": ""
+            "additional_information": "Always search for at least 7 results when using a search tool",
+            "exclude_tools": []
         },
     "huggingface": {
         "search": "",
