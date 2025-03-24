@@ -939,7 +939,9 @@ def list_of_dicts_to_llm_context(data: List[Dict[str, str]]) -> str:
             entry = f"{header}\n{content.strip()}"
             context_parts.append(entry)
 
-    return "\n".join(context_parts)
+    context = "\n".join(context_parts)
+    logger.info(f"Generated context for model in {inspect.currentframe().f_code.co_name}, using approx. {len(context.split())} words.")
+    return context
 
 
 def _handle_rag_for_python(user_question: str, manager: TextGenerationManager) -> str:
