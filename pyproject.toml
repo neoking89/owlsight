@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "owlsight"
 dynamic = ["version"]
-description = "Owlsight is a commandline tool which combines open-source AI models with Python functionality to create a powerful AI assistant."
+description = "Owlsight is a command-line tool combining open-source AI models with Python functionality to create a powerful AI assistant."
 authors = [{ name = "Vincent Ouwendijk" }]
 license = { text = "MIT" }
 readme = "README.md"
@@ -37,22 +37,9 @@ dev = [
     "black",
     "pylint",
 ]
-
-# useful for getting leaderboards from the Hugging Face Hub
-huggingface_metadata = [
-    "gradio",
-]
-
-gguf = [
-    "llama-cpp-python",
-]
-
-onnx = [
-    "onnxruntime-genai",
-    "onnxruntime-genai-cuda",
-]
-
-# useful for web search and scraping
+huggingface_metadata = ["gradio"]
+gguf = ["llama-cpp-python"]
+onnx = ["onnxruntime-genai", "onnxruntime-genai-cuda"]
 search = [
     "lxml",
     "aiohttp",
@@ -97,7 +84,7 @@ all = [
     "lxml",
     "aiohttp",
     "duckduckgo_search",
-    # Optional dependencies
+    # Optional
     "llama-cpp-python",
     "onnxruntime-genai",
     "onnxruntime-genai-cuda",
@@ -107,17 +94,16 @@ all = [
     "pillow",
 ]
 
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra -q"
-testpaths = ["tests"]
-
 [project.entry-points.console_scripts]
 owlsight = "owlsight.main:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 include-package-data = true
+zip-safe = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
 "owlsight.offline" = ["blobs/**/*"]
@@ -125,15 +111,40 @@ include-package-data = true
 [tool.setuptools.exclude-package-data]
 "*" = ["blobs/**/*"]
 
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.black]
-line-length = 120
-
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+pythonpath = [".", "src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+extend-exclude = ["site-packages", ".ruff_cache", "venv", ".venv"]
+line-length = 120
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = ["E4", "E7", "E9", "F", "I", "UP", "B", "C90", "TID"]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+[tool.black]
+line-length = 120
 
 [tool.pylint]
 max-line-length = 120
