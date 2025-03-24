@@ -321,8 +321,8 @@ Main Menu:
     - back: Return to previous menu
     - apply_tools: Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace., Options: False, True, Type: OptionType.TOGGLE
     - max_steps: Maximum number of steps for the agentic system., Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Type: OptionType.TOGGLE
-    - enable_python_agent: Toggle the inclusion of a Python generation agent. This agent judges the last response of the Tool agent and writes Python code if appropriate, Options: False, True, Type: OptionType.TOGGLE
-    - additional_information: Additional information added to every agent call. Important for the Tool agent, for example: 'Do NOT use owl_scrape and owl_search, because there is no internet connection', Type: OptionType.EDITABLE
+    - additional_information: Additional information specifically for the Tool agent. E.g. 'Do NOT use owl_scrape and owl_search, because there is no internet connection', Type: OptionType.EDITABLE
+    - exclude_tools: Comma-separated list of tools (as string) to exclude from the available tools. These tools can be used by the Tool agent. E.g. ['owl_scrape,owl_search'], Type: OptionType.EDITABLE
   - huggingface settings:
     - back: Return to previous menu
     - search: Search for a model on the Hugging Face Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', Type: OptionType.EDITABLE
@@ -384,8 +384,8 @@ Here's an example of what the default configuration looks like:
     "agentic": {
         "apply_tools": false,
         "max_steps": 5,
-        "enable_python_agent": true,
-        "additional_information": ""
+        "additional_information": "",
+        "exclude_tools": []
     },
     "huggingface": {
         "search": "",
@@ -781,7 +781,7 @@ class DocumentSearcher(documents: Dict[str, str], sentence_transformer_model: st
 Document search engine using an ensemble of TFIDF and Sentence Transformer methods.
 
 This class provides document search capability by combining traditional TF-IDF
-with modern neural embeddings. The idea behind this is two-fold:
+with embeddings from Sentence Transformer-based models. The idea behind this is two-fold:
 - TFIDF can capture relevant words an embedding model was not trained on.
 - Embeddings can capture context better than TFIDF.
 
@@ -974,7 +974,7 @@ making it effective for concept-based search rather than just keyword matching.
 #### OwlDefaultFunctions
 
 ```python
-class OwlDefaultFunctions(globals_dict: 'Union[dict]')
+class OwlDefaultFunctions(globals_dict: Dict)
 ```
 
 Define default functions that can be used in the Python interpreter.
@@ -985,31 +985,31 @@ This class is open for extension, as possibly more useful functions can be added
 
 **Methods:**
 
-- `owl_create_document_searcher(self, documents: 'Dict[str, str]', sentence_transformer_model_name: 'str', sentence_transformer_kwargs: 'Optional[Dict[str, Any]]' = None, percentile: 'float' = 0.99, target_chunk_length: 'int' = 400, device: 'Optional[str]' = None, **document_searcher_kwargs) -> 'document_searcher_type'`
+- `owl_create_document_searcher(self, documents: Dict[str, str], sentence_transformer_model_name: str, sentence_transformer_kwargs: Optional[Dict[str, Any]] = None, percentile: float = 0.99, target_chunk_length: int = 400, device: Optional[str] = None, **document_searcher_kwargs) -> ~DocumentSearcher`
   - Utility function to create a DocumentSearcher instance from a dictionary of documents.
-- `owl_import(self, file_path: 'str')`
+- `owl_import(self, file_path: str)`
   - Import Python module into the current execution environment.
-- `owl_load_namespace(self, file_path: 'str')`
+- `owl_load_namespace(self, file_path: str)`
   - Load namespace using dill.
-- `owl_models(self, cache_dir: 'Optional[str]' = None, show_task: 'bool' = False) -> 'List[str]'`
+- `owl_models(self, cache_dir: Optional[str] = None, show_task: bool = False) -> List[str]`
   - Audit Hugging Face model cache.
-- `owl_press(self, sequence: 'List[str]', exit_python_before_sequence: 'bool' = True, time_before_sequence: 'float' = 0.5, time_between_keys: 'float' = 0.12) -> 'bool'`
+- `owl_press(self, sequence: List[str], exit_python_before_sequence: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12) -> bool`
   - Simulate keyboard input for application control.
-- `owl_read(self, file_source: 'Union[str, Path, bytes, Iterable[Union[str, Path]]]', recursive: 'bool' = False, ignore_patterns: 'Optional[List[str]]' = None, ocr_enabled: 'bool' = True, timeout: 'int' = 5) -> 'Union[str, Dict[str, str]]'`
+- `owl_read(self, file_source: Union[str, pathlib.Path, bytes, Iterable[Union[str, pathlib.Path]]], recursive: bool = False, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5) -> Union[str, Dict[str, str]]`
   - Read LOCAL FILE CONTENTS with advanced document processing.
-- `owl_save_namespace(self, file_path: 'str')`
+- `owl_save_namespace(self, file_path: str)`
   - Serialize current namespace state to disk.
-- `owl_scrape(self, urls: 'List[str]', max_concurrent: 'int' = 5, timeout: 'int' = 10) -> 'Dict[str, str]'`
+- `owl_scrape(self, urls: List[str], max_concurrent: int = 5, timeout: int = 10) -> Dict[str, str]`
   - Scrape web content from URLs (use instead of owl_read for web resources).
-- `owl_search(self, query: 'str', max_results: 'int' = 10, max_retries: 'int' = 3) -> 'Dict[str, str]'`
+- `owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> Dict[str, str]`
   - Execute web search using DuckDuckGo's API.
-- `owl_search_and_scrape(self, query: 'str', max_results: 'int' = 10, max_concurrent: 'int' = 5, timeout: 'int' = 10, max_retries: 'int' = 3) -> 'Dict[str, str]'`
+- `owl_search_and_scrape(self, query: str, max_results: int = 10, max_concurrent: int = 5, timeout: int = 10, max_retries: int = 3) -> Dict[str, str]`
   - Combines web search and content scraping into a single operation.
-- `owl_show(self, docs: 'bool' = True, return_str: 'bool' = False) -> 'List[str]'`
+- `owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]`
   - Display active namespace objects with documentation.
-- `owl_tools(self, as_json: 'bool' = True) -> 'List[Union[Callable, Dict]]'`
+- `owl_tools(self, as_json: bool = True) -> List[Union[Callable, Dict]]`
   - Retrieve available tool-callable functions in OpenAI-compatible format.
-- `owl_write(self, file_path: 'str', content: 'str') -> 'None'`
+- `owl_write(self, file_path: str, content: str) -> None`
   - Write text content to filesystem.
 
 #### ExpertPrompts
@@ -1061,17 +1061,19 @@ prompt : str
 #### VoiceControl
 
 ```python
-class VoiceControl(word_to_key_map: Dict[str, Union[str, List[str]]] = None, word_to_word_map: Dict[str, str] = None, cmd_cooldown: float = 1.0, debug: bool = False, language: str = 'en', model: str = 'small.en', key_press_interval: float = 0.05, typing_interval: float = 0.03, on_command_processed: Optional[Callable[[str, Union[str, List[str]]], NoneType]] = None, **recorder_kwargs)
+class VoiceControl(*args, **kwargs)
 ```
 
-Base class for voice control functionality.
+Proxy class that inherits from DummyVoiceControl when dependencies are missing
 
 **Methods:**
 
-- `start(self) -> None`
+- `is_running(self)`
+  - Check if the voice control system is running.
+- `start(self)`
   - Start the voice control system.
-- `stop(self) -> None`
-  - Stop the voice control system and clean up resources.
+- `stop(self)`
+  - Stop the voice control system.
 
 
 ### Functions
@@ -1174,7 +1176,7 @@ to decide the processor type. Otherwise, it will use the model_id string to make
 #### is_url
 
 ```python
-def is_url(url: 'str') -> 'bool'
+def is_url(url: str) -> bool
 ```
 
 Check if a string is a valid URL.
@@ -1390,6 +1392,9 @@ Voice control features include:
 - Added support for `uv` as an alternative package manager. Also improved current support for `pip` environments.
 - Several minor bugfixes and improvements.
 
-
+**2.5.0(stable)**
+- Added `owl_context_length` function to the Python interpreter. This function can be used to get the context length of the currently loaded model.
+- Improved flow of agentic system, which is now: RouterPlanningAgent -> ToolAgent | PythonAgent -> ValidationAgent -> [Until max_steps is reached or all data is collected for final answer] -> ResponseSynthesisAgent
+- Implement lazy loading in all classes where SentenceTransformer models are used, so that they only get loaded if `sentence_transformer_weight` is more than 0. First, SentenceTransformer models were loaded without being sure that they would be used.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
