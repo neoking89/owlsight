@@ -514,6 +514,7 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
         model_kwargs = {"device": self.device, "trust_remote_code": True}
         if sentence_transformer_kwargs:
             model_kwargs.update(sentence_transformer_kwargs)
+        logger.info(f"Initializing SentenceTransformer model {model_name} for {self.__class__.__name__}")
         self.model = SentenceTransformer(model_name, **model_kwargs)
 
         self.batch_size = batch_size
@@ -551,7 +552,6 @@ class SentenceTransformerSearchEngine(SearchEngine, CacheMixin):
 
         try:
             # Batch encode all texts at once
-
             embeddings_list = []
             if self.cache_dir and self.cache_dir_suffix:
                 logger.info("Embeddings will be cached in %s", self.get_full_cache_path())
@@ -676,37 +676,49 @@ class EnsembleSearchEngine:
         self.cache_dir = cache_dir
         self.cache_dir_suffix = cache_dir_suffix
         self.search_methods: List[SearchMethod] = search_methods
-        self.engines: Dict[SearchMethod, SearchEngine] = {}
         self.engine_init_arguments = init_arguments or {}
         self._initialize_engines()
 
     def _initialize_engines(self) -> None:
-        """Initialize search engines based on specified methods and weights."""
-        for method in self.search_methods:
-            engine_kwargs = {
-                "documents": self.documents,
-                "cache_dir": self.cache_dir,
-                "cache_dir_suffix": self.cache_dir_suffix or "",
-            }
+        """Initialize engines dictionary (will lazy-load engines during search based on weights)."""
+        self.engines = {}  # Initialize as empty dictionary, will lazy-load engines as needed
 
-            engine_kwargs.update(self.engine_init_arguments.get(method, {}))
+    def _initialize_engine(self, method: SearchMethod) -> None:
+        """
+        Initialize a specific search engine if it hasn't been already.
+        
+        Parameters:
+        -----------
+        method : SearchMethod
+            The search method to initialize
+        """
+        if method in self.engines:
+            return  # Engine already initialized
+            
+        engine_kwargs = {
+            "documents": self.documents,
+            "cache_dir": self.cache_dir,
+            "cache_dir_suffix": self.cache_dir_suffix or "",
+        }
 
-            if method == SearchMethod.TFIDF:
-                engine = TFIDFSearchEngine(**engine_kwargs)
-            elif method == SearchMethod.SENTENCE_TRANSFORMER:
-                # Extract sentence_transformer_kwargs if present, don't add if not present
-                if "sentence_transformer_kwargs" in engine_kwargs:
-                    st_kwargs = engine_kwargs.pop("sentence_transformer_kwargs")
-                    engine = SentenceTransformerSearchEngine(**engine_kwargs, sentence_transformer_kwargs=st_kwargs)
-                else:
-                    engine = SentenceTransformerSearchEngine(**engine_kwargs)
-            elif method == SearchMethod.HASHING:
-                engine = HashingVectorizerSearchEngine(**engine_kwargs)
+        engine_kwargs.update(self.engine_init_arguments.get(method, {}))
+
+        if method == SearchMethod.TFIDF:
+            engine = TFIDFSearchEngine(**engine_kwargs)
+        elif method == SearchMethod.SENTENCE_TRANSFORMER:
+            # Extract sentence_transformer_kwargs if present, don't add if not present
+            if "sentence_transformer_kwargs" in engine_kwargs:
+                st_kwargs = engine_kwargs.pop("sentence_transformer_kwargs")
+                engine = SentenceTransformerSearchEngine(**engine_kwargs, sentence_transformer_kwargs=st_kwargs)
             else:
-                raise ValueError(f"Unknown search method: {method}")
+                engine = SentenceTransformerSearchEngine(**engine_kwargs)
+        elif method == SearchMethod.HASHING:
+            engine = HashingVectorizerSearchEngine(**engine_kwargs)
+        else:
+            raise ValueError(f"Unknown search method: {method}")
 
-            self.engines[method] = engine
-            engine.create_index()
+        self.engines[method] = engine
+        engine.create_index()
 
     def search(
         self,
@@ -740,13 +752,17 @@ class EnsembleSearchEngine:
         all_results = []
         method_weights = method_weights or {}
 
-        for method, engine in self.engines.items():
+        for method in self.search_methods:
             weight = method_weights.get(method, 0)
             # Skip search if weight is 0 or negative
             if weight <= 0:
                 continue
+                
+            # Lazy-load the engine only if it's needed (weight > 0)
+            if method not in self.engines:
+                self._initialize_engine(method)
 
-            results = engine.search(query, top_k=top_k)
+            results = self.engines[method].search(query, top_k=top_k)
 
             for result in results:
                 result.method = method.value
