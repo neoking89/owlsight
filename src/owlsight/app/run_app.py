@@ -254,7 +254,7 @@ def run(manager: TextGenerationManager) -> None:
     remove_temp_directories(lib_path)
 
     username = getpass.getuser()
-    user_specific_suffix = f".owlsight_packages_{username}"
+    user_specific_suffix = f".owlsight_packages__{username}"
     temp_dir_location = get_temp_dir(user_specific_suffix)
 
     with tempfile.TemporaryDirectory(dir=temp_dir_location) as temp_dir:
