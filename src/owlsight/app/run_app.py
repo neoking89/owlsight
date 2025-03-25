@@ -3,6 +3,7 @@ import traceback
 from typing import Union, Tuple
 from enum import Enum, auto
 import os
+import getpass
 from pathlib import Path
 
 from owlsight.configurations.constants import MAIN_MENU
@@ -252,7 +253,9 @@ def run(manager: TextGenerationManager) -> None:
 
     remove_temp_directories(lib_path)
 
-    temp_dir_location = get_temp_dir(".owlsight_packages")
+    username = getpass.getuser()
+    user_specific_suffix = f".owlsight_packages_{username}"
+    temp_dir_location = get_temp_dir(user_specific_suffix)
 
     with tempfile.TemporaryDirectory(dir=temp_dir_location) as temp_dir:
         logger.info(f"Temporary directory created at: {temp_dir}")
