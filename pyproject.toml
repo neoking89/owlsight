@@ -37,9 +37,11 @@ dev = [
     "black",
     "pylint",
 ]
+# useful for getting leaderboards from the Hugging Face Hub
 huggingface_metadata = ["gradio"]
 gguf = ["llama-cpp-python"]
 onnx = ["onnxruntime-genai", "onnxruntime-genai-cuda"]
+# useful for web search and scraping
 search = [
     "lxml",
     "aiohttp",
