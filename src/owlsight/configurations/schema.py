@@ -233,7 +233,7 @@ class Schema:
         "agentic": {
             "back": MenuItem(
                 type=OptionType.ACTION,
-                description="Orchestrate a sequential multi-agent workflow: Tool → Python → Judge agents process data, feeding their collective output to an Answer agent for final synthesis",
+                description="Orchestrate a sequential multi-agent workflow: RouterPlanningAgent -> ToolAgent | PythonAgent -> ValidationAgent -> ResponseSynthesisAgent",
             ),
             "apply_tools": MenuItem(
                 type=OptionType.TOGGLE,
