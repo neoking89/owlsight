@@ -549,6 +549,7 @@ Voice control features include:
   * `show_available_tools`: Show all available tools (available from the Python interpreter) to the `ToolAgent`.
   * `exclude_tools`: Exclude certain tools from the `ToolAgent`.
 - Implement lazy loading in all classes where SentenceTransformer models are used, so that they only get loaded if `sentence_transformer_weight` is more than 0. First, SentenceTransformer models were loaded without being sure that they would be used.
+- Several minor bugfixes and improvements.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 

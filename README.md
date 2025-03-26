@@ -879,7 +879,7 @@ Notes
 - `create_index(self) -> None`
   - Create search index from documents.
 - `get_full_cache_path(self) -> pathlib.Path`
-  - Get full cache path.
+  - Generate a deterministic and safe cache path, preserving metadata in filename.
 - `get_suffix_filename(self) -> str`
   - Get the suffix filename.
 - `load_data(self) -> Optional[Any]`
@@ -935,7 +935,7 @@ Notes
 - `create_index(self) -> None`
   - Create search index from documents.
 - `get_full_cache_path(self) -> pathlib.Path`
-  - Get full cache path.
+  - Generate a deterministic and safe cache path, preserving metadata in filename.
 - `get_suffix_filename(self) -> str`
   - Get the suffix filename.
 - `load_data(self) -> Optional[Any]`
@@ -961,7 +961,7 @@ making it effective for concept-based search rather than just keyword matching.
 - `create_index(self) -> None`
   - Create search index by computing embeddings for all documents.
 - `get_full_cache_path(self) -> pathlib.Path`
-  - Get full cache path.
+  - Generate a deterministic and safe cache path, preserving metadata in filename.
 - `get_suffix_filename(self) -> str`
   - Get the suffix filename.
 - `load_data(self) -> Optional[Any]`
@@ -1399,5 +1399,6 @@ Voice control features include:
   * `show_available_tools`: Show all available tools (available from the Python interpreter) to the `ToolAgent`.
   * `exclude_tools`: Exclude certain tools from the `ToolAgent`.
 - Implement lazy loading in all classes where SentenceTransformer models are used, so that they only get loaded if `sentence_transformer_weight` is more than 0. First, SentenceTransformer models were loaded without being sure that they would be used.
+- Several minor bugfixes and improvements.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
