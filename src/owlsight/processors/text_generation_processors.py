@@ -4,7 +4,6 @@ import time
 import traceback
 import threading
 from ast import literal_eval
-from functools import lru_cache
 
 import torch
 from huggingface_hub import snapshot_download, list_repo_files
@@ -129,7 +128,6 @@ class TextGenerationProcessorTransformers(TextGenerationProcessor):
             return self._get_correct_fp16_dtype()
         return torch.float32 if self.transformers__device == "cpu" else "auto"
 
-    @lru_cache(maxsize=1)
     def _get_correct_fp16_dtype(self) -> torch.dtype:
         """Get correct FP16 dtype based on hardware support."""
         return torch.bfloat16 if bfloat16_is_supported() else torch.float16
