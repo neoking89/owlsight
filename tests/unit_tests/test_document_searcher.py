@@ -1,4 +1,5 @@
 import pytest
+import shutil
 
 from owlsight.rag.core import DocumentSearcher, SearchMethod, SentenceTextSplitter
 from unittest.mock import patch, MagicMock
@@ -154,3 +155,7 @@ def test_document_searcher_init_with_cache():
                 }
             }
         )
+    try:
+        shutil.rmtree(cache_dir)
+    except FileNotFoundError:
+        pass
