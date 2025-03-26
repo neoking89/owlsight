@@ -3,6 +3,7 @@
 
 # Define the range of Python versions to test
 $pythonVersions = @("3.9", "3.10", "3.11", "3.12")
+$current_time = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 
 # Create a logs directory if it doesn't exist
 $logsDir = "test_logs"
@@ -13,8 +14,8 @@ if (-not (Test-Path -Path $logsDir)) {
 
 foreach ($version in $pythonVersions) {
     $imageName = "owlsight-test:python-$version"
-    $buildLogFile = Join-Path -Path $logsDir -ChildPath "python-$version-build-log.txt"
-    $testLogFile = Join-Path -Path $logsDir -ChildPath "python-$version-test-log.txt"
+    $buildLogFile = Join-Path -Path $logsDir -ChildPath "python-$version-build-log_$current_time.txt"
+    $testLogFile = Join-Path -Path $logsDir -ChildPath "python-$version-test-log_$current_time.txt"
     
     Write-Host "========================================="
     Write-Host "Testing with Python version $version"
