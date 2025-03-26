@@ -241,8 +241,7 @@ def show_model_memory(model_name: str) -> Optional[str]:
         result = subprocess.run(
             command,
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             encoding="utf-8",  # Specify UTF-8 encoding
             errors="ignore",  # Ignore decoding errors
