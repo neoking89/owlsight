@@ -1393,7 +1393,7 @@ Voice control features include:
 - Several minor bugfixes and improvements.
 
 **2.5.0(stable)**
-- Added `owl_context_length` function to the Python interpreter. This function can be used to get the context length of the currently loaded model.
+- Added `owl_context_length` function to the Python interpreter. This function can be used to get the maximum context length of the currently loaded model.
 - Improved flow of agentic system, which is now: `RouterPlanningAgent` -> `ToolAgent` | `PythonAgent` -> `ValidationAgent` -> [Until max_steps is reached or all data is collected for final answer] -> `ResponseSynthesisAgent`
 - Added new options to `config:agentic`:
   * `show_available_tools`: Show all available tools (available from the Python interpreter) to the `ToolAgent`.
