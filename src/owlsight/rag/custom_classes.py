@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Any, Optional
 import pickle
 from dataclasses import dataclass
+import hashlib
+from functools import lru_cache
 
 
 class SearchMethod(str, Enum):
@@ -43,10 +45,14 @@ class CacheMixin:
         return self.cache_dir_suffix if self.cache_dir_suffix else ""
 
     def get_full_cache_path(self) -> Path:
-        """Get full cache path."""
+        """Generate a deterministic and safe cache path, preserving metadata in filename."""
         if not self.cache_dir:
             raise ValueError("Cache directory not provided")
-        return self.cache_dir / f"{self.get_suffix_filename()}.pkl"
+
+        suffix_file_name = self.get_suffix_filename()
+        cache_dir = Path(self.cache_dir).resolve()
+        full_cache_path = _process_full_cache_path(cache_dir, suffix_file_name)
+        return full_cache_path
 
     def save_data(self, data: Any):
         """Save data to cache."""
@@ -63,3 +69,20 @@ class CacheMixin:
                 with open(cache_path, "rb") as f:
                     return pickle.load(f)
         return None
+
+
+@lru_cache(maxsize=128)
+def _process_full_cache_path(cache_dir: Path, suffix_file_name: str) -> Path:
+    extension = ".pkl"
+    max_len_limit = 248
+    full_path_str = str(cache_dir / f"{suffix_file_name}{extension}")
+
+    if len(full_path_str) > max_len_limit:
+        # Calculate how many characters we can keep from the start of suffix_file_name
+        hash_part = hashlib.md5(suffix_file_name.encode()).hexdigest()[:8]
+        max_suffix_len = max_len_limit - len(str(cache_dir)) - len(extension) - len("_") - len(hash_part)
+        # Keep only the beginning metadata (trim from the end)
+        trimmed_suffix = suffix_file_name[:max_suffix_len]
+        suffix_file_name = f"{trimmed_suffix}_{hash_part}"
+
+    return cache_dir / f"{suffix_file_name}{extension}"
