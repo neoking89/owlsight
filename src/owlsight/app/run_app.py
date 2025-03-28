@@ -115,7 +115,7 @@ def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -
 
     for file_path in files_in_cache_dir:
         if file_path.is_dir():
-            file_path.rmdir()
+            force_delete(file_path)
         else:
             file_path.unlink()
 
