@@ -243,7 +243,7 @@ class Schema:
             ),
             "max_steps": MenuItem(
                 type=OptionType.TOGGLE,
-                description="Maximum number of steps for the agentic system.",
+                description="Maximum number of steps/retries for the agentic system to perform all planning steps created by the RouterPlanningAgent",
                 default=5,
                 choices=list(range(1, 21)),
             ),
