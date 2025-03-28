@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional, Protocol, Type, Tuple
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
-from owlsight.rag.core import DocumentSearcher
 from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.utils.helper_functions import (
     parse_media_tags,
@@ -22,6 +21,12 @@ from owlsight.prompts.system_prompts import ExpertPrompts
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.custom_classes import GlobalPythonVarsDict
 from owlsight.utils.logger import logger
+
+AVAILABLE_AGENTS = {
+    "ToolSelectionAgent": "Best for tasks requiring information from external sources, data retrieval, API calls or other tasks depending on the available tools.",
+    "PythonAgent": "Best ONLY for writing deterministic Python code to solve computational problems. DO NOT use for analysis, recommendations, or insights that aren't purely computational.",
+    "TextAnalysisAgent": "Best for extracting specific information, analyzing text data, providing recommendations, generating insights, and creating strategies based on information.",
+}
 
 
 class AgenticRole:
@@ -133,9 +138,9 @@ class RouterPlanningAgent:
         """Process the user question to create a plan and route to appropriate agents."""
         # Create router agent prompt with current state information
         router_prompt = self._create_router_agent_prompt(user_question)
+        agent_list = "".join(f"- {k}: {v}\n" for k, v in AVAILABLE_AGENTS.items())
 
-        # Define the system prompt for the router/planning agent
-        router_system_prompt = """
+        router_system_prompt = f"""
 # ROLE:
 You are an expert planner and router for AI tasks. Your purpose is to analyze complex user questions and:
 1. Break them down into smaller, atomic sub-tasks when appropriate
@@ -143,15 +148,16 @@ You are an expert planner and router for AI tasks. Your purpose is to analyze co
 3. Create a clear execution plan
 
 # AVAILABLE AGENTS:
-- ToolSelectionAgent: Best for tasks requiring information from external sources, API calls, or data retrieval.
-- PythonAgent: Best for computational tasks, code generation, or when all information is already available.
+{agent_list}
 
 # INSTRUCTIONS:
 - If the user's question is simple and direct, you may keep it as a single step
 - For complex questions, break them into 2-5 logical sub-tasks
-- For each sub-task, assign it to either the ToolSelectionAgent or PythonAgent
-- Assign a sub-task to ToolSelectionAgent if external information is needed
-- Assign a sub-task to PythonAgent if it's purely computational or all required information is present
+- For each sub-task, assign the MOST APPROPRIATE agent based on these strict guidelines:
+  * Assign to ToolSelectionAgent when external information, data retrieval, or tool usage is needed
+  * Assign to PythonAgent ONLY when the task is purely computational and requires writing code (e.g., data processing, calculations, algorithms)
+  * Assign to TextAnalysisAgent for tasks involving analysis, summarization, strategy creation, recommendations, or insights from existing information
+- NEVER use PythonAgent for tasks involving analysis, recommendations, or strategies - these belong to TextAnalysisAgent
 - Be thoughtful and precise in your planning
 """
 
@@ -199,11 +205,11 @@ Your task is to analyze this question and create a plan of execution. If appropr
 # RESPONSE FORMAT (REQUIRED):
 <plan>
 Step 1: [Description of first sub-task]
-Agent: [ToolSelectionAgent or PythonAgent]
+Agent: [{", ".join(AVAILABLE_AGENTS.keys())}]
 Reason: [Brief justification for agent selection]
 
 Step 2: [Description of second sub-task, if needed]
-Agent: [ToolSelectionAgent or PythonAgent]
+Agent: [{", ".join(AVAILABLE_AGENTS.keys())}]
 Reason: [Brief justification for agent selection]
 
 [Additional steps as needed...]
@@ -388,6 +394,115 @@ class ToolSelectionAgent:
 {{"name": "tool_name", "arguments": {{...}}}}
 """
         return f"# User Request:\n{user_question}\n\n{tool_prompt}".strip()
+
+
+class TextAnalysisAgent:
+    """Agent responsible for natural language processing, summarization, and advanced text analysis."""
+
+    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
+        self.code_executor = code_executor
+        self.manager = manager
+
+    def process(
+        self,
+        user_question: str,
+        context: AgentContext,
+    ) -> Dict[str, Any]:
+        """Process text analysis, summarization, and natural language processing tasks."""
+        # Create a specialized system prompt for text analysis
+        system_prompt = """
+# ROLE
+You are an expert text analyst, summarizer, and natural language processor.
+
+# TASK
+Analyze, summarize, or extract information from text based on the user's request.
+Your strengths include:
+- Detailed text analysis and information extraction
+- Concise and accurate summarization 
+- Pattern recognition in natural language
+- Entity extraction and relationship mapping
+- Sentiment analysis and opinion mining
+- Discourse analysis and contextual understanding
+
+# INSTRUCTIONS
+1. Focus strictly on analyzing the provided text/content
+2. Be precise and thorough in your analysis
+3. When summarizing, maintain key points while reducing length
+4. Provide structured, organized results
+5. Include supporting evidence from the text for your conclusions
+6. For ambiguous requests, clarify your interpretation before proceeding
+7. Only address the specific sub-task assigned to you in the current step
+8. Do not repeat information or analysis already performed in previous steps
+"""
+
+        # Check if we're in a planned step execution
+        current_step_description = ""
+        current_step_index = context.current_plan_index if hasattr(context, "current_plan_index") else 0
+        
+        # Get relevant context based on planning steps
+        filtered_results = []
+        
+        if hasattr(context, "planning") and context.planning.get("steps"):
+            # Get the current step details
+            steps = context.planning.get("steps", [])
+            if 0 <= current_step_index < len(steps):
+                current_step = steps[current_step_index]
+                current_step_description = current_step.get("description", "")
+            
+            # Only include results from previous steps, not the current one
+            if context.final_results:
+                # Take only the results from completed steps that are relevant
+                filtered_results = context.final_results[:current_step_index]
+        else:
+            # If no planning structure exists, use all previous results
+            filtered_results = context.final_results
+            
+        # Gather filtered context from previous steps
+        additional_info = list_of_dicts_to_llm_context(filtered_results)
+
+        # Create the prompt for the text analysis agent
+        analysis_prompt = f"""
+**User Request**: {user_question}
+
+## CURRENT TASK
+{current_step_description}
+
+## ADDITIONAL CONTEXT
+The following information has been gathered from previous steps:
+{additional_info}
+"""
+
+        # Use the AgenticRole context manager to perform text analysis
+        with AgenticRole(analysis_prompt, system_prompt, self.manager, self.code_executor) as agent:
+            analysis_response = agent.manager.generate(agent.question)
+
+            # Process the response to extract structured results if possible
+            try:
+                # Attempt to parse any structured data from the response
+                # This could be JSON, XML, or other structured formats
+                structured_data = parse_xml_tags_to_dict(analysis_response)
+
+                if not structured_data:
+                    # If no structured data, use the full response as the result
+                    final_result = {"text_analysis_result": analysis_response}
+                else:
+                    final_result = structured_data
+
+            except Exception as e:
+                logger.warning(f"Error parsing structured data from analysis response: {e}")
+                final_result = {"text_analysis_result": analysis_response}
+
+            # Add to final results
+            context.final_results.append(final_result)
+
+        # Update the context directly
+        context.should_continue = True
+
+        return {
+            "response": analysis_response,
+            "should_continue": True,
+            "context": context,
+        }
 
 
 class PythonAgent:
@@ -650,7 +765,9 @@ Output format should be XML like this:
                 logger.info(f"Answer validation judgment: {judgment_str}")
 
                 if judgment_str == "yes":
-                    logger.info("Answer 'yes' found in judgment. Enough information present to generate a final answer.")
+                    logger.info(
+                        "Answer 'yes' found in judgment. Enough information present to generate a final answer."
+                    )
                     judgment = True
                 elif judgment_str == "partial":
                     logger.info("Answer 'partial' found in judgment. More information needed.")
@@ -851,14 +968,23 @@ class AgentOrchestrator:
             context.current_plan_index = idx
             agent_type = step.get("agent", "")
             step_description = step.get("description", f"Step {idx + 1}")
+            agent_request = f"""
+To help answer the following question:
+{user_question}
 
+Perform the following task:
+{step_description}
+
+with the reason being:
+{step.get("reason", "")}
+""".strip()
             logger.info(f"Processing planstep {idx + 1}/{len(planning_steps)}: {step_description}")
             logger.info(f"Using {agent_type}, iteration {context.step + 1}/{context.max_steps}")
 
             # Select and run the appropriate agent
             if agent_type == "ToolSelectionAgent":
                 agent = ToolSelectionAgent(self.code_executor, self.manager)
-                result = agent.process(user_question, context)
+                result = agent.process(agent_request, context)
                 context = result["context"]
 
                 if not result["should_continue"]:
@@ -867,7 +993,16 @@ class AgentOrchestrator:
 
             elif agent_type == "PythonAgent":
                 agent = PythonAgent(self.code_executor, self.manager)
-                result = agent.process(user_question, context)
+                result = agent.process(agent_request, context)
+                context = result["context"]
+
+                if not result["should_continue"]:
+                    logger.info(f"Agent {agent_type} indicated to stop processing.")
+                    break
+
+            elif agent_type == "TextAnalysisAgent":
+                agent = TextAnalysisAgent(self.code_executor, self.manager)
+                result = agent.process(agent_request, context)
                 context = result["context"]
 
                 if not result["should_continue"]:
@@ -940,7 +1075,9 @@ def list_of_dicts_to_llm_context(data: List[Dict[str, str]]) -> str:
             context_parts.append(entry)
 
     context = "\n".join(context_parts)
-    logger.info(f"Generated context for model in {inspect.currentframe().f_code.co_name}, using approx. {len(context.split())} words.")
+    logger.info(
+        f"Generated context for model in {inspect.currentframe().f_code.co_name}, using approx. {len(context.split())} words."
+    )
     return context
 
 
@@ -949,8 +1086,8 @@ def _handle_rag_for_python(user_question: str, manager: TextGenerationManager) -
     If Retrieval-Augmented Generation (RAG) is enabled, add relevant Python library docstrings
     to the user question.
     """
-    rag_is_active = manager.get_config_key("rag.active", False)
-    library_to_rag = manager.get_config_key("rag.target_library", "")
+    rag_is_active = manager.config_manager.get("rag.active", False)
+    library_to_rag = manager.config_manager.get("rag.target_library", "")
     if rag_is_active and library_to_rag:
         logger.info(f"RAG search enabled. Adding docs from python library '{library_to_rag}'.")
         ctx_to_add = f"""
@@ -960,7 +1097,7 @@ Use it to assist in answering the user's question.
 """.strip()
         searcher = PythonLibSearcher()
         context = searcher.search(
-            library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=get_pickle_cache()
+            library_to_rag, user_question, manager.config_manager.get("top_k", 3), cache_dir=get_pickle_cache()
         )
         ctx_to_add += context
         user_question = f"{user_question}\n\n{ctx_to_add}".strip()
@@ -973,7 +1110,7 @@ def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationMan
     If 'main.dynamic_system_prompt' is enabled, ask the model to create a new system prompt
     based on the user's input, then switch to that prompt for subsequent calls.
     """
-    dynamic_system_prompt = manager.get_config_key("main.dynamic_system_prompt", False)
+    dynamic_system_prompt = manager.config_manager.get("main.dynamic_system_prompt", False)
     if dynamic_system_prompt:
         prompt_engineer_prompt = ExpertPrompts.prompt_engineering
         manager.update_config("model.system_prompt", prompt_engineer_prompt)
