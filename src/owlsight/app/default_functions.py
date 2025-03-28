@@ -30,6 +30,8 @@ EXCLUDE_TOOLS = [
     "owl_context_length",
     "owl_press",
     "owl_history",
+    "owl_models",
+    "owl_import",
 ]
 
 
