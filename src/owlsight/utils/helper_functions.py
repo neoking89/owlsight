@@ -189,21 +189,21 @@ def editable_input(prompt_text: str, default_value: str, color: str = "ansicyan"
     return result.strip()
 
 
-def force_delete(temp_dir: Union[str, Path]) -> None:
+def force_delete(directory: Union[str, Path]) -> None:
     """
     Forcefully deletes a directory if it exists.
 
     Parameters
     ----------
-    temp_dir : Union[str, Path]
+    directory : Union[str, Path]
         Path to the directory to delete
     """
-    temp_dir = Path(temp_dir)
-    if temp_dir.exists():
+    directory = Path(directory)
+    if directory.exists():
         try:
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(directory)
         except Exception:
-            logger.error(f"Error deleting directory {temp_dir}:\n{traceback.format_exc()}")
+            logger.error(f"Error deleting directory {directory}:\n{traceback.format_exc()}")
 
 
 def remove_temp_directories(lib_path: Union[str, Path]) -> None:
