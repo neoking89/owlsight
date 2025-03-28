@@ -1,7 +1,7 @@
 # STEPS FOR BUILDING AND RELEASING NEW VERSION
 
 0. git checkout -b release/vX.X.X
-1. Run all tests with pytest -vvv
+1. Run all tests locally with: pytest -vvv and for linux with different py versions with: docker\run_tests.ps1
 2. Update the README.md in the working directory by running src/owlsight/docs/readme.py
 3. Commit changes: git commit -am "Update version to X.X.X"
 4. Add a git tag by command: git tag -a vX.X.X -m "New release version X.X.X"
