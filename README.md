@@ -320,7 +320,7 @@ Main Menu:
   - agentic settings:
     - back: Return to previous menu
     - apply_tools: Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace., Options: False, True, Type: OptionType.TOGGLE
-    - max_steps: Maximum number of steps for the agentic system., Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Type: OptionType.TOGGLE
+    - max_steps: Maximum number of steps/retries for the agentic system to perform all planning steps created by the RouterPlanningAgent, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Type: OptionType.TOGGLE
     - additional_information: Additional information specifically for the Tool agent. E.g. 'Do NOT use owl_scrape and owl_search, because there is no internet connection', Type: OptionType.EDITABLE
     - exclude_tools: Comma-separated list of tools (as string) to exclude from the available tools. These tools can be used by the Tool agent. E.g. ['owl_scrape,owl_search'], Type: OptionType.EDITABLE
   - huggingface settings:
@@ -699,14 +699,10 @@ Notes
 ```python
 --------
 >>> processor = MultiModalProcessorTransformers(
-...     model_id="dandelin/vilt-b32-finetuned-vqa",
-...     task="visual-question-answering"
+...     model_id="dandelin/vilt-b32-finetuned-vqa", task="visual-question-answering"
 ... )
 >>> media_obj = MediaObject(path="image-of-car.jpg", tag="image")
->>> result = processor.generate(
-...     "What color is the car in this image:",
-...     media_objects={"image1": media_obj}
-... )
+>>> result = processor.generate("What color is the car in this image:", media_objects={"image1": media_obj})
 ```
 
 **Methods:**
