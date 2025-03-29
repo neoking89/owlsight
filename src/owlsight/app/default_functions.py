@@ -352,7 +352,8 @@ class OwlDefaultFunctions:
         Parameters
         ----------
         file_path : str
-            Absolute path for output file
+            Absolute path for output file.
+            Preferably use a descriptive filename.
         content : str
             Text content to write
 
