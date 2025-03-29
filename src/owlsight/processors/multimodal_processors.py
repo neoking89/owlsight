@@ -104,10 +104,17 @@ class MediaPreprocessor:
                 raise FileNotFoundError(f"File not found: {source}")
             return p.read_bytes()
 
+
     def _preprocess_audio(self, audio_data: bytes) -> Dict[str, Any]:
         """Preprocess audio data."""
-        # Convert to numpy array
-        audio_array = np.frombuffer(audio_data, dtype=np.int16)
+
+        try:
+            # Convert to numpy array
+            audio_array = np.frombuffer(audio_data, dtype=np.int16)
+        except ValueError:
+            # If the data is not valid, trim it
+            audio_array = self._trim_bytes_audio(audio_data)
+            audio_array = np.frombuffer(audio_array, dtype=np.int16)
         audio_array = audio_array.astype(np.float32) / 32768.0
 
         # Convert stereo to mono if needed
@@ -122,6 +129,16 @@ class MediaPreprocessor:
         return image
 
 
+    def _trim_bytes_audio(self, audio_data: bytes, dtype: np.dtype = np.int16) -> bytes:
+        """Trim audio data to a multiple of the specified dtype to prevent errors in audio processing."""
+        # Compute the size in bytes for the specified dtype
+        item_size = np.dtype(dtype).itemsize
+
+        # Trim audio_data so that its length is a multiple of the dtype size
+        trimmed_data = audio_data[:len(audio_data) - (len(audio_data) % item_size)]
+        return trimmed_data
+
+
 class MultiModalProcessor(TextGenerationProcessor):
     """Abstract base class for multimodal  processors."""
 
@@ -133,19 +150,7 @@ class MultiModalProcessor(TextGenerationProcessor):
         **kwargs: Any,
     ) -> None:
         super().__init__(model_id=model_id, apply_chat_history=apply_chat_history, system_prompt=system_prompt)
-        _base_class = type(self).__bases__[0]
-        # dynamicly select the type of self.text processor during runtime
-        text_processor_type = type(self).__name__.removeprefix(_base_class.__name__)
-        possible_classes = [
-            TextGenerationProcessorOnnx,
-            TextGenerationProcessorTransformers,
-            TextGenerationProcessorGGUF,
-        ]
-        text_processor_type = next((i for i in possible_classes if i.__name__.endswith(text_processor_type)), None)
-        if text_processor_type is None:
-            raise ValueError(
-                f"TextGenerationProcessor type {text_processor_type} not supported. Is it in {possible_classes}?"
-            )
+        text_processor_type = self._get_text_processor_type()
         self.text_processor: TextGenerationProcessor = text_processor_type(model_id=model_id, **kwargs)
         self.media_preprocessor = MediaPreprocessor()
 
@@ -237,6 +242,34 @@ class MultiModalProcessor(TextGenerationProcessor):
 
         return preprocessed_data
 
+    def _get_text_processor_type(self):
+        """Dynamically determine the text processor type based on the class name.
+
+        Returns
+        -------
+        type
+            The text processor class to be used.
+
+        Raises
+        ------
+        ValueError
+            If the determined text processor type is not supported.
+        """
+        _base_class = type(self).__bases__[0]
+        # dynamicly select the type of self.text processor during runtime
+        text_processor_type = type(self).__name__.removeprefix(_base_class.__name__)
+        possible_classes = [
+            TextGenerationProcessorOnnx,
+            TextGenerationProcessorTransformers,
+            TextGenerationProcessorGGUF,
+        ]
+        text_processor_type = next((i for i in possible_classes if i.__name__.endswith(text_processor_type)), None)
+        if text_processor_type is None:
+            raise ValueError(
+                f"TextGenerationProcessor type {text_processor_type} not supported. Is it in {possible_classes}?"
+            )
+        return text_processor_type
+
 
 class MultiModalProcessorTransformers(MultiModalProcessor):
     """Multimodal processor using Hugging Face transformers.
@@ -268,14 +301,10 @@ class MultiModalProcessorTransformers(MultiModalProcessor):
     Examples
     --------
     >>> processor = MultiModalProcessorTransformers(
-    ...     model_id="dandelin/vilt-b32-finetuned-vqa",
-    ...     task="visual-question-answering"
+    ...     model_id="dandelin/vilt-b32-finetuned-vqa", task="visual-question-answering"
     ... )
     >>> media_obj = MediaObject(path="image-of-car.jpg", tag="image")
-    >>> result = processor.generate(
-    ...     "What color is the car in this image:",
-    ...     media_objects={"image1": media_obj}
-    ... )
+    >>> result = processor.generate("What color is the car in this image:", media_objects={"image1": media_obj})
     """
 
     def __init__(
