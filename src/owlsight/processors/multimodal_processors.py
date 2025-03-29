@@ -104,17 +104,10 @@ class MediaPreprocessor:
                 raise FileNotFoundError(f"File not found: {source}")
             return p.read_bytes()
 
-
     def _preprocess_audio(self, audio_data: bytes) -> Dict[str, Any]:
         """Preprocess audio data."""
-
-        try:
-            # Convert to numpy array
-            audio_array = np.frombuffer(audio_data, dtype=np.int16)
-        except ValueError:
-            # If the data is not valid, trim it
-            audio_array = self._trim_bytes_audio(audio_data)
-            audio_array = np.frombuffer(audio_array, dtype=np.int16)
+        # Convert to numpy array
+        audio_array = np.frombuffer(audio_data, dtype=np.int16)
         audio_array = audio_array.astype(np.float32) / 32768.0
 
         # Convert stereo to mono if needed
@@ -127,16 +120,6 @@ class MediaPreprocessor:
         """Preprocess image data."""
         image = Image.open(io.BytesIO(image_data))
         return image
-
-
-    def _trim_bytes_audio(self, audio_data: bytes, dtype: np.dtype = np.int16) -> bytes:
-        """Trim audio data to a multiple of the specified dtype to prevent errors in audio processing."""
-        # Compute the size in bytes for the specified dtype
-        item_size = np.dtype(dtype).itemsize
-
-        # Trim audio_data so that its length is a multiple of the dtype size
-        trimmed_data = audio_data[:len(audio_data) - (len(audio_data) % item_size)]
-        return trimmed_data
 
 
 class MultiModalProcessor(TextGenerationProcessor):
