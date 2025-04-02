@@ -96,6 +96,11 @@ class AgentContext:
     # Validation
     answer_is_appropriate: bool = False
     completed_steps: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    
+    # Error tracking
+    step_errors: Dict[int, List[str]] = field(default_factory=dict)
+    step_attempts: Dict[int, int] = field(default_factory=dict)
+    current_error: Optional[str] = None
 
 
 class Agent(Protocol):
@@ -379,7 +384,7 @@ Context from Previous Steps:
 
 class PythonAgent:
     """
-    Writes or refines Python code. Implemented with naive validation checks.
+    Writes or refines Python code with improved context awareness.
     """
 
     def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
@@ -410,40 +415,111 @@ class PythonAgent:
         context: AgentContext,
     ) -> str:
         """
-        Generates Python code. Includes naive code validation for minimal structure checks.
+        Generates Python code with enhanced context awareness.
+        Uses data from previous steps including tool results and planning context.
         """
-        system_prompt = """
-You are an expert Python developer. Write only valid Python code with a clear function and `final_result` assigned.
-No placeholders or unsafe code.
+        # Get current planning step information if available
+        current_step_info = ""
+        if (hasattr(context, "planning") and context.planning and 
+            "steps" in context.planning and 
+            context.current_plan_index < len(context.planning["steps"])):
+            step = context.planning["steps"][context.current_plan_index]
+            current_step_info = f"""
+Current Planning Step:
+- Description: {step.get('description', 'N/A')}
+- Agent: {step.get('agent', 'N/A')}
+- Reason: {step.get('reason', 'N/A')}
 """
 
-        # Basic checks we want
+        # Extract tool information 
+        tool_info = ""
+        if tool_name:
+            name = next(iter(tool_name.keys()), "")
+            code = tool_name.get(name, "")
+            tool_info = f"""
+Last Used Tool: {name}
+Tool Code: 
+```python
+{code}
+```
+"""
+
+        # Get previous execution results from context
+        previous_results = list_of_dicts_to_llm_context(context.final_results)
+        
+        # Check if any relevant data exists in the globals dict
+        globals_data = ""
+        globals_dict = self.code_executor.globals_dict
+        if globals_dict and len(globals_dict) > 0:
+            # Exclude built-in and private variables
+            relevant_vars = {
+                k: v for k, v in globals_dict.items() 
+                if not k.startswith("_") and k not in ("__builtins__")
+            }
+            if relevant_vars:
+                globals_data = "Available Variables in Global Context:\n"
+                for var_name, var_value in relevant_vars.items():
+                    # Only include short string representation of values
+                    var_repr = str(var_value)
+                    if len(var_repr) > 100:
+                        var_repr = var_repr[:100] + "..."
+                    globals_data += f"- {var_name}: {type(var_value).__name__} = {var_repr}\n"
+
+        # Enhanced system prompt
+        system_prompt = """
+You are an expert Python developer. Your task is to write clean, functional Python code 
+that builds upon previous steps and uses REAL data from context.
+
+REQUIREMENTS:
+1. Use ACTUAL data from previous steps - NEVER use placeholder values
+2. Write complete, executable Python functions
+3. Always assign the final result to a variable named 'final_result'
+4. Include error handling with try-except blocks where appropriate
+5. Document your code with clear comments
+
+If no relevant data is available from previous steps, clearly indicate this in your 
+code comments and provide appropriate fallback behavior.
+"""
+
+        # Validation requirements - keep the existing structure but enhance
         validation_checks = {
-            "def": "missing def",
+            "def": "missing function definition",
             ":": "missing colon",
             "(": "missing paren",
             ")": "missing paren",
             "    ": "missing indent",
             "return": "missing return",
+            "final_result": "missing final_result assignment",
         }
 
-        additional_info = list_of_dicts_to_llm_context(context.final_results)
+        # Create a structured user prompt
         user_prompt = f"""
 User Request: {user_request}
 
-Validation Rules: {", ".join(validation_checks.keys())}
-Additional Info from previous steps:
-{additional_info}
+{current_step_info}
+{tool_info}
+{globals_data}
+
+Previous Results:
+{previous_results}
+
+Write Python code that processes this REAL data to solve the user's request.
+Your code MUST include: functions, proper indentation, return statements, and 
+assignment to a 'final_result' variable.
+
+Focus on using the ACTUAL data shown above rather than creating example data.
 """
 
         with AgenticRole(user_prompt, system_prompt, self.manager, self.code_executor) as agent:
             new_response = agent.manager.generate(agent.question)
 
-            # If all required tokens appear, accept. Otherwise discard.
+            # Perform validation checks
             if all(keyword in new_response for keyword in validation_checks):
+                logger.info("Python code validation successful")
                 return new_response
 
-            logger.warning("Code validation failed (missing required Python keywords). Returning empty string.")
+            missing_elements = [msg for kw, msg in validation_checks.items() if kw not in new_response]
+            logger.warning(f"Code validation failed: {', '.join(missing_elements)}. Returning empty string.")
             return ""
 
 
@@ -656,11 +732,35 @@ class AgentOrchestrator:
     ) -> Tuple[bool, AgentContext]:
         """
         Executes each planned step and then runs a validation agent.
+        Includes retry logic for steps that fail.
         """
+        max_attempts_per_step = 3  # Maximum attempts for each step
+        
         for idx, step in enumerate(planning_steps):
+            # Initialize step tracking if not already done
+            if idx not in context.step_attempts:
+                context.step_attempts[idx] = 0
+                context.step_errors[idx] = []
+            
+            # Check if we've exceeded max attempts for this step
+            if context.step_attempts[idx] >= max_attempts_per_step:
+                logger.warning(f"Maximum attempts ({max_attempts_per_step}) reached for step {idx + 1}. Moving to next step.")
+                continue
+                
             context.current_plan_index = idx
             agent_type = step.get("agent", "")
             step_description = step.get("description", f"Step {idx + 1}")
+            
+            # Construct the request with error context if there were previous errors
+            error_context = ""
+            if context.step_attempts[idx] > 0 and context.step_errors[idx]:
+                error_context = f"""
+Previous attempt(s) failed with errors:
+{'. '.join(context.step_errors[idx])}
+
+Please try a different approach to solve this problem.
+"""
+            
             agent_request = f"""
 Analyze:
 {user_question}
@@ -668,12 +768,17 @@ Analyze:
 Perform:
 {step_description}
 
+{error_context}
+
 Reason:
 {step.get("reason", "")}
 """.strip()
 
             logger.info(f"Plan step {idx + 1}/{len(planning_steps)}: {step_description}")
-            logger.info(f"Using {agent_type}, iteration {context.step + 1}/{context.max_steps}")
+            logger.info(f"Using {agent_type}, attempt {context.step_attempts[idx] + 1}/{max_attempts_per_step}")
+            
+            # Increment attempt counter for this step
+            context.step_attempts[idx] += 1
 
             if agent_type == "ToolSelectionAgent":
                 agent = ToolSelectionAgent(self.code_executor, self.manager)
@@ -687,7 +792,22 @@ Reason:
 
             result = agent.process(agent_request, context)
             context = result["context"]
-
+            
+            # Check for errors in the result
+            step_failed = self._check_for_step_failure(result, context)
+            
+            if step_failed:
+                logger.warning(f"Step {idx + 1} failed on attempt {context.step_attempts[idx]}. Retrying step.")
+                # Store the error and retry the same step (idx will not change in next loop iteration)
+                if context.current_error:
+                    context.step_errors[idx].append(context.current_error)
+                # Decrement idx to retry the same step
+                idx -= 1
+                continue
+            
+            # If we get here, the step was successful
+            logger.info(f"Step {idx + 1} completed successfully.")
+            
             if not result["should_continue"]:
                 logger.info(f"Agent {agent_type} indicated to stop.")
                 break
@@ -706,6 +826,48 @@ Reason:
         context.completed_steps = completed_steps
 
         return answer_is_appropriate, context
+        
+    def _check_for_step_failure(self, result: Dict[str, Any], context: AgentContext) -> bool:
+        """
+        Checks if a step has failed by examining the response and context.
+        Returns True if the step failed and should be retried.
+        """
+        response = result.get("response", "")
+        
+        # Check for error indicators in the response
+        error_indicators = [
+            "error:",
+            "file not found",
+            "no such file",
+            "could not find",
+            "failed to",
+            "unable to",
+            "permission denied"
+        ]
+        
+        # Check for errors in text
+        for indicator in error_indicators:
+            if indicator.lower() in response.lower():
+                context.current_error = f"Detected '{indicator}' in response"
+                return True
+        
+        # Check for errors in final_results
+        if context.final_results:
+            latest_result = context.final_results[-1]
+            for key, value in latest_result.items():
+                if isinstance(value, str) and any(indicator.lower() in value.lower() for indicator in error_indicators):
+                    context.current_error = f"Error in result: {value}"
+                    return True
+                    
+        # Check tool results
+        tool_result = getattr(context, "tool_result", None)
+        if isinstance(tool_result, str) and any(indicator.lower() in tool_result.lower() for indicator in error_indicators):
+            context.current_error = f"Error in tool result: {tool_result}"
+            return True
+            
+        # No errors detected
+        context.current_error = None
+        return False
 
 
 def get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str, str]:
