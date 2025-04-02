@@ -384,7 +384,7 @@ Context from Previous Steps:
 
 class PythonAgent:
     """
-    Writes or refines Python code. Implemented with naive validation checks.
+    Writes or refines Python code with improved context awareness.
     """
 
     def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
@@ -415,40 +415,111 @@ class PythonAgent:
         context: AgentContext,
     ) -> str:
         """
-        Generates Python code. Includes naive code validation for minimal structure checks.
+        Generates Python code with enhanced context awareness.
+        Uses data from previous steps including tool results and planning context.
         """
-        system_prompt = """
-You are an expert Python developer. Write only valid Python code with a clear function and `final_result` assigned.
-No placeholders or unsafe code.
+        # Get current planning step information if available
+        current_step_info = ""
+        if (hasattr(context, "planning") and context.planning and 
+            "steps" in context.planning and 
+            context.current_plan_index < len(context.planning["steps"])):
+            step = context.planning["steps"][context.current_plan_index]
+            current_step_info = f"""
+Current Planning Step:
+- Description: {step.get('description', 'N/A')}
+- Agent: {step.get('agent', 'N/A')}
+- Reason: {step.get('reason', 'N/A')}
 """
 
-        # Basic checks we want
+        # Extract tool information 
+        tool_info = ""
+        if tool_name:
+            name = next(iter(tool_name.keys()), "")
+            code = tool_name.get(name, "")
+            tool_info = f"""
+Last Used Tool: {name}
+Tool Code: 
+```python
+{code}
+```
+"""
+
+        # Get previous execution results from context
+        previous_results = list_of_dicts_to_llm_context(context.final_results)
+        
+        # Check if any relevant data exists in the globals dict
+        globals_data = ""
+        globals_dict = self.code_executor.globals_dict
+        if globals_dict and len(globals_dict) > 0:
+            # Exclude built-in and private variables
+            relevant_vars = {
+                k: v for k, v in globals_dict.items() 
+                if not k.startswith("_") and k not in ("__builtins__")
+            }
+            if relevant_vars:
+                globals_data = "Available Variables in Global Context:\n"
+                for var_name, var_value in relevant_vars.items():
+                    # Only include short string representation of values
+                    var_repr = str(var_value)
+                    if len(var_repr) > 100:
+                        var_repr = var_repr[:100] + "..."
+                    globals_data += f"- {var_name}: {type(var_value).__name__} = {var_repr}\n"
+
+        # Enhanced system prompt
+        system_prompt = """
+You are an expert Python developer. Your task is to write clean, functional Python code 
+that builds upon previous steps and uses REAL data from context.
+
+REQUIREMENTS:
+1. Use ACTUAL data from previous steps - NEVER use placeholder values
+2. Write complete, executable Python functions
+3. Always assign the final result to a variable named 'final_result'
+4. Include error handling with try-except blocks where appropriate
+5. Document your code with clear comments
+
+If no relevant data is available from previous steps, clearly indicate this in your 
+code comments and provide appropriate fallback behavior.
+"""
+
+        # Validation requirements - keep the existing structure but enhance
         validation_checks = {
-            "def": "missing def",
+            "def": "missing function definition",
             ":": "missing colon",
             "(": "missing paren",
             ")": "missing paren",
             "    ": "missing indent",
             "return": "missing return",
+            "final_result": "missing final_result assignment",
         }
 
-        additional_info = list_of_dicts_to_llm_context(context.final_results)
+        # Create a structured user prompt
         user_prompt = f"""
 User Request: {user_request}
 
-Validation Rules: {", ".join(validation_checks.keys())}
-Additional Info from previous steps:
-{additional_info}
+{current_step_info}
+{tool_info}
+{globals_data}
+
+Previous Results:
+{previous_results}
+
+Write Python code that processes this REAL data to solve the user's request.
+Your code MUST include: functions, proper indentation, return statements, and 
+assignment to a 'final_result' variable.
+
+Focus on using the ACTUAL data shown above rather than creating example data.
 """
 
         with AgenticRole(user_prompt, system_prompt, self.manager, self.code_executor) as agent:
             new_response = agent.manager.generate(agent.question)
 
-            # If all required tokens appear, accept. Otherwise discard.
+            # Perform validation checks
             if all(keyword in new_response for keyword in validation_checks):
+                logger.info("Python code validation successful")
                 return new_response
 
-            logger.warning("Code validation failed (missing required Python keywords). Returning empty string.")
+            missing_elements = [msg for kw, msg in validation_checks.items() if kw not in new_response]
+            logger.warning(f"Code validation failed: {', '.join(missing_elements)}. Returning empty string.")
             return ""
 
 
