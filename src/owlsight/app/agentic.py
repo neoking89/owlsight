@@ -96,6 +96,11 @@ class AgentContext:
     # Validation
     answer_is_appropriate: bool = False
     completed_steps: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    
+    # Error tracking
+    step_errors: Dict[int, List[str]] = field(default_factory=dict)
+    step_attempts: Dict[int, int] = field(default_factory=dict)
+    current_error: Optional[str] = None
 
 
 class Agent(Protocol):
@@ -656,11 +661,35 @@ class AgentOrchestrator:
     ) -> Tuple[bool, AgentContext]:
         """
         Executes each planned step and then runs a validation agent.
+        Includes retry logic for steps that fail.
         """
+        max_attempts_per_step = 3  # Maximum attempts for each step
+        
         for idx, step in enumerate(planning_steps):
+            # Initialize step tracking if not already done
+            if idx not in context.step_attempts:
+                context.step_attempts[idx] = 0
+                context.step_errors[idx] = []
+            
+            # Check if we've exceeded max attempts for this step
+            if context.step_attempts[idx] >= max_attempts_per_step:
+                logger.warning(f"Maximum attempts ({max_attempts_per_step}) reached for step {idx + 1}. Moving to next step.")
+                continue
+                
             context.current_plan_index = idx
             agent_type = step.get("agent", "")
             step_description = step.get("description", f"Step {idx + 1}")
+            
+            # Construct the request with error context if there were previous errors
+            error_context = ""
+            if context.step_attempts[idx] > 0 and context.step_errors[idx]:
+                error_context = f"""
+Previous attempt(s) failed with errors:
+{'. '.join(context.step_errors[idx])}
+
+Please try a different approach to solve this problem.
+"""
+            
             agent_request = f"""
 Analyze:
 {user_question}
@@ -668,12 +697,17 @@ Analyze:
 Perform:
 {step_description}
 
+{error_context}
+
 Reason:
 {step.get("reason", "")}
 """.strip()
 
             logger.info(f"Plan step {idx + 1}/{len(planning_steps)}: {step_description}")
-            logger.info(f"Using {agent_type}, iteration {context.step + 1}/{context.max_steps}")
+            logger.info(f"Using {agent_type}, attempt {context.step_attempts[idx] + 1}/{max_attempts_per_step}")
+            
+            # Increment attempt counter for this step
+            context.step_attempts[idx] += 1
 
             if agent_type == "ToolSelectionAgent":
                 agent = ToolSelectionAgent(self.code_executor, self.manager)
@@ -687,7 +721,22 @@ Reason:
 
             result = agent.process(agent_request, context)
             context = result["context"]
-
+            
+            # Check for errors in the result
+            step_failed = self._check_for_step_failure(result, context)
+            
+            if step_failed:
+                logger.warning(f"Step {idx + 1} failed on attempt {context.step_attempts[idx]}. Retrying step.")
+                # Store the error and retry the same step (idx will not change in next loop iteration)
+                if context.current_error:
+                    context.step_errors[idx].append(context.current_error)
+                # Decrement idx to retry the same step
+                idx -= 1
+                continue
+            
+            # If we get here, the step was successful
+            logger.info(f"Step {idx + 1} completed successfully.")
+            
             if not result["should_continue"]:
                 logger.info(f"Agent {agent_type} indicated to stop.")
                 break
@@ -706,6 +755,48 @@ Reason:
         context.completed_steps = completed_steps
 
         return answer_is_appropriate, context
+        
+    def _check_for_step_failure(self, result: Dict[str, Any], context: AgentContext) -> bool:
+        """
+        Checks if a step has failed by examining the response and context.
+        Returns True if the step failed and should be retried.
+        """
+        response = result.get("response", "")
+        
+        # Check for error indicators in the response
+        error_indicators = [
+            "error:",
+            "file not found",
+            "no such file",
+            "could not find",
+            "failed to",
+            "unable to",
+            "permission denied"
+        ]
+        
+        # Check for errors in text
+        for indicator in error_indicators:
+            if indicator.lower() in response.lower():
+                context.current_error = f"Detected '{indicator}' in response"
+                return True
+        
+        # Check for errors in final_results
+        if context.final_results:
+            latest_result = context.final_results[-1]
+            for key, value in latest_result.items():
+                if isinstance(value, str) and any(indicator.lower() in value.lower() for indicator in error_indicators):
+                    context.current_error = f"Error in result: {value}"
+                    return True
+                    
+        # Check tool results
+        tool_result = getattr(context, "tool_result", None)
+        if isinstance(tool_result, str) and any(indicator.lower() in tool_result.lower() for indicator in error_indicators):
+            context.current_error = f"Error in tool result: {tool_result}"
+            return True
+            
+        # No errors detected
+        context.current_error = None
+        return False
 
 
 def get_last_used_tool(code_executor: CodeExecutor, response: str) -> Dict[str, str]:
