@@ -15,7 +15,6 @@ KEY_MAP = {
     "U": Key.up,
     "D": Key.down,
     "ENTER": Key.enter,
-    " ": Key.space,
     "DEL": Key.delete,
     "CTRL+A": (Key.ctrl, "a"),
     "CTRL+C": (Key.ctrl, "c"),
