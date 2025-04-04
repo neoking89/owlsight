@@ -28,6 +28,7 @@ src/owlsight.egg-info/*
 build_commands.txt
 TODO
 /test_logs
+/configs
 
 # windsurf rules
 .windsurfrules
