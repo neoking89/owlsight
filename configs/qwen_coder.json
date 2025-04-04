@@ -7,7 +7,7 @@
         "extra_index_url": "",
         "python_compile_mode": "single",
         "dynamic_system_prompt": false,
-        "sequence_on_loading": ["Get today's weather forecast for New York and Amsterdam, then compute the temperature difference and display a comparison chart."]
+        "sequence_on_loading": ["Get today's weather forecast for New York and Amsterdam, then compute the temperature difference and display a comparison chart.", "SLEEP:1", "ENTER"]
     },
     "model": {
         "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
