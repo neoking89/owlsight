@@ -1,8 +1,9 @@
 """
 Revised and optimized OwlSight agentic logic, context management, and orchestration.
 """
-
 import inspect
+import traceback
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol, Type, Tuple
 
@@ -14,6 +15,7 @@ from owlsight.utils.helper_functions import (
     parse_xml_tags_to_dict,
     parse_xml,
     format_chat_history_as_string,
+    parse_markdown,
 )
 from owlsight.utils.constants import get_pickle_cache
 from owlsight.prompts.system_prompts import ExpertPrompts
@@ -247,7 +249,7 @@ class ToolSelectionAgent:
         self.manager = manager
 
     def process(self, user_question: str, context: AgentContext) -> Dict[str, Any]:
-        tool_question = self._create_tool_agent_prompt(user_question, context, self.manager)
+        tool_question = self._create_tool_agent_prompt(user_question, context, self.manager, self.code_executor)
 
         system_prompt = (
             "You are an expert in tool selection. If you need a tool, respond ONLY with a JSON object:\n"
@@ -268,7 +270,7 @@ class ToolSelectionAgent:
         return {"response": tool_response, "should_continue": True, "context": context}
 
     @staticmethod
-    def _create_tool_agent_prompt(user_question: str, context: AgentContext, manager: TextGenerationManager) -> str:
+    def _create_tool_agent_prompt(user_question: str, context: AgentContext, manager: TextGenerationManager, code_executor: CodeExecutor) -> str:
         """
         Incorporates prior results and tool usage instructions into a prompt for tool calls.
         Also includes information about dynamic tools created by PythonAgent.
@@ -290,8 +292,8 @@ class ToolSelectionAgent:
             import inspect
 
             for tool_name in dynamic_tools:
-                if tool_name in manager.code_executor.globals_dict:
-                    tool_func = manager.code_executor.globals_dict[tool_name]
+                if tool_name in code_executor.globals_dict:
+                    tool_func = code_executor.globals_dict[tool_name]
                     if callable(tool_func):
                         docstring = inspect.getdoc(tool_func) or "No description available"
                         signature = str(inspect.signature(tool_func))
@@ -497,31 +499,30 @@ Create ONLY the tool function(s) required. Do not provide examples of usage or e
         Extract Python tool functions from the response and register them in the global namespace.
         Returns a list of tool names that were successfully created.
         """
-        import re
-
-        code_blocks = re.findall(r"```python\n(.*?)```", tool_creation_response, re.DOTALL)
-        if not code_blocks:
-            code_blocks = re.findall(r"```\n(.*?)```", tool_creation_response, re.DOTALL)
-
+        # Use parse_markdown to extract code blocks properly
+        code_blocks = parse_markdown(tool_creation_response)
         created_tools = []
 
+        # Fallback for when the response doesn't use proper markdown formatting
         if not code_blocks and tool_creation_response.strip().startswith("def dynamic_tool_"):
-            code_blocks = [tool_creation_response]
+            code_blocks = [("python", tool_creation_response)]
 
-        for code_block in code_blocks:
-            try:
-                exec_result = self.code_executor.execute(code_block.strip())
+        for lang, code_block in code_blocks:
+            if lang.lower() in ("python", ""):  # Handle both explicit python and default code blocks
+                try:
+                    # Use the proper execute_python_code method instead of non-existent execute
+                    self.code_executor.execute_python_code(code_block.strip())
 
-                func_match = re.search(r"def\s+(dynamic_tool_\w+)", code_block)
-                if func_match:
-                    tool_name = func_match.group(1)
-                    if tool_name in self.code_executor.globals_dict:
-                        created_tools.append(tool_name)
-                        logger.info(f"Successfully created dynamic tool: {tool_name}")
-                    else:
-                        logger.warning(f"Tool {tool_name} was not properly registered")
-            except Exception as e:
-                logger.error(f"Error registering dynamic tool: {str(e)}")
+                    func_match = re.search(r"def\s+(dynamic_tool_\w+)", code_block)
+                    if func_match:
+                        tool_name = func_match.group(1)
+                        if tool_name in self.code_executor.globals_dict:
+                            created_tools.append(tool_name)
+                            logger.info(f"Successfully created dynamic tool: {tool_name}")
+                        else:
+                            logger.warning(f"Tool {tool_name} was not properly registered")
+                except Exception:
+                    logger.error(f"Error registering dynamic tool: {traceback.format_exc()}")
 
         return created_tools
 
@@ -537,7 +538,6 @@ class ValidationAgent:
 
     def process(self, user_question: str, context: AgentContext) -> Dict[str, Any]:
         current_step = context.step
-        max_steps = context.max_steps
         final_results_text = list_of_dicts_to_llm_context(context.final_results)
 
         answer_is_appropriate, response = self._handle_answer_validation(user_question, final_results_text)
@@ -832,7 +832,7 @@ Reason:
 
         if context.final_results:
             latest_result = context.final_results[-1]
-            for key, value in latest_result.items():
+            for _, value in latest_result.items():
                 if isinstance(value, str) and any(indicator.lower() in value.lower() for indicator in error_indicators):
                     context.current_error = f"Error in result: {value}"
                     return True
