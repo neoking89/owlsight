@@ -24,7 +24,7 @@ from owlsight.utils.logger import logger
 
 AVAILABLE_AGENTS = {
     "ToolSelectionAgent": "Use when external data retrieval, API calls, or specialized tool usage is required.",
-    "PythonAgent": "Use ONLY for writing deterministic Python code (purely computational).",
+    "PythonAgent": "Use ONLY to create dynamic tool functions that can later be used by ToolSelectionAgent.",
     "TextAnalysisAgent": "Use for analyzing text, summarizing, extracting info, or generating strategies.",
 }
 
@@ -96,7 +96,7 @@ class AgentContext:
     # Validation
     answer_is_appropriate: bool = False
     completed_steps: Dict[str, Dict[str, str]] = field(default_factory=dict)
-    
+
     # Error tracking
     step_errors: Dict[int, List[str]] = field(default_factory=dict)
     step_attempts: Dict[int, int] = field(default_factory=dict)
@@ -133,15 +133,21 @@ class RouterPlanningAgent:
         router_prompt = self._create_router_agent_prompt(user_question)
         agent_list = "".join(f"- {k}: {v}\n" for k, v in AVAILABLE_AGENTS.items())
 
-        # CHANGE: Shortened system prompt to reduce tokens
         router_system_prompt = f"""
 You are an expert planner and router. Analyze the user request:
 1. Break it into several subtasks if needed. Try to make the steps as atomic as possible.
 2. Assign each subtask to the most suitable agent:
-   - ToolSelectionAgent for external data or tool usage
-   - PythonAgent ONLY for purely computational tasks
-   - TextAnalysisAgent for analysis, summarization, or strategy
-3. Return a structured plan.
+   - ToolSelectionAgent for external data retrieval, API calls, or using existing tools
+   - PythonAgent ONLY for creating new dynamic tool functions (do NOT use it for direct computations)
+   - TextAnalysisAgent for analysis, summarization, or strategy generation
+3. For tasks requiring computation or custom functionality, ALWAYS use PythonAgent first to create a dynamic tool
+4. ONLY use PythonAgent with the plan of creating a new dynamic tool that can be used in a later step by the ToolSelectionAgent
+5. Return a structured plan.
+
+KEY WORKFLOW PATTERN:
+- If the task requires computation or custom functionality, first use PythonAgent to create a dynamic tool
+- Then use ToolSelectionAgent in the next step to execute/use that tool
+- NEVER use PythonAgent for direct computation - it ONLY creates reusable tools (functions)
 
 AVAILABLE AGENTS:
 {agent_list}
@@ -232,8 +238,8 @@ Reason: ...
 
 class ToolSelectionAgent:
     """
-    Uses or calls external tools if needed. Expects final step to have
-    a JSON {"name": "tool_name", "arguments": {...}} if a tool is invoked.
+    Uses or calls external tools if needed. Can use both built-in tools and
+    dynamic tools created by the PythonAgent.
     """
 
     def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
@@ -243,15 +249,13 @@ class ToolSelectionAgent:
     def process(self, user_question: str, context: AgentContext) -> Dict[str, Any]:
         tool_question = self._create_tool_agent_prompt(user_question, context, self.manager)
 
-        # CHANGE: Shortened system prompt
         system_prompt = (
             "You are an expert in tool selection. If you need a tool, respond ONLY with a JSON object:\n"
-            '{"name": "<tool_name>", "arguments": {...}}\nNo extra text.\n'
+            '{{"name": "tool_name", "arguments": {{...}}}}\nNo extra text.\n'
         )
         with AgenticRole(tool_question, system_prompt, self.manager, self.code_executor, disable_tools=False):
             tool_response = self.manager.generate(tool_question)
 
-        # CHANGE: Wrap the final tool result in a dict to keep final_results consistent
         final_result = _get_final_result_from_python_code(tool_response, user_question, self.code_executor)
         if not isinstance(final_result, dict):
             final_result = {f"tool_result_for_{user_question}": final_result}
@@ -267,14 +271,31 @@ class ToolSelectionAgent:
     def _create_tool_agent_prompt(user_question: str, context: AgentContext, manager: TextGenerationManager) -> str:
         """
         Incorporates prior results and tool usage instructions into a prompt for tool calls.
+        Also includes information about dynamic tools created by PythonAgent.
         """
         previous_results = context.previous_results
         final_results = context.final_results
         current_step = context.step + 1
         max_steps = context.max_steps
 
-        # If manager has a tool_history attribute, consider it, else fallback
-        last_tools = getattr(manager, "tool_history", None)
+        # Extract dynamic tools created in previous steps
+        dynamic_tools = []
+        for result in final_results:
+            if isinstance(result, dict) and "dynamic_tools_created" in result:
+                dynamic_tools.extend(result["dynamic_tools_created"])
+
+        # Get docstrings for dynamic tools if they exist
+        dynamic_tool_docs = ""
+        if dynamic_tools:
+            import inspect
+
+            for tool_name in dynamic_tools:
+                if tool_name in manager.code_executor.globals_dict:
+                    tool_func = manager.code_executor.globals_dict[tool_name]
+                    if callable(tool_func):
+                        docstring = inspect.getdoc(tool_func) or "No description available"
+                        signature = str(inspect.signature(tool_func))
+                        dynamic_tool_docs += f"- {tool_name}{signature}: {docstring}\n"
 
         progress_content = ""
         if manager.processor.chat_history:
@@ -309,16 +330,22 @@ Step {current_step}/{max_steps}
 
 Previous Results: {previous_results if previous_results else "None"}
 Final Results from Previous Steps: {list_of_dicts_to_llm_context(final_results) if final_results else "None"}
-{f"Last Tools Used: {last_tools}" if last_tools else ""}
 Additional Info: {additional_info}
 
 Instructions:
 {instruction_prompt}
 
-Possible Tools:
+Available Built-in Tools:
 - owl_search, owl_scrape, owl_read, owl_write, owl_import
+"""
+
+        # Append dynamic tools section if available
+        if dynamic_tool_docs:
+            tool_prompt += "\n\nAvailable Dynamic Tools (created in previous steps):\n" + dynamic_tool_docs
+
+        tool_prompt += """
 Return Format:
-{{"name": "tool_name", "arguments": {{...}}}}
+{"name": "tool_name", "arguments": {...}}
 """.strip()
 
         return tool_prompt
@@ -334,7 +361,6 @@ class TextAnalysisAgent:
         self.manager = manager
 
     def process(self, user_question: str, context: AgentContext) -> Dict[str, Any]:
-        # CHANGE: Shorter system prompt
         system_prompt = """
 You are a text analysis expert. Summarize, extract, and analyze text accurately. 
 Focus on the given sub-task and prior data only.
@@ -365,7 +391,6 @@ Context from Previous Steps:
         with AgenticRole(analysis_prompt, system_prompt, self.manager, self.code_executor) as agent:
             analysis_response = agent.manager.generate(agent.question)
 
-            # Attempt to parse structured data
             try:
                 structured_data = parse_xml_tags_to_dict(analysis_response)
                 if not structured_data:
@@ -384,7 +409,9 @@ Context from Previous Steps:
 
 class PythonAgent:
     """
-    Writes or refines Python code. Implemented with naive validation checks.
+    Creates dynamic Python tools that can be used by the ToolSelectionAgent.
+    This agent does not execute computational tasks directly but instead builds
+    reusable tool functions that are added to the available tools collection.
     """
 
     def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager):
@@ -392,64 +419,111 @@ class PythonAgent:
         self.manager = manager
 
     def process(self, user_question: str, context: AgentContext) -> Dict[str, Any]:
-        last_used_tool = context.last_used_tool
-        python_response = self._handle_python_agent(user_question, last_used_tool, context)
+        tool_creation_response = self._create_dynamic_tool(user_question, context)
 
-        final_result = _get_final_result_from_python_code(python_response, user_question, self.code_executor)
-        if not isinstance(final_result, dict):
-            final_result = {f"result of user request '{user_question}'": final_result}
+        tools_created = self._register_dynamic_tools(tool_creation_response)
 
+        final_result = {"dynamic_tools_created": tools_created}
         context.final_results.append(final_result)
         context.should_continue = True
 
         return {
-            "response": python_response,
+            "response": tool_creation_response,
             "should_continue": True,
             "context": context,
         }
 
-    def _handle_python_agent(
-        self,
-        user_request: str,
-        tool_name: Dict[str, str],
-        context: AgentContext,
-    ) -> str:
+    def _create_dynamic_tool(self, user_request: str, context: AgentContext) -> str:
         """
-        Generates Python code. Includes naive code validation for minimal structure checks.
+        Generates Python code that creates a dynamic tool function to be used by ToolSelectionAgent.
         """
         system_prompt = """
-You are an expert Python developer. Write only valid Python code with a clear function and `final_result` assigned.
-No placeholders or unsafe code.
-"""
+You are an expert Python developer specialized in creating tool functions. Your job is to ONLY create reusable Python tool functions based on the user's request.
 
-        # Basic checks we want
-        validation_checks = {
-            "def": "missing def",
-            ":": "missing colon",
-            "(": "missing paren",
-            ")": "missing paren",
-            "    ": "missing indent",
-            "return": "missing return",
-        }
+Guidelines for creating tools:
+1. Create functions starting with "dynamic_tool_" followed by a descriptive name
+2. All tools must have helpful docstrings (created in Numpy style) explaining what they do and their parameters
+3. Tools should perform a single, specific task.
+4. Use proper error handling and input validation.
+5. Tools should be designed for reuse by the ToolSelectionAgent
+6. Never execute tasks directly - ONLY create tools that can be executed later
+
+These functions will be registered in the global namespace for the ToolSelectionAgent to use.
+"""
 
         additional_info = list_of_dicts_to_llm_context(context.final_results)
         user_prompt = f"""
-User Request: {user_request}
+Create a dynamic tool function to help with this request: 
+{user_request}
 
-Validation Rules: {", ".join(validation_checks.keys())}
-Additional Info from previous steps:
+Additional context from previous steps:
 {additional_info}
+
+REQUIREMENTS:
+1. Function name must start with "dynamic_tool_"
+2. Include comprehensive docstrings (created in Numpy style)
+3. Implement proper error handling
+4. Return results in a structured format (dict, list, etc.)
+5. DO NOT execute tasks directly - ONLY create functions that can be called later
+
+Example structure:
+```python
+def dynamic_tool_name(param1, param2=None):
+    \"\"\"
+    Description of what this tool does.
+    
+    Parameters:
+    ----------
+        param1: Description of parameter
+        param2: Description of optional parameter
+    
+    Returns:
+    --------
+        Description of return value
+    \"\"\"
+    # Implementation
+    return result
+```
+
+Create ONLY the tool function(s) required. Do not provide examples of usage or explanations outside the function definition.
 """
 
         with AgenticRole(user_prompt, system_prompt, self.manager, self.code_executor) as agent:
-            new_response = agent.manager.generate(agent.question)
+            response = agent.manager.generate(agent.question)
+            return response
 
-            # If all required tokens appear, accept. Otherwise discard.
-            if all(keyword in new_response for keyword in validation_checks):
-                return new_response
+    def _register_dynamic_tools(self, tool_creation_response: str) -> List[str]:
+        """
+        Extract Python tool functions from the response and register them in the global namespace.
+        Returns a list of tool names that were successfully created.
+        """
+        import re
 
-            logger.warning("Code validation failed (missing required Python keywords). Returning empty string.")
-            return ""
+        code_blocks = re.findall(r"```python\n(.*?)```", tool_creation_response, re.DOTALL)
+        if not code_blocks:
+            code_blocks = re.findall(r"```\n(.*?)```", tool_creation_response, re.DOTALL)
+
+        created_tools = []
+
+        if not code_blocks and tool_creation_response.strip().startswith("def dynamic_tool_"):
+            code_blocks = [tool_creation_response]
+
+        for code_block in code_blocks:
+            try:
+                exec_result = self.code_executor.execute(code_block.strip())
+
+                func_match = re.search(r"def\s+(dynamic_tool_\w+)", code_block)
+                if func_match:
+                    tool_name = func_match.group(1)
+                    if tool_name in self.code_executor.globals_dict:
+                        created_tools.append(tool_name)
+                        logger.info(f"Successfully created dynamic tool: {tool_name}")
+                    else:
+                        logger.warning(f"Tool {tool_name} was not properly registered")
+            except Exception as e:
+                logger.error(f"Error registering dynamic tool: {str(e)}")
+
+        return created_tools
 
 
 class ValidationAgent:
@@ -473,21 +547,14 @@ class ValidationAgent:
         else:
             logger.info("Further steps may be needed.")
 
-        # Decide if we continue or not
-        if current_step + 1 >= max_steps:
-            should_continue = True  # Move to final response anyway
-        else:
-            should_continue = not answer_is_appropriate
-
         context.answer_is_appropriate = answer_is_appropriate
-        context.should_continue = should_continue
+        context.should_continue = not answer_is_appropriate
         context.step = current_step + 1
 
-        return {"response": response, "should_continue": should_continue, "context": context}
+        return {"response": response, "should_continue": not answer_is_appropriate, "context": context}
 
     @staticmethod
     def _create_validation_agent_prompt(user_request: str, old_chat_history: str, final_results: str) -> str:
-        # CHANGE: Removed large ASCII boxes and simplified instructions
         return f"""
 Your task is only to check if enough information has been gathered to satisfy the user request.
 
@@ -516,10 +583,6 @@ REQUIRED RESPONSE FORMAT (XML):
 """.strip()
 
     def _handle_answer_validation(self, user_request: str, final_results: str) -> Tuple[bool, str]:
-        """
-        Calls a specialized 'validation agent' to confirm if all needed info is present.
-        Returns (bool, str) -> (answerIsAppropriate, fullResponse).
-        """
         assistant_context = [d for d in self.manager.processor.chat_history if d["role"] == "assistant"]
         old_chat_history = format_chat_history_as_string(assistant_context)
         system_prompt = "You verify data completeness. Do NOT solve or elaborate. Only judge completeness."
@@ -599,7 +662,6 @@ class AgentOrchestrator:
 
         apply_tools = self.manager.config_manager.get("agentic.apply_tools", False)
         if not apply_tools:
-            # No multi-agent orchestration, direct model call
             response = self.manager.generate(user_question, media_objects=media_objects)
             _ = execute_code_with_feedback(
                 response=response,
@@ -626,7 +688,6 @@ class AgentOrchestrator:
         ]
         logger.info(f"Available tools: {available_tools}")
 
-        # Always start with RouterPlanningAgent
         router_agent = RouterPlanningAgent(self.code_executor, self.manager)
         logger.info(f"Using RouterPlanningAgent, iteration {context.step + 1}/{context.max_steps}")
         router_result = router_agent.process(user_question, context)
@@ -648,7 +709,6 @@ class AgentOrchestrator:
             else:
                 break
 
-        # Finally, synthesize final response
         logger.info("Running ResponseSynthesisAgent for final answer.")
         response_agent = ResponseSynthesisAgent(self.code_executor, self.manager)
         final_ctx = list_of_dicts_to_llm_context(context.final_results)
@@ -664,32 +724,31 @@ class AgentOrchestrator:
         Includes retry logic for steps that fail.
         """
         max_attempts_per_step = 3  # Maximum attempts for each step
-        
+
         for idx, step in enumerate(planning_steps):
-            # Initialize step tracking if not already done
             if idx not in context.step_attempts:
                 context.step_attempts[idx] = 0
                 context.step_errors[idx] = []
-            
-            # Check if we've exceeded max attempts for this step
+
             if context.step_attempts[idx] >= max_attempts_per_step:
-                logger.warning(f"Maximum attempts ({max_attempts_per_step}) reached for step {idx + 1}. Moving to next step.")
+                logger.warning(
+                    f"Maximum attempts ({max_attempts_per_step}) reached for step {idx + 1}. Moving to next step."
+                )
                 continue
-                
+
             context.current_plan_index = idx
             agent_type = step.get("agent", "")
             step_description = step.get("description", f"Step {idx + 1}")
-            
-            # Construct the request with error context if there were previous errors
+
             error_context = ""
             if context.step_attempts[idx] > 0 and context.step_errors[idx]:
                 error_context = f"""
 Previous attempt(s) failed with errors:
-{'. '.join(context.step_errors[idx])}
+{". ".join(context.step_errors[idx])}
 
 Please try a different approach to solve this problem.
 """
-            
+
             agent_request = f"""
 Analyze:
 {user_question}
@@ -705,8 +764,7 @@ Reason:
 
             logger.info(f"Plan step {idx + 1}/{len(planning_steps)}: {step_description}")
             logger.info(f"Using {agent_type}, attempt {context.step_attempts[idx] + 1}/{max_attempts_per_step}")
-            
-            # Increment attempt counter for this step
+
             context.step_attempts[idx] += 1
 
             if agent_type == "ToolSelectionAgent":
@@ -721,27 +779,21 @@ Reason:
 
             result = agent.process(agent_request, context)
             context = result["context"]
-            
-            # Check for errors in the result
+
             step_failed = self._check_for_step_failure(result, context)
-            
+
             if step_failed:
                 logger.warning(f"Step {idx + 1} failed on attempt {context.step_attempts[idx]}. Retrying step.")
-                # Store the error and retry the same step (idx will not change in next loop iteration)
-                if context.current_error:
-                    context.step_errors[idx].append(context.current_error)
-                # Decrement idx to retry the same step
+                context.step_errors[idx].append(context.current_error)
                 idx -= 1
                 continue
-            
-            # If we get here, the step was successful
+
             logger.info(f"Step {idx + 1} completed successfully.")
-            
+
             if not result["should_continue"]:
                 logger.info(f"Agent {agent_type} indicated to stop.")
                 break
 
-        # Validation after steps
         validation_agent = ValidationAgent(self.code_executor, self.manager)
         logger.info("Using ValidationAgent to check completeness.")
         validation_result = validation_agent.process(user_question, context)
@@ -755,15 +807,14 @@ Reason:
         context.completed_steps = completed_steps
 
         return answer_is_appropriate, context
-        
+
     def _check_for_step_failure(self, result: Dict[str, Any], context: AgentContext) -> bool:
         """
         Checks if a step has failed by examining the response and context.
         Returns True if the step failed and should be retried.
         """
         response = result.get("response", "")
-        
-        # Check for error indicators in the response
+
         error_indicators = [
             "error:",
             "file not found",
@@ -771,30 +822,21 @@ Reason:
             "could not find",
             "failed to",
             "unable to",
-            "permission denied"
+            "permission denied",
         ]
-        
-        # Check for errors in text
+
         for indicator in error_indicators:
             if indicator.lower() in response.lower():
                 context.current_error = f"Detected '{indicator}' in response"
                 return True
-        
-        # Check for errors in final_results
+
         if context.final_results:
             latest_result = context.final_results[-1]
             for key, value in latest_result.items():
                 if isinstance(value, str) and any(indicator.lower() in value.lower() for indicator in error_indicators):
                     context.current_error = f"Error in result: {value}"
                     return True
-                    
-        # Check tool results
-        tool_result = getattr(context, "tool_result", None)
-        if isinstance(tool_result, str) and any(indicator.lower() in tool_result.lower() for indicator in error_indicators):
-            context.current_error = f"Error in tool result: {tool_result}"
-            return True
-            
-        # No errors detected
+
         context.current_error = None
         return False
 
