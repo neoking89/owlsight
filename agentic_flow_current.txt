@@ -1,0 +1,58 @@
+┌─────────────────┐
+│  User Question  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────┐
+│ AgentOrchestrator   │◄───────────────────────────────────┐
+│ process_user_question│                                   │
+└─────────┬───────────┘                                   │
+          │                                               │
+          ▼                                               │
+┌─────────────────────┐                                   │
+│ RouterPlanningAgent │                                   │
+│   Creates plan with │                                   │
+│   detailed steps    │                                   │
+└─────────┬───────────┘                                   │
+          │                                               │
+          ▼                                               │
+┌─────────────────────┐                                   │
+│ For each step in    │                                   │
+│ the planning result │                                   │
+└─────────┬───────────┘                                   │
+          │                                               │
+          ▼                                               │
+┌─────────────────────┐     ┌───────────────────┐        │
+│ Agent Selection     │────►│ ToolSelectionAgent│        │
+│ Based on step's     │     └───────────────────┘        │
+│ "agent" field       │                                  │
+│                     │     ┌───────────────────┐        │
+│                     │────►│   ToolCreationAgent│       │
+│                     │     └───────────────────┘        │
+│                     │                                  │
+│                     │     ┌───────────────────┐        │
+│                     │────►│ TextAnalysisAgent │        │
+└─────────┬───────────┘     └───────────────────┘        │
+          │                                              │
+          │                                              │
+          ▼                                              │
+┌─────────────────────┐                                  │
+│   ValidationAgent   │                                  │
+│ Checks if answer is │                                  │
+│     complete        │                                  │
+└─────────┬───────────┘                                  │
+          │                                              │
+          │  If answer is not complete                   │
+          └──────────────────────────────────────────────┘
+          │
+          │  If answer is complete
+          ▼
+┌─────────────────────┐
+│ResponseSynthesisAgent│
+│ Creates final answer │
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│    Final Response   │
+└─────────────────────┘
