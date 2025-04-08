@@ -391,8 +391,6 @@ Instructions:
 5. Format your response in a clear, user-friendly manner
 """.strip()
 
-
-# Datastructures used in the agentic flow
 @dataclass
 class StepResult:
     """
@@ -524,9 +522,9 @@ class AgentContext:
 
     Attributes:
         user_question (str): The original user question
-        execution_plan (ExecutionPlan): The current execution plan
         current_step (int): The current step in the execution plan
-        error_context (Optional[str]): Error context for critical errors. Propagate errors to the PlanAgent.
+        execution_plan (Optional[ExecutionPlan]): The current execution plan
+        error_context (Optional[str]): Error context for critical errors. Propagate errors to the PlannerAgent.
         final_response (Optional[str]): Final response from ResponseSynthesisAgent
     """
 
@@ -645,12 +643,12 @@ class PlannerAgent(BaseAgent):
     @staticmethod
     def _extract_planning_from_response(response: str) -> List[Dict[str, str]]:
         """
-        Parse <plan> from the PlanAgent's output.
+        Parse all plansteps from the PlannerAgent's output.
         """
         plan_match = parse_xml(response, "plan")
 
         if not plan_match:
-            logging.warning("No plan found in PlanAgent response.")
+            logging.warning("No plan found in PlannerAgent response.")
             return []
 
         plan_text = plan_match.strip()
@@ -702,7 +700,6 @@ class ContextAgent(BaseAgent):
                     additional_info="",
                 )
 
-                # Make the LLM call using the BaseAgent's llm_call method
                 response = self.llm_call(formatted_prompt)
 
                 # In a real implementation, process the response as needed
