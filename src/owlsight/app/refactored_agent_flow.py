@@ -2,7 +2,7 @@
 Agentic Flow Example for OwlSight.
 
 This script demonstrates a more structured agentic flow using dedicated data
-classes (`Result`, `PlanStep`, `ExecutionPlan`) and an `AgentOrchestrator`
+classes (`StepResult`, `PlanStep`, `ExecutionPlan`) and an `AgentOrchestrator`
 to manage the process.
 
 **Core Flow:**
@@ -15,7 +15,7 @@ to manage the process.
 4.  For each step, the orchestrator retrieves the corresponding agent
     (e.g., `ContextAgent`, `ToolCreationAgent`) and calls its `execute` method.
 5.  The executed agent performs its task and updates the `result` attribute
-    (a `Result` object) within its assigned `PlanStep` in the shared context.
+    (a `StepResult` object) within its assigned `PlanStep` in the shared context.
 6.  If any step fails (either by raising an exception caught by the
     orchestrator or by setting `step.result.success = False` and
     `stop_on_step_failure=True`), the orchestrator can optionally attempt to
@@ -29,13 +29,28 @@ to manage the process.
 """
 
 import logging
-from typing import TypedDict, Any, List, Optional, ClassVar, Dict
+from typing import Any, List, Optional, ClassVar
 from dataclasses import dataclass, field
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
+from owlsight.app.default_functions import OwlDefaultFunctions
+from owlsight.utils.custom_classes import GlobalPythonVarsDict
+from owlsight.utils.helper_functions import parse_xml
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+def get_available_tools():
+    available_tools = "\n".join(
+        str(obj) for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=True)
+    )
+    return available_tools
+
+AVAILABLE_AGENTS = {
+    "ToolSelectionAgent": "Use when external data retrieval, API calls, or specialized tool usage is required.",
+    "PythonAgent": "Use ONLY to create dynamic tool functions that can later be used by ToolSelectionAgent.",
+    "TextAnalysisAgent": "Use for analyzing text, summarizing, extracting info, or generating strategies.",
+}
 
 # --- Prompt Templates ---
 PLANNER_PROMPT = """
@@ -147,7 +162,7 @@ Create ONLY the tool function(s) required. Do not provide examples of usage or e
 
 TOOL_SELECTION_PROMPT = """
 You are an expert in tool selection. If you need a tool, respond ONLY with a JSON object:
-{"name": "tool_name", "arguments": {...}}
+{{"name": "tool_name", "arguments": {...}}}
 No extra text.
 
 User Request:
@@ -218,11 +233,11 @@ Instructions:
 
 # Datastructures used in the agentic flow
 @dataclass
-class Result:
+class StepResult:
     """Container for the outcome of an agent's execution step."""
 
     success: bool
-    details: Any = None  # Can store success messages, data, or error details/tracebacks
+    execution_result: Any = None  # Can store success messages, data, or error details/tracebacks
 
 
 @dataclass
@@ -231,7 +246,8 @@ class PlanStep:
 
     agent_name: str
     description: str
-    result: Optional[Result] = None  # To be filled in by the agent
+    result: Optional[StepResult] = None  # To be filled in by the agent
+    data: Optional[Any] = None  # any data that the agent might return
 
 
 @dataclass
@@ -245,6 +261,10 @@ class ExecutionPlan:
         if 0 <= index < len(self.steps):
             return self.steps[index]
         return None
+
+    def get_data(self) -> List[Optional[Any]]:
+        """Get all collected data from each step so far."""
+        return [step.data for step in self.steps if step.data is not None]
 
     def __getitem__(self, index: int) -> PlanStep:
         """
@@ -320,18 +340,12 @@ class AgentPrompt:
         return self.template
 
 
-# --- Mock AgentContext (Refactored) ---
 # Represents the shared state passed between agents
-class AgentContext(TypedDict, total=False):
+class AgentContext:
     user_question: str
-    execution_plan: Optional[ExecutionPlan]  # Contains PlanSteps with Results
-    current_plan_index: int
-    validation_result: str  # Kept separate for now as per flow diagram
-    final_response: str  # Kept separate for now
-    error_context: str  # Context from any *orchestration* error that occurred
-
-
-# --- Mock Agent Classes (Adapting to new structures) ---
+    execution_plan: ExecutionPlan
+    current_step: int = 0
+    error_context: Optional[str] = None  # this is used to propagate critical errors to the planagent
 
 
 class BaseAgent:
@@ -367,74 +381,75 @@ class BaseAgent:
         Modifies the context, specifically by updating the result of the
         current plan step within the execution_plan.
         Should ideally not raise exceptions for plan execution errors,
-        but capture them in the Result object. Unforeseen errors might still raise.
+        but capture them in the StepResult object. Unforeseen errors might still raise.
         """
-        logging.info(f"Executing {self.name}...")
-        plan = context.get("execution_plan")
-        current_index = context.get("current_plan_index", -1)
-
-        if plan and 0 <= current_index < len(plan.steps):
-            step = plan.steps[current_index]
-            # Subclasses will override this part to create the actual result
-            # Ensure a default result is NOT set here, let subclasses handle it or leave None
-            # step.result = Result(success=True, details=f"{self.name} base execution (should be overridden).")
-        else:
-            # This condition might occur for agents like Router/Validator/Synthesizer
-            # called outside the main plan execution loop, or if context is invalid.
-            logging.debug(f"{self.name}: Not operating on a specific plan step or plan missing.")
-
-        return context
+        raise NotImplementedError("Subclasses must implement this method.")
 
 
 class PlannerAgent(BaseAgent):
     def __init__(self):
         planner_prompt = AgentPrompt(
             template=PLANNER_PROMPT,
-            params={
-                "agent_list": "- ToolSelectionAgent: Use when external data retrieval, API calls, or specialized tool usage is required.\n"
-                "- ToolCreationAgent: Use ONLY to create dynamic tool functions that can later be used by ToolSelectionAgent.\n"
-                "- ContextAgent: Use for analyzing text, summarizing, extracting info, or generating strategies."
-            },
         )
         super().__init__("PlannerAgent", planner_prompt)
 
     def execute(self, context: AgentContext) -> AgentContext:
         # This agent *creates* the plan, doesn't execute a step within it.
         logging.info(f"Executing {self.name}...")
-        user_question = context.get("user_question", "")
-        error_context = context.get("error_context")
+        user_question = context.user_question
+        available_agents = "".join(f"- {k}: {v}\n" for k, v in AVAILABLE_AGENTS.items())
 
-        # TODO: In a real implementation, this would use the system_prompt with LLM
-        # formatted_prompt = self.system_prompt.format(
-        #    user_question=user_question,
-        #    available_tools="owl_search, owl_scrape, owl_read, owl_write, owl_import"
-        # )
+        formatted_prompt = self.system_prompt.format(
+            user_question=user_question,
+            available_tools=get_available_tools(),
+            available_agents=available_agents,
+        )
 
-        # Mock planning logic - Create PlanStep objects
-        plan_steps = []
-        if error_context:
-            logging.warning(f"Planner received error context: {error_context}. Generating fallback plan.")
-            plan_steps = [PlanStep(agent_name="ContextAgent", description="Analyze fallback options")]
-        elif "analyze" in user_question.lower():
-            plan_steps = [PlanStep(agent_name="ContextAgent", description="Analyze the core request")]
-        elif "python" in user_question.lower() or "tool" in user_question.lower():
-            plan_steps = [
-                PlanStep(agent_name="ToolCreationAgent", description="Generate Python code snippet for a tool"),
-                PlanStep(
-                    agent_name="ToolSelectionAgent",
-                    description="Select tool based on Python output (mandatory follow-up)",
-                ),
-            ]
-        else:
-            plan_steps = [PlanStep(agent_name="ContextAgent", description="Default analysis for general query")]
+        response = self.llm_call(formatted_prompt)
+        plan_steps = self._extract_planning_from_response(response)
 
         execution_plan = ExecutionPlan(steps=plan_steps)
         logging.info(f"Planner generated plan: {execution_plan}")
-        context["execution_plan"] = execution_plan
-        context["current_plan_index"] = 0  # Reset index for new plan
-        context["error_context"] = None  # Clear error context after planning
+        context.execution_plan = execution_plan
         return context
 
+    @staticmethod
+    def _extract_planning_from_response(response: str) -> dict[str, Any]:
+        """
+        Parse <plan> and <reasoning> from the router agent's output.
+        """
+        plan_match = parse_xml(response, "plan")
+        reasoning_match = parse_xml(response, "reasoning")
+
+        # TODO: get all information needed for plan steps
+
+        if not plan_match:
+            logging.warning("No plan found in router response.")
+            return {"steps": [], "reasoning": ""}
+
+        plan_text = plan_match.strip()
+        reasoning = reasoning_match.strip() if reasoning_match else ""
+        steps = []
+        current_step = {}
+
+        for line in plan_text.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.lower().startswith("step "):
+                if current_step and "description" in current_step:
+                    steps.append(current_step)
+                current_step = {"description": line}
+            elif line.lower().startswith("agent:"):
+                current_step["agent"] = line[len("Agent:") :].strip()
+            elif line.lower().startswith("reason:"):
+                current_step["reason"] = line[len("Reason:") :].strip()
+
+        if current_step and "description" in current_step:
+            steps.append(current_step)
+
+        return {"steps": steps, "reasoning": reasoning}
 
 class ContextAgent(BaseAgent):
     def __init__(self):
@@ -443,15 +458,15 @@ class ContextAgent(BaseAgent):
 
     def execute(self, context: AgentContext) -> AgentContext:
         super().execute(context)
-        plan = context.get("execution_plan")
-        current_index = context.get("current_plan_index", -1)
+        plan = context.execution_plan
+        current_index = context.current_step
         step = plan.get_step(current_index) if plan else None
 
         if step:
             try:
                 # Format the prompt with actual values
                 formatted_prompt = self.system_prompt.format(
-                    user_question=context.get("user_question", ""),
+                    user_question=context.user_question,
                     current_step=current_index + 1,
                     max_steps=len(plan.steps) if plan else 1,
                     previous_results="None",
@@ -470,10 +485,10 @@ class ContextAgent(BaseAgent):
                     analysis_details = f"Contextual Answer based on '{context.get('user_question', '')}'."
 
                 logging.info(f"ContextAgent result: {analysis_details[:50]}...")
-                step.result = Result(success=True, details=analysis_details)
+                step.result = StepResult(success=True, execution_result=analysis_details)
             except Exception as e:
                 logging.error(f"{self.name} failed: {e}", exc_info=True)
-                step.result = Result(success=False, details=f"Error during context analysis: {e}")
+                step.result = StepResult(success=False, execution_result=f"Error during context analysis: {e}")
         # Error logging for missing step handled by BaseAgent or orchestrator
 
         return context
@@ -486,8 +501,8 @@ class ToolCreationAgent(BaseAgent):
 
     def execute(self, context: AgentContext) -> AgentContext:
         super().execute(context)
-        plan = context.get("execution_plan")
-        current_index = context.get("current_plan_index", -1)
+        plan = context.execution_plan
+        current_index = context.current_step
         step = plan.get_step(current_index) if plan else None
 
         if step:
@@ -507,13 +522,13 @@ class ToolCreationAgent(BaseAgent):
                 # if random.random() < 0.3: # 30% chance of error
                 #     error_msg = "Simulated error in ToolCreationAgent"
                 #     logging.error(f"ToolCreationAgent encountered a simulated error!")
-                #     step.result = Result(success=False, details=error_msg)
+                #     step.result = StepResult(success=False, execution_result=error_msg)
                 # else:
                 # Only register if no error
-                step.result = Result(success=True, details=python_code)
+                step.result = StepResult(success=True, execution_result=python_code)
             except Exception as e:
                 logging.error(f"{self.name} failed: {e}", exc_info=True)
-                step.result = Result(success=False, details=f"Error during tool creation: {e}")
+                step.result = StepResult(success=False, execution_result=f"Error during tool creation: {e}")
 
         return context
 
@@ -525,8 +540,8 @@ class ToolSelectionAgent(BaseAgent):
 
     def execute(self, context: AgentContext) -> AgentContext:
         super().execute(context)
-        plan = context.get("execution_plan")
-        current_index = context.get("current_plan_index", -1)
+        plan = context.execution_plan
+        current_index = context.current_step
         step = plan.get_step(current_index) if plan else None
 
         if step:
@@ -553,13 +568,13 @@ class ToolSelectionAgent(BaseAgent):
 
                     if prev_step and prev_step.agent_name == "ToolCreationAgent" and prev_step.result:
                         if prev_step.result.success:
-                            python_result = prev_step.result.details
+                            python_result = prev_step.result.execution_result
                             tool_selection_details = (
                                 f"Selected 'MockTool' based on ToolCreationAgent result: {python_result}"
                             )
                         else:
                             # Previous step failed, select fallback but maybe this step still 'succeeds' in selecting fallback
-                            tool_selection_details = f"Selected 'FallbackTool' as previous ToolCreationAgent step failed ({prev_step.result.details})."
+                            tool_selection_details = f"Selected 'FallbackTool' as previous ToolCreationAgent step failed ({prev_step.result.execution_result})."
                             logging.warning(f"{self.name}: Previous step failed, selecting fallback.")
                             # Decide if ToolSelection *itself* failed due to dependency failure.
                             # Let's say it still succeeds in selecting *something* (the fallback).
@@ -570,17 +585,17 @@ class ToolSelectionAgent(BaseAgent):
                         tool_selection_details = "Selected 'DefaultTool' due to missing previous step info."
 
                     logging.info(f"ToolSelectionAgent result: {tool_selection_details}")
-                    step.result = Result(success=success_status, details=tool_selection_details)
+                    step.result = StepResult(success=success_status, execution_result=tool_selection_details)
 
                 # Handle no dependency scenario
                 else:
                     tool_selection_details = "Selected 'IndependentTool' as there are no previous steps to depend on."
                     logging.info(f"{self.name} result: {tool_selection_details}")
-                    step.result = Result(success=True, details=tool_selection_details)
+                    step.result = StepResult(success=True, execution_result=tool_selection_details)
 
             except Exception as e:
                 logging.error(f"{self.name} failed: {e}", exc_info=True)
-                step.result = Result(success=False, details=f"Error during tool selection: {e}")
+                step.result = StepResult(success=False, execution_result=f"Error during tool selection: {e}")
 
         return context
 
@@ -594,7 +609,7 @@ class ValidationAgent(BaseAgent):
         # This agent is called *after* the plan execution loop.
         # It inspects the results in the plan and updates context["validation_result"].
         super().execute(context)
-        plan = context.get("execution_plan")
+        plan = context.execution_plan
         validation_passed = True
         details = "Validation passed."
 
@@ -613,7 +628,7 @@ class ValidationAgent(BaseAgent):
                     break
                 elif not step.result.success:
                     validation_passed = False
-                    details = f"Validation failed: Step {i + 1} '{step.description}' ({step.agent_name}) did not succeed. Details: {step.result.details if step.result else 'N/A'}"
+                    details = f"Validation failed: Step {i + 1} '{step.description}' ({step.agent_name}) did not succeed. Details: {step.result.execution_result if step.result else 'N/A'}"
                     logging.warning(details)
                     break  # Stop on first failure
         else:
@@ -623,8 +638,8 @@ class ValidationAgent(BaseAgent):
 
         logging.info(f"ValidationAgent result: {details}")
         context["validation_result"] = details
-        # We could also return a Result object from this agent if needed elsewhere
-        # return Result(success=validation_passed, details=details) # If we wanted to standardize
+        # We could also return a StepResult object from this agent if needed elsewhere
+        # return StepResult(success=validation_passed, execution_result=details) # If we wanted to standardize
         return context
 
 
@@ -639,9 +654,9 @@ class ResponseSynthesisAgent(BaseAgent):
         super().execute(context)
 
         # Extract relevant information from context
-        user_question = context.get("user_question", "")
-        validation_result = context.get("validation_result", "Validation not performed.")
-        plan = context.get("execution_plan")
+        user_question = context.user_question
+        validation_result = context.validation_result
+        plan = context.execution_plan
 
         # In a real implementation, we would format the prompt with actual values
         # formatted_prompt = self.system_prompt.format(
@@ -663,7 +678,7 @@ class ResponseSynthesisAgent(BaseAgent):
                 successful_steps = []
                 for i, step in enumerate(plan.steps):
                     if step.result and step.result.success:
-                        successful_steps.append(f"Step {i + 1}: {step.result.details}")
+                        successful_steps.append(f"Step {i + 1}: {step.result.execution_result}")
 
                 # Format a nice response
                 if successful_steps:
@@ -695,7 +710,7 @@ class AgentOrchestrator:
         }
         self.max_error_loops = 2  # Prevent infinite loops on persistent errors
         self.stop_on_step_failure = (
-            False  # Configuration: Should orchestrator stop if a step returns Result(success=False)?
+            False  # Configuration: Should orchestrator stop if a step returns StepResult(success=False)?
         )
 
     def _get_agent(self, agent_name: str) -> BaseAgent:
@@ -745,14 +760,14 @@ class AgentOrchestrator:
                     # --- Check step result AFTER execution ---
                     if not current_step.result:
                         # Agent didn't produce a result - treat as failure
-                        current_step.result = Result(
-                            success=False, details=f"Agent '{agent_name}' did not produce a result object."
+                        current_step.result = StepResult(
+                            success=False, execution_result=f"Agent '{agent_name}' did not produce a result object."
                         )
-                        logging.error(current_step.result.details)
+                        logging.error(current_step.result.execution_result)
                         plan_failed_or_incomplete = True
                     elif not current_step.result.success:
                         # Agent reported failure
-                        error_msg = f"Agent '{agent_name}' reported failure for step {current_index + 1}. Details: {current_step.result.details}"
+                        error_msg = f"Agent '{agent_name}' reported failure for step {current_index + 1}. Details: {current_step.result.execution_result}"
                         logging.error(error_msg)
                         plan_failed_or_incomplete = True
 
@@ -804,6 +819,7 @@ class AgentOrchestrator:
         # Fallback if loop finishes unexpectedly
         return "Error: Unexpected exit from processing loop."
 
+
 # Example usage
 if __name__ == "__main__":
     orchestrator = AgentOrchestrator()
@@ -829,7 +845,7 @@ if __name__ == "__main__":
 
     # To test error handling, uncomment the error simulation in ToolCreationAgent
     # and run the Python/Tool question again.
-    # Note how failure is now handled via Result(success=False)
+    # Note how failure is now handled via StepResult(success=False)
     print("\n\n--- Example 4: (Potential Error Test if uncommented in ToolCreationAgent) ---")
     question4 = "Give me python code to create a file reading tool."
     response4 = orchestrator.process_user_question(question4)
