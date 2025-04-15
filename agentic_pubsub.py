@@ -198,81 +198,137 @@ Response Format:
   <step>
     <description>Step description</description>
     <agent>AgentName</agent>
-    <reason>Reason for the step</reason>
+    <reason>Reason for this step</reason>
   </step>
-  ...
+  <!-- Repeat <step> for each step in the plan -->
 </plan>
-""".strip()
+"""
 
-CONTEXT_AGENT_PROMPT = """
-You answer questions based on the provided context.
-User Request:
+CONTEXT_PROMPT = """
+You are an expert in extracting information and summarizing content. Analyze the user question and any available context.
+
+User Question:
 {user_question}
 
-Step {current_step}/{max_steps}
+Available Context:
+{available_context}
 
-Previous Results: {previous_results}
-Final Results: {final_results}
-Additional Info: {additional_info}
+Task:
+- Summarize relevant information.
+- Extract any data that might help answer the user question.
 
-Instructions:
-Provide a direct response.
-""".strip()
+Response Format:
+<summary>
+  <relevant_info>Relevant information summary</relevant_info>
+</summary>
+"""
 
 TOOL_CREATION_PROMPT = """
-You are an expert Python developer specialized in creating tool functions.
-Create a dynamic tool function to help with this request: 
+You are an expert in tool creation. Based on the user question and context, define a new tool function to help solve the problem.
+
+User Question:
 {user_question}
 
-Additional context:
-{previous_results}
-""".strip()
+Context:
+{available_context}
+
+Task:
+- Define a new tool function with clear parameters and description.
+
+Response Format:
+<tool>
+  <name>tool_name</name>
+  <description>Tool description</description>
+  <parameters>
+    <parameter>
+      <name>param_name</name>
+      <type>string|number|boolean|array|object</type>
+      <description>Parameter description</description>
+      <required>true|false</required>
+    </parameter>
+    <!-- Repeat for each parameter -->
+  </parameters>
+</tool>
+"""
 
 TOOL_SELECTION_PROMPT = """
-You are an expert in tool selection.
-User Request:
+You are an expert in selecting the right tool for a task. Based on the user question and context, choose the most appropriate tool from the available options.
+
+User Question:
 {user_question}
 
-Step {current_step}/{max_steps}
+Context:
+{available_context}
 
-Previous Results: {previous_results}
-Final Results: {final_results}
-Additional Info: {additional_info}
-
-Available Tools:
+AVAILABLE TOOLS:
 {available_tools}
 
-Return Format:
-{{"name": "tool_name", "arguments": {{...}}}}
-""".strip()
+Task:
+- Select the best tool for the task.
+- Provide the tool name and the parameters to use.
+
+Response Format:
+<selection>
+  <tool_name>selected_tool_name</tool_name>
+  <parameters>
+    <parameter>
+      <name>param_name</name>
+      <value>param_value</value>
+    </parameter>
+    <!-- Repeat for each parameter -->
+  </parameters>
+  <reason>Reason for selecting this tool</reason>
+</selection>
+"""
 
 VALIDATION_PROMPT = """
-You are a quality assurance agent.
-User Request:
+You are an expert in validating results. Review the execution plan and results.
+
+User Question:
 {user_question}
 
-Execution Plan & Results:
-{execution_plan}
+Execution Plan and Results:
+{execution_results}
 
-Validation Instructions:
-Check for completeness and success.
-Return a detailed report.
-""".strip()
+Task:
+- Check if all steps were successful.
+- Check if enough data is present to compile a final response.
+- If not successful, identify which steps need rework.
+
+Response Format:
+<validation>
+  <successful>true|false</successful>
+  <enough_data>true|false</enough_data>
+  <failed_steps>
+    <step>
+      <index>Step index</index>
+      <reason>Reason for rework</reason>
+    </step>
+    <!-- Repeat for each failed step -->
+  </failed_steps>
+  <next_action>respond|replan</next_action>
+</validation>
+"""
 
 RESPONSE_SYNTHESIS_PROMPT = """
-You are a response synthesis agent.
-User Request:
+You are an expert in crafting clear, concise responses. Synthesize all the information from the execution plan into a final response for the user.
+
+User Question:
 {user_question}
 
 Execution Results:
 {execution_results}
 
-Validation Result:
-{validation_result}
+Task:
+- Craft a clear, concise response that answers the user's question.
+- Include relevant data or results.
+- Avoid mentioning the internal process or agents.
 
-Instructions:
-Provide a clear, concise answer.
-""".strip()
+Response Format:
+<response>
+  Final response content here
+</response>
+"""
 
 
 # -------------------------
@@ -423,7 +479,7 @@ class AgentContext:
 # -------------------------
 # Base Agent Classes
 # -------------------------
-class BaseAgent:
+class BaseAgent(ABC):
     """Base class for all agents."""
 
     manager: ClassVar[Optional[TextGenerationManager]] = None
@@ -437,172 +493,57 @@ class BaseAgent:
         """
         In real usage, calls a text generation manager. In TEST_MODE, uses a fixed response.
         """
-        if TEST_MODE:
-            # Only the PlannerAgent is tested in the example for brevity
-            if self.name == "PlannerAgent":
-                return """
-I'll analyze the user's request and create a structured execution plan.
+        if TEST_MODE or BaseAgent.manager is None:
+            return f"{self.name} response for: {formatted_prompt[:50]}..."
+        return BaseAgent.manager.generate(formatted_prompt)
 
-<plan>
-  <step>
-    <description>Research current weather conditions in Chicago</description>
-    <agent>ToolSelectionAgent</agent>
-    <reason>Retrieve up-to-date weather data</reason>
-  </step>
-  <step>
-    <description>Create a function to analyze temperature trends</description>
-    <agent>ToolCreationAgent</agent>
-    <reason>Process raw weather data into trends</reason>
-  </step>
-  <step>
-    <description>Summarize the weather findings and provide recommendations</description>
-    <agent>ContextAgent</agent>
-    <reason>Synthesize actionable insights</reason>
-  </step>
-</plan>
-"""
-            else:
-                raise ValueError(f"{self.name} is not supported in TEST_MODE.")
-        if BaseAgent.manager is not None:
-            return BaseAgent.manager.generate(formatted_prompt)
-        raise ValueError("TextGenerationManager is not initialized")
-
-    def execute(self, context: AgentContext) -> AgentContext:
+    @abstractmethod
+    def execute(self, context: AgentContext) -> StepResult:
         """
         Subclasses must implement this method to perform their specific tasks
         and update the context as needed.
         """
-        raise NotImplementedError("Subclasses must implement the execute method.")
+        pass
 
 
 class PlannerAgent(BaseAgent):
-    """
-    Agent responsible for creating the execution plan.
-    """
+    """Agent responsible for creating the execution plan."""
 
     def __init__(self):
         planner_prompt = AgentPrompt(template=PLANNER_PROMPT)
         super().__init__("PlannerAgent", planner_prompt)
 
-    def execute(self, context: AgentContext) -> AgentContext:
-        logging.info(f"Executing {self.name} for replanning or initial planning...")
-        user_question = context.user_question
-        agent_information = get_agent_information()
-        available_tools = get_available_tools(BaseAgent.code_executor)
-
+    def execute(self, context: AgentContext) -> StepResult:
         formatted_prompt = self.system_prompt.format(
-            user_question=user_question,
-            agent_information=agent_information,
-            available_tools=available_tools,
-            available_agents=AVAILABLE_AGENTS,
+            user_question=context.user_question,
+            agent_information=get_agent_information(),
+            available_tools=get_available_tools(BaseAgent.code_executor),
         )
-
         response = self.llm_call(formatted_prompt)
-        extracted_steps = self._extract_planning_from_response(response)
-        plan_steps = [PlanStep(**step) for step in extracted_steps]
+        plan_steps = self._extract_planning_from_response(response)
 
-        # If partial replan is desired, we can skip steps that are already complete.
-        # For "pick up from failing step," we assume steps up to current_step are done.
-        # We'll combine old steps (0..current_step-1) with new steps from current_step onward.
-        old_plan = context.execution_plan
-        if old_plan and context.current_step > 0:
-            completed_steps = old_plan.steps[: context.current_step]
-            logging.info(
-                f"[PlannerAgent] Preserving {len(completed_steps)} completed steps. Adding {len(plan_steps)} new steps."
-            )
-            # Rebuild the plan so that steps 0..(current_step-1) remain from the old plan,
-            # and the new plan starts at the failing step index.
-            new_plan = completed_steps + plan_steps
-            context.execution_plan = ExecutionPlan(steps=new_plan)
-        else:
-            # If this is the first plan or there's no partial replan
-            context.execution_plan = ExecutionPlan(steps=plan_steps)
+        if not plan_steps:
+            return StepResult(success=False, execution_result="Failed to create plan")
 
-        logging.info(f"Planner created plan: {context.execution_plan}")
-        return context
+        context.execution_plan = ExecutionPlan(steps=plan_steps)
+        logging.info(f"Plan created with {len(plan_steps)} steps.")
+        return StepResult(success=True, execution_result=response)
 
-    @staticmethod
-    def _extract_planning_from_response(response: str) -> List[Dict[str, str]]:
+    def _extract_planning_from_response(self, response: str) -> List[PlanStep]:
         """
         Extracts structured plan steps from the LLM response's XML-like format.
         """
-        plan_match = parse_xml(response, "plan")
-        if not plan_match:
-            logging.warning("No <plan> found in response.")
+        plan_steps = []
+        plan_content = parse_xml(response, "plan")
+        if not plan_content:
             return []
 
-        plan_text = plan_match.strip()
-        steps = []
-        step_matches = re.findall(r"<step>(.*?)</step>", plan_text, re.DOTALL)
-        for step_content in step_matches:
-            description = parse_xml(step_content, "description")
-            agent = parse_xml(step_content, "agent")
-            reason = parse_xml(step_content, "reason")
-            if description:
-                step = {
-                    "description": description.strip(),
-                    "agent_name": agent.strip() if agent else "",
-                    "reason": reason.strip() if reason else "",
-                }
-                steps.append(step)
-        return steps
-
-
-# -------------------------
-# Observer Pattern
-# -------------------------
-class Observer(ABC):
-    """
-    Abstract Observer class. Observers implementing this interface
-    will receive updates from Subjects.
-    """
-
-    @abstractmethod
-    def update(self, event: EventType, data: dict) -> None:
-        pass
-
-
-class Subject:
-    """
-    Subject base class that maintains a list of observers and notifies them of events.
-    """
-
-    def __init__(self):
-        self._observers: List[Observer] = []
-
-    def add_observer(self, observer: Observer) -> None:
-        self._observers.append(observer)
-
-    def remove_observer(self, observer: Observer) -> None:
-        if observer in self._observers:
-            self._observers.remove(observer)
-
-    def notify_observers(self, event: EventType, data: dict) -> None:
-        for observer in self._observers:
-            observer.update(event, data)
-
-
-# -------------------------
-# Dummy Agent for Demonstration
-# -------------------------
-class DummyAgent(BaseAgent):
-    """
-    A simple dummy agent that just logs execution and marks the step as successful.
-    Use this to stand in for more complex agent implementations.
-    """
-
-    def __init__(self, name: str):
-        dummy_prompt = AgentPrompt(template="Dummy prompt for {user_question}")
-        super().__init__(name, dummy_prompt)
-
-    def execute(self, context: AgentContext) -> AgentContext:
-        """
-        For demonstration, this agent always succeeds.
-        """
-        logging.info(f"{self.name} executing for step {context.current_step + 1}...")
-        #TODO: ADD LLM LOGIC HERE
-        dummy_result = StepResult(success=True, execution_result=f"{self.name} executed successfully.")
-        if context.execution_plan:
-            step = context.execution_plan[context.current_step]
-            step.result = dummy_result
-        return context
+        step_pattern = r"<step>(.*?)</step>"
+        steps = re.findall(step_pattern, plan_content, re.DOTALL)
+        for step_text in steps:
+            description = parse_xml(step_text, "description")
+            agent_name = parse_xml(step_text, "agent")
+            reason = parse_xml(step_text, "reason")
+            if description and agent_name:
+                plan_steps.append(PlanStep(description, agent_name, reason or "No reason provided"))
+        return plan_steps
