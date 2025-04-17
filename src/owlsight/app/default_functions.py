@@ -95,7 +95,7 @@ class OwlDefaultFunctions:
     ) -> Union[str, Dict[str, str]]:
         """
         Read LOCAL FILE CONTENTS with advanced document processing.
-
+        
         Parameters
         ----------
         file_source : Union[str, Path, bytes, Iterable[Union[str, Path]]]
@@ -126,6 +126,7 @@ class OwlDefaultFunctions:
         - For web content/URLs use owl_scrape() instead
         - URL inputs will return explicit error messages
         - Falls back to basic file reading if advanced processing fails
+        - do NOT use this to read raw strings
         """
         if isinstance(file_source, (str, Path)) and is_url(file_source):
             return f"Error: owl_read requires local files. Use owl_scrape() for URLs like '{file_source}'"
