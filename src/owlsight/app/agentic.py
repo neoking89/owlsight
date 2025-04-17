@@ -3,12 +3,12 @@ Revised and optimized OwlSight agentic logic, context management, and orchestrat
 This implementation is based on the structured flow from agentic_pubsub.py.
 """
 
-import sys
 import re
 from typing import Any, List, Optional, ClassVar, Dict
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from enum import Enum
+import math
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
@@ -17,9 +17,12 @@ from owlsight.utils.helper_functions import parse_xml
 from owlsight.utils.logger import logger
 
 
-# -------------------------
-# Helper Functions & Constants
-# -------------------------
+@dataclass
+class ToolResult:
+    success: bool
+    result: Any
+
+
 def get_agent_information() -> str:
     return "\n".join(f"- {k}: {v}\n" for k, v in AGENT_INFORMATION.items())
 
@@ -28,9 +31,7 @@ def get_available_tools(code_executor: "CodeExecutor"):
     """
     Returns a list of available tool descriptors in the OpenAI function calling format.
     """
-    return "\n".join(
-        f"- {k}: {v}\n" for k, v in OwlDefaultFunctions(code_executor.globals_dict).owl_tools(as_json=True)
-    )
+    return "\n".join(str(v) for v in OwlDefaultFunctions(code_executor.globals_dict).owl_tools(as_json=True))
 
 
 def parse_tool_response(response: str) -> dict:
@@ -57,7 +58,7 @@ def parse_tool_response(response: str) -> dict:
         raise ValueError("Unexpected response format: Response must be in XML format with selection tags")
 
 
-def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]) -> Dict[str, Any]:
+def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]) -> ToolResult:
     """
     Execute the selected tool with the provided arguments using the CodeExecutor.
 
@@ -84,13 +85,14 @@ def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]) -> Dict
             tool_func = code_executor.globals_dict[tool_name]
             result = tool_func(**converted_parameters)
             logger.info(f"Tool {tool_name} executed successfully")
-            return {"success": True, "result": result}
+            return ToolResult(success=True, result=result)
         else:
-            logger.warning(f"Tool {tool_name} not found in globals")
-            return {"success": False, "error": f"Tool {tool_name} not found"}
+            msg = f"Tool {tool_name} not found in globals"
+            logger.warning(msg)
+            return ToolResult(success=False, result=msg)
     except Exception as e:
         logger.error(f"Error executing tool {tool_name}: {str(e)}")
-        return {"success": False, "error": str(e)}
+        return ToolResult(success=False, result=str(e))
 
 
 class EventType(Enum):
@@ -268,10 +270,26 @@ Response Format:
 </response>
 """
 
+OBSERVATION_PROMPT = """
+You are an expert in filtering and summarizing tool execution results. Analyze the raw output from the tool execution and extract only the core, relevant information.
 
-# -------------------------
-# Data Classes
-# -------------------------
+Task:
+{description}
+
+Tool Results:
+{tool_result}
+
+Task:
+- Filter out unnecessary details, noise, or irrelevant information from the tool execution result, which is not directly relevant to complete the Task.
+- Summarize the core information that is relevant to complete the Task, considering the reasoning behind the tool selection.
+
+Response Format:
+<observation>
+  Concise summary of relevant information to complete the Task
+</observation>
+"""
+
+
 @dataclass
 class StepResult:
     """Container for the outcome of an agent's execution step.
@@ -294,14 +312,12 @@ class PlanStep:
         agent_name (str): The agent assigned for this step.
         reason (str): Reason for the step.
         result (Optional[StepResult]): Result of the step execution.
-        data (Optional[Any]): Data returned by the agent.
     """
 
     description: str
     agent_name: str
     reason: str
     result: Optional[StepResult] = None
-    data: Optional[Any] = None
 
 
 @dataclass
@@ -350,7 +366,11 @@ class ExecutionPlan:
         return None
 
     def get_data(self) -> List[Any]:
-        return [step.data for step in self.steps if step.data is not None]
+        return [
+            step.result.execution_result
+            for step in self.steps
+            if step.result and step.result.execution_result is not None
+        ]
 
     def __getitem__(self, index: int) -> PlanStep:
         return self.steps[index]
@@ -371,10 +391,29 @@ class AgentPrompt:
 
     def format(self, **kwargs) -> str:
         combined_params = {**self.params, **kwargs}
-        return self.template.format(**combined_params)
+        formatted_prompt = self.template.format(**combined_params)
+        self._get_amt_tokens(formatted_prompt, combined_params)
+        return formatted_prompt
 
     def __str__(self) -> str:
         return self.template
+
+    def _get_amt_tokens(self, formatted_prompt: str, params: dict[str, Any]) -> int:
+        """
+        Estimate token count by dividing character length by
+        the average characters-per-token ratio.
+        """
+        AVG_CHARS_PER_TOKEN = 4
+
+        prompt_chars = len(formatted_prompt)
+        prompt_tokens = math.ceil(prompt_chars / AVG_CHARS_PER_TOKEN)
+        logger.info(f"Total tokens in 'formatted_prompt': {prompt_chars} chars -> {prompt_tokens} tokens")
+
+        for param, value in params.items():
+            val_str = str(value)
+            val_chars = len(val_str)
+            val_tokens = math.ceil(val_chars / AVG_CHARS_PER_TOKEN)
+            logger.info(f"Parameter '{param}': {val_chars} chars -> {val_tokens} tokens")
 
 
 @dataclass
@@ -453,7 +492,7 @@ class PlannerAgent(BaseAgent):
 
         context.execution_plan = ExecutionPlan(steps=plan_steps)
         logger.info(f"Plan created with {len(plan_steps)} steps.")
-        return StepResult(success=True, execution_result=response)
+        return StepResult(success=True, execution_result=plan_steps)
 
     def _extract_planning_from_response(self, response: str) -> List[PlanStep]:
         """
@@ -489,8 +528,6 @@ class ContextAgent(BaseAgent):
         )
         response = self.llm_call(formatted_prompt)
         context.accumulated_results.append(response)
-        if context.execution_plan and context.current_step < len(context.execution_plan):
-            context.execution_plan.steps[context.current_step].data = response
         return StepResult(success=True, execution_result=response)
 
 
@@ -511,13 +548,9 @@ class ToolCreationAgent(BaseAgent):
         if tool_data:
             created_tools = self._register_dynamic_tools(tool_data)
             context.accumulated_results.append({"dynamic_tools_created": created_tools})
-            if context.execution_plan and context.current_step < len(context.execution_plan):
-                context.execution_plan.steps[context.current_step].data = {"dynamic_tools_created": created_tools}
             return StepResult(success=True, execution_result=response)
         else:
             context.accumulated_results.append("Failed to create tool")
-            if context.execution_plan and context.current_step < len(context.execution_plan):
-                context.execution_plan.steps[context.current_step].data = "Failed to create tool"
             return StepResult(success=False, execution_result="Failed to extract tool data from response")
 
     def _extract_tool_data(self, response: str) -> Dict[str, Any]:
@@ -579,18 +612,50 @@ class ToolSelectionAgent(BaseAgent):
         response = self.llm_call(formatted_prompt)
         tool_data = parse_tool_response(response)
         if tool_data:
-            result = execute_tool(BaseAgent.code_executor, tool_data)
-            context.accumulated_results.append(result)
-            if context.execution_plan and context.current_step < len(context.execution_plan):
-                context.execution_plan.steps[context.current_step].data = result
-            logger.info(f"Tool executed with result: {result}")
-            return StepResult(success=True, execution_result=response)
+            tool_result = execute_tool(BaseAgent.code_executor, tool_data)
+            step_result = StepResult(success=tool_result.success, execution_result=tool_result)
+            if tool_result.success:
+                context.accumulated_results.append(tool_result)
+                logger.info(f"Tool executed with result: {tool_result.result}")
+            return step_result
         else:
-            context.accumulated_results.append("Failed to select tool")
-            if context.execution_plan and context.current_step < len(context.execution_plan):
-                context.execution_plan.steps[context.current_step].data = "Failed to select tool"
+            context.accumulated_results.append(f"Failed to select tool in step {context.current_step}")
             logger.warning("Failed to parse tool selection response")
             return StepResult(success=False, execution_result="Failed to parse tool selection response")
+
+
+class ObservationAgent(BaseAgent):
+    """
+    Agent responsible for filtering and summarizing tool execution results to keep only relevant information. Only used after a tool execution.
+    """
+
+    def __init__(self):
+        observation_prompt = AgentPrompt(template=OBSERVATION_PROMPT)
+        super().__init__("ObservationAgent", observation_prompt)
+
+    def execute(self, context: AgentContext) -> StepResult:
+        logger.info(f"Executing {self.name} for step {context.current_step}")
+
+        # Find the last actual tool result by iterating backwards
+        tool_result = "No tool result available"
+        for result in reversed(context.accumulated_results):
+            if isinstance(result, ToolResult):
+                tool_result = result.result
+                if result.success:
+                    break
+                else:
+                    return StepResult(success=False, execution_result=tool_result)
+
+        description = context.execution_plan[context.current_step].description
+
+        # Only use the last tool result; do not include any previous results or broader history
+        formatted_prompt = self.system_prompt.format(
+            tool_result=tool_result,
+            description=description,
+        )
+        response = self.llm_call(formatted_prompt)
+        filtered_result = parse_xml(response, "observation").strip()
+        return StepResult(success=True, execution_result=filtered_result)
 
 
 class ValidationAgent(BaseAgent):
@@ -640,17 +705,18 @@ class ResponseSynthesisAgent(BaseAgent):
 class AgentOrchestrator:
     """Orchestrates the execution of agents to handle complex user requests."""
 
-    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager, max_steps: int = 5):
+    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager, max_retries_per_step: int = 3):
         self.code_executor = code_executor
         self.manager = manager
-        self.max_steps = max_steps
-        self.agents = {
+        self.max_retries_per_step = max_retries_per_step
+        self.agents: Dict[str, BaseAgent] = {
             "PlannerAgent": PlannerAgent(),
             "ContextAgent": ContextAgent(),
             "ToolCreationAgent": ToolCreationAgent(),
             "ToolSelectionAgent": ToolSelectionAgent(),
             "ValidationAgent": ValidationAgent(),
             "ResponseSynthesisAgent": ResponseSynthesisAgent(),
+            "ObservationAgent": ObservationAgent(),
         }
         # Set class variables for agents
         BaseAgent.manager = manager
@@ -663,55 +729,63 @@ class AgentOrchestrator:
         context = AgentContext(user_question=user_question)
         logger.info(f"Processing user question: {user_question}")
 
-        # Step 1: Always run PlannerAgent first to create an execution plan
+        # Step 1: Create the execution plan
         planner_result = self.agents["PlannerAgent"].execute(context)
-        if not planner_result.success or not context.execution_plan:
-            logger.error("Failed to create execution plan")
-            return "Failed to process your request due to planning error."
+        if not planner_result.success:
+            return "Failed to create execution plan."
+        context.execution_plan = ExecutionPlan(steps=planner_result.execution_result)
+        logger.info(f"Plan created with {len(context.execution_plan)} steps")
 
-        logger.info(f"Execution plan: {context.execution_plan}")
-
-        # Step 2: Process each step in the plan with the appropriate agent
-        for step_index in range(len(context.execution_plan)):
-            context.current_step = step_index
-            step = context.execution_plan.get_step(step_index)
-            if not step:
-                continue
-
+        # Step 2: Execute each step in the plan
+        for step_idx in range(len(context.execution_plan)):
+            context.current_step = step_idx
+            step = context.execution_plan.get_step(step_idx)
             agent_name = step.agent_name
-            if agent_name not in self.agents:
-                logger.warning(f"Agent {agent_name} not found, skipping step {step_index + 1}")
-                step.result = StepResult(success=False, execution_result=f"Agent {agent_name} not found")
-                continue
+            max_retries = self.max_retries_per_step
 
-            logger.info(f"Executing step {step_index + 1}/{len(context.execution_plan)} with {agent_name}")
-            try:
-                step_result = self.agents[agent_name].execute(context)
-                step.result = step_result
-                if step_result.success:
-                    logger.info(f"Step {step_index + 1} completed successfully")
+            for attempt in range(max_retries):
+                logger.info(
+                    f"Executing step {step_idx + 1}/{len(context.execution_plan)}: {step.description} with {agent_name} (Attempt {attempt + 1}/{max_retries})"
+                )
+                try:
+                    agent_result = self.agents[agent_name].execute(context)
+                    step.result = agent_result
+
+                    # If the agent executed was ToolSelectionAgent, automatically trigger ObservationAgent
+                    if agent_name == "ToolSelectionAgent":
+                        logger.info(f"Tool execution completed. Triggering ObservationAgent to filter results.")
+                        observation_result = self.agents["ObservationAgent"].execute(context)
+                        # Update the last result with the filtered observation instead of appending
+                        if context.accumulated_results and observation_result.success:
+                            context.accumulated_results[-1] = observation_result.execution_result
+                        else:
+                            context.accumulated_results.append(observation_result.execution_result)
+                        logger.info(f"ObservationAgent filtered tool results for step {step_idx + 1}")
+
+                    logger.info(f"Completed step {step_idx + 1}: {step.description}")
+                    break
+                except Exception as e:
+                    logger.error(f"Error in step {step_idx + 1} (Attempt {attempt + 1}): {str(e)}")
+                    context.error_context.add_error(step_idx, step.description, attempt + 1, str(e))
+                    if attempt == max_retries - 1:
+                        logger.error(f"Failed step {step_idx + 1} after {max_retries} attempts")
+
+            if step.result and not step.result.success:
+                logger.error(f"Step {step_idx + 1} failed: {step.description}")
+
+        # Step 3: Synthesize the final response if no final response is set
+        if context.final_response is None:
+            validation_result = self.agents["ValidationAgent"].execute(context)
+            if validation_result.success:
+                synthesis_result = self.agents["ResponseSynthesisAgent"].execute(context)
+                if synthesis_result.success:
+                    context.final_response = synthesis_result.execution_result
                 else:
-                    logger.warning(f"Step {step_index + 1} failed: {step_result.execution_result}")
-            except Exception as e:
-                error_msg = f"Error in step {step_index + 1}: {str(e)}"
-                logger.error(error_msg)
-                step.result = StepResult(success=False, execution_result=error_msg)
-                if context.error_context:
-                    context.error_context.add_error(step_index, step.description, 1, str(e))
+                    context.final_response = "Failed to synthesize response."
+            else:
+                context.final_response = "Validation failed, unable to provide a response."
 
-        # Step 3: Run ValidationAgent to check if all steps were successful
-        validation_result = self.agents["ValidationAgent"].execute(context)
-        if not validation_result.success:
-            logger.error("Validation failed")
-            return "Failed to validate the execution results."
-
-        # Step 4: Run ResponseSynthesisAgent to create the final response
-        synthesis_result = self.agents["ResponseSynthesisAgent"].execute(context)
-        if not synthesis_result.success or not context.final_response:
-            logger.error("Failed to synthesize final response")
-            return "Failed to generate a final response."
-
-        logger.info("Processing complete, returning final response")
+        logger.info(f"Final response generated for user question: {user_question}")
         return context.final_response
 
 
