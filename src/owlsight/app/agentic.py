@@ -135,21 +135,26 @@ AGENT_INFORMATION = {
 AVAILABLE_AGENTS = [" | ".join(AGENT_INFORMATION.keys())]
 
 # --------------------------------------------------------------------------- #
-# Prompt templates (unchanged from original)                                  #
+# Prompt templates (refined)                                                  #
 # --------------------------------------------------------------------------- #
 PLANNER_PROMPT = """
 You are an expert planner, specializing in task decomposition and agent assignment.
 
 Task:
 Analyze the user request:
-1. Break it into several subtasks if needed.
+1. Break it into logically distinct subtasks if needed.
 2. Assign each subtask to the most suitable agent.
-3. Consider which tools might be necessary for each step and include them in your reasoning.
+3. Reason carefully about which tools are necessary for each step, ensuring the chosen tool matches the subtask's requirements (e.g., use `owl_read` for LOCAL files, `owl_scrape` for specific URLs, `owl_search` or `owl_search_and_scrape` for web searches). DO NOT use `owl_read` to process web content obtained from search/scrape tools.
 4. If the query can be answered directly based on the model's training data without external tools or data, assign it directly to FinalAgent.
-5. Return a structured plan.
+5. **Avoid redundant steps.** If a tool combines actions (like `owl_search_and_scrape`), do not plan separate follow-up steps for those combined actions (like scraping again).
+6. **Be specific.** If the request involves multiple distinct locations, items, or topics (e.g., "New York City" and "Amsterdam, Netherlands"), create SEPARATE plan steps with FOCUSED tool queries for EACH distinct entity. Use precise location names.
+7. **Understand context flow.** After a `ToolSelectionAgent` step, the `ObservationAgent` runs AUTOMATICALLY to summarize the tool's output. **NEVER plan an explicit step for `ObservationAgent`.** Subsequent steps work with the summary provided automatically in the context.
+8. Return a structured plan.
 
 Agent Information:
-{agent_information}
+- ToolSelectionAgent: Use for external data retrieval or specialized tool usage. Its output is AUTOMATICALLY summarized by ObservationAgent before the next step.
+- ToolCreationAgent: Use ONLY to create dynamic tool functions for later use.
+- FinalAgent: Use for synthesizing the final response using accumulated context (including automatically generated observations).
 
 User Question:
 {user_question}
@@ -168,7 +173,7 @@ Response Format:
   <step>
     <description>Step description</description>
     <agent>AgentName</agent>
-    <reason>Reason for this step, including potential tool usage or direct assignment to FinalAgent if no external data is needed</reason>
+    <reason>Reason for this step, including potential tool usage, expected inputs (e.g., previous observation), and why this agent is chosen.</reason>
   </step>
   <!-- Repeat <step> for each step in the plan -->
 </plan>
@@ -605,7 +610,14 @@ class ObservationAgent(BaseAgent):
         )
         summary_xml = self.llm_call(prompt)
         summary = parse_xml(summary_xml, "observation").strip()
-        context.accumulated_results.append(summary)
+        
+        # Replace the previous ToolResult with the Observation summary
+        if context.accumulated_results and isinstance(context.accumulated_results[-1], ToolResult):
+            context.accumulated_results[-1] = summary
+        else: # Should not happen if called right after a tool, but handle defensively
+            context.accumulated_results.append(summary)
+            logger.warning("ObservationAgent appended summary instead of replacing. Last result was not ToolResult.")
+
         return StepResult(True, summary)
 
 
