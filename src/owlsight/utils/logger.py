@@ -37,7 +37,7 @@ class EnhancedFormatter(logging.Formatter):
         process = psutil.Process(os.getpid())
         record.cpu_usage = f"{psutil.cpu_percent(interval=None)}%"
         record.memory_usage = f"{psutil.virtual_memory().percent}%"
-        record.process_mem = f"{process.memory_info().rss / (1024 ** 2):.2f} MB"
+        record.process_mem = f"{process.memory_info().rss / (1024**2):.2f} MB"
         return super().format(record)
 
 
@@ -58,6 +58,10 @@ class ColoredLogger(logging.Logger):
         self.log_cpu_and_memory_usage = log_cpu_and_memory_usage
         self.formatter = self._get_formatter(name)
         self._configure_handlers()
+
+    def debug(self, msg: str, *args, **kwargs) -> None:
+        if self.isEnabledFor(10):  # DEBUG is 10
+            self._log(10, msg, args, **kwargs)
 
     def info(self, msg: str, *args, **kwargs) -> None:
         if self.isEnabledFor(20):
