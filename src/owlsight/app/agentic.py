@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from enum import Enum
 import math
+import xml.etree.ElementTree as ET
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
@@ -54,37 +55,68 @@ def get_available_tools(code_executor: "CodeExecutor") -> str:
 
 def parse_tool_response(response: str) -> Dict[str, Any]:
     """
-    Accepts JSON *or* the original XML format.
+    Accepts a single JSON object *or* a single XML <selection> element.
     Returns dict with 'tool_name', 'parameters', 'reason'.
+    Raises ValueError if the input format is invalid or contains multiple selections.
     """
     response = response.strip()
 
     # ---------- JSON branch -------------------------------------------------
     try:
         candidate = json.loads(response)
+        # Expecting a single dictionary, not a list
         if isinstance(candidate, dict) and "tool_name" in candidate:
             candidate.setdefault("parameters", {})
-            candidate["parameters"] = {k: safe_cast(v) for k, v in candidate["parameters"].items()}
+            # safe_cast applied to parameter values (assuming safe_cast exists)
+            candidate["parameters"] = {k: safe_cast(v) for k, v in candidate.get("parameters", {}).items()}
+            candidate.setdefault("reason", "") # Ensure reason exists
             return candidate
-    except Exception:
-        pass
+        else:
+            # If it's JSON but not the expected format (e.g., a list)
+            raise ValueError("Invalid JSON format for tool selection. Expected a single object.")
+
+    except json.JSONDecodeError:
+        pass # Not valid JSON, fall through to XML parsing
+    except ValueError as e:
+        # Re-raise the ValueError from the JSON check
+        raise e
+    except Exception as e:
+        # Catch other potential errors during JSON processing
+        print(f"Warning: Error processing potential JSON: {e}") # Log properly
+        pass # Fall through
 
     # ---------- XML branch --------------------------------------------------
-    import xml.etree.ElementTree as ET
+    # Directly parse the string. This will raise ParseError if there's more than one root element.
+    try:
+        # Ensure it starts correctly, guarding against completely wrong formats.
+        if not response.startswith("<selection>"):
+             raise ValueError("Tool response does not start with <selection>.")
+        # ET.fromstring will raise ParseError: junk after document element if multiple roots exist
+        root = ET.fromstring(response)
+        tool_name = root.findtext("tool_name", "").strip()
+        reason = root.findtext("reason", "").strip()
+        parameters: Dict[str, Any] = {}
+        params_element = root.find("parameters")
+        if params_element is not None:
+            for p in params_element.findall("parameter"):
+                name = p.findtext("name", "").strip()
+                value_text = p.findtext("value", "")
+                val = safe_cast(value_text.strip() if value_text is not None else "")
+                if name:
+                    parameters[name] = val
 
-    if not response.startswith("<selection>"):
-        raise ValueError("Unexpected format for tool selection.")
+        if not tool_name:
+            raise ValueError("Missing 'tool_name' in XML selection.")
 
-    root = ET.fromstring(response)
-    tool_name = root.findtext("tool_name", "").strip()
-    reason = root.findtext("reason", "").strip()
-    parameters: Dict[str, Any] = {}
-    for p in root.findall("parameters/parameter"):
-        name = p.findtext("name", "").strip()
-        val = safe_cast(p.findtext("value", "").strip())
-        parameters[name] = val
+        return {"tool_name": tool_name, "parameters": parameters, "reason": reason}
 
-    return {"tool_name": tool_name, "parameters": parameters, "reason": reason}
+    except ET.ParseError as e:
+        # This specifically catches the 'junk after document element' error for multiple selections
+        raise ValueError(f"Invalid XML format for tool selection. Expected a single <selection> element. ParseError: {e}\nResponse:\n{response}")
+    except Exception as e:
+        # Catch other potential XML parsing errors
+        raise ValueError(f"Failed to parse XML tool selection: {e}\nResponse:\n{response}")
+
 
 
 def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
@@ -144,17 +176,24 @@ Task:
 Analyze the user request:
 1. Break it into logically distinct subtasks if needed.
 2. Assign each subtask to the most suitable agent.
-3. Reason carefully about which tools are necessary for each step, ensuring the chosen tool matches the subtask's requirements (e.g., use `owl_read` for LOCAL files, `owl_scrape` for specific URLs, `owl_search` or `owl_search_and_scrape` for web searches). DO NOT use `owl_read` to process web content obtained from search/scrape tools.
+3. Reason carefully about which tools are necessary for each step, ensuring the chosen tool matches the subtask's requirements (e.g., use `owl_read` for LOCAL files, `owl_scrape` for specific URLs, `owl_search` or `owl_search_and_scrape` for web searches). DO NOT use `owl_read` to process web content obtained from search/scrape tools. **A `ToolSelectionAgent` step implies selecting ONE `owl_*` tool.**
 4. If the query can be answered directly based on the model's training data without external tools or data, assign it directly to FinalAgent.
 5. **Avoid redundant steps.** If a tool combines actions (like `owl_search_and_scrape`), do not plan separate follow-up steps for those combined actions (like scraping again).
-6. **Be specific.** If the request involves multiple distinct locations, items, or topics (e.g., "New York City" and "Amsterdam, Netherlands"), create SEPARATE plan steps with FOCUSED tool queries for EACH distinct entity. Use precise location names.
+6. **Be specific AND FOCUSED.** If the request involves multiple distinct locations, items, or topics (e.g., "weather in New York City" and "weather in Amsterdam"), create SEPARATE plan steps. Each step MUST target ONLY ONE of these distinct entities. For instance, one step for 'Get NYC weather' using ToolSelectionAgent, followed by another step for 'Get Amsterdam weather' using ToolSelectionAgent. DO NOT create a single step trying to get weather for both. Use precise location names.
 7. **Understand context flow.** After a `ToolSelectionAgent` step, the `ObservationAgent` runs AUTOMATICALLY to summarize the tool's output. **NEVER plan an explicit step for `ObservationAgent`.** Subsequent steps work with the summary provided automatically in the context.
 8. Return a structured plan.
 
+CRITICAL CONSTRAINTS:
+- Each step in the plan MUST correspond to a SINGLE, atomic action.
+- If multiple distinct actions or tool uses are needed (e.g., searching for two different topics, reading a file then searching), create SEPARATE steps for each action.
+- DO NOT combine multiple tool calls or distinct logical operations into a single step description.
+- DO NOT assign multiple tools to one step.
+- A step involving `ToolSelectionAgent` implies the use of exactly ONE `owl_*` tool for that step. DO NOT mention `FinalAgent` or other agents as the tool to be used in a `ToolSelectionAgent` step's reason.
+
 Agent Information:
-- ToolSelectionAgent: Use for external data retrieval or specialized tool usage. Its output is AUTOMATICALLY summarized by ObservationAgent before the next step.
+- ToolSelectionAgent: Use ONLY for selecting and executing ONE specific `owl_*` tool. Its output is AUTOMATICALLY summarized by ObservationAgent.
 - ToolCreationAgent: Use ONLY to create dynamic tool functions for later use.
-- FinalAgent: Use for synthesizing the final response using accumulated context (including automatically generated observations).
+- FinalAgent: Use ONLY for synthesizing the final response using accumulated context (including automatically generated observations). It does NOT use tools directly.
 
 User Question:
 {user_question}
@@ -171,9 +210,9 @@ Important:
 Response Format:
 <plan>
   <step>
-    <description>Step description</description>
+    <description>Step description (single, atomic action)</description>
     <agent>AgentName</agent>
-    <reason>Reason for this step, including potential tool usage, expected inputs (e.g., previous observation), and why this agent is chosen.</reason>
+    <reason>Reason for this step, including potential tool usage (only one `owl_*` tool if ToolSelectionAgent), expected inputs (e.g., previous observation), and why this agent is chosen.</reason>
   </step>
   <!-- Repeat <step> for each step in the plan -->
 </plan>
@@ -225,13 +264,19 @@ AVAILABLE TOOLS:
 Additional Information:
 {additional_information}
 
+CRITICAL CONSTRAINTS:
+- You MUST select EXACTLY ONE tool.
+- The selected `<tool_name>` MUST EXACTLY match one of the function 'name' fields listed in the `AVAILABLE TOOLS` section above (e.g., `owl_read`, `dynamic_tool_abc`).
+- DO NOT select an agent name (like `FinalAgent`) as the `<tool_name>`.
+- Your response MUST contain only a single `<selection>` block.
+
 Task:
-- Select the best tool for the task.
+- Select the ONE best tool for the current task step based on the `AVAILABLE TOOLS`.
 - Provide the tool name and the parameters to use.
 
 Response Format:
 <selection>
-  <tool_name>selected_tool_name</tool_name>
+  <tool_name>selected_tool_name_from_available_tools</tool_name>
   <parameters>
     <parameter>
       <name>param_name</name>
@@ -239,7 +284,7 @@ Response Format:
     </parameter>
     <!-- Repeat for each parameter -->
   </parameters>
-  <reason>Reason for selecting this tool</reason>
+  <reason>Reason for selecting this SINGLE tool from the `AVAILABLE TOOLS` list</reason>
 </selection>
 """
 
@@ -585,6 +630,7 @@ class ToolSelectionAgent(BaseAgent):
         )
         reply = self.llm_call(prompt)
         call = parse_tool_response(reply)
+        # Reverted: Pass the single dictionary directly
         tool_result = execute_tool(BaseAgent.code_executor, call)
         context.accumulated_results.append(tool_result)
         return StepResult(tool_result.success, tool_result)
