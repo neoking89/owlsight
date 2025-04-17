@@ -1,9 +1,6 @@
-"""
-Revised and optimized OwlSight agentic logic, context management, and orchestration.
-This implementation is based on the structured flow from agentic_pubsub.py.
-"""
-
 import re
+import ast
+import json
 from typing import Any, List, Optional, ClassVar, Dict
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
@@ -17,82 +14,109 @@ from owlsight.utils.helper_functions import parse_xml
 from owlsight.utils.logger import logger
 
 
+# --------------------------------------------------------------------------- #
+# Helper functions                                                            #
+# --------------------------------------------------------------------------- #
+def safe_cast(value: Any) -> Any:
+    """
+    Best‑effort conversion of string inputs into Python primitives.
+    Handles booleans, None, ints, floats, lists, dicts.
+
+    Any non‑string or failed conversion returns the value unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+
+    lowered = value.lower()
+    if lowered in {"true", "false"}:
+        return lowered == "true"
+    try:
+        return ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        return value
+
+
+def get_agent_information() -> str:
+    return "\n".join(f"- {k}: {v}" for k, v in AGENT_INFORMATION.items())
+
+
+def get_available_tools(code_executor: "CodeExecutor") -> str:
+    """
+    Return tool descriptors already registered in the executor's namespace.
+    """
+    logger.debug("Getting available tools...") # <<< Added logger.debug
+    tools = OwlDefaultFunctions(code_executor.globals_dict).owl_tools(as_json=True)
+    logger.debug(f"Available tools: {tools}") # <<< Added logger.debug
+    return "\n".join(
+        str(t) for t in tools
+    )
+
+
+def parse_tool_response(response: str) -> Dict[str, Any]:
+    """
+    Accepts JSON *or* the original XML format.
+    Returns dict with 'tool_name', 'parameters', 'reason'.
+    """
+    response = response.strip()
+
+    # ---------- JSON branch -------------------------------------------------
+    try:
+        candidate = json.loads(response)
+        if isinstance(candidate, dict) and "tool_name" in candidate:
+            candidate.setdefault("parameters", {})
+            candidate["parameters"] = {k: safe_cast(v) for k, v in candidate["parameters"].items()}
+            return candidate
+    except Exception:
+        pass
+
+    # ---------- XML branch --------------------------------------------------
+    import xml.etree.ElementTree as ET
+
+    if not response.startswith("<selection>"):
+        raise ValueError("Unexpected format for tool selection.")
+
+    root = ET.fromstring(response)
+    tool_name = root.findtext("tool_name", "").strip()
+    reason = root.findtext("reason", "").strip()
+    parameters: Dict[str, Any] = {}
+    for p in root.findall("parameters/parameter"):
+        name = p.findtext("name", "").strip()
+        val = safe_cast(p.findtext("value", "").strip())
+        parameters[name] = val
+
+    return {"tool_name": tool_name, "parameters": parameters, "reason": reason}
+
+
+def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
+    """
+    Safe wrapper that executes a registered tool with converted parameters.
+    """
+    tool_name = tool_data.get("tool_name", "")
+    params = {k: safe_cast(v) for k, v in tool_data.get("parameters", {}).items()}
+
+    try:
+        func = code_executor.globals_dict[tool_name]
+    except KeyError:
+        msg = f"Tool '{tool_name}' not found."
+        logger.warning(msg)
+        return ToolResult(False, msg)
+
+    try:
+        result = func(**params)
+        logger.info("Tool '%s' executed successfully.", tool_name)
+        return ToolResult(True, result)
+    except Exception as exc:
+        logger.exception("Error while executing tool '%s'", tool_name)
+        return ToolResult(False, str(exc))
+
+
+# --------------------------------------------------------------------------- #
+# Data containers                                                             #
+# --------------------------------------------------------------------------- #
 @dataclass
 class ToolResult:
     success: bool
     result: Any
-
-
-def get_agent_information() -> str:
-    return "\n".join(f"- {k}: {v}\n" for k, v in AGENT_INFORMATION.items())
-
-
-def get_available_tools(code_executor: "CodeExecutor"):
-    """
-    Returns a list of available tool descriptors in the OpenAI function calling format.
-    """
-    return "\n".join(str(v) for v in OwlDefaultFunctions(code_executor.globals_dict).owl_tools(as_json=True))
-
-
-def parse_tool_response(response: str) -> dict:
-    """
-    Parse the tool response from a string in XML format to a dictionary.
-    """
-    import xml.etree.ElementTree as ET
-
-    # Clean up the response by removing any extra whitespace or newlines
-    response = response.strip()
-    # Check if the response is wrapped in selection tags
-    if response.startswith("<selection>") and response.endswith("</selection>"):
-        root = ET.fromstring(response)
-        tool_name = root.find("tool_name").text
-        parameters = {}
-        for param in root.findall("parameters/parameter"):
-            name = param.find("name").text
-            value = param.find("value").text
-            parameters[name] = value
-        reason = root.find("reason").text
-        return {"tool_name": tool_name, "parameters": parameters, "reason": reason}
-    else:
-        # Fallback to a default or error handling if the format is unexpected
-        raise ValueError("Unexpected response format: Response must be in XML format with selection tags")
-
-
-def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]) -> ToolResult:
-    """
-    Execute the selected tool with the provided arguments using the CodeExecutor.
-
-    Args:
-        code_executor: The CodeExecutor instance to use for tool execution.
-        tool_data: Dictionary containing tool information, including name and arguments.
-
-    Returns:
-        Dictionary with execution results or error information.
-    """
-    try:
-        tool_name = tool_data.get("tool_name")
-        parameters = tool_data.get("parameters", {})
-        # Convert string arguments to integers where necessary
-        converted_parameters = {}
-        for key, value in parameters.items():
-            if isinstance(value, str) and value.isdigit():
-                converted_parameters[key] = int(value)
-            elif isinstance(value, str) and value.lower() in ("true", "false"):
-                converted_parameters[key] = value.lower() == "true"
-            else:
-                converted_parameters[key] = value
-        if tool_name in code_executor.globals_dict:
-            tool_func = code_executor.globals_dict[tool_name]
-            result = tool_func(**converted_parameters)
-            logger.info(f"Tool {tool_name} executed successfully")
-            return ToolResult(success=True, result=result)
-        else:
-            msg = f"Tool {tool_name} not found in globals"
-            logger.warning(msg)
-            return ToolResult(success=False, result=msg)
-    except Exception as e:
-        logger.error(f"Error executing tool {tool_name}: {str(e)}")
-        return ToolResult(success=False, result=str(e))
 
 
 class EventType(Enum):
@@ -103,25 +127,28 @@ class EventType(Enum):
     STEP_ERROR = "step_error"
 
 
-# Prompts and agent information strings
 AGENT_INFORMATION = {
     "ToolSelectionAgent": "Use for external data retrieval or specialized tool usage.",
     "ToolCreationAgent": "Use ONLY to create dynamic tool functions for later use.",
-    "ContextAgent": "Use for analyzing text, summarizing, or extracting info.",
+    "FinalAgent": "Use for synthesizing the final response.",
 }
 AVAILABLE_AGENTS = [" | ".join(AGENT_INFORMATION.keys())]
 
-# -------------------------
-# Agent Prompts
-# -------------------------
+# --------------------------------------------------------------------------- #
+# Prompt templates (unchanged from original)                                  #
+# --------------------------------------------------------------------------- #
 PLANNER_PROMPT = """
-You are an expert planner, specializing in task decomposition and agent assignment. 
+You are an expert planner, specializing in task decomposition and agent assignment.
+
+Task:
 Analyze the user request:
 1. Break it into several subtasks if needed.
 2. Assign each subtask to the most suitable agent.
-3. Return a structured plan.
+3. Consider which tools might be necessary for each step and include them in your reasoning.
+4. If the query can be answered directly based on the model's training data without external tools or data, assign it directly to FinalAgent.
+5. Return a structured plan.
 
-AGENT INFORMATION:
+Agent Information:
 {agent_information}
 
 User Question:
@@ -130,34 +157,21 @@ User Question:
 AVAILABLE TOOLS:
 {available_tools}
 
+Additional Information:
+{additional_information}
+
+Important:
+- Prioritize any guidance or constraints provided in the Additional Information when planning.
+
 Response Format:
 <plan>
   <step>
     <description>Step description</description>
     <agent>AgentName</agent>
-    <reason>Reason for this step</reason>
+    <reason>Reason for this step, including potential tool usage or direct assignment to FinalAgent if no external data is needed</reason>
   </step>
   <!-- Repeat <step> for each step in the plan -->
 </plan>
-"""
-
-CONTEXT_PROMPT = """
-You are an expert in extracting information and summarizing content. Analyze the user question and any available context.
-
-User Question:
-{user_question}
-
-Available Context:
-{available_context}
-
-Task:
-- Summarize relevant information.
-- Extract any data that might help answer the user question.
-
-Response Format:
-<summary>
-  <relevant_info>Relevant information summary</relevant_info>
-</summary>
 """
 
 TOOL_CREATION_PROMPT = """
@@ -168,6 +182,9 @@ User Question:
 
 Context:
 {available_context}
+
+Additional Information:
+{additional_information}
 
 Task:
 - Define a new tool function with clear parameters and description.
@@ -221,99 +238,82 @@ Response Format:
 </selection>
 """
 
+OBSERVATION_PROMPT = """
+You are an expert in analyzing and summarizing tool execution results. Filter out irrelevant information and keep only what is essential for answering the user question.
+
+Description:
+{description}
+
+Tool Execution Result:
+{tool_result}
+
+Additional Information:
+{additional_information}
+
+Task:
+- Summarize the tool execution result.
+
+Response Format:
+<observation>Summary of relevant information</observation>
+"""
+
 VALIDATION_PROMPT = """
-You are an expert in validating results. Review the execution plan and results.
+You are an expert in validating results. Check if the accumulated results are sufficient to answer the user question.
 
 User Question:
 {user_question}
 
-Execution Plan and Results:
-{execution_results}
+Accumulated Results:
+{accumulated_results}
+
+Additional Information:
+{additional_information}
 
 Task:
-- Check if all steps were successful.
-- Check if enough data is present to compile a final response.
-- If not successful, identify which steps need rework.
+- Determine if the results answer the question.
+- If not, suggest the next step or tool to use.
 
 Response Format:
 <validation>
-  <successful>true|false</successful>
-  <enough_data>true|false</enough_data>
-  <failed_steps>
-    <step>
-      <index>Step index</index>
-      <reason>Reason for rework</reason>
-    </step>
-    <!-- Repeat for each failed step -->
-  </failed_steps>
-  <next_action>respond|replan</next_action>
+  <is_complete>true|false</is_complete>
+  <next_step_if_incomplete>Next step or tool suggestion if incomplete</next_step_if_incomplete>
 </validation>
 """
 
 RESPONSE_SYNTHESIS_PROMPT = """
-You are an expert in crafting clear, concise responses. Synthesize all the information from the execution plan into a final response for the user.
+You are an expert in synthesizing information to provide a comprehensive and accurate response to the user.
 
 User Question:
 {user_question}
 
-Execution Results:
-{execution_results}
+Context and Results from Previous Steps:
+{previous_results}
+
+Additional Information:
+{additional_information}
 
 Task:
-- Craft a clear, concise response that answers the user's question.
-- Include relevant data or results.
-- Avoid mentioning the internal process or agents.
+- Analyze all available information.
+- Provide a clear, concise, and accurate response that addresses the user's query.
 
 Response Format:
 <response>
-  Final response content here
+  <content>Final response content</content>
 </response>
 """
 
-OBSERVATION_PROMPT = """
-You are an expert in filtering and summarizing tool execution results. Analyze the raw output from the tool execution and extract only the core, relevant information.
 
-Task:
-{description}
-
-Tool Results:
-{tool_result}
-
-Task:
-- Filter out unnecessary details, noise, or irrelevant information from the tool execution result, which is not directly relevant to complete the Task.
-- Summarize the core information that is relevant to complete the Task, considering the reasoning behind the tool selection.
-
-Response Format:
-<observation>
-  Concise summary of relevant information to complete the Task
-</observation>
-"""
-
-
+# --------------------------------------------------------------------------- #
+# Execution‑plan & error tracking data classes                                #
+# --------------------------------------------------------------------------- #
 @dataclass
 class StepResult:
-    """Container for the outcome of an agent's execution step.
-
-    Attributes:
-        success (bool): Whether the step was executed successfully.
-        execution_result (Any): The result of the execution (message, data, error info).
-    """
-
     success: bool
     execution_result: Any = None
 
 
 @dataclass
 class PlanStep:
-    """Represents a single step in the execution plan.
-
-    Attributes:
-        description (str): Description of the step.
-        agent_name (str): The agent assigned for this step.
-        reason (str): Reason for the step.
-        result (Optional[StepResult]): Result of the step execution.
-    """
-
     description: str
     agent_name: str
     reason: str
@@ -322,9 +322,6 @@ class PlanStep:
 
 @dataclass
 class StepErrorInfo:
-    """Stores details about a single step failure, including the step index,
-    step description, the attempt number, and the traceback or error message."""
-
     step_index: int
     step_description: str
     attempt_number: int
@@ -333,53 +330,37 @@ class StepErrorInfo:
 
 @dataclass
 class ErrorContext:
-    """Collects all error occurrences (tracebacks) for any step that fails.
-    Each failed attempt can be tracked in `step_errors`."""
-
     step_errors: List[StepErrorInfo] = field(default_factory=list)
 
-    def add_error(self, step_index: int, step_description: str, attempt_number: int, traceback_str: str) -> None:
-        """Append a new step error record."""
-        error_info = StepErrorInfo(step_index, step_description, attempt_number, traceback_str)
-        self.step_errors.append(error_info)
+    def add_error(self, step_index: int, step_description: str, attempt_number: int, traceback_str: str):
+        self.step_errors.append(
+            StepErrorInfo(step_index, step_description, attempt_number, traceback_str)
+        )
 
-    def __str__(self) -> str:
+    def __str__(self):
         if not self.step_errors:
             return "No errors"
-        error_msgs = []
-        for err in self.step_errors:
-            error_msgs.append(
-                f"Step {err.step_index} ({err.step_description}), Attempt {err.attempt_number}: {err.traceback_str}"
-            )
-        return "\n".join(error_msgs)
+        return "\n".join(
+            f"Step {e.step_index} ({e.step_description}), Attempt {e.attempt_number}: {e.traceback_str}"
+            for e in self.step_errors
+        )
 
 
 @dataclass
 class ExecutionPlan:
-    """Container for the sequence of steps to be executed."""
-
     steps: List[PlanStep]
 
     def get_step(self, index: int) -> Optional[PlanStep]:
-        if 0 <= index < len(self.steps):
-            return self.steps[index]
-        return None
-
-    def get_data(self) -> List[Any]:
-        return [
-            step.result.execution_result
-            for step in self.steps
-            if step.result and step.result.execution_result is not None
-        ]
+        return self.steps[index] if 0 <= index < len(self.steps) else None
 
     def __getitem__(self, index: int) -> PlanStep:
         return self.steps[index]
 
-    def __len__(self) -> int:
+    def __len__(self):
         return len(self.steps)
 
-    def __str__(self) -> str:
-        return "\n".join(f"Step {i + 1}: {step.description} ({step.agent_name})" for i, step in enumerate(self.steps))
+    def __str__(self):
+        return "\n".join(f"Step {i + 1}: {s.description} ({s.agent_name})" for i, s in enumerate(self.steps))
 
 
 @dataclass
@@ -392,28 +373,31 @@ class AgentPrompt:
     def format(self, **kwargs) -> str:
         combined_params = {**self.params, **kwargs}
         formatted_prompt = self.template.format(**combined_params)
-        self._get_amt_tokens(formatted_prompt, combined_params)
+        logger.debug(self._get_amt_tokens(formatted_prompt, combined_params))
         return formatted_prompt
 
     def __str__(self) -> str:
         return self.template
 
-    def _get_amt_tokens(self, formatted_prompt: str, params: dict[str, Any]) -> int:
+    def _get_amt_tokens(self, formatted_prompt: str, params: dict[str, Any]) -> str:
         """
         Estimate token count by dividing character length by
-        the average characters-per-token ratio.
+        the average characters-per-token ratio and return log messages as a string.
         """
         AVG_CHARS_PER_TOKEN = 4
+        log_lines = []
 
         prompt_chars = len(formatted_prompt)
         prompt_tokens = math.ceil(prompt_chars / AVG_CHARS_PER_TOKEN)
-        logger.info(f"Total tokens in 'formatted_prompt': {prompt_chars} chars -> {prompt_tokens} tokens")
+        log_lines.append(f"Total tokens in 'formatted_prompt': {prompt_chars} chars -> {prompt_tokens} tokens")
 
         for param, value in params.items():
             val_str = str(value)
             val_chars = len(val_str)
             val_tokens = math.ceil(val_chars / AVG_CHARS_PER_TOKEN)
-            logger.info(f"Parameter '{param}': {val_chars} chars -> {val_tokens} tokens")
+            log_lines.append(f"Parameter '{param}': {val_chars} chars -> {val_tokens} tokens")
+
+        return "\n".join(log_lines)
 
 
 @dataclass
@@ -430,17 +414,15 @@ class AgentContext:
     user_question: str
     current_step: int = 0
     execution_plan: Optional[ExecutionPlan] = None
-    error_context: Optional[ErrorContext] = field(default_factory=ErrorContext)
+    error_context: ErrorContext = field(default_factory=ErrorContext)
     final_response: Optional[str] = None
     accumulated_results: List[Any] = field(default_factory=list)
 
 
-# -------------------------
-# Base Agent Classes
-# -------------------------
+# --------------------------------------------------------------------------- #
+# Base agent                                                                  #
+# --------------------------------------------------------------------------- #
 class BaseAgent(ABC):
-    """Base class for all agents."""
-
     manager: ClassVar[Optional[TextGenerationManager]] = None
     code_executor: ClassVar[Optional[CodeExecutor]] = None
 
@@ -450,351 +432,303 @@ class BaseAgent(ABC):
 
     def llm_call(self, formatted_prompt: str) -> str:
         """
-        Calls the text generation manager to generate a response.
+        Generate a response from the LLM.
         """
-        return BaseAgent.manager.generate(formatted_prompt)
+        if not self.manager:
+            raise ValueError("TextGenerationManager not set for BaseAgent.")
+
+        logger.debug(f"Agent '{self.name}' making LLM call with prompt:\n{formatted_prompt}")
+        response = self.manager.generate(formatted_prompt)
+        logger.debug(f"Agent '{self.name}' received LLM response:\n{response}")
+        return response
 
     @abstractmethod
     def execute(self, context: AgentContext) -> StepResult:
         """
-        Subclasses must implement this method to perform their specific tasks
-        and update the context as needed.
+        Execute the agent's task.
         """
-        pass
+        ...
 
     def get_previous_results(self, context: AgentContext) -> str:
         """
         Format accumulated results from previous steps for inclusion in prompts.
         """
         if not context.accumulated_results:
-            return "None"
-        return "\n".join(str(result) for result in context.accumulated_results)
+            return "No previous results"
+        out = []
+        for i, r in enumerate(context.accumulated_results):
+            tag = "tool" if isinstance(r, ToolResult) else "note"
+            out.append(f"Step {i + 1} ({tag}): {r.result if isinstance(r, ToolResult) else r}")
+        return "\n".join(out)
+
+    def get_additional_information(self) -> str:
+        cmgr = getattr(self.manager, "config_manager", None)
+        if cmgr is None:
+            return ""
+        return cmgr.get("agentic.additional_information", "")
 
 
+# --------------------------------------------------------------------------- #
+# Concrete agents                                                             #
+# --------------------------------------------------------------------------- #
 class PlannerAgent(BaseAgent):
-    """Agent responsible for creating the execution plan."""
-
     def __init__(self):
-        planner_prompt = AgentPrompt(template=PLANNER_PROMPT)
-        super().__init__("PlannerAgent", planner_prompt)
+        super().__init__("PlannerAgent", AgentPrompt(PLANNER_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        formatted_prompt = self.system_prompt.format(
+        prompt = self.system_prompt.format(
             user_question=context.user_question,
             agent_information=get_agent_information(),
             available_tools=get_available_tools(BaseAgent.code_executor),
+            additional_information=self.get_additional_information(),
         )
-        response = self.llm_call(formatted_prompt)
-        plan_steps = self._extract_planning_from_response(response)
+        reply = self.llm_call(prompt)
+        steps: List[PlanStep] = self._extract(reply)
+        if not steps:
+            return StepResult(False, "Planning failed")
+        context.execution_plan = ExecutionPlan(steps)
+        return StepResult(True, steps)
 
-        if not plan_steps:
-            return StepResult(success=False, execution_result="Failed to create plan")
-
-        context.execution_plan = ExecutionPlan(steps=plan_steps)
-        logger.info(f"Plan created with {len(plan_steps)} steps.")
-        return StepResult(success=True, execution_result=plan_steps)
-
-    def _extract_planning_from_response(self, response: str) -> List[PlanStep]:
-        """
-        Extracts structured plan steps from the LLM response's XML-like format.
-        """
-        plan_steps = []
-        plan_content = parse_xml(response, "plan")
-        if not plan_content:
+    def _extract(self, xml: str) -> List[PlanStep]:
+        plan_xml = parse_xml(xml, "plan")
+        if not plan_xml:
             return []
-
-        step_pattern = r"<step>(.*?)</step>"
-        steps = re.findall(step_pattern, plan_content, re.DOTALL)
-        for step_text in steps:
-            description = parse_xml(step_text, "description")
-            agent_name = parse_xml(step_text, "agent")
-            reason = parse_xml(step_text, "reason")
-            if description and agent_name:
-                plan_steps.append(PlanStep(description, agent_name, reason or "No reason provided"))
-        return plan_steps
-
-
-class ContextAgent(BaseAgent):
-    """Agent responsible for analyzing text and summarizing content."""
-
-    def __init__(self):
-        context_prompt = AgentPrompt(template=CONTEXT_PROMPT)
-        super().__init__("ContextAgent", context_prompt)
-
-    def execute(self, context: AgentContext) -> StepResult:
-        formatted_prompt = self.system_prompt.format(
-            user_question=context.user_question,
-            available_context=self.get_previous_results(context),
-        )
-        response = self.llm_call(formatted_prompt)
-        context.accumulated_results.append(response)
-        return StepResult(success=True, execution_result=response)
+        parsed: List[PlanStep] = []
+        for seg in re.findall(r"<step>(.*?)</step>", plan_xml, re.DOTALL):
+            desc = parse_xml(seg, "description")
+            ag = parse_xml(seg, "agent")
+            reason = parse_xml(seg, "reason")
+            if desc and ag:
+                parsed.append(PlanStep(desc, ag, reason or ""))
+        return parsed
 
 
 class ToolCreationAgent(BaseAgent):
-    """Agent responsible for creating dynamic tool functions."""
-
     def __init__(self):
-        tool_creation_prompt = AgentPrompt(template=TOOL_CREATION_PROMPT)
-        super().__init__("ToolCreationAgent", tool_creation_prompt)
+        super().__init__("ToolCreationAgent", AgentPrompt(TOOL_CREATION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        formatted_prompt = self.system_prompt.format(
+        prompt = self.system_prompt.format(
             user_question=context.user_question,
             available_context=self.get_previous_results(context),
+            additional_information=self.get_additional_information(),
         )
-        response = self.llm_call(formatted_prompt)
-        tool_data = self._extract_tool_data(response)
-        if tool_data:
-            created_tools = self._register_dynamic_tools(tool_data)
-            context.accumulated_results.append({"dynamic_tools_created": created_tools})
-            return StepResult(success=True, execution_result=response)
-        else:
-            context.accumulated_results.append("Failed to create tool")
-            return StepResult(success=False, execution_result="Failed to extract tool data from response")
+        reply = self.llm_call(prompt)
+        data = self._extract(reply)
+        if not data:
+            return StepResult(False, "Tool extraction failed")
+        registered = self._register_dynamic_tool(data)
+        context.accumulated_results.append({"dynamic_tools_created": registered})
+        return StepResult(True, registered)
 
-    def _extract_tool_data(self, response: str) -> Dict[str, Any]:
-        """
-        Extract tool definition data from the response.
-        """
-        tool_content = parse_xml(response, "tool")
-        if not tool_content:
+    def _extract(self, xml: str) -> Dict[str, Any]:
+        node = parse_xml(xml, "tool")
+        if not node:
             return {}
-
-        tool_data = {
-            "name": parse_xml(tool_content, "name"),
-            "description": parse_xml(tool_content, "description"),
+        out = {
+            "name": parse_xml(node, "name"),
+            "description": parse_xml(node, "description"),
             "parameters": [],
         }
+        params_block = parse_xml(node, "parameters")
+        if params_block:
+            for p in re.findall(r"<parameter>(.*?)</parameter>", params_block, re.DOTALL):
+                out["parameters"].append(
+                    {
+                        "name": parse_xml(p, "name"),
+                        "type": parse_xml(p, "type"),
+                        "description": parse_xml(p, "description"),
+                        "required": parse_xml(p, "required") == "true",
+                    }
+                )
+        return out if out["name"] else {}
 
-        params_content = parse_xml(tool_content, "parameters")
-        if params_content:
-            param_pattern = r"<parameter>(.*?)</parameter>"
-            params = re.findall(param_pattern, params_content, re.DOTALL)
-            for param_text in params:
-                param_data = {
-                    "name": parse_xml(param_text, "name"),
-                    "type": parse_xml(param_text, "type"),
-                    "description": parse_xml(param_text, "description"),
-                    "required": parse_xml(param_text, "required") == "true",
-                }
-                tool_data["parameters"].append(param_data)
-
-        return tool_data if tool_data["name"] else {}
-
-    def _register_dynamic_tools(self, tool_data: Dict[str, Any]) -> List[str]:
-        """
-        Register dynamic tools in the global namespace.
-        This is a placeholder for actual implementation which would involve creating
-        a Python function based on the tool data and registering it with the CodeExecutor.
-        """
-        # For now, we'll just return the tool name as if it was created
-        # In a full implementation, we would generate Python code for this tool
-        tool_name = tool_data.get("name", "")
-        logger.info(f"Dynamic tool {tool_name} created")
-        return [tool_name] if tool_name else []
+    # ---------------------- critical patch here ----------------------------
+    def _register_dynamic_tool(self, data: Dict[str, Any]) -> List[str]:
+        name = data["name"]
+        params = [p["name"] for p in data.get("parameters", [])]
+        sig = ", ".join(params)
+        # Build a simple echo‑style tool; teams can extend.
+        code = [
+            f"def {name}({sig}):",
+            f'    """{data["description"]}"""',
+            "    return {'tool': '" + name + "', 'args': locals()}",
+            "",
+        ]
+        source = "\n".join(code)
+        ns: Dict[str, Any] = {}
+        try:
+            exec(source, BaseAgent.code_executor.globals_dict, ns)
+            BaseAgent.code_executor.globals_dict[name] = ns[name]
+            logger.info("Dynamic tool '%s' registered.", name)
+            return [name]
+        except Exception as exc:
+            logger.exception("Could not register generated tool '%s'", name)
+            return []
 
 
 class ToolSelectionAgent(BaseAgent):
-    """Agent responsible for selecting and using tools."""
-
     def __init__(self):
-        tool_selection_prompt = AgentPrompt(template=TOOL_SELECTION_PROMPT)
-        super().__init__("ToolSelectionAgent", tool_selection_prompt)
+        super().__init__("ToolSelectionAgent", AgentPrompt(TOOL_SELECTION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        formatted_prompt = self.system_prompt.format(
+        prompt = self.system_prompt.format(
             user_question=context.user_question,
             available_context=self.get_previous_results(context),
             available_tools=get_available_tools(BaseAgent.code_executor),
-            additional_information=BaseAgent.manager.config_manager.get("agentic.additional_information", ""),
+            additional_information=self.get_additional_information(),
         )
-        response = self.llm_call(formatted_prompt)
-        tool_data = parse_tool_response(response)
-        if tool_data:
-            tool_result = execute_tool(BaseAgent.code_executor, tool_data)
-            step_result = StepResult(success=tool_result.success, execution_result=tool_result)
-            if tool_result.success:
-                context.accumulated_results.append(tool_result)
-                logger.info(f"Tool executed with result: {tool_result.result}")
-            return step_result
-        else:
-            context.accumulated_results.append(f"Failed to select tool in step {context.current_step}")
-            logger.warning("Failed to parse tool selection response")
-            return StepResult(success=False, execution_result="Failed to parse tool selection response")
+        reply = self.llm_call(prompt)
+        call = parse_tool_response(reply)
+        tool_result = execute_tool(BaseAgent.code_executor, call)
+        context.accumulated_results.append(tool_result)
+        return StepResult(tool_result.success, tool_result)
 
 
 class ObservationAgent(BaseAgent):
-    """
-    Agent responsible for filtering and summarizing tool execution results to keep only relevant information. Only used after a tool execution.
-    """
-
     def __init__(self):
-        observation_prompt = AgentPrompt(template=OBSERVATION_PROMPT)
-        super().__init__("ObservationAgent", observation_prompt)
+        super().__init__("ObservationAgent", AgentPrompt(OBSERVATION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        logger.info(f"Executing {self.name} for step {context.current_step}")
-
-        # Find the last actual tool result by iterating backwards
-        tool_result = "No tool result available"
-        for result in reversed(context.accumulated_results):
-            if isinstance(result, ToolResult):
-                tool_result = result.result
-                if result.success:
-                    break
-                else:
-                    return StepResult(success=False, execution_result=tool_result)
-
-        description = context.execution_plan[context.current_step].description
-
-        # Only use the last tool result; do not include any previous results or broader history
-        formatted_prompt = self.system_prompt.format(
-            tool_result=tool_result,
-            description=description,
+        # use the most recent tool result
+        tool_result = next(
+            (r for r in reversed(context.accumulated_results) if isinstance(r, ToolResult)), None
         )
-        response = self.llm_call(formatted_prompt)
-        filtered_result = parse_xml(response, "observation").strip()
-        return StepResult(success=True, execution_result=filtered_result)
+        if tool_result is None:
+            return StepResult(False, "No tool result to observe.")
+
+        desc = context.execution_plan[context.current_step].description
+        prompt = self.system_prompt.format(
+            description=desc,
+            tool_result=tool_result.result,
+            additional_information=self.get_additional_information(),
+        )
+        summary_xml = self.llm_call(prompt)
+        summary = parse_xml(summary_xml, "observation").strip()
+        context.accumulated_results.append(summary)
+        return StepResult(True, summary)
 
 
 class ValidationAgent(BaseAgent):
-    """Agent responsible for validating the execution results."""
-
     def __init__(self):
-        validation_prompt = AgentPrompt(template=VALIDATION_PROMPT)
-        super().__init__("ValidationAgent", validation_prompt)
+        super().__init__("ValidationAgent", AgentPrompt(VALIDATION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        execution_results = ""
-        if context.execution_plan:
-            execution_results = str(context.execution_plan)
-        formatted_prompt = self.system_prompt.format(
+        prompt = self.system_prompt.format(
             user_question=context.user_question,
-            execution_results=execution_results,
+            accumulated_results=self.get_previous_results(context),
+            additional_information=self.get_additional_information(),
         )
-        response = self.llm_call(formatted_prompt)
-        context.accumulated_results.append(response)
-        return StepResult(success=True, execution_result=response)
+        result = self.llm_call(prompt)
+        context.accumulated_results.append(result)
+        return StepResult(True, result)
 
 
-class ResponseSynthesisAgent(BaseAgent):
-    """Agent responsible for synthesizing the final response."""
-
+class FinalAgent(BaseAgent):
     def __init__(self):
-        response_synthesis_prompt = AgentPrompt(template=RESPONSE_SYNTHESIS_PROMPT)
-        super().__init__("ResponseSynthesisAgent", response_synthesis_prompt)
+        super().__init__("FinalAgent", AgentPrompt(RESPONSE_SYNTHESIS_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        execution_results = ""
-        if context.execution_plan:
-            execution_results = str(context.execution_plan)
-        formatted_prompt = self.system_prompt.format(
+        prompt = self.system_prompt.format(
             user_question=context.user_question,
-            execution_results=execution_results,
+            previous_results=self.get_previous_results(context),
+            additional_information=self.get_additional_information(),
         )
-        response = self.llm_call(formatted_prompt)
-        context.final_response = response
-        context.accumulated_results.append(response)
-        return StepResult(success=True, execution_result=response)
+        reply = self.llm_call(prompt)
+        context.final_response = reply
+        return StepResult(True, reply)
 
 
-# -------------------------
-# Agent Orchestrator
-# -------------------------
+# --------------------------------------------------------------------------- #
+# Orchestrator with stop‑the‑world & re‑planning                              #
+# --------------------------------------------------------------------------- #
 class AgentOrchestrator:
-    """Orchestrates the execution of agents to handle complex user requests."""
-
-    def __init__(self, code_executor: CodeExecutor, manager: TextGenerationManager, max_retries_per_step: int = 3):
+    def __init__(
+        self,
+        code_executor: CodeExecutor,
+        manager: TextGenerationManager,
+        max_retries_per_step: int = 3,
+        max_replans: int = 2,
+    ):
         self.code_executor = code_executor
         self.manager = manager
-        self.max_retries_per_step = max_retries_per_step
+        self.max_retries = max_retries_per_step
+        self.max_replans = max_replans
+
         self.agents: Dict[str, BaseAgent] = {
             "PlannerAgent": PlannerAgent(),
-            "ContextAgent": ContextAgent(),
             "ToolCreationAgent": ToolCreationAgent(),
             "ToolSelectionAgent": ToolSelectionAgent(),
-            "ValidationAgent": ValidationAgent(),
-            "ResponseSynthesisAgent": ResponseSynthesisAgent(),
             "ObservationAgent": ObservationAgent(),
+            "ValidationAgent": ValidationAgent(),
+            "FinalAgent": FinalAgent(),
         }
-        # Set class variables for agents
+
         BaseAgent.manager = manager
         BaseAgent.code_executor = code_executor
 
-    def process_user_question(self, user_question: str) -> str:
-        """
-        Coordinates the multi-agent pipeline to process a user question and return a final response.
-        """
-        context = AgentContext(user_question=user_question)
-        logger.info(f"Processing user question: {user_question}")
+    # --------------------------------------------------------------------- #
+    # public API                                                            #
+    # --------------------------------------------------------------------- #
+    def process_user_question(self, question: str) -> str:
+        context = AgentContext(user_question=question)
+        logger.info("Received question: %s", question)
 
-        # Step 1: Create the execution plan
-        planner_result = self.agents["PlannerAgent"].execute(context)
-        if not planner_result.success:
-            return "Failed to create execution plan."
-        context.execution_plan = ExecutionPlan(steps=planner_result.execution_result)
-        logger.info(f"Plan created with {len(context.execution_plan)} steps")
+        if not self._plan(context):
+            return "Planning failed."
 
-        # Step 2: Execute each step in the plan
-        for step_idx in range(len(context.execution_plan)):
-            context.current_step = step_idx
-            step = context.execution_plan.get_step(step_idx)
-            agent_name = step.agent_name
-            max_retries = self.max_retries_per_step
+        if not self._execute(context):
+            return (
+                "Execution aborted due to unrecoverable errors:\n"
+                f"{context.error_context}"
+            )
 
-            for attempt in range(max_retries):
-                logger.info(
-                    f"Executing step {step_idx + 1}/{len(context.execution_plan)}: {step.description} with {agent_name} (Attempt {attempt + 1}/{max_retries})"
-                )
-                try:
-                    agent_result = self.agents[agent_name].execute(context)
-                    step.result = agent_result
-
-                    # If the agent executed was ToolSelectionAgent, automatically trigger ObservationAgent
-                    if agent_name == "ToolSelectionAgent":
-                        logger.info(f"Tool execution completed. Triggering ObservationAgent to filter results.")
-                        observation_result = self.agents["ObservationAgent"].execute(context)
-                        # Update the last result with the filtered observation instead of appending
-                        if context.accumulated_results and observation_result.success:
-                            context.accumulated_results[-1] = observation_result.execution_result
-                        else:
-                            context.accumulated_results.append(observation_result.execution_result)
-                        logger.info(f"ObservationAgent filtered tool results for step {step_idx + 1}")
-
-                    logger.info(f"Completed step {step_idx + 1}: {step.description}")
-                    break
-                except Exception as e:
-                    logger.error(f"Error in step {step_idx + 1} (Attempt {attempt + 1}): {str(e)}")
-                    context.error_context.add_error(step_idx, step.description, attempt + 1, str(e))
-                    if attempt == max_retries - 1:
-                        logger.error(f"Failed step {step_idx + 1} after {max_retries} attempts")
-
-            if step.result and not step.result.success:
-                logger.error(f"Step {step_idx + 1} failed: {step.description}")
-
-        # Step 3: Synthesize the final response if no final response is set
         if context.final_response is None:
-            validation_result = self.agents["ValidationAgent"].execute(context)
-            if validation_result.success:
-                synthesis_result = self.agents["ResponseSynthesisAgent"].execute(context)
-                if synthesis_result.success:
-                    context.final_response = synthesis_result.execution_result
-                else:
-                    context.final_response = "Failed to synthesize response."
+            self.agents["ValidationAgent"].execute(context)
+            self.agents["FinalAgent"].execute(context)
+
+        return context.final_response or "Failed to generate answer."
+
+    # ------------------------------------------------------------------ #
+    # internal routines                                                  #
+    # ------------------------------------------------------------------ #
+    def _plan(self, context: AgentContext) -> bool:
+        res = self.agents["PlannerAgent"].execute(context)
+        return res.success
+
+    def _execute(self, context: AgentContext) -> bool:
+        replan_count = 0
+        while True:
+            for idx, step in enumerate(context.execution_plan.steps):
+                context.current_step = idx
+                retries = 0
+                while retries < self.max_retries:
+                    agent = self.agents[step.agent_name]
+                    try:
+                        result = agent.execute(context)
+                        step.result = result
+                        if result.success:
+                            # auto‑observe after ToolSelection
+                            if step.agent_name == "ToolSelectionAgent":
+                                self.agents["ObservationAgent"].execute(context)
+                            break  # success
+                        raise RuntimeError(str(result.execution_result))
+                    except Exception as exc:
+                        retries += 1
+                        logger.error(
+                            "Error in step %d (%s): %s", idx + 1, step.agent_name, exc, exc_info=True
+                        )
+                        context.error_context.add_error(idx, step.description, retries, str(exc))
+
+                # step failed after retries → stop‑the‑world
+                if step.result is None or not step.result.success:
+                    if replan_count < self.max_replans:
+                        replan_count += 1
+                        logger.info("Re‑planning due to failure in step %d (attempt %d).", idx + 1, replan_count)
+                        if not self._plan(context):
+                            return False
+                        break  # restart outer loop with new plan
+                    return False
             else:
-                context.final_response = "Validation failed, unable to provide a response."
-
-        logger.info(f"Final response generated for user question: {user_question}")
-        return context.final_response
-
-
-# # -------------------------
-# # Main Function (for testing)
-# # -------------------------
-# if __name__ == "__main__":
-#     orchestrator = AgentOrchestrator(code_executor=CodeExecutor(), manager=TextGenerationManager())
-#     test_question = "How can I analyze this dataset?"
-#     response = orchestrator.process_user_question(test_question)
-#     print(f"User Question: {test_question}")
-#     print(f"Response: {response}")
+                # loop finished without break: all steps executed
+                return True
