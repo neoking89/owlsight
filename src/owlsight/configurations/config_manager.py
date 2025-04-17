@@ -137,7 +137,6 @@ class ConfigManager:
         return {
             "back": None,
             "apply_tools": self._get_toggle_choice("agentic", "apply_tools"),
-            "max_steps": self._get_toggle_choice("agentic", "max_steps"),
             "additional_information": self._get_basic_choice("agentic", "additional_information"),
             "show_available_tools": None,
             "exclude_tools": str(self._get_basic_choice("agentic", "exclude_tools")),

@@ -241,12 +241,6 @@ class Schema:
                 default=False,
                 choices=[False, True],
             ),
-            "max_steps": MenuItem(
-                type=OptionType.TOGGLE,
-                description="Maximum number of steps/retries for the agentic system to perform all planning steps created by the RouterPlanningAgent",
-                default=5,
-                choices=list(range(1, 21)),
-            ),
             "additional_information": MenuItem(
                 type=OptionType.EDITABLE,
                 description="Additional information specifically for the Tool agent. E.g. 'Do NOT use owl_scrape and owl_search, because there is no internet connection'",
