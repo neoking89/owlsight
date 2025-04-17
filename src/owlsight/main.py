@@ -132,13 +132,27 @@ def setup_logging(args, log_path: Optional[str] = None):
         If a path is specified, all logging will be written to the file next to the console
     """
     # Set log level
-    level = getattr(logging, args.log_level.upper())
+    level_name = args.log_level.upper()
+    level = getattr(logging, level_name, None)
+    if not isinstance(level, int):
+        raise ValueError(f"Invalid log level: {args.log_level}")
+
+    # Get the root logger
     logger.setLevel(level)
+    logger._cache.clear()  # Explicitly clear cache after setting level
+
+    # Check if the level was set correctly
+    if not logger.isEnabledFor(level):
+        # This check might seem redundant, but it catches potential issues
+        # with how logging levels are handled or inherited.
+        # If setLevel worked as expected, isEnabledFor should return True.
+        raise RuntimeError(f"Failed to set log level to {level_name}. Logger may be misconfigured.")
 
     # Use either command line log path or function parameter
     log_path = args.log or log_path
     if log_path:
         logger.configure_file_logging(log_path, level=level)
+
 
 
 def main(
