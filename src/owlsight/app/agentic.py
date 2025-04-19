@@ -894,18 +894,25 @@ class AgentOrchestrator:
                         logger.info(f"Step {step_index + 1} successful.")
                         # Special handling: Auto-run ObservationAgent after successful ToolSelectionAgent
                         if step.agent_name == "ToolSelectionAgent":
-                            logger.info("ToolSelection successful, running ObservationAgent automatically.")
-                            observer = self.agents.get("ObservationAgent")
-                            if observer:
-                                obs_result = observer.execute(context)
-                                if not obs_result.success:
-                                     # If observation fails, maybe log warning but proceed? Or treat as step failure?
-                                     logger.warning(f"Observation step failed after successful tool selection: {obs_result.execution_result}")
-                                     # Option: Treat observation failure as critical? For now, log warning.
-                                     # If Observation failure should halt, raise an exception here.
-                                # No explicit result storage needed here if ObservationAgent modifies context.accumulated_results directly
-                            else:
-                                logger.warning("ObservationAgent not found, cannot auto-observe tool result.")
+                            logger.info("Attempting to run ObservationAgent after successful ToolSelection.")
+                            try:
+                                observer = self.agents.get("ObservationAgent")
+                                if observer:
+                                    logger.debug("Found ObservationAgent. Executing...")
+                                    obs_result = observer.execute(context)
+                                    if obs_result.success:
+                                        logger.info("ObservationAgent executed successfully.")
+                                    else:
+                                        # Log failure but likely continue execution
+                                        logger.warning(f"ObservationAgent reported failure: {obs_result.execution_result}")
+                                else:
+                                    # Changed from WARNING to ERROR as this shouldn't happen if initialized correctly
+                                    logger.error("ObservationAgent not found in orchestrator agents list. Cannot auto-observe tool result.")
+                            except Exception as obs_exc:
+                                # Catch errors specifically from the ObservationAgent execution
+                                logger.error(f"Error during automatic ObservationAgent execution: {obs_exc}", exc_info=True)
+                                # Decide if this error should halt execution or just be logged. Logging for now.
+
                         break # Break retry loop on success
 
                     else:
