@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import math
 import xml.etree.ElementTree as ET
+import traceback
 
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
@@ -45,9 +46,9 @@ def get_available_tools(code_executor: "CodeExecutor") -> str:
     """
     Return tool descriptors already registered in the executor's namespace.
     """
-    logger.debug("Getting available tools...") # <<< Added logger.debug
+    logger.debug("Getting available tools...") 
     tools = OwlDefaultFunctions(code_executor.globals_dict).owl_tools(as_json=True)
-    logger.debug(f"Available tools: {tools}") # <<< Added logger.debug
+    logger.debug(f"Available tools: {tools}") 
     return "\n".join(
         str(t) for t in tools
     )
@@ -60,39 +61,70 @@ def parse_tool_response(response: str) -> Dict[str, Any]:
     Raises ValueError if the input format is invalid or contains multiple selections.
     """
     response = response.strip()
+    logger.debug(f"Attempting to parse tool response: {response}") 
 
     # ---------- JSON branch -------------------------------------------------
     try:
+        # Attempt to load JSON strictly first
         candidate = json.loads(response)
-        # Expecting a single dictionary, not a list
         if isinstance(candidate, dict) and "tool_name" in candidate:
             candidate.setdefault("parameters", {})
-            # safe_cast applied to parameter values (assuming safe_cast exists)
             candidate["parameters"] = {k: safe_cast(v) for k, v in candidate.get("parameters", {}).items()}
-            candidate.setdefault("reason", "") # Ensure reason exists
+            candidate.setdefault("reason", "")
+            logger.debug(f"Parsed as JSON: {candidate}")
             return candidate
         else:
-            # If it's JSON but not the expected format (e.g., a list)
-            raise ValueError("Invalid JSON format for tool selection. Expected a single object.")
+            raise ValueError("Invalid JSON format for tool selection. Expected a single object with 'tool_name'.")
 
     except json.JSONDecodeError:
-        pass # Not valid JSON, fall through to XML parsing
+        logger.debug("Not valid JSON, attempting XML parsing.")
+        pass 
     except ValueError as e:
-        # Re-raise the ValueError from the JSON check
+        # Re-raise the specific format error
+        logger.error(f"JSON format error: {e}")
         raise e
     except Exception as e:
-        # Catch other potential errors during JSON processing
-        print(f"Warning: Error processing potential JSON: {e}") # Log properly
-        pass # Fall through
+        logger.warning(f"Unexpected error during JSON processing: {e}")
+        pass 
 
     # ---------- XML branch --------------------------------------------------
-    # Directly parse the string. This will raise ParseError if there's more than one root element.
     try:
-        # Ensure it starts correctly, guarding against completely wrong formats.
-        if not response.startswith("<selection>"):
-             raise ValueError("Tool response does not start with <selection>.")
-        # ET.fromstring will raise ParseError: junk after document element if multiple roots exist
-        root = ET.fromstring(response)
+        # Try to extract content within <selection> tags first to handle potential surrounding text
+        match = re.search(r"<selection>(.*?)</selection>", response, re.DOTALL | re.IGNORECASE)
+        if not match:
+            # If no <selection> tags, try parsing the whole response directly as a fallback
+            logger.warning("No <selection> tags found, attempting direct XML parse.")
+            xml_content = response
+            # Basic check: ensure it starts like XML
+            if not xml_content.startswith('<'):
+                 raise ValueError("Tool response is not valid JSON and does not appear to be XML.")
+        else:
+            xml_content = match.group(1).strip() 
+
+        # Ensure we don't have nested <selection> by mistake
+        if '<selection>' in xml_content.lower():
+             raise ValueError("Nested <selection> tags detected. Invalid format.")
+
+        # Prepend a root tag for safety if parsing extracted content, needed if original lacks single root
+        # Though ET.fromstring expects a single root element already
+        # We'll parse the *original* response if match was found, assuming <selection> is the root
+        try:
+            # Add a temporary root if needed, assuming selection content might be fragmented
+            # Simplified: ET.fromstring should handle single <selection> content directly
+            # We'll parse the *original* response if match was found, assuming <selection> is the root
+            root = ET.fromstring(response if match else xml_content)
+            # Verify the root tag is indeed 'selection' if we parsed the original response
+            if match and root.tag.lower() != 'selection':
+                 raise ValueError("Expected root element <selection> not found.")
+
+        except ET.ParseError as pe:
+             # Check if the error is 'junk after document element', indicating multiple roots
+             if "junk after document element" in str(pe):
+                 raise ValueError(f"Invalid XML: Multiple root elements found. Expected a single <selection> element. Content: {response}") from pe
+             else:
+                 raise ValueError(f"Invalid XML format for tool selection. ParseError: {pe}\nContent:\n{xml_content}") from pe
+
+
         tool_name = root.findtext("tool_name", "").strip()
         reason = root.findtext("reason", "").strip()
         parameters: Dict[str, Any] = {}
@@ -100,23 +132,32 @@ def parse_tool_response(response: str) -> Dict[str, Any]:
         if params_element is not None:
             for p in params_element.findall("parameter"):
                 name = p.findtext("name", "").strip()
-                value_text = p.findtext("value", "")
-                val = safe_cast(value_text.strip() if value_text is not None else "")
+                # Handle potentially None value_text more explicitly
+                value_text = p.findtext("value")
+                value_str = value_text.strip() if value_text is not None else ""
+                val = safe_cast(value_str)
                 if name:
                     parameters[name] = val
 
         if not tool_name:
             raise ValueError("Missing 'tool_name' in XML selection.")
 
-        return {"tool_name": tool_name, "parameters": parameters, "reason": reason}
+        result = {"tool_name": tool_name, "parameters": parameters, "reason": reason}
+        logger.debug(f"Parsed as XML: {result}")
+        return result
 
     except ET.ParseError as e:
         # This specifically catches the 'junk after document element' error for multiple selections
-        raise ValueError(f"Invalid XML format for tool selection. Expected a single <selection> element. ParseError: {e}\nResponse:\n{response}")
+        # Now handled potentially inside the 'try' block as well
+        logger.error(f"XML ParseError: {e}. Response: {response}")
+        raise ValueError(f"Invalid XML format for tool selection. Expected a single <selection> element. ParseError: {e}\nResponse:\n{response}") from e
+    except ValueError as e: 
+        logger.error(f"XML Value Error: {e}. Response: {response}")
+        raise e
     except Exception as e:
         # Catch other potential XML parsing errors
-        raise ValueError(f"Failed to parse XML tool selection: {e}\nResponse:\n{response}")
-
+        logger.exception(f"Failed to parse XML tool selection: {e}. Response: {response}") 
+        raise ValueError(f"Failed to parse tool selection (Unknown XML error): {e}\nResponse:\n{response}") from e
 
 
 def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
@@ -381,6 +422,7 @@ class StepErrorInfo:
 @dataclass
 class ErrorContext:
     step_errors: List[StepErrorInfo] = field(default_factory=list)
+    replan_attempts: int = 0 
 
     def add_error(self, step_index: int, step_description: str, attempt_number: int, traceback_str: str):
         self.step_errors.append(
@@ -660,7 +702,7 @@ class ObservationAgent(BaseAgent):
         # Replace the previous ToolResult with the Observation summary
         if context.accumulated_results and isinstance(context.accumulated_results[-1], ToolResult):
             context.accumulated_results[-1] = summary
-        else: # Should not happen if called right after a tool, but handle defensively
+        else: 
             context.accumulated_results.append(summary)
             logger.warning("ObservationAgent appended summary instead of replacing. Last result was not ToolResult.")
 
@@ -710,7 +752,7 @@ class AgentOrchestrator:
     ):
         self.code_executor = code_executor
         self.manager = manager
-        self.max_retries = max_retries_per_step
+        self.max_retries_per_step = max_retries_per_step
         self.max_replans = max_replans
 
         self.agents: Dict[str, BaseAgent] = {
@@ -729,64 +771,214 @@ class AgentOrchestrator:
     # public API                                                            #
     # --------------------------------------------------------------------- #
     def process_user_question(self, question: str) -> str:
+        """
+        Main entry point to process a user question through the agentic framework.
+        Handles initial planning, execution with retries/replanning, and final response generation.
+        """
         context = AgentContext(user_question=question)
-        logger.info("Received question: %s", question)
+        replan_count = 0 # Initial replan count for the overall process
 
-        if not self._plan(context):
-            return "Planning failed."
+        while replan_count <= self.max_replans:
+            try:
+                # Initial Plan (or replan if previous attempt failed before execution loop)
+                if not context.execution_plan or context.error_context.replan_attempts > replan_count:
+                    logger.info(f"Planning attempt {replan_count + 1}/{self.max_replans + 1}...")
+                    if not self._plan(context):
+                        logger.error("Initial planning failed. Cannot proceed.")
+                        # Provide context for failure if possible
+                        last_error = context.error_context.step_errors[-1] if context.error_context.step_errors else None
+                        error_info = f": {last_error.traceback_str}" if last_error else ""
+                        return f"I'm sorry, I couldn't create a plan to address your request{error_info}"
+                    context.error_context.replan_attempts = replan_count # Sync replan attempts
 
-        if not self._execute(context):
-            return (
-                "Execution aborted due to unrecoverable errors:\n"
-                f"{context.error_context}"
-            )
+                # Execute the current plan
+                if self._execute(context):
+                    # Execution successful, check for final response
+                    logger.info("Orchestration completed successfully.")
+                    return context.final_response or "Processing completed, but no final response was generated."
+                else:
+                    # Execution failed, and replanning is handled within _execute
+                    # If _execute returns False, it means it halted after max retries/replans
+                    logger.error("Execution halted after exhausting retries or replans.")
+                    last_error = context.error_context.step_errors[-1] if context.error_context.step_errors else None
+                    error_info = f" Last error at step {last_error.step_index + 1} ('{last_error.step_description}'): {last_error.traceback_str}" if last_error else ""
+                    return f"I'm sorry, I couldn't complete the task due to errors{error_info}. Please try modifying your request."
 
-        if context.final_response is None:
-            self.agents["ValidationAgent"].execute(context)
-            self.agents["FinalAgent"].execute(context)
+            except Exception as e:
+                # Catch unexpected errors in the process_user_question loop itself
+                logger.critical(f"Critical unexpected error during orchestration: {e}", exc_info=True)
+                context.error_context.add_error(
+                    step_index=context.current_step,
+                    step_description="Overall orchestration loop",
+                    attempt_number=replan_count + 1,
+                    traceback_str=traceback.format_exc()
+                )
+                replan_count += 1 # Increment replan count for the outer loop
+                if replan_count > self.max_replans:
+                    logger.critical("Max replan attempts reached due to critical error. Aborting.")
+                    return f"I encountered a critical internal error and couldn't recover after {self.max_replans} attempts. Please try again later."
+                else:
+                    logger.warning(f"Attempting replan {replan_count}/{self.max_replans} due to critical error.")
+                    context.execution_plan = None # Force replanning
+                    continue # Go back to the start of the while loop to replan
 
-        return context.final_response or "Failed to generate answer."
+        # Should ideally not be reached if logic is correct, but as a fallback
+        return "I was unable to complete your request after multiple attempts."
 
-    # ------------------------------------------------------------------ #
-    # internal routines                                                  #
-    # ------------------------------------------------------------------ #
     def _plan(self, context: AgentContext) -> bool:
-        res = self.agents["PlannerAgent"].execute(context)
-        return res.success
+        """
+        Invokes the PlannerAgent to create or update the execution plan in the context.
+        Returns True if planning was successful, False otherwise.
+        """
+        logger.info("Invoking PlannerAgent...")
+        planner = self.agents.get("PlannerAgent")
+        if not planner:
+            logger.critical("PlannerAgent not found in orchestrator configuration!")
+            context.error_context.add_error(-1, "Planning", 1, "PlannerAgent not found.")
+            return False
+        try:
+            plan_result = planner.execute(context)
+            if plan_result.success and context.execution_plan and context.execution_plan.steps:
+                logger.info(f"Planning successful. Execution plan created with {len(context.execution_plan)} steps.")
+                return True
+            else:
+                logger.error(f"PlannerAgent failed to produce a valid plan. Result: {plan_result.execution_result}")
+                context.error_context.add_error(
+                    step_index=-1, # Indicate planning phase error
+                    step_description="Planning",
+                    attempt_number=1,
+                    traceback_str=f"Planner failed: {plan_result.execution_result}"
+                )
+                return False
+        except Exception as e:
+            logger.exception("Exception during planning phase.")
+            context.error_context.add_error(
+                step_index=-1,
+                step_description="Planning",
+                attempt_number=1,
+                traceback_str=traceback.format_exc()
+            )
+            return False
 
     def _execute(self, context: AgentContext) -> bool:
-        replan_count = 0
-        while True:
-            for idx, step in enumerate(context.execution_plan.steps):
-                context.current_step = idx
-                retries = 0
-                while retries < self.max_retries:
-                    agent = self.agents[step.agent_name]
-                    try:
-                        result = agent.execute(context)
-                        step.result = result
-                        if result.success:
-                            # auto‑observe after ToolSelection
-                            if step.agent_name == "ToolSelectionAgent":
-                                self.agents["ObservationAgent"].execute(context)
-                            break  # success
-                        raise RuntimeError(str(result.execution_result))
-                    except Exception as exc:
-                        retries += 1
-                        logger.error(
-                            "Error in step %d (%s): %s", idx + 1, step.agent_name, exc, exc_info=True
-                        )
-                        context.error_context.add_error(idx, step.description, retries, str(exc))
+        """
+        Executes the plan step-by-step with retry and replan logic.
+        Returns True if execution completes successfully, False otherwise.
+        """
+        if not context.execution_plan:
+            logger.error("Execution attempt failed: No execution plan exists.")
+            return False # Cannot execute without a plan
 
-                # step failed after retries → stop‑the‑world
-                if step.result is None or not step.result.success:
-                    if replan_count < self.max_replans:
-                        replan_count += 1
-                        logger.info("Re‑planning due to failure in step %d (attempt %d).", idx + 1, replan_count)
-                        if not self._plan(context):
-                            return False
-                        break  # restart outer loop with new plan
-                    return False
-            else:
-                # loop finished without break: all steps executed
-                return True
+        replan_count = context.error_context.replan_attempts # Get current replan count
+        current_plan_steps = context.execution_plan.steps
+        step_index = 0
+
+        while step_index < len(current_plan_steps):
+            step = current_plan_steps[step_index]
+            context.current_step = step_index # Ensure context reflects current step index
+            retries = 0
+
+            # Retry loop for a single step
+            while retries < self.max_retries_per_step:
+                attempt_number = retries + 1
+                logger.info(f"Executing step {step_index + 1}/{len(current_plan_steps)} (Attempt {attempt_number}/{self.max_retries_per_step}): {step.description} | Agent: {step.agent_name}")
+                try:
+                    agent = self.agents.get(step.agent_name)
+                    if not agent:
+                        raise ValueError(f"Configuration Error: Agent '{step.agent_name}' not found in orchestrator.")
+
+                    result = agent.execute(context)
+                    step.result = result # Store result on the step itself
+
+                    if result.success:
+                        logger.info(f"Step {step_index + 1} successful.")
+                        # Special handling: Auto-run ObservationAgent after successful ToolSelectionAgent
+                        if step.agent_name == "ToolSelectionAgent":
+                            logger.info("ToolSelection successful, running ObservationAgent automatically.")
+                            observer = self.agents.get("ObservationAgent")
+                            if observer:
+                                obs_result = observer.execute(context)
+                                if not obs_result.success:
+                                     # If observation fails, maybe log warning but proceed? Or treat as step failure?
+                                     logger.warning(f"Observation step failed after successful tool selection: {obs_result.execution_result}")
+                                     # Option: Treat observation failure as critical? For now, log warning.
+                                     # If Observation failure should halt, raise an exception here.
+                                # No explicit result storage needed here if ObservationAgent modifies context.accumulated_results directly
+                            else:
+                                logger.warning("ObservationAgent not found, cannot auto-observe tool result.")
+                        break # Break retry loop on success
+
+                    else:
+                        # Step reported failure explicitly
+                        raise RuntimeError(f"Agent '{step.agent_name}' reported failure: {result.execution_result}")
+
+                except Exception as exc:
+                    retries += 1
+                    error_type = type(exc).__name__
+                    error_message = str(exc)
+                    traceback_str = traceback.format_exc()
+                    logger.error(
+                        f"Error in step {step_index + 1} ('{step.description}') Agent '{step.agent_name}' on attempt {attempt_number}: [{error_type}] {error_message}",
+                        exc_info=False # Avoid duplicate logging if traceback included below
+                    )
+                    logger.debug(f"Full traceback for step {step_index + 1} error:\n{traceback_str}") # Log full traceback at debug level
+
+                    context.error_context.add_error(
+                        step_index=step_index,
+                        step_description=step.description,
+                        attempt_number=attempt_number,
+                        traceback_str=f"[{error_type}] {error_message}\n{traceback_str}" # Include type and message
+                    )
+
+                    # --- Intelligent Error Handling Logic (Basic Example) ---
+                    # More sophisticated logic could go here based on error types
+                    is_recoverable_by_retry = True # Default assumption
+                    is_planning_error = False # Example flag
+
+                    if isinstance(exc, (json.JSONDecodeError, ET.ParseError, ValueError)) and agent.name == "ToolSelectionAgent":
+                        # Parsing errors in tool selection might benefit from retry if LLM is flaky
+                        logger.warning(f"Parsing error encountered in ToolSelectionAgent, retrying ({retries}/{self.max_retries_per_step})...")
+                    elif isinstance(exc, KeyError) and agent.name == "ToolSelectionAgent":
+                         # Tool not found error - likely a planning issue or tool creation failure
+                         logger.error("Tool specified by ToolSelectionAgent not found. This might require replanning.")
+                         is_recoverable_by_retry = False
+                         is_planning_error = True
+                    # Add more specific error checks here (e.g., temporary network errors, API errors)
+
+                    if retries >= self.max_retries_per_step or not is_recoverable_by_retry:
+                        logger.error(f"Step {step_index + 1} failed permanently after {retries} attempts.")
+                        # Decide whether to replan or halt
+                        if replan_count < self.max_replans and (is_planning_error or True): # Replan on most permanent errors for now
+                            replan_count += 1
+                            context.error_context.replan_attempts = replan_count # Update context
+                            logger.warning(f"Maximum retries reached for step {step_index + 1}. Triggering replan attempt {replan_count}/{self.max_replans}.")
+                            # Pass error context to planner implicitly via AgentContext
+                            if self._plan(context):
+                                logger.info("Replanning successful. Restarting execution with the new plan.")
+                                # Reset execution state for the new plan
+                                current_plan_steps = context.execution_plan.steps # Get potentially new steps
+                                step_index = 0 # Restart execution from the first step of the new plan
+                                continue # Continue the outer while loop to start the new plan
+
+                            else:
+                                logger.error("Replanning failed. Halting execution.")
+                                return False # Replanning itself failed
+                        else:
+                             # Max replans reached or error deemed unrecoverable by replanning
+                             logger.error(f"Cannot recover from error in step {step_index + 1}. Max replans ({self.max_replans}) reached or error is fatal. Halting execution.")
+                             return False # Halt execution
+
+                    # else: continue retry loop (implicitly done by loop structure)
+
+            # Check if step execution was successful after the retry loop
+            if step.result is None or not step.result.success:
+                 # This case should now be handled by the exception block leading to replan/halt
+                 logger.critical(f"Execution flow error: Reached end of step {step_index + 1} processing without success, replan, or halt.")
+                 return False # Should not happen if logic above is correct
+
+            # Move to the next step if successful
+            step_index += 1
+
+        # If the loop completes without returning False, all steps succeeded
+        logger.info("Execution plan completed successfully.")
+        return True
