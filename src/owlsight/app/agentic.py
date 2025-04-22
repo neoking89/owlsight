@@ -218,9 +218,9 @@ Analyze the user request:
 2. Assign each subtask to the most suitable agent.
 3. Reason carefully about which tools are necessary for each step, ensuring the chosen tool matches the subtask's requirements.
 4. If the query can be answered directly based on the model's training data without external tools or data, assign it directly to FinalAgent.
-5. **Avoid redundant steps.** If a tool combines actions (like `owl_search_and_scrape`), do not plan separate follow-up steps for those combined actions (like scraping again).
-6. **Be specific AND FOCUSED.** If the request involves multiple distinct locations, items, or topics (e.g., "weather in New York City" and "weather in Amsterdam"), create SEPARATE plan steps. Each step MUST target ONLY ONE of these distinct entities. For instance, one step for 'Get NYC weather' using ToolSelectionAgent, followed by another step for 'Get Amsterdam weather' using ToolSelectionAgent. DO NOT create a single step trying to get weather for both. Use precise location names.
-7. **Understand context flow.** After a `ToolSelectionAgent` step, the `ObservationAgent` runs AUTOMATICALLY to summarize the tool's output. **NEVER plan an explicit step for `ObservationAgent`.** Subsequent steps work with the summary provided automatically in the context.
+5. **Avoid redundant steps.** If a tool combines actions (like a function containing 'and' or 'or'), do not plan separate follow-up steps for those combined actions (like scraping again).
+6. **Be specific AND FOCUSED.** If the request involves multiple distinct locations, items, or topics (e.g., "weather in New York City" and "weather in Amsterdam"), create SEPARATE plan steps. Each step MUST target ONLY ONE of these distinct entities. For instance, one step for 'Get NYC weather' using ToolSelectionAgent, followed by another step for 'Get Amsterdam weather' using ToolSelectionAgent. DO NOT create a single step trying to execute both steps.
+7. **Understand context flow.** After a `ToolSelectionAgent` step, the `ObservationAgent` runs AUTOMATICALLY to summarize the tool's output based on the step description. **NEVER plan an explicit step for `ObservationAgent`.** Subsequent steps work with the summary provided automatically in the context.
 8. Return a structured plan.
 
 CRITICAL CONSTRAINTS:
@@ -228,12 +228,18 @@ CRITICAL CONSTRAINTS:
 - If multiple distinct actions or tool uses are needed (e.g., searching for two different topics, reading a file then searching), create SEPARATE steps for each action.
 - DO NOT combine multiple tool calls or distinct logical operations into a single step description.
 - DO NOT assign multiple tools to one step.
-- A step involving `ToolSelectionAgent` implies the use of exactly ONE `owl_*` tool for that step. DO NOT mention `FinalAgent` or other agents as the tool to be used in a `ToolSelectionAgent` step's reason.
+- A step involving `ToolSelectionAgent` implies the use of exactly ONE tool for that step from **AVAILABLE TOOLS**.
 
 Agent Information:
-- ToolSelectionAgent: Use ONLY for selecting and executing ONE specific `owl_*` tool. Its output is AUTOMATICALLY summarized by ObservationAgent.
-- ToolCreationAgent: Use ONLY to create dynamic tool functions for later use.
+- ToolSelectionAgent: Use ONLY for selecting and executing ONE specific tool from **AVAILABLE TOOLS**. Its output is AUTOMATICALLY summarized by ObservationAgent.
+- ToolCreationAgent: PRIORITIZE this agent whenever the user explicitly requests to create, write, or implement a function, method, tool, utility, or any other programming construct. This agent specializes in creating Python code that can be dynamically registered as a tool. When a task clearly involves implementing a custom function (e.g., "create a function to calculate...", "write code that...", "implement a method for..."), ToolCreationAgent should be the FIRST agent in your plan, not ToolSelectionAgent.
 - FinalAgent: Use ONLY for synthesizing the final response using accumulated context (including automatically generated observations). It does NOT use tools directly.
+
+CRITICAL FUNCTION CREATION GUIDANCE:
+When the user request explicitly involves writing, creating, or implementing functions, code, or algorithms:
+1. Start with ToolCreationAgent to develop the required function
+2. Then, use ToolSelectionAgent to execute the function
+3. Only use search tools (via ToolSelectionAgent) if ABSOLUTELY necessary for specialized knowledge
 
 User Question:
 {user_question}
@@ -252,7 +258,7 @@ Response Format:
   <step>
     <description>Step description (single, atomic action)</description>
     <agent>AgentName</agent>
-    <reason>Reason for this step, including potential tool usage (only one `owl_*` tool if ToolSelectionAgent), expected inputs (e.g., previous observation), and why this agent is chosen.</reason>
+    <reason>Reason for this step, including potential tool usage (if ToolSelectionAgent), expected inputs (e.g., previous observation), and why this agent is chosen.</reason>
   </step>
   <!-- Repeat <step> for each step in the plan -->
 </plan>
