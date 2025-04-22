@@ -269,7 +269,7 @@ Response Format:
 
 TOOL_CREATION_PROMPT = """
 You are an expert Python programmer specialized in creating tools for Large Language Models (LLMs).
-Your task is to create a Python function based on the user's request. The function should be self-contained and ready to be executed.
+Your task is to create a Python function based on the user's request.
 
 User Request:
 {user_request}
@@ -285,14 +285,13 @@ Previous Tool Creation Attempts:
 
 Instructions:
 1. Analyze the user request and determine the required functionality.
-2. If existing tools can fulfill the request, state that and explain why. Do not create a new tool if existing ones suffice.
-3. If a new tool is needed, write a Python function that implements the required logic.
-4. The function must:
-   - Be self-contained (import necessary libraries within the function or ensure they are globally available).
+2. Write a Python function that implements the required logic.
+3. The function must:
    - Have a clear name reflecting its purpose (use snake_case).
-   - Include a detailed NumPy-style docstring explaining its purpose, parameters, and return value.
+   - Include a detailed NumPy-style docstring explaining a clear reasoning how it handles the user request, parameters, and return value.
    - Handle potential errors gracefully (e.g., using try-except blocks).
-5. Output ONLY the Python function definition, including the docstring. Do not include any surrounding text, explanations, or example usage.
+   - Usage of third-party libraries is allowed.
+4. Output ONLY the Python function definition, including the docstring. Do not include any surrounding text, explanations, or example usage.
 
 Example Output Format:
 
@@ -300,6 +299,7 @@ def example_tool(param1: str, param2: int) -> dict:
     \"\"\"Example tool demonstrating the required format.
 
     This docstring follows the NumPy style guide.
+    It should explain a clear reasoning how it handles the user request, parameters, and return value.
 
     Parameters
     ----------
@@ -381,29 +381,6 @@ Task:
 
 Response Format:
 <observation>Summary of information relevant to the Task Description</observation>
-"""
-
-VALIDATION_PROMPT = """
-You are an expert in validating results. Check if the accumulated results are sufficient to answer the user question.
-
-User Question:
-{user_question}
-
-Accumulated Results:
-{accumulated_results}
-
-Additional Information:
-{additional_information}
-
-Task:
-- Determine if the results answer the question.
-- If not, suggest the next step or tool to use.
-
-Response Format:
-<validation>
-  <is_complete>true|false</is_complete>
-  <next_step_if_incomplete>Next step or tool suggestion if incomplete</next_step_if_incomplete>
-</validation>
 """
 
 RESPONSE_SYNTHESIS_PROMPT = """
@@ -788,22 +765,6 @@ class ObservationAgent(BaseAgent):
 
         return StepResult(True, summary)
 
-
-class ValidationAgent(BaseAgent):
-    def __init__(self):
-        super().__init__("ValidationAgent", AgentPrompt(VALIDATION_PROMPT))
-
-    def execute(self, context: AgentContext) -> StepResult:
-        prompt = self.system_prompt.format(
-            user_question=context.user_question,
-            accumulated_results=self.get_previous_results(context),
-            additional_information=self.get_additional_information(),
-        )
-        result = self.llm_call(prompt)
-        context.accumulated_results.append(result)
-        return StepResult(True, result)
-
-
 class FinalAgent(BaseAgent):
     def __init__(self):
         super().__init__("FinalAgent", AgentPrompt(RESPONSE_SYNTHESIS_PROMPT))
@@ -840,7 +801,6 @@ class AgentOrchestrator:
             "ToolCreationAgent": ToolCreationAgent(),
             "ToolSelectionAgent": ToolSelectionAgent(),
             "ObservationAgent": ObservationAgent(),
-            "ValidationAgent": ValidationAgent(),
             "FinalAgent": FinalAgent(),
         }
 
