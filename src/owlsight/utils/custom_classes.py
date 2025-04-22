@@ -162,9 +162,7 @@ class GlobalPythonVarsDict(dict):
 
         """
         if self.empty():
-            raise ValueError(
-                f"{self.__class__.__name__} is empty! Please fill it with functions before trying to get tools."
-            )
+            return []
         globals_dict = self._filter_globals(self)
         if exclude_keys is not None:
             globals_dict = {k: v for k, v in globals_dict.items() if k not in exclude_keys}
