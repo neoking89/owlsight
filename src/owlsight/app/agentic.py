@@ -291,10 +291,11 @@ Instructions:
    - Include a detailed NumPy-style docstring explaining a clear reasoning how it handles the user request, parameters, and return value.
    - Handle potential errors gracefully (e.g., using try-except blocks).
    - Usage of third-party libraries is allowed.
-4. Output ONLY the Python function definition, including the docstring. Do not include any surrounding text, explanations, or example usage.
+4. Output ONLY the Python function definition, including the docstring. Function definition MUST BE in Markdown-format (```python...```). Do not include any surrounding text, explanations, or example usage.
 
 Example Output Format:
 
+```python
 def example_tool(param1: str, param2: int) -> dict:
     \"\"\"Example tool demonstrating the required format.
 
@@ -319,6 +320,7 @@ def example_tool(param1: str, param2: int) -> dict:
         return result
     except Exception as e:
         return {{'error': str(e)}}
+```
 
 Additional Information:
 {additional_information}
