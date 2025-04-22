@@ -205,7 +205,6 @@ AGENT_INFORMATION = {
     "ToolCreationAgent": "Use ONLY to create dynamic tool functions for later use.",
     "FinalAgent": "Use for synthesizing the final response.",
 }
-AVAILABLE_AGENTS = [" | ".join(AGENT_INFORMATION.keys())]
 
 # --------------------------------------------------------------------------- #
 # Prompt templates (refined)                                                  #
@@ -217,7 +216,7 @@ Task:
 Analyze the user request:
 1. Break it into logically distinct subtasks if needed.
 2. Assign each subtask to the most suitable agent.
-3. Reason carefully about which tools are necessary for each step, ensuring the chosen tool matches the subtask's requirements (e.g., use `owl_read` for LOCAL files, `owl_scrape` for specific URLs, `owl_search` or `owl_search_and_scrape` for web searches). DO NOT use `owl_read` to process web content obtained from search/scrape tools. **A `ToolSelectionAgent` step implies selecting ONE `owl_*` tool.**
+3. Reason carefully about which tools are necessary for each step, ensuring the chosen tool matches the subtask's requirements.
 4. If the query can be answered directly based on the model's training data without external tools or data, assign it directly to FinalAgent.
 5. **Avoid redundant steps.** If a tool combines actions (like `owl_search_and_scrape`), do not plan separate follow-up steps for those combined actions (like scraping again).
 6. **Be specific AND FOCUSED.** If the request involves multiple distinct locations, items, or topics (e.g., "weather in New York City" and "weather in Amsterdam"), create SEPARATE plan steps. Each step MUST target ONLY ONE of these distinct entities. For instance, one step for 'Get NYC weather' using ToolSelectionAgent, followed by another step for 'Get Amsterdam weather' using ToolSelectionAgent. DO NOT create a single step trying to get weather for both. Use precise location names.
@@ -307,8 +306,7 @@ Additional Information:
 
 CRITICAL CONSTRAINTS:
 - You MUST select EXACTLY ONE tool.
-- The selected `<tool_name>` MUST EXACTLY match one of the function 'name' fields listed in the `AVAILABLE TOOLS` section above (e.g., `owl_read`, `dynamic_tool_abc`).
-- DO NOT select an agent name (like `FinalAgent`) as the `<tool_name>`.
+- The selected `<tool_name>` MUST EXACTLY match one of the function 'name' fields listed in the `AVAILABLE TOOLS` section above.
 - Your response MUST contain only a single `<selection>` block.
 
 Task:
@@ -330,9 +328,9 @@ Response Format:
 """
 
 OBSERVATION_PROMPT = """
-You are an expert in analyzing and summarizing tool execution results. Filter out irrelevant information and keep only what is essential for answering the user question.
+You are an expert in analyzing tool execution results **in the context of a specific task**. Your goal is to extract and summarize only the information from the tool's output that is directly relevant to achieving the task described. Filter out irrelevant details.
 
-Description:
+Task Description:
 {description}
 
 Tool Execution Result:
@@ -342,10 +340,12 @@ Additional Information:
 {additional_information}
 
 Task:
-- Summarize the tool execution result.
+- Analyze the 'Tool Execution Result'.
+- Identify the parts of the result that directly address or contribute to fulfilling the 'Task Description'.
+- Summarize **only this relevant information**. Ignore details from the tool result that do not pertain to the specific 'Task Description'.
 
 Response Format:
-<observation>Summary of relevant information</observation>
+<observation>Summary of information relevant to the Task Description</observation>
 """
 
 VALIDATION_PROMPT = """
@@ -576,8 +576,22 @@ class PlannerAgent(BaseAgent):
         )
         reply = self.llm_call(prompt)
         steps: List[PlanStep] = self._extract(reply)
+
+        # --- Post‑processing & automatic fixes ----------------------------------
+        # Guarantee every valid plan ends with a FinalAgent step so the user
+        # always receives an answer, even if the LLM forgot to add it.
+        if steps and steps[-1].agent_name != "FinalAgent":
+            steps.append(
+                PlanStep(
+                    description="Provide the final answer to the user",
+                    agent_name="FinalAgent",
+                    reason="Every plan must conclude with a synthesis step",
+                )
+            )
+
         if not steps:
             return StepResult(False, "Planning failed")
+
         context.execution_plan = ExecutionPlan(steps)
         return StepResult(True, steps)
 
@@ -592,6 +606,12 @@ class PlannerAgent(BaseAgent):
             reason = parse_xml(seg, "reason")
             if desc and ag:
                 parsed.append(PlanStep(desc, ag, reason or ""))
+        # Enforce that only valid agents are used in plan steps
+        allowed = set(AGENT_INFORMATION.keys())
+        invalid = [s.agent_name for s in parsed if s.agent_name not in allowed]
+        if invalid:
+            logger.error(f"PlannerAgent: Invalid agent(s) in plan steps: {invalid}")
+            return []
         return parsed
 
 
@@ -664,18 +684,47 @@ class ToolSelectionAgent(BaseAgent):
         super().__init__("ToolSelectionAgent", AgentPrompt(TOOL_SELECTION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        prompt = self.system_prompt.format(
-            user_question=context.user_question,
-            available_context=self.get_previous_results(context),
-            available_tools=get_available_tools(BaseAgent.code_executor),
-            additional_information=self.get_additional_information(),
-        )
-        reply = self.llm_call(prompt)
-        call = parse_tool_response(reply)
-        # Reverted: Pass the single dictionary directly
-        tool_result = execute_tool(BaseAgent.code_executor, call)
-        context.accumulated_results.append(tool_result)
-        return StepResult(tool_result.success, tool_result)
+        # Allow the LLM a few chances to output a correct, valid selection
+        max_attempts = 3
+        attempt = 0
+        last_error: str = ""
+
+        while attempt < max_attempts:
+            prompt = self.system_prompt.format(
+                user_question=context.user_question,
+                available_context=self.get_previous_results(context),
+                available_tools=get_available_tools(BaseAgent.code_executor),
+                additional_information=self.get_additional_information(),
+            )
+            reply = self.llm_call(prompt)
+
+            try:
+                call = parse_tool_response(reply)
+            except ValueError as ve:
+                # Parsing failed – retry with the same prompt (LLM may self‑correct)
+                last_error = f"Parse error: {ve}"
+                attempt += 1
+                continue
+
+            # Validate that the selected tool actually exists
+            available_json = OwlDefaultFunctions(BaseAgent.code_executor.globals_dict).owl_tools(as_json=True)
+            valid_names = {t["function"]["name"] for t in available_json}
+            selected = call.get("tool_name")
+
+            if selected not in valid_names:
+                last_error = (
+                    f"Invalid tool selected: '{selected}'. Must be one of {sorted(valid_names)}"
+                )
+                attempt += 1
+                continue
+
+            # Execute the (now validated) tool
+            tool_result = execute_tool(BaseAgent.code_executor, call)
+            context.accumulated_results.append(tool_result)
+            return StepResult(tool_result.success, tool_result)
+
+        # If we exit the loop, all attempts have failed
+        return StepResult(False, last_error or "Tool selection failed after multiple attempts")
 
 
 class ObservationAgent(BaseAgent):
@@ -948,6 +997,12 @@ class AgentOrchestrator:
                     elif isinstance(exc, KeyError) and agent.name == "ToolSelectionAgent":
                          # Tool not found error - likely a planning issue or tool creation failure
                          logger.error("Tool specified by ToolSelectionAgent not found. This might require replanning.")
+                         is_recoverable_by_retry = False
+                         is_planning_error = True
+                    elif isinstance(exc, RuntimeError) and "Invalid tool selected" in str(exc) and agent.name == "ToolSelectionAgent":
+                         # The ToolSelectionAgent chose something that isn't in the available tools list.
+                         # This is a planning issue – no point retrying the same prompt over and over.
+                         logger.error("Invalid tool chosen by ToolSelectionAgent – triggering immediate replanning.")
                          is_recoverable_by_retry = False
                          is_planning_error = True
                     # Add more specific error checks here (e.g., temporary network errors, API errors)
