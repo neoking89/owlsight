@@ -1,5 +1,6 @@
 import ast
 import json
+import inspect
 import math
 import re
 import traceback
@@ -7,7 +8,7 @@ import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional, get_type_hints
 
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.processors.text_generation_manager import TextGenerationManager
@@ -19,25 +20,6 @@ from owlsight.utils.logger import logger
 # --------------------------------------------------------------------------- #
 # Helper functions                                                            #
 # --------------------------------------------------------------------------- #
-def safe_cast(value: Any) -> Any:
-    """
-    Best‑effort conversion of string inputs into Python primitives.
-    Handles booleans, None, ints, floats, lists, dicts.
-
-    Any non‑string or failed conversion returns the value unchanged.
-    """
-    if not isinstance(value, str):
-        return value
-
-    lowered = value.lower()
-    if lowered in {"true", "false"}:
-        return lowered == "true"
-    try:
-        return ast.literal_eval(value)
-    except (ValueError, SyntaxError):
-        return value
-
-
 def get_agent_information() -> str:
     return "\n".join(f"- {k}: {v}" for k, v in AGENT_INFORMATION.items())
 
@@ -67,7 +49,7 @@ def parse_tool_response(response: str) -> Dict[str, Any]:
         candidate = json.loads(response)
         if isinstance(candidate, dict) and "tool_name" in candidate:
             candidate.setdefault("parameters", {})
-            candidate["parameters"] = {k: safe_cast(v) for k, v in candidate.get("parameters", {}).items()}
+            candidate["parameters"] = {k: v for k, v in candidate.get("parameters", {}).items()}
             candidate.setdefault("reason", "")
             logger.debug(f"Parsed as JSON: {candidate}")
             return candidate
@@ -136,7 +118,7 @@ def parse_tool_response(response: str) -> Dict[str, Any]:
                 # Handle potentially None value_text more explicitly
                 value_text = p.findtext("value")
                 value_str = value_text.strip() if value_text is not None else ""
-                val = safe_cast(value_str)
+                val = value_str
                 if name:
                     parameters[name] = val
 
@@ -165,10 +147,10 @@ def parse_tool_response(response: str) -> Dict[str, Any]:
 
 def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
     """
-    Safe wrapper that executes a registered tool with converted parameters.
+    Safe wrapper that executes a registered tool with parameters cast according to type hints.
     """
     tool_name = tool_data.get("tool_name", "")
-    params = {k: safe_cast(v) for k, v in tool_data.get("parameters", {}).items()}
+    raw_params = tool_data.get("parameters", {})
 
     try:
         func = code_executor.globals_dict[tool_name]
@@ -178,6 +160,46 @@ def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
         return ToolResult(False, msg)
 
     try:
+        # Get type hints from the function signature
+        type_hints = get_type_hints(func)
+        
+        # Cast parameters according to type hints
+        params = {}
+        for param_name, param_value in raw_params.items():
+            if param_name in type_hints:
+                target_type = type_hints[param_name]
+                # Handle basic type casting
+                try:
+                    if target_type == bool and isinstance(param_value, str):
+                        # Special handling for boolean values
+                        param_value = param_value.lower() in {'true', 'yes', '1', 'y'}
+                    elif target_type in (int, float, str):
+                        # Cast to the target type
+                        param_value = target_type(param_value)
+                    elif target_type == list and isinstance(param_value, str):
+                        # Try to convert string to list using ast.literal_eval
+                        try:
+                            param_value = ast.literal_eval(param_value)
+                            if not isinstance(param_value, list):
+                                param_value = [param_value]
+                        except (ValueError, SyntaxError):
+                            # If parsing fails, treat it as a single item list
+                            param_value = [param_value]
+                    elif target_type == dict and isinstance(param_value, str):
+                        # Try to convert string to dict using ast.literal_eval
+                        try:
+                            param_value = ast.literal_eval(param_value)
+                            if not isinstance(param_value, dict):
+                                param_value = {'value': param_value}
+                        except (ValueError, SyntaxError):
+                            # If parsing fails, create a simple key-value dict
+                            param_value = {'value': param_value}
+                except (ValueError, TypeError):
+                    # If casting fails, use the original value
+                    logger.warning(f"Failed to cast parameter '{param_name}' to {target_type}")
+            
+            params[param_name] = param_value
+            
         result = func(**params)
         logger.info("Tool '%s' executed successfully.", tool_name)
         return ToolResult(True, result)
