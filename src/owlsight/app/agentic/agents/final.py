@@ -43,7 +43,7 @@ class FinalAgent(BaseAgent):
         final_response = response
         
         # Try to parse the response content from XML
-        parsed = parse_xml(response, target_tag="response")
+        parsed = parse_xml(response, tag="response")
         if isinstance(parsed, dict) and "content" in parsed:
             final_response = parsed["content"]
         elif isinstance(parsed, str):

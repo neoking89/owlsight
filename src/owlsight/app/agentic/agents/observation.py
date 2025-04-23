@@ -60,7 +60,7 @@ class ObservationAgent(BaseAgent):
         observation = response
         
         # Try to parse the observation from XML if present
-        parsed = parse_xml(response, target_tag="observation")
+        parsed = parse_xml(response, tag="observation")
         if parsed:
             if isinstance(parsed, str):
                 observation = parsed

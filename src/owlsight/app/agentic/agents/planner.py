@@ -82,7 +82,7 @@ class PlannerAgent(BaseAgent):
             Dictionary containing the extracted plan data
         """
         # First try to parse using helper function
-        parsed = parse_xml(xml, target_tag="plan")
+        parsed = parse_xml(xml, tag="plan")
         if parsed:
             return self._process_parsed_xml(parsed)
         
