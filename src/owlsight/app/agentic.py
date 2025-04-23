@@ -34,135 +34,206 @@ def get_available_tools(code_executor: "CodeExecutor") -> str:
     return "\n".join(str(t) for t in tools)
 
 
-def parse_tool_response(response: str) -> Dict[str, Any]:
-    """
-    Accepts a single JSON object *or* a single XML <selection> element.
-    Returns dict with 'tool_name', 'parameters', 'reason'.
-    Raises ValueError if the input format is invalid or contains multiple selections.
-    """
-    response = response.strip()
-    # Strip common markdown code fences such as ```json ... ``` or ```xml ... ``` that the LLM
-    # might wrap around the actual content, then trim whitespace again.
-    response = re.sub(r"^```[a-zA-Z0-9]*\s*|```\s*$", "", response, flags=re.MULTILINE).strip()
-
-    # Heuristic: If the response contains a JSON object with a `tool_name` key but additional
-    # commentary around it, attempt to isolate the JSON substring first. This greatly increases
-    # resilience against chatty model outputs that prepend explanations.
-    json_block_match = re.search(r"\{[\s\S]*?\"tool_name\"[\s\S]*?\}", response)
-    if json_block_match and "<selection>" not in response.lower():  # Prefer JSON when both exist
-        try:
-            candidate_partial = json.loads(json_block_match.group(0))
-            if isinstance(candidate_partial, dict) and "tool_name" in candidate_partial:
-                candidate_partial.setdefault("parameters", {})
-                candidate_partial.setdefault("reason", "")
-                logger.debug(f"Parsed from heuristically extracted JSON: {candidate_partial}")
-                return candidate_partial
-        except Exception:
-            # Fallback to full parsing logic below
-            pass
-
-    logger.debug(f"Attempting to parse tool response: {response}")
-
-    # ---------- JSON branch -------------------------------------------------
+def _parse_tool_response_json(response: str) -> Dict[str, Any]:
+    """Parses a JSON tool selection response."""
     try:
-        # Attempt to load JSON strictly first
         candidate = json.loads(response)
         if isinstance(candidate, dict) and "tool_name" in candidate:
             candidate.setdefault("parameters", {})
-            candidate["parameters"] = {k: v for k, v in candidate.get("parameters", {}).items()}
+            # Ensure parameters is a dict (it should be from json.loads if present)
+            if not isinstance(candidate.get("parameters"), dict):
+                raise ValueError("JSON 'parameters' field is not an object.")
             candidate.setdefault("reason", "")
             logger.debug(f"Parsed as JSON: {candidate}")
             return candidate
         else:
-            raise ValueError("Invalid JSON format for tool selection. Expected a single object with 'tool_name'.")
-
-    except json.JSONDecodeError:
-        logger.debug("Not valid JSON, attempting XML parsing.")
-        pass
+            raise ValueError(
+                "Invalid JSON format for tool selection. Expected a single object with 'tool_name'."
+            )
+    except json.JSONDecodeError as e:
+        logger.debug("Not valid JSON.")
+        raise ValueError("Response is not valid JSON.") from e
     except ValueError as e:
         # Re-raise the specific format error
         logger.error(f"JSON format error: {e}")
         raise e
     except Exception as e:
         logger.warning(f"Unexpected error during JSON processing: {e}")
-        pass
+        # Wrap unexpected errors
+        raise ValueError("Unexpected error parsing JSON response.") from e
 
-    # ---------- XML branch --------------------------------------------------
+
+def _parse_tool_response_xml(response: str) -> Dict[str, Any]:
+    """Parses an XML tool selection response."""
     try:
         # Try to extract content within <selection> tags first to handle potential surrounding text
         match = re.search(r"<selection>(.*?)</selection>", response, re.DOTALL | re.IGNORECASE)
         if not match:
-            # If no <selection> tags, try parsing the whole response directly as a fallback
-            logger.warning("No <selection> tags found, attempting direct XML parse.")
-            xml_content = response
+            logger.debug("No <selection> tags found, attempting direct XML parse.")
+            xml_content_to_parse = response
             # Basic check: ensure it starts like XML
-            if not xml_content.startswith("<"):
-                raise ValueError("Tool response is not valid JSON and does not appear to be XML.")
+            if not xml_content_to_parse.startswith("<"):
+                raise ValueError("Response does not appear to be XML.")
         else:
-            xml_content = match.group(1).strip()
+            # If <selection> tags found, parse the original string assuming <selection> is the root
+            xml_content_to_parse = response
+            # Check for nested <selection>
+            inner_content = match.group(1).strip()
+            if "<selection>" in inner_content.lower():
+                raise ValueError("Nested <selection> tags detected. Invalid format.")
 
-        # Ensure we don't have nested <selection> by mistake
-        if "<selection>" in xml_content.lower():
-            raise ValueError("Nested <selection> tags detected. Invalid format.")
-
-        # Prepend a root tag for safety if parsing extracted content, needed if original lacks single root
-        # Though ET.fromstring expects a single root element already
-        # We'll parse the *original* response if match was found, assuming <selection> is the root
         try:
-            # Add a temporary root if needed, assuming selection content might be fragmented
-            # Simplified: ET.fromstring should handle single <selection> content directly
-            # We'll parse the *original* response if match was found, assuming <selection> is the root
-            root = ET.fromstring(response if match else xml_content)
-            # Verify the root tag is indeed 'selection' if we parsed the original response
+            root = ET.fromstring(xml_content_to_parse)
+            # Verify the root tag is indeed 'selection' if we used the original response based on match
             if match and root.tag.lower() != "selection":
-                raise ValueError("Expected root element <selection> not found.")
+                # This case should ideally not happen if the regex matched, but good safety check
+                raise ValueError("Expected root element <selection> not found despite regex match.")
+            # If no match, we directly parsed, the root could be anything, but we expect 'selection'
+            elif not match and root.tag.lower() != "selection":
+                 raise ValueError(f"Expected root element <selection> but found <{root.tag}>.")
 
         except ET.ParseError as pe:
-            # Check if the error is 'junk after document element', indicating multiple roots
             if "junk after document element" in str(pe):
                 raise ValueError(
-                    f"Invalid XML: Multiple root elements found. Expected a single <selection> element. Content: {response}"
+                    f"Invalid XML: Multiple root elements found. Expected a single <selection> element. Content: {response[:200]}..."
                 ) from pe
             else:
                 raise ValueError(
-                    f"Invalid XML format for tool selection. ParseError: {pe}\nContent:\n{xml_content}"
+                    f"Invalid XML format for tool selection. ParseError: {pe}\nContent:\n{response[:200]}..."
                 ) from pe
 
-        tool_name = root.findtext("tool_name", "").strip()
-        reason = root.findtext("reason", "").strip()
-        parameters: Dict[str, Any] = {}
-        params_element = root.find("parameters")
-        if params_element is not None:
-            for p in params_element.findall("parameter"):
-                name = p.findtext("name", "").strip()
-                # Handle potentially None value_text more explicitly
-                value_text = p.findtext("value")
-                value_str = value_text.strip() if value_text is not None else ""
-                val = value_str
+        # Simplified parsing assuming direct children
+        tool_name = root.findtext('./tool_name', default='').strip()
+        reason = root.findtext('./reason', default='').strip()
+        param_dict = {}
+        parameters_elem = root.find('./parameters')
+        if parameters_elem is not None:
+            for param in parameters_elem.findall('./parameter'):
+                name = param.findtext('./name', default='').strip()
+                value_str = param.findtext('./value', default='').strip() # Value from XML is initially a string
                 if name:
-                    parameters[name] = val
+                    # Attempt to parse the value string as JSON if it looks like a list/dict
+                    parsed_value = value_str # Default to original string
+                    trimmed_value = value_str.strip()
+                    if trimmed_value.startswith(('[', '{')) and trimmed_value.endswith((']', '}')):
+                        try:
+                            parsed_value = json.loads(trimmed_value)
+                            logger.debug(f"Successfully parsed XML parameter '{name}' value as JSON.")
+                        except json.JSONDecodeError:
+                            logger.warning(
+                                f"XML parameter '{name}' value looked like JSON/list but failed to parse. Keeping as string: {value_str[:100]}..."
+                            )
+                            # Keep parsed_value = value_str (already default)
+
+                    param_dict[name] = parsed_value # Assign the potentially parsed value
 
         if not tool_name:
-            raise ValueError("Missing 'tool_name' in XML selection.")
+            raise ValueError("Missing <tool_name> in XML selection.")
 
-        result = {"tool_name": tool_name, "parameters": parameters, "reason": reason}
+        result = {"tool_name": tool_name, "parameters": param_dict, "reason": reason}
         logger.debug(f"Parsed as XML: {result}")
         return result
 
     except ET.ParseError as e:
-        # This specifically catches the 'junk after document element' error for multiple selections
-        # Now handled potentially inside the 'try' block as well
-        logger.error(f"XML ParseError: {e}. Response: {response}")
-        raise ValueError(
-            f"Invalid XML format for tool selection. Expected a single <selection> element. ParseError: {e}\nResponse:\n{response}"
-        ) from e
+        # This specific catch might be redundant due to the inner try-except,
+        # but serves as a fallback for unexpected ET errors.
+        logger.error(f"XML Parse Error: {e}")
+        raise ValueError("Failed to parse XML response.") from e
     except ValueError as e:
-        logger.error(f"XML Value Error: {e}. Response: {response}")
+        # Re-raise specific format validation errors from within the block
+        logger.error(f"XML format error: {e}")
         raise e
     except Exception as e:
-        # Catch other potential XML parsing errors
-        logger.exception(f"Failed to parse XML tool selection: {e}. Response: {response}")
-        raise ValueError(f"Failed to parse tool selection (Unknown XML error): {e}\nResponse:\n{response}") from e
+        logger.warning(f"Unexpected error during XML processing: {e}")
+        # Wrap unexpected errors
+        raise ValueError("Unexpected error parsing XML response.") from e
+
+
+def parse_tool_response(response: str) -> Dict[str, Any]:
+    """
+    Accepts a single JSON object *or* a single XML <selection> element.
+    Returns dict with 'tool_name', 'parameters', 'reason'.
+    Raises ValueError if the input format is invalid or cannot be parsed as either JSON or XML.
+    """
+    response = response.strip()
+    # Strip common markdown code fences
+    response = re.sub(r"^```[a-zA-Z0-9]*\s*|```\s*$", "", response, flags=re.MULTILINE).strip()
+
+    # Heuristic: Check for isolated JSON block first if XML tag isn't dominant
+    # Improved regex to find complete JSON objects containing 'tool_name'
+    json_block_match = re.search(r"\{[\s\S]*?\"tool_name\"[\s\S]*?\}", response)
+    if json_block_match and "<selection>" not in response.lower():
+        try:
+            # Get the matched text
+            match_text = json_block_match.group(0)
+            
+            # Try to find opening and closing braces to extract complete JSON
+            # Count opening and closing braces to find the proper closing '}'
+            if match_text.startswith("{"):
+                brace_count = 0
+                start_idx = response.find(match_text)
+                complete_json = ""
+                
+                for i in range(start_idx, len(response)):
+                    char = response[i]
+                    complete_json += char
+                    
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            # Found complete balanced JSON object
+                            break
+                
+                # Now try to parse the complete JSON
+                try:
+                    candidate_complete = json.loads(complete_json)
+                    if isinstance(candidate_complete, dict) and "tool_name" in candidate_complete:
+                        candidate_complete.setdefault("parameters", {})
+                        candidate_complete.setdefault("reason", "")
+                        logger.debug(f"Parsed from complete heuristically extracted JSON: {candidate_complete}")
+                        return candidate_complete
+                except json.JSONDecodeError:
+                    # If complete extraction failed, fall back to the original match
+                    pass
+            
+            # If complete extraction failed, try the original match
+            candidate_partial = json.loads(match_text)
+            if isinstance(candidate_partial, dict) and "tool_name" in candidate_partial:
+                candidate_partial.setdefault("parameters", {})
+                candidate_partial.setdefault("reason", "")
+                logger.debug(f"Parsed from heuristically extracted JSON: {candidate_partial}")
+                return candidate_partial
+        except Exception as e:
+            logger.debug(f"Heuristic JSON extraction failed: {e}, proceeding with full parsing.")
+            pass # Fallback to full parsing logic below
+
+    logger.debug(f"Attempting to parse tool response (length {len(response)}): {response[:500]}...")
+
+    json_error = None
+    xml_error = None
+    # Try parsing as JSON first
+    try:
+        return _parse_tool_response_json(response)
+    except ValueError as e: # Catch errors from _parse_tool_response_json
+        json_error = e
+        logger.debug(f"JSON parsing failed ({json_error}), attempting XML parsing.")
+        # Fall through to XML parsing
+
+    # Try parsing as XML if JSON failed
+    try:
+        return _parse_tool_response_xml(response)
+    except ValueError as e: # Catch errors from _parse_tool_response_xml
+        xml_error = e
+        logger.error(f"XML parsing also failed ({xml_error}). Unable to parse tool response.")
+        # Raise a comprehensive error if both failed
+        raise ValueError(
+            f"Tool response could not be parsed as JSON or XML.\n"
+            f"JSON error: {json_error if json_error else ''}\n"
+            f"XML error: {xml_error if xml_error else ''}\n"
+            f"Response: {response[:500]}..."
+        ) from xml_error # Chain the XML error for context
 
 
 def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
