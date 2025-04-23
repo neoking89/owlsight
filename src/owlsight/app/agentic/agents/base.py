@@ -37,7 +37,7 @@ class BaseAgent(ABC):
             raise RuntimeError(f"TextGenerationManager not set for {self.name}")
         
         logger.info(f"Making LLM call for {self.name}")
-        return self.manager.generate_response(formatted_prompt)
+        return self.manager.generate(formatted_prompt)
     
     @abstractmethod
     def execute(self, context: AgentContext) -> StepResult:
