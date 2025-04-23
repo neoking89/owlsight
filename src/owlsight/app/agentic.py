@@ -21,6 +21,9 @@ from owlsight.utils.logger import logger
 # Helper functions                                                            #
 # --------------------------------------------------------------------------- #
 def get_agent_information() -> str:
+    """
+    Returns a formatted string of agent information for better representation in prompts.
+    """
     return "\n".join(f"- {k}: {v}" for k, v in AGENT_INFORMATION.items())
 
 
@@ -47,9 +50,7 @@ def _parse_tool_response_json(response: str) -> Dict[str, Any]:
             logger.debug(f"Parsed as JSON: {candidate}")
             return candidate
         else:
-            raise ValueError(
-                "Invalid JSON format for tool selection. Expected a single object with 'tool_name'."
-            )
+            raise ValueError("Invalid JSON format for tool selection. Expected a single object with 'tool_name'.")
     except json.JSONDecodeError as e:
         logger.debug("Not valid JSON.")
         raise ValueError("Response is not valid JSON.") from e
@@ -90,7 +91,7 @@ def _parse_tool_response_xml(response: str) -> Dict[str, Any]:
                 raise ValueError("Expected root element <selection> not found despite regex match.")
             # If no match, we directly parsed, the root could be anything, but we expect 'selection'
             elif not match and root.tag.lower() != "selection":
-                 raise ValueError(f"Expected root element <selection> but found <{root.tag}>.")
+                raise ValueError(f"Expected root element <selection> but found <{root.tag}>.")
 
         except ET.ParseError as pe:
             if "junk after document element" in str(pe):
@@ -103,19 +104,19 @@ def _parse_tool_response_xml(response: str) -> Dict[str, Any]:
                 ) from pe
 
         # Simplified parsing assuming direct children
-        tool_name = root.findtext('./tool_name', default='').strip()
-        reason = root.findtext('./reason', default='').strip()
+        tool_name = root.findtext("./tool_name", default="").strip()
+        reason = root.findtext("./reason", default="").strip()
         param_dict = {}
-        parameters_elem = root.find('./parameters')
+        parameters_elem = root.find("./parameters")
         if parameters_elem is not None:
-            for param in parameters_elem.findall('./parameter'):
-                name = param.findtext('./name', default='').strip()
-                value_str = param.findtext('./value', default='').strip() # Value from XML is initially a string
+            for param in parameters_elem.findall("./parameter"):
+                name = param.findtext("./name", default="").strip()
+                value_str = param.findtext("./value", default="").strip()  # Value from XML is initially a string
                 if name:
                     # Attempt to parse the value string as JSON if it looks like a list/dict
-                    parsed_value = value_str # Default to original string
+                    parsed_value = value_str  # Default to original string
                     trimmed_value = value_str.strip()
-                    if trimmed_value.startswith(('[', '{')) and trimmed_value.endswith((']', '}')):
+                    if trimmed_value.startswith(("[", "{")) and trimmed_value.endswith(("]", "}")):
                         try:
                             parsed_value = json.loads(trimmed_value)
                             logger.debug(f"Successfully parsed XML parameter '{name}' value as JSON.")
@@ -125,7 +126,7 @@ def _parse_tool_response_xml(response: str) -> Dict[str, Any]:
                             )
                             # Keep parsed_value = value_str (already default)
 
-                    param_dict[name] = parsed_value # Assign the potentially parsed value
+                    param_dict[name] = parsed_value  # Assign the potentially parsed value
 
         if not tool_name:
             raise ValueError("Missing <tool_name> in XML selection.")
@@ -149,91 +150,134 @@ def _parse_tool_response_xml(response: str) -> Dict[str, Any]:
         raise ValueError("Unexpected error parsing XML response.") from e
 
 
+def _extract_complete_json(response: str, match_text: str, start_idx: int) -> Optional[Dict[str, Any]]:
+    """
+    Extract a complete, balanced JSON object from the response starting at the given index.
+    Uses brace counting to find the proper closing bracket.
+
+    Args:
+        response: The full response text
+        match_text: The partially matched JSON text (must start with '{')
+        start_idx: Starting index of the match in the response
+
+    Returns:
+        Dict if extraction and parsing succeeds, None otherwise
+    """
+    if not match_text.startswith("{"):
+        return None
+
+    brace_count = 0
+    complete_json = ""
+
+    for i in range(start_idx, len(response)):
+        char = response[i]
+        complete_json += char
+
+        if char == "{":
+            brace_count += 1
+        elif char == "}":
+            brace_count -= 1
+            if brace_count == 0:
+                # Found complete balanced JSON object
+                break
+
+    # Now try to parse the complete JSON
+    try:
+        candidate = json.loads(complete_json)
+        if isinstance(candidate, dict) and "tool_name" in candidate:
+            candidate.setdefault("parameters", {})
+            candidate.setdefault("reason", "")
+            logger.debug(f"Parsed from complete balanced JSON: {candidate}")
+            return candidate
+    except json.JSONDecodeError:
+        logger.debug("Complete JSON extraction succeeded but parsing failed")
+
+    return None
+
+
+def _try_heuristic_json_extraction(response: str) -> Optional[Dict[str, Any]]:
+    """
+    Attempt to heuristically extract a JSON object containing 'tool_name' from text.
+    This function handles cases where JSON might be embedded in surrounding text.
+
+    Args:
+        response: The text to extract JSON from
+
+    Returns:
+        Dict if extraction succeeds, None otherwise
+    """
+    # Skip heuristic extraction if the response appears to be primarily XML
+    if "<selection>" in response.lower():
+        return None
+
+    # Initial regex match to find JSON-like content with a tool_name
+    json_block_match = re.search(r"\{[\s\S]*?\"tool_name\"[\s\S]*?\}", response)
+    if not json_block_match:
+        return None
+
+    try:
+        # Get the matched text
+        match_text = json_block_match.group(0)
+        start_idx = response.find(match_text)
+
+        # Try complete balanced extraction first
+        complete_result = _extract_complete_json(response, match_text, start_idx)
+        if complete_result:
+            return complete_result
+
+        # If balanced extraction failed, try the original match directly
+        candidate = json.loads(match_text)
+        if isinstance(candidate, dict) and "tool_name" in candidate:
+            candidate.setdefault("parameters", {})
+            candidate.setdefault("reason", "")
+            logger.debug(f"Parsed from partial JSON match: {candidate}")
+            return candidate
+    except Exception as e:
+        logger.debug(f"Heuristic JSON extraction failed: {e}")
+
+    return None
+
+
 def parse_tool_response(response: str) -> Dict[str, Any]:
     """
     Accepts a single JSON object *or* a single XML <selection> element.
     Returns dict with 'tool_name', 'parameters', 'reason'.
     Raises ValueError if the input format is invalid or cannot be parsed as either JSON or XML.
     """
+    # Preprocessing: strip whitespace and markdown code fences
     response = response.strip()
-    # Strip common markdown code fences
     response = re.sub(r"^```[a-zA-Z0-9]*\s*|```\s*$", "", response, flags=re.MULTILINE).strip()
 
-    # Heuristic: Check for isolated JSON block first if XML tag isn't dominant
-    # Improved regex to find complete JSON objects containing 'tool_name'
-    json_block_match = re.search(r"\{[\s\S]*?\"tool_name\"[\s\S]*?\}", response)
-    if json_block_match and "<selection>" not in response.lower():
-        try:
-            # Get the matched text
-            match_text = json_block_match.group(0)
-            
-            # Try to find opening and closing braces to extract complete JSON
-            # Count opening and closing braces to find the proper closing '}'
-            if match_text.startswith("{"):
-                brace_count = 0
-                start_idx = response.find(match_text)
-                complete_json = ""
-                
-                for i in range(start_idx, len(response)):
-                    char = response[i]
-                    complete_json += char
-                    
-                    if char == '{':
-                        brace_count += 1
-                    elif char == '}':
-                        brace_count -= 1
-                        if brace_count == 0:
-                            # Found complete balanced JSON object
-                            break
-                
-                # Now try to parse the complete JSON
-                try:
-                    candidate_complete = json.loads(complete_json)
-                    if isinstance(candidate_complete, dict) and "tool_name" in candidate_complete:
-                        candidate_complete.setdefault("parameters", {})
-                        candidate_complete.setdefault("reason", "")
-                        logger.debug(f"Parsed from complete heuristically extracted JSON: {candidate_complete}")
-                        return candidate_complete
-                except json.JSONDecodeError:
-                    # If complete extraction failed, fall back to the original match
-                    pass
-            
-            # If complete extraction failed, try the original match
-            candidate_partial = json.loads(match_text)
-            if isinstance(candidate_partial, dict) and "tool_name" in candidate_partial:
-                candidate_partial.setdefault("parameters", {})
-                candidate_partial.setdefault("reason", "")
-                logger.debug(f"Parsed from heuristically extracted JSON: {candidate_partial}")
-                return candidate_partial
-        except Exception as e:
-            logger.debug(f"Heuristic JSON extraction failed: {e}, proceeding with full parsing.")
-            pass # Fallback to full parsing logic below
+    logger.debug(f"Processing tool response (length {len(response)}): {response[:200]}...")
 
-    logger.debug(f"Attempting to parse tool response (length {len(response)}): {response[:500]}...")
+    # Step 1: Try heuristic extraction for JSON embedded in text
+    heuristic_result = _try_heuristic_json_extraction(response)
+    if heuristic_result:
+        return heuristic_result
 
+    # Step 2: Try standard JSON parsing
     json_error = None
-    xml_error = None
-    # Try parsing as JSON first
     try:
         return _parse_tool_response_json(response)
-    except ValueError as e: # Catch errors from _parse_tool_response_json
+    except ValueError as e:
         json_error = e
-        logger.debug(f"JSON parsing failed ({json_error}), attempting XML parsing.")
-        # Fall through to XML parsing
+        logger.debug(f"Standard JSON parsing failed: {e}")
 
-    # Try parsing as XML if JSON failed
+    # Step 3: Try XML parsing as fallback
+    xml_error = None
     try:
         return _parse_tool_response_xml(response)
-    except ValueError as e: # Catch errors from _parse_tool_response_xml
+    except ValueError as e:
         xml_error = e
-        logger.error(f"XML parsing also failed ({xml_error}). Unable to parse tool response.")
-        # Raise a comprehensive error if both failed
-        raise ValueError(
-            f"Tool response could not be parsed as JSON or XML.\n"
-            f"JSON error: {json_error if json_error else ''}\n"
-            f"XML error: {xml_error if xml_error else ''}\n"
-            f"Response: {response[:500]}..."
-        ) from xml_error # Chain the XML error for context
+        logger.error(f"XML parsing also failed: {e}")
+
+    # All parsing methods failed - raise a comprehensive error
+    raise ValueError(
+        f"Tool response could not be parsed as JSON or XML.\n"
+        f"JSON error: {json_error}\n"
+        f"XML error: {xml_error}\n"
+        f"Response: {response[:500]}..."
+    ) from xml_error  # Chain the XML error for context
 
 
 def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
@@ -253,7 +297,7 @@ def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
     try:
         # Get type hints from the function signature
         type_hints = get_type_hints(func)
-        
+
         # Cast parameters according to type hints
         params = {}
         for param_name, param_value in raw_params.items():
@@ -263,7 +307,7 @@ def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
                 try:
                     if target_type == bool and isinstance(param_value, str):
                         # Special handling for boolean values
-                        param_value = param_value.lower() in {'true', 'yes', '1', 'y'}
+                        param_value = param_value.lower() in {"true", "yes", "1", "y"}
                     elif target_type in (int, float, str):
                         # Cast to the target type
                         param_value = target_type(param_value)
@@ -281,16 +325,16 @@ def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
                         try:
                             param_value = ast.literal_eval(param_value)
                             if not isinstance(param_value, dict):
-                                param_value = {'value': param_value}
+                                param_value = {"value": param_value}
                         except (ValueError, SyntaxError):
                             # If parsing fails, create a simple key-value dict
-                            param_value = {'value': param_value}
+                            param_value = {"value": param_value}
                 except (ValueError, TypeError):
                     # If casting fails, use the original value
                     logger.warning(f"Failed to cast parameter '{param_name}' to {target_type}")
-            
+
             params[param_name] = param_value
-            
+
         result = func(**params)
         logger.info("Tool '%s' executed successfully.", tool_name)
         return ToolResult(True, result)
@@ -764,15 +808,13 @@ class ToolCreationAgent(BaseAgent):
         """
         Extract Python function code blocks from markdown.
         Only processes markdown-formatted Python code blocks.
-        """     
+        """
         code_blocks = parse_markdown(markdown)
-        python_blocks = [(lang, code) for lang, code in code_blocks if lang.lower() in ('python', 'py')]
-        
+        python_blocks = [(lang, code) for lang, code in code_blocks if lang.lower() in ("python", "py")]
+
         if python_blocks:
-            return {
-                "code_blocks": python_blocks
-            }
-        
+            return {"code_blocks": python_blocks}
+
         return {}
 
     def _register_dynamic_tool(self, data: Dict[str, Any]) -> List[str]:
@@ -780,22 +822,23 @@ class ToolCreationAgent(BaseAgent):
         Register Python functions extracted from markdown code blocks as dynamic tools.
         """
         registered_tools = []
-        
+
         for _, code_block in data.get("code_blocks", []):
             # Clean the code block: remove leading/trailing whitespace and the language identifier if present
             code_lines = code_block.strip().splitlines()
             if code_lines and code_lines[0].strip().lower() == "python":
-                code_to_execute = "\n".join(code_lines[1:]).strip() # Remove 'python' line and strip again
+                code_to_execute = "\n".join(code_lines[1:]).strip()  # Remove 'python' line and strip again
             else:
                 code_to_execute = "\n".join(code_lines).strip()
 
-            if not code_to_execute: # Skip if block is empty after cleaning
+            if not code_to_execute:  # Skip if block is empty after cleaning
                 continue
 
             try:
                 # Extract the function name using AST to correctly identify it
                 import ast
-                tree = ast.parse(code_to_execute) # Use cleaned code
+
+                tree = ast.parse(code_to_execute)  # Use cleaned code
                 function_name = None
                 for node in ast.walk(tree):
                     if isinstance(node, ast.FunctionDef):
@@ -804,26 +847,28 @@ class ToolCreationAgent(BaseAgent):
                 else:
                     logger.warning("Could not identify function name in code block via AST")
                     continue
-            
-                if function_name is None: # Should be redundant but safe
-                     logger.warning("Function name is None after AST walk")
-                     continue
+
+                if function_name is None:  # Should be redundant but safe
+                    logger.warning("Function name is None after AST walk")
+                    continue
 
                 # Execute the code in an isolated namespace
-                exec_globals = {} # Start fresh for execution context
+                exec_globals = {}  # Start fresh for execution context
                 try:
-                    exec(code_to_execute, exec_globals, exec_globals) # Use cleaned code
+                    exec(code_to_execute, exec_globals, exec_globals)  # Use cleaned code
                 except Exception as exec_exc:
-                     logger.error(f"Exception during exec: {exec_exc}", exc_info=True) # DEBUG
-                     continue # Don't proceed if exec failed
+                    logger.error(f"Exception during exec: {exec_exc}", exc_info=True)  # DEBUG
+                    continue  # Don't proceed if exec failed
 
                 # Add the function and any other definitions from the code block to the main globals dict
                 BaseAgent.code_executor.globals_dict.update(exec_globals)
-                
+
                 # Check if the expected function was defined in the isolated execution
                 check_result = function_name in exec_globals
                 if check_result:
-                    logger.info("Dynamic tool '%s' and related definitions registered from markdown code block.", function_name)
+                    logger.info(
+                        "Dynamic tool '%s' and related definitions registered from markdown code block.", function_name
+                    )
                     registered_tools.append(function_name)
                 else:
                     # This case should ideally not happen if AST parsing succeeded, but log it.
@@ -831,7 +876,7 @@ class ToolCreationAgent(BaseAgent):
 
             except Exception as exc:
                 logger.exception("Could not register generated tool from markdown code block: %s", exc)
-        
+
         return registered_tools
 
 
@@ -859,8 +904,9 @@ class ToolSelectionAgent(BaseAgent):
             if error_feedback:
                 # Append explicit guidance so the model can fix its previous mistake.
                 prompt += (
-                    "\nPREVIOUS_ERROR:\n" + error_feedback +
-                    "\nPlease fix the issue and output ONLY a valid <selection> XML or JSON object."
+                    "\nPREVIOUS_ERROR:\n"
+                    + error_feedback
+                    + "\nPlease fix the issue and output ONLY a valid <selection> XML or JSON object."
                 )
             reply = self.llm_call(prompt)
 
@@ -878,9 +924,7 @@ class ToolSelectionAgent(BaseAgent):
             selected = call.get("tool_name")
 
             if selected not in valid_names:
-                error_feedback = (
-                    f"Invalid tool selected: '{selected}'. Must be one of {sorted(valid_names)}"
-                )
+                error_feedback = f"Invalid tool selected: '{selected}'. Must be one of {sorted(valid_names)}"
                 attempt += 1
                 continue
 
@@ -920,6 +964,7 @@ class ObservationAgent(BaseAgent):
             logger.warning("ObservationAgent appended summary instead of replacing. Last result was not ToolResult.")
 
         return StepResult(True, summary)
+
 
 class FinalAgent(BaseAgent):
     def __init__(self):
