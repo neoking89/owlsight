@@ -5,7 +5,7 @@ This module defines the BaseAgent class that all concrete agents inherit from.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Optional
+from typing import ClassVar, Optional
 
 from owlsight.app.agentic.models import AgentContext, AgentPrompt, StepResult
 from owlsight.processors.text_generation_manager import TextGenerationManager

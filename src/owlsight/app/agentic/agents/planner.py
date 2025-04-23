@@ -6,7 +6,7 @@ for creating execution plans based on user questions.
 """
 
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Any
+from typing import Dict
 
 from owlsight.app.agentic.helpers import get_available_tools
 from owlsight.app.agentic.models import AgentContext, ExecutionPlan, PlanStep, StepResult, AgentPrompt

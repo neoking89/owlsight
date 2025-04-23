@@ -7,7 +7,7 @@ and data structures used in the agentic framework.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from owlsight.utils.logger import logger
 
