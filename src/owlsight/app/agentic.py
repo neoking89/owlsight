@@ -1,18 +1,18 @@
-import re
 import ast
 import json
-from typing import Any, List, Optional, ClassVar, Dict
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
-from enum import Enum
 import math
-import xml.etree.ElementTree as ET
+import re
 import traceback
+import xml.etree.ElementTree as ET
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, ClassVar, Dict, List, Optional
 
+from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
-from owlsight.app.default_functions import OwlDefaultFunctions
-from owlsight.utils.helper_functions import parse_xml
+from owlsight.utils.helper_functions import parse_markdown, parse_xml
 from owlsight.utils.logger import logger
 
 
@@ -229,7 +229,7 @@ Analyze the user request:
 CRITICAL CONSTRAINTS:
 - Each step in the plan MUST correspond to a SINGLE, atomic action.
 - If multiple distinct actions or tool uses are needed (e.g., searching for two different topics, reading a file then searching), create SEPARATE steps for each action.
-- DO NOT combine multiple tool calls or distinct logical operations into a single step description.
+- DO NOT combine multiple tool calls or distinct logical operations into a single step.
 - DO NOT assign multiple tools to one step.
 - A step involving `ToolSelectionAgent` implies the use of exactly ONE tool for that step from **AVAILABLE TOOLS**.
 
@@ -647,50 +647,79 @@ class ToolCreationAgent(BaseAgent):
         context.accumulated_results.append({"dynamic_tools_created": registered})
         return StepResult(True, registered)
 
-    def _extract(self, xml: str) -> Dict[str, Any]:
-        node = parse_xml(xml, "tool")
-        if not node:
-            return {}
-        out = {
-            "name": parse_xml(node, "name"),
-            "description": parse_xml(node, "description"),
-            "parameters": [],
-        }
-        params_block = parse_xml(node, "parameters")
-        if params_block:
-            for p in re.findall(r"<parameter>(.*?)</parameter>", params_block, re.DOTALL):
-                out["parameters"].append(
-                    {
-                        "name": parse_xml(p, "name"),
-                        "type": parse_xml(p, "type"),
-                        "description": parse_xml(p, "description"),
-                        "required": parse_xml(p, "required") == "true",
-                    }
-                )
-        return out if out["name"] else {}
+    def _extract(self, markdown: str) -> Dict[str, Any]:
+        """
+        Extract Python function code blocks from markdown.
+        Only processes markdown-formatted Python code blocks.
+        """     
+        code_blocks = parse_markdown(markdown)
+        python_blocks = [(lang, code) for lang, code in code_blocks if lang.lower() in ('python', 'py')]
+        
+        if python_blocks:
+            return {
+                "code_blocks": python_blocks
+            }
+        
+        return {}
 
-    # ---------------------- critical patch here ----------------------------
     def _register_dynamic_tool(self, data: Dict[str, Any]) -> List[str]:
-        name = data["name"]
-        params = [p["name"] for p in data.get("parameters", [])]
-        sig = ", ".join(params)
-        # Build a simple echo‑style tool; teams can extend.
-        code = [
-            f"def {name}({sig}):",
-            f'    """{data["description"]}"""',
-            "    return {'tool': '" + name + "', 'args': locals()}",
-            "",
-        ]
-        source = "\n".join(code)
-        ns: Dict[str, Any] = {}
-        try:
-            exec(source, BaseAgent.code_executor.globals_dict, ns)
-            BaseAgent.code_executor.globals_dict[name] = ns[name]
-            logger.info("Dynamic tool '%s' registered.", name)
-            return [name]
-        except Exception as exc:
-            logger.exception("Could not register generated tool '%s'", name)
-            return []
+        """
+        Register Python functions extracted from markdown code blocks as dynamic tools.
+        """
+        registered_tools = []
+        
+        for _, code_block in data.get("code_blocks", []):
+            # Clean the code block: remove leading/trailing whitespace and the language identifier if present
+            code_lines = code_block.strip().splitlines()
+            if code_lines and code_lines[0].strip().lower() == "python":
+                code_to_execute = "\n".join(code_lines[1:]).strip() # Remove 'python' line and strip again
+            else:
+                code_to_execute = "\n".join(code_lines).strip()
+
+            if not code_to_execute: # Skip if block is empty after cleaning
+                continue
+
+            try:
+                # Extract the function name using AST to correctly identify it
+                import ast
+                tree = ast.parse(code_to_execute) # Use cleaned code
+                function_name = None
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.FunctionDef):
+                        function_name = node.name
+                        break
+                else:
+                    logger.warning("Could not identify function name in code block via AST")
+                    continue
+            
+                if function_name is None: # Should be redundant but safe
+                     logger.warning("Function name is None after AST walk")
+                     continue
+
+                # Execute the code in an isolated namespace
+                exec_globals = {} # Start fresh for execution context
+                try:
+                    exec(code_to_execute, exec_globals, exec_globals) # Use cleaned code
+                except Exception as exec_exc:
+                     logger.error(f"Exception during exec: {exec_exc}", exc_info=True) # DEBUG
+                     continue # Don't proceed if exec failed
+
+                # Add the function and any other definitions from the code block to the main globals dict
+                BaseAgent.code_executor.globals_dict.update(exec_globals)
+                
+                # Check if the expected function was defined in the isolated execution
+                check_result = function_name in exec_globals
+                if check_result:
+                    logger.info("Dynamic tool '%s' and related definitions registered from markdown code block.", function_name)
+                    registered_tools.append(function_name)
+                else:
+                    # This case should ideally not happen if AST parsing succeeded, but log it.
+                    logger.warning(f"Function '{function_name}' parsed by AST but not found in exec_globals.")
+
+            except Exception as exc:
+                logger.exception("Could not register generated tool from markdown code block: %s", exc)
+        
+        return registered_tools
 
 
 class ToolSelectionAgent(BaseAgent):
