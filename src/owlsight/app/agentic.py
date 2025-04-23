@@ -41,6 +41,26 @@ def parse_tool_response(response: str) -> Dict[str, Any]:
     Raises ValueError if the input format is invalid or contains multiple selections.
     """
     response = response.strip()
+    # Strip common markdown code fences such as ```json ... ``` or ```xml ... ``` that the LLM
+    # might wrap around the actual content, then trim whitespace again.
+    response = re.sub(r"^```[a-zA-Z0-9]*\s*|```\s*$", "", response, flags=re.MULTILINE).strip()
+
+    # Heuristic: If the response contains a JSON object with a `tool_name` key but additional
+    # commentary around it, attempt to isolate the JSON substring first. This greatly increases
+    # resilience against chatty model outputs that prepend explanations.
+    json_block_match = re.search(r"\{[\s\S]*?\"tool_name\"[\s\S]*?\}", response)
+    if json_block_match and "<selection>" not in response.lower():  # Prefer JSON when both exist
+        try:
+            candidate_partial = json.loads(json_block_match.group(0))
+            if isinstance(candidate_partial, dict) and "tool_name" in candidate_partial:
+                candidate_partial.setdefault("parameters", {})
+                candidate_partial.setdefault("reason", "")
+                logger.debug(f"Parsed from heuristically extracted JSON: {candidate_partial}")
+                return candidate_partial
+        except Exception:
+            # Fallback to full parsing logic below
+            pass
+
     logger.debug(f"Attempting to parse tool response: {response}")
 
     # ---------- JSON branch -------------------------------------------------
@@ -749,10 +769,10 @@ class ToolSelectionAgent(BaseAgent):
         super().__init__("ToolSelectionAgent", AgentPrompt(TOOL_SELECTION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        # Allow the LLM a few chances to output a correct, valid selection
-        max_attempts = 3
+        # Allow the LLM several chances to self‑correct invalid outputs.
+        max_attempts = 4  # increased by one for improved resiliency
         attempt = 0
-        last_error: str = ""
+        error_feedback: str = ""  # passed back to the LLM to aid self‑correction
 
         # Get the current step description
         current_step = context.execution_plan[context.current_step]
@@ -765,13 +785,19 @@ class ToolSelectionAgent(BaseAgent):
                 available_tools=get_available_tools(BaseAgent.code_executor),
                 additional_information=self.get_additional_information(),
             )
+            if error_feedback:
+                # Append explicit guidance so the model can fix its previous mistake.
+                prompt += (
+                    "\nPREVIOUS_ERROR:\n" + error_feedback +
+                    "\nPlease fix the issue and output ONLY a valid <selection> XML or JSON object."
+                )
             reply = self.llm_call(prompt)
 
             try:
                 call = parse_tool_response(reply)
             except ValueError as ve:
-                # Parsing failed – retry with the same prompt (LLM may self‑correct)
-                last_error = f"Parse error: {ve}"
+                # Parsing failed – store feedback and retry.
+                error_feedback = f"Parse error: {ve}"
                 attempt += 1
                 continue
 
@@ -781,7 +807,9 @@ class ToolSelectionAgent(BaseAgent):
             selected = call.get("tool_name")
 
             if selected not in valid_names:
-                last_error = f"Invalid tool selected: '{selected}'. Must be one of {sorted(valid_names)}"
+                error_feedback = (
+                    f"Invalid tool selected: '{selected}'. Must be one of {sorted(valid_names)}"
+                )
                 attempt += 1
                 continue
 
@@ -791,7 +819,7 @@ class ToolSelectionAgent(BaseAgent):
             return StepResult(tool_result.success, tool_result)
 
         # If we exit the loop, all attempts have failed
-        return StepResult(False, last_error or "Tool selection failed after multiple attempts")
+        return StepResult(False, error_feedback or "Tool selection failed after multiple attempts")
 
 
 class ObservationAgent(BaseAgent):
