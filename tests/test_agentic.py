@@ -1,7 +1,9 @@
 import pytest
 from unittest.mock import MagicMock, patch
+from src.owlsight.app.agentic import parse_tool_response
 
-from owlsight.app.agentic import ToolCreationAgent, StepResult, AgentContext, BaseAgent
+
+from owlsight.app.agentic import ToolCreationAgent, AgentContext, BaseAgent
 from owlsight.utils.code_execution import CodeExecutor
 from owlsight.utils.custom_classes import GlobalPythonVarsDict
 
@@ -180,3 +182,221 @@ def test_execute_integration(tool_creation_agent):
 
     assert "add_numbers" in vars_dict
     assert result.execution_result == ['add_numbers']
+
+# --- Test Cases for parse_tool_response ---
+
+# Valid JSON Inputs
+VALID_JSON_BASIC = '{"tool_name": "test_tool", "parameters": {}, "reason": "Basic test"}'
+VALID_JSON_WITH_PARAMS = '{"tool_name": "another_tool", "parameters": {"param1": "value1", "param2": 123, "param3": true, "param4": ["a", "b"], "param5": {"key": "val"}}, "reason": "Test with various parameters"}'
+
+# Valid XML Inputs
+VALID_XML_BASIC = """
+<selection>
+  <tool_name>xml_tool</tool_name>
+  <parameters></parameters>
+  <reason>Basic XML test</reason>
+</selection>
+"""
+
+VALID_XML_WITH_PARAMS = """
+<selection>
+  <tool_name>xml_params_tool</tool_name>
+  <parameters>
+    <parameter>
+      <name>query</name>
+      <value>search query</value>
+    </parameter>
+    <parameter>
+      <name>max_results</name>
+      <value>10</value>
+    </parameter>
+    <parameter>
+      <name>enabled</name>
+      <value>true</value>
+    </parameter>
+  </parameters>
+  <reason>XML with simple params</reason>
+</selection>
+"""
+
+# XML with stringified list/dict values (as seen in logs)
+VALID_XML_WITH_STRING_LIST = """
+<selection>
+  <tool_name>owl_scrape</tool_name>
+  <parameters>
+    <parameter>
+      <name>urls</name>
+      <value>
+        [
+          "https://example.com/page1",
+          "https://example.com/page2"
+        ]
+      </value>
+    </parameter>
+    <parameter>
+      <name>max_concurrent</name>
+      <value>5</value>
+    </parameter>
+  </parameters>
+  <reason>Test parsing stringified list in XML</reason>
+</selection>
+"""
+
+VALID_XML_WITH_STRING_DICT = """
+<selection>
+  <tool_name>config_update</tool_name>
+  <parameters>
+    <parameter>
+      <name>settings</name>
+      <value>
+        {
+          "timeout": 30,
+          "retries": 3
+        }
+      </value>
+    </parameter>
+  </parameters>
+  <reason>Test parsing stringified dict in XML</reason>
+</selection>
+"""
+
+# Inputs with Markdown Fences
+JSON_WITH_FENCES = """
+```json
+{
+  "tool_name": "fenced_json_tool",
+  "parameters": {"id": "abc"},
+  "reason": "JSON inside markdown fences"
+}
+```
+"""
+
+XML_WITH_FENCES = """
+```xml
+<selection>
+  <tool_name>fenced_xml_tool</tool_name>
+  <parameters>
+      <parameter><name>path</name><value>/data</value></parameter>
+  </parameters>
+  <reason>XML inside markdown fences</reason>
+</selection>
+```
+"""
+
+# Input requiring Heuristic JSON extraction
+HEURISTIC_JSON = """
+Okay, I will use the search tool. Here is the selection:
+{
+  "tool_name": "heuristic_tool",
+  "parameters": {"query": "find me stuff"},
+  "reason": "Extracted from surrounding text"
+}
+"""
+
+# Invalid Inputs
+INVALID_JSON_STRING = ' "just a string" '
+INVALID_JSON_MALFORMED = ' {"tool_name": "bad", parameters: {} '
+INVALID_XML_MALFORMED = ' <selection><tool_name>incomplete </selection '
+INVALID_XML_NESTED = ' <selection><tool_name>outer</tool_name><selection><tool_name>inner</tool_name></selection></selection> '
+INVALID_XML_MULTIPLE_ROOTS = ' <selection></selection><selection></selection> '
+INVALID_XML_MISSING_TOOLNAME = ' <selection><parameters></parameters></selection> '
+XML_WITH_BAD_JSON_VALUE = """
+<selection>
+  <tool_name>bad_json_val</tool_name>
+  <parameters>
+    <parameter><name>bad_list</name><value>[1, 2</value></parameter>
+  </parameters>
+  <reason>Bad JSON in value</reason>
+</selection>
+"""
+NEITHER_JSON_NOR_XML = ' Just some plain text explanation. '
+
+# --- Pytest Functions ---
+def test_parse_valid_json_basic():
+    expected = {"tool_name": "test_tool", "parameters": {}, "reason": "Basic test"}
+    assert parse_tool_response(VALID_JSON_BASIC) == expected
+
+def test_parse_valid_json_with_params():
+    expected = {
+        "tool_name": "another_tool",
+        "parameters": {
+            "param1": "value1",
+            "param2": 123,
+            "param3": True,
+            "param4": ["a", "b"],
+            "param5": {"key": "val"}
+        },
+        "reason": "Test with various parameters"
+    }
+    assert parse_tool_response(VALID_JSON_WITH_PARAMS) == expected
+
+def test_parse_valid_xml_basic():
+    expected = {"tool_name": "xml_tool", "parameters": {}, "reason": "Basic XML test"}
+    assert parse_tool_response(VALID_XML_BASIC) == expected
+
+def test_parse_valid_xml_with_params():
+    expected = {
+        "tool_name": "xml_params_tool",
+        "parameters": {
+            "query": "search query",
+            "max_results": "10",
+            "enabled": "true"
+        },
+        "reason": "XML with simple params"
+    }
+    assert parse_tool_response(VALID_XML_WITH_PARAMS) == expected
+
+def test_parse_valid_xml_with_string_list():
+    result = parse_tool_response(VALID_XML_WITH_STRING_LIST)
+    assert result["tool_name"] == "owl_scrape"
+    assert result["reason"] == "Test parsing stringified list in XML"
+    assert result["parameters"]["max_concurrent"] == "5"
+    assert isinstance(result["parameters"]["urls"], list)
+    assert result["parameters"]["urls"] == [
+        "https://example.com/page1",
+        "https://example.com/page2"
+    ]
+
+def test_parse_valid_xml_with_string_dict():
+    result = parse_tool_response(VALID_XML_WITH_STRING_DICT)
+    assert result["tool_name"] == "config_update"
+    assert result["reason"] == "Test parsing stringified dict in XML"
+    assert isinstance(result["parameters"]["settings"], dict)
+    assert result["parameters"]["settings"] == {
+        "timeout": 30,
+        "retries": 3
+    }
+
+def test_parse_json_with_fences():
+    expected = {"tool_name": "fenced_json_tool", "parameters": {"id": "abc"}, "reason": "JSON inside markdown fences"}
+    assert parse_tool_response(JSON_WITH_FENCES) == expected
+
+def test_parse_xml_with_fences():
+    expected = {"tool_name": "fenced_xml_tool", "parameters": {"path": "/data"}, "reason": "XML inside markdown fences"}
+    assert parse_tool_response(XML_WITH_FENCES) == expected
+
+def test_parse_heuristic_json():
+    expected = {"tool_name": "heuristic_tool", "parameters": {"query": "find me stuff"}, "reason": "Extracted from surrounding text"}
+    result = parse_tool_response(HEURISTIC_JSON)
+    assert result["tool_name"] == expected["tool_name"]
+    assert result["parameters"] == expected["parameters"]
+    assert result["reason"] in [expected["reason"], ""]
+
+@pytest.mark.parametrize("invalid_input", [
+    INVALID_JSON_STRING,
+    INVALID_JSON_MALFORMED,
+    INVALID_XML_MALFORMED,
+    INVALID_XML_NESTED,
+    INVALID_XML_MULTIPLE_ROOTS,
+    INVALID_XML_MISSING_TOOLNAME,
+    NEITHER_JSON_NOR_XML,
+])
+def test_parse_invalid_formats(invalid_input):
+    with pytest.raises(ValueError):
+        parse_tool_response(invalid_input)
+
+def test_parse_xml_with_bad_json_value():
+    result = parse_tool_response(XML_WITH_BAD_JSON_VALUE)
+    assert result["tool_name"] == "bad_json_val"
+    assert isinstance(result["parameters"]["bad_list"], str)
+    assert result["parameters"]["bad_list"].strip() == "[1, 2"
