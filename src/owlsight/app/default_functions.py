@@ -119,22 +119,30 @@ class OwlDefaultFunctions:
         Union[str, Dict[str, str]]
             For single file/buffer: The extracted text content
             For directory/multiple files: Dict mapping file paths to their content
-            For errors: Error message string
+
+        Raises
+        ------
+        ValueError
+            If a URL is provided instead of a local file path
+        FileNotFoundError
+            If the specified file cannot be found
+        Exception
+            For other processing errors
 
         Notes
         -----
         - For web content/URLs use owl_scrape() instead
-        - URL inputs will return explicit error messages
+        - URL inputs will raise ValueError
         - Falls back to basic file reading if advanced processing fails
         - do NOT use this to read raw strings
         """
         if isinstance(file_source, (str, Path)) and is_url(file_source):
-            return f"Error: owl_read requires local files. Use owl_scrape() for URLs like '{file_source}'"
+            raise ValueError(f"owl_read requires local files. Use owl_scrape() for URLs like '{file_source}'")
 
         if isinstance(file_source, Iterable) and not isinstance(file_source, (str, bytes)):
             for p in file_source:
                 if isinstance(p, (str, Path)) and is_url(p):
-                    return "Error: Detected web URL in paths. Use owl_scrape() instead."
+                    raise ValueError("Detected web URL in paths. Use owl_scrape() instead.")
 
         try:
             reader = self._get_document_reader(
@@ -147,7 +155,7 @@ class OwlDefaultFunctions:
                     content = reader.read_file(file_source)
                     return content
                 except Exception as e:
-                    return f"Error reading buffer: {e}"
+                    raise RuntimeError(f"Error reading buffer: {e}")
 
             # handle directory
             if isinstance(file_source, (str, Path)):
@@ -160,7 +168,7 @@ class OwlDefaultFunctions:
                         return results
                     except Exception as e:
                         print(f"DocumentReader failed to read directory {file_source}: {str(e)}")
-                        return f"Error reading directory {file_source}: {str(e)}"
+                        raise RuntimeError(f"Error reading directory {file_source}: {str(e)}")
                 else:
                     # Handle single file
                     try:
@@ -175,9 +183,9 @@ class OwlDefaultFunctions:
                         with open(file_source, "r", encoding="utf-8") as file:
                             return file.read()
                     except FileNotFoundError:
-                        return f"File not found: {file_source}"
+                        raise FileNotFoundError(f"File not found: {file_source}")
                     except Exception as e:
-                        return f"Error reading file {file_source}: {str(e)}"
+                        raise RuntimeError(f"Error reading file {file_source}: {str(e)}")
             else:
                 # Handle iterable of files
                 results = {}
@@ -196,12 +204,12 @@ class OwlDefaultFunctions:
                         with open(file_path, "r", encoding="utf-8") as file:
                             results[str(file_path)] = file.read()
                     except Exception as e:
-                        results[str(file_path)] = f"Error reading file: {str(e)}"
+                        raise RuntimeError(f"Error reading file {file_path}: {str(e)}")
                 return results
 
         except Exception as e:
             print(f"Critical error in owl_read: {str(e)}")
-            return f"Critical error: {str(e)}"
+            raise RuntimeError(f"Critical error: {str(e)}")
 
     def owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> Dict[str, str]:
         """
@@ -223,6 +231,8 @@ class OwlDefaultFunctions:
 
         Raises
         ------
+        ImportError
+            If the required package is not installed
         RuntimeError
             After exhausting all retry attempts without success
 
@@ -239,7 +249,7 @@ class OwlDefaultFunctions:
                 "but is not installed. Please install using 'pip install owlsight[search]'"
             )
             print(error_msg)
-            return {"error": error_msg}
+            raise ImportError(error_msg)
 
         errors = []
         for attempt in range(max_retries):
@@ -290,6 +300,11 @@ class OwlDefaultFunctions:
         - Makes all module symbols available in global namespace
         - Overwrites existing names with same identifiers
         - Handles relative imports within the module
+        
+        Raises
+        ------
+        Exception
+            If there is an error importing the module
         """
         try:
             module_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -300,6 +315,7 @@ class OwlDefaultFunctions:
             print(f"Module '{module_name}' imported successfully.")
         except Exception:
             print(f"Error importing module:\n{traceback.format_exc()}")
+            raise
 
     def owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]:
         """
@@ -321,6 +337,11 @@ class OwlDefaultFunctions:
         -----
         - Filters out builtins and internal objects (starting with '_')
         - Object types shown in parentheses after names
+        
+        Raises
+        ------
+        Exception
+            If there is an error displaying the namespace objects
         """
         current_globals = self.globals_dict
         active_objects = self.globals_dict._filter_globals(current_globals)
@@ -363,6 +384,11 @@ class OwlDefaultFunctions:
         - Overwrites existing files without warning
         - Uses UTF-8 encoding
         - Limited to text-based formats
+        
+        Raises
+        ------
+        Exception
+            If there is an error writing to the file
         """
         try:
             with open(file_path, "w") as file:
@@ -370,6 +396,7 @@ class OwlDefaultFunctions:
             print(f"Content successfully written to {file_path}")
         except Exception as e:
             print(f"Error writing to file: {e}")
+            raise
 
     def owl_save_namespace(self, file_path: str):
         """
@@ -385,6 +412,11 @@ class OwlDefaultFunctions:
         - Excludes internal variables (starting with '_' or 'owl_')
         - Serialization uses dill package
         - Not all object types can be serialized
+        
+        Raises
+        ------
+        Exception
+            If there is an error during serialization
         """
         if not file_path.endswith(".dill"):
             file_path += ".dill"
@@ -397,6 +429,7 @@ class OwlDefaultFunctions:
             print(f"Namespace successfully saved to {file_path}")
         except Exception as e:
             print(f"An error occurred while saving: {e}")
+            raise
 
     def owl_load_namespace(self, file_path: str):
         """
@@ -406,6 +439,13 @@ class OwlDefaultFunctions:
         ----------
         file_path : str
             The path to the file to load the namespace from.
+            
+        Raises
+        ------
+        FileNotFoundError
+            If the specified file cannot be found
+        Exception
+            If there is an error during deserialization
         """
 
         if not file_path.endswith(".dill"):
@@ -417,8 +457,10 @@ class OwlDefaultFunctions:
             print(f"Namespace successfully loaded from {file_path}")
         except FileNotFoundError:
             print(f"File not found: {file_path}")
+            raise
         except Exception as e:
             print(f"An error occurred while loading: {e}")
+            raise
 
     def owl_scrape(
         self,
@@ -444,6 +486,11 @@ class OwlDefaultFunctions:
         dict
             Dictionary mapping URLs to their extracted content in markdown format
 
+        Raises
+        ------
+        ImportError
+            If required packages are not installed
+
         Notes
         -----
         - Respects robots.txt and website rate limits
@@ -464,7 +511,7 @@ class OwlDefaultFunctions:
                 f"Please install using 'pip install owlsight[search]'"
             )
             print(error_msg)
-            return {"error": error_msg}
+            raise ImportError(error_msg)
 
         content_dict = asyncio.run(fetch_and_parse_urls(urls, max_concurrent, timeout))
         content_dict = {url: content.strip() for url, content in content_dict.items() if content.strip()}
@@ -500,6 +547,13 @@ class OwlDefaultFunctions:
         Dict[str, str]
             Dictionary mapping URLs to their extracted content in markdown format
 
+        Raises
+        ------
+        ImportError
+            If required packages are not installed
+        RuntimeError
+            If search or scraping operations fail
+
         Notes
         -----
         - Combines functionality of owl_search and owl_scrape
@@ -516,7 +570,7 @@ class OwlDefaultFunctions:
                 "but is not installed. Please install using 'pip install owlsight[search]'"
             )
             print(error_msg)
-            return {"error": error_msg}
+            raise ImportError(error_msg)
 
         # Try importing from url_processor to check if aiohttp and lxml are available
         from owlsight.app.url_processor import AIOHTTP_AVAILABLE, LXML_AVAILABLE
@@ -534,14 +588,10 @@ class OwlDefaultFunctions:
                 f"Please install using 'pip install owlsight[search]'"
             )
             print(error_msg)
-            return {"error": error_msg}
+            raise ImportError(error_msg)
 
         # First perform the search to get URLs
         search_results = self.owl_search(query, max_results=max_results, max_retries=max_retries)
-
-        # If there was an error in the search, return it
-        if "error" in search_results:
-            return search_results
 
         # Get the URLs from the search results
         urls = list(search_results.keys())
@@ -570,6 +620,13 @@ class OwlDefaultFunctions:
             - Storage sizes
             - Last modified timestamps
             - File locations
+
+        Raises
+        ------
+        FileNotFoundError
+            If the cache directory does not exist
+        RuntimeError
+            If there is an error accessing the Hugging Face cache
         """
         from huggingface_hub import scan_cache_dir, HfApi
         from huggingface_hub.constants import HF_HUB_CACHE
@@ -577,13 +634,13 @@ class OwlDefaultFunctions:
         output_lines = []
         cache_dir: Path = Path(cache_dir or HF_HUB_CACHE)
         if not cache_dir.exists():
-            return f"Cache directory '{cache_dir}' does not exist."
+            raise FileNotFoundError(f"Cache directory '{cache_dir}' does not exist.")
 
         try:
             hf_api = HfApi()
             cache_info = scan_cache_dir(cache_dir)
             if not cache_info.repos:
-                return f"No models found in the Hugging Face cache directory {cache_dir}"
+                raise ValueError(f"No models found in the Hugging Face cache directory {cache_dir}")
 
             output_lines.append("\n=== Cached Hugging Face Models ===\n")
             for repo in cache_info.repos:
@@ -608,7 +665,7 @@ class OwlDefaultFunctions:
 
             return "\n".join(output_lines)
         except Exception as e:
-            return f"Error accessing Hugging Face cache: {str(e)}"
+            raise RuntimeError(f"Error accessing Hugging Face cache: {str(e)}")
 
     def owl_press(
         self,
@@ -643,6 +700,11 @@ class OwlDefaultFunctions:
         -----
         - Runs in separate process to avoid blocking
         - Timings approximate due to system scheduling
+        
+        Raises
+        ------
+        Exception
+            If there is an error starting the subprocess
         """
         if not isinstance(sequence, list):
             raise TypeError("sequence must be a list")
@@ -669,7 +731,7 @@ class OwlDefaultFunctions:
         except Exception as e:
             current_function_name = inspect.currentframe().f_code.co_name
             print(f"Error starting subprocess from inside {current_function_name}: {e}")
-            return False
+            raise
 
     def owl_create_document_searcher(
         self,
@@ -720,6 +782,11 @@ class OwlDefaultFunctions:
         - Use a (domain-specific) sentence transformer model for embeddings.
         Check https://huggingface.co/spaces/mteb/leaderboard with "Should be sentence-transformers compatible" turned on.
         - Caches DocumentSearcher instances based on input parameters for reuse
+        
+        Raises
+        ------
+        Exception
+            If there is an error creating the DocumentSearcher instance
         """
         from owlsight.rag.core import DocumentSearcher
         from owlsight.rag.text_splitters import SemanticTextSplitter
