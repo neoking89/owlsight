@@ -124,8 +124,6 @@ class OwlDefaultFunctions:
         ------
         ValueError
             If a URL is provided instead of a local file path
-        FileNotFoundError
-            If the specified file cannot be found
         Exception
             For other processing errors
 
@@ -183,7 +181,7 @@ class OwlDefaultFunctions:
                         with open(file_source, "r", encoding="utf-8") as file:
                             return file.read()
                     except FileNotFoundError:
-                        raise FileNotFoundError(f"File not found: {file_source}")
+                        return f"File not found: {file_source}"
                     except Exception as e:
                         raise RuntimeError(f"Error reading file {file_source}: {str(e)}")
             else:
@@ -203,10 +201,15 @@ class OwlDefaultFunctions:
                     try:
                         with open(file_path, "r", encoding="utf-8") as file:
                             results[str(file_path)] = file.read()
+                    except FileNotFoundError:
+                        results[str(file_path)] = f"File not found: {file_path}"
                     except Exception as e:
                         raise RuntimeError(f"Error reading file {file_path}: {str(e)}")
                 return results
 
+        except FileNotFoundError as e:
+            print(f"File not found in owl_read: {str(e)}")
+            return f"File not found: {str(e).split(': ', 1)[1] if ': ' in str(e) else str(e)}"
         except Exception as e:
             print(f"Critical error in owl_read: {str(e)}")
             raise RuntimeError(f"Critical error: {str(e)}")
