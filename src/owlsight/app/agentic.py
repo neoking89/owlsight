@@ -349,10 +349,10 @@ Additional Information:
 """
 
 TOOL_SELECTION_PROMPT = """
-You are an expert in selecting the right tool for a task. Based on the user question and context, choose the most appropriate tool from the available options.
+You are an expert in selecting the right tool for a task. Based on the step description and context, choose the most appropriate tool from the available options.
 
-User Question:
-{user_question}
+Step Description:
+{step_description}
 
 Context:
 {available_context}
@@ -754,9 +754,13 @@ class ToolSelectionAgent(BaseAgent):
         attempt = 0
         last_error: str = ""
 
+        # Get the current step description
+        current_step = context.execution_plan[context.current_step]
+        step_description = current_step.description
+
         while attempt < max_attempts:
             prompt = self.system_prompt.format(
-                user_question=context.user_question,
+                step_description=step_description,
                 available_context=self.get_previous_results(context),
                 available_tools=get_available_tools(BaseAgent.code_executor),
                 additional_information=self.get_additional_information(),
