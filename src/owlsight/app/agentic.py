@@ -1,6 +1,5 @@
 import ast
 import json
-import inspect
 import math
 import re
 import traceback
@@ -305,13 +304,13 @@ def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
                 target_type = type_hints[param_name]
                 # Handle basic type casting
                 try:
-                    if target_type == bool and isinstance(param_value, str):
+                    if target_type is bool and isinstance(param_value, str):
                         # Special handling for boolean values
                         param_value = param_value.lower() in {"true", "yes", "1", "y"}
                     elif target_type in (int, float, str):
                         # Cast to the target type
                         param_value = target_type(param_value)
-                    elif target_type == list and isinstance(param_value, str):
+                    elif target_type is list and isinstance(param_value, str):
                         # Try to convert string to list using ast.literal_eval
                         try:
                             param_value = ast.literal_eval(param_value)
@@ -320,7 +319,7 @@ def execute_tool(code_executor: CodeExecutor, tool_data: Dict[str, Any]):
                         except (ValueError, SyntaxError):
                             # If parsing fails, treat it as a single item list
                             param_value = [param_value]
-                    elif target_type == dict and isinstance(param_value, str):
+                    elif target_type is dict and isinstance(param_value, str):
                         # Try to convert string to dict using ast.literal_eval
                         try:
                             param_value = ast.literal_eval(param_value)
