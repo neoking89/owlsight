@@ -29,6 +29,7 @@ from owlsight.agentic.prompts import (
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
+from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.helper_functions import parse_markdown, parse_xml
 from owlsight.utils.logger import logger
 
@@ -75,15 +76,18 @@ class BaseAgent(ABC):
         return "\n".join(out)
 
     def get_additional_information(self) -> str:
-        cmgr = getattr(self.manager, "config_manager", None)
-        if cmgr is None:
+        config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
+        if config_manager is None:
             return ""
-        return cmgr.get("agentic.additional_information", "")
-
+        return config_manager.get("agentic.additional_information", "")
+    
     def set_additional_information(self, additional_info: str):
-        cmgr = getattr(self.manager, "config_manager", None)
-        if cmgr is not None:
-            cmgr.set("agentic.additional_information", additional_info)
+        config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
+        if config_manager is not None:
+            config_manager.set("agentic.additional_information", additional_info)
+        config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
+        if config_manager is not None:
+            config_manager.set("agentic.additional_information", additional_info)
 
 
 class PlannerAgent(BaseAgent):
