@@ -30,7 +30,7 @@ from owlsight.utils.constants import (
 )
 from owlsight.utils.deep_learning import free_cuda_memory
 from owlsight.processors.helper_functions import warn_processor_not_loaded
-from owlsight.app.agentic import AgentOrchestrator
+from owlsight.agentic.core import AgentOrchestrator
 from owlsight.utils.logger import logger
 
 
