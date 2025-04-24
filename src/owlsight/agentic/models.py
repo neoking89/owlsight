@@ -127,6 +127,7 @@ class AgentContext:
     - An ErrorContext that can contain multiple StepErrorInfo records
     - A final_response (if any)
     - Accumulated results from previous steps
+    - Planner feedback from guardrail validations
     """
 
     user_question: str
@@ -135,3 +136,4 @@ class AgentContext:
     error_context: ErrorContext = field(default_factory=ErrorContext)
     final_response: Optional[str] = None
     accumulated_results: List[Any] = field(default_factory=list)
+    planner_feedback_from_guardrails: Optional[str] = None
