@@ -6,6 +6,12 @@ from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Dict, List, Optional
 
 from owlsight.agentic.constants import AGENT_INFORMATION
+from owlsight.agentic.exceptions import GuardrailViolationError
+from owlsight.agentic.guardrails import (
+    GuardrailManager,
+    ToolExecutionFollowsToolCreationGuardrail,
+    FinalAgentIsLastGuardrail,
+)
 from owlsight.agentic.helper_functions import (
     execute_tool,
     get_agent_information,
@@ -74,12 +80,24 @@ class BaseAgent(ABC):
             return ""
         return cmgr.get("agentic.additional_information", "")
 
+    def set_additional_information(self, additional_info: str):
+        cmgr = getattr(self.manager, "config_manager", None)
+        if cmgr is not None:
+            cmgr.set("agentic.additional_information", additional_info)
+
 
 class PlannerAgent(BaseAgent):
     """The PlannerAgent is responsible for creating an execution plan based on the user's question."""
 
     def __init__(self):
         super().__init__("PlannerAgent", AgentPrompt(PLANNER_PROMPT))
+        # Default instance for the application
+        self.guardrail_manager = GuardrailManager()
+        for rails in [
+            ToolExecutionFollowsToolCreationGuardrail(),
+            FinalAgentIsLastGuardrail()
+        ]:
+            self.guardrail_manager.register_guardrail(rails)
 
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
@@ -105,9 +123,20 @@ class PlannerAgent(BaseAgent):
         if not steps:
             return StepResult(False, "Planning failed")
 
-        context.execution_plan = ExecutionPlan(steps)
-        return StepResult(True, steps)
-
+        execution_plan = ExecutionPlan(steps)
+        
+        # Validate the plan against guardrails
+        try:
+            self.guardrail_manager.validate_plan(execution_plan)
+            # Only set the plan in context if validation passes
+            context.execution_plan = execution_plan
+            return StepResult(True, steps)
+        except GuardrailViolationError as e:
+            logger.error(f"Plan validation failed due to guardrail violation: {e}")
+            # Include the specific guardrail error message to help the LLM correct the issue
+            context.planner_feedback_from_guardrails = f"Plan validation failed: {e}. Please revise the plan."
+            return StepResult(False, f"Plan validation failed: {e}")
+        
     def _extract(self, xml: str) -> List[PlanStep]:
         plan_xml = parse_xml(xml, "plan")
         if not plan_xml:
@@ -385,35 +414,64 @@ class AgentOrchestrator:
 
         while replan_count <= self.max_replans:
             try:
-                # Initial Plan (or replan if previous attempt failed before execution loop)
-                if not context.execution_plan or context.error_context.replan_attempts > replan_count:
+                # Determine if planning/replanning is needed
+                plan_needed = not context.execution_plan
+                # Note: We don't use context.error_context.replan_attempts here as replan_count tracks the overall attempts
+                
+                if plan_needed:
                     logger.info(f"Planning attempt {replan_count + 1}/{self.max_replans + 1}...")
-                    if not self._plan(context):
-                        logger.error("Initial planning failed. Cannot proceed.")
-                        # Provide context for failure if possible
-                        last_error = (
-                            context.error_context.step_errors[-1] if context.error_context.step_errors else None
-                        )
-                        error_info = f": {last_error.traceback_str}" if last_error else ""
-                        return f"I'm sorry, I couldn't create a plan to address your request{error_info}"
-                    context.error_context.replan_attempts = replan_count  # Sync replan attempts
+                    plan_successful = self._plan(context)
 
-                # Execute the current plan
-                if self._execute(context):
-                    # Execution successful, check for final response
-                    logger.info("Orchestration completed successfully.")
-                    return context.final_response or "Processing completed, but no final response was generated."
+                    if not plan_successful:
+                        # Check if the failure was due to a guardrail violation
+                        if context.planner_feedback_from_guardrails:
+                            logger.warning("Planning failed due to guardrail violation. Attempting replan.")
+                            replan_count += 1 # Consume a replan attempt for guardrail failure
+                            if replan_count > self.max_replans:
+                                logger.error(f"Max replan attempts ({self.max_replans}) reached after guardrail violation.")
+                                return f"I couldn't create a valid plan satisfying all constraints after {self.max_replans + 1} attempts. Please review the constraints or modify your request."
+                            continue # Go to the next iteration to replan
+                        else:
+                            # Planning failed for another reason (e.g., LLM error, extraction failed)
+                            logger.error("Initial planning failed for reasons other than guardrails. Cannot proceed.")
+                            last_error = (
+                                context.error_context.step_errors[-1] if context.error_context.step_errors else None
+                            )
+                            error_info = f": {last_error.traceback_str}" if last_error else "(No specific error detail available)"
+                            return f"I'm sorry, I couldn't create a plan to address your request{error_info}"
+                    # else: planning successful, context.execution_plan is now set
+
+                # --- Execution Phase --- 
+                # Proceed to execution only if we have a valid plan from the current or previous attempt
+                if context.execution_plan:
+                    execution_successful = self._execute(context) # _execute handles its own retries/replans
+                    
+                    if execution_successful:
+                        # Overall process successful
+                        logger.info("Orchestration completed successfully.")
+                        return context.final_response or "Processing completed, but no final response was generated."
+                    else:
+                        # Execution failed after exhausting internal retries/replans within _execute
+                        logger.error("Execution halted after exhausting retries or replans within the execution phase.")
+                        last_error = context.error_context.step_errors[-1] if context.error_context.step_errors else None
+                        error_info = (
+                            f" Last error at step {last_error.step_index + 1} ('{last_error.step_description}'): {last_error.traceback_str}"
+                            if last_error
+                            else ""
+                        )
+                        # If _execute initiated a replan that failed, replan_count might increase
+                        # We might need to check replan_count here again if _execute modifies it and requests outer loop replan
+                        # For now, assume _execute handles its replans internally or returns definitive failure
+                        return f"I'm sorry, I couldn't complete the task due to errors during execution{error_info}. Please try modifying your request."
                 else:
-                    # Execution failed, and replanning is handled within _execute
-                    # If _execute returns False, it means it halted after max retries/replans
-                    logger.error("Execution halted after exhausting retries or replans.")
-                    last_error = context.error_context.step_errors[-1] if context.error_context.step_errors else None
-                    error_info = (
-                        f" Last error at step {last_error.step_index + 1} ('{last_error.step_description}'): {last_error.traceback_str}"
-                        if last_error
-                        else ""
-                    )
-                    return f"I'm sorry, I couldn't complete the task due to errors{error_info}. Please try modifying your request."
+                    # This should only happen if planning failed (non-guardrail) and returned above,
+                    # or if max replans were hit due to guardrail violations.
+                    # If we reach here unexpectedly, log it.
+                    logger.error("Reached execution phase without a valid plan. This might indicate a logic error.")
+                    # The loop should have handled returning an error message already.
+                    # Add a fallback just in case.
+                    return "An unexpected error occurred during planning."
+
 
             except Exception as e:
                 # Catch unexpected errors in the process_user_question loop itself
@@ -448,7 +506,24 @@ class AgentOrchestrator:
             context.error_context.add_error(-1, "Planning", 1, "PlannerAgent not found.")
             return False
         try:
+            # If we have planner_feedback from a previous guardrail validation failure,
+            # pass it as additional_information to help fix the plan
+            if context.planner_feedback_from_guardrails:
+                logger.info(f"Replanning with feedback: {context.planner_feedback_from_guardrails}")
+                planner.set_additional_information(context.planner_feedback_from_guardrails)
+                # Clear feedback after using it to avoid reusing stale feedback
+                context.planner_feedback_from_guardrails = None
+            else:
+                planner.set_additional_information(None)
+                
             plan_result = planner.execute(context)
+            
+            # If planning failed due to guardrail violation, the feedback is already set in context
+            # We'll return false and let the orchestrator handle replanning
+            if not plan_result.success and context.planner_feedback_from_guardrails:
+                logger.warning(f"Plan validation failed due to guardrail violation: {context.planner_feedback_from_guardrails}")
+                return False
+                
             if plan_result.success and context.execution_plan and context.execution_plan.steps:
                 logger.info(f"Planning successful. Execution plan created with {len(context.execution_plan)} steps.")
                 return True
@@ -596,6 +671,19 @@ class AgentOrchestrator:
                             logger.warning(
                                 f"Maximum retries reached for step {step_index + 1}. Triggering replan attempt {replan_count}/{self.max_replans}."
                             )
+
+                            # --- Append Error Context to Additional Information --- START
+                            planner_agent = self.agents.get("PlannerAgent")
+                            if planner_agent and isinstance(planner_agent, PlannerAgent):
+                                last_error = context.error_context.errors[-1].traceback_str if context.error_context.errors else "Unknown error"
+                                current_info = planner_agent.get_additional_information()
+                                new_info = f"{current_info}\n\nPrevious attempt failed at step {step_index + 1} ('{step.description}') with error: {last_error}\nPlease analyze this error and adjust the plan accordingly."
+                                planner_agent.set_additional_information(new_info.strip())
+                                logger.info("Appended error context to planner's additional_information for replanning.")
+                            else:
+                                logger.warning("Could not find PlannerAgent to append error context.")
+                            # --- Append Error Context to Additional Information --- END
+
                             # Pass error context to planner implicitly via AgentContext
                             if self._plan(context):
                                 logger.info("Replanning successful. Restarting execution with the new plan.")
