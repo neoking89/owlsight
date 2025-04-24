@@ -9,7 +9,7 @@ Analyze the user request:
 4. If the query can be answered directly based on the model's training data without external tools or data, assign it directly to FinalAgent.
 5. **Avoid redundant steps.** If a tool combines actions (like a function containing 'and' or 'or'), do not plan separate follow-up steps for those combined actions (like scraping again).
 6. **Be specific AND FOCUSED.** If the request involves multiple distinct locations, items, or topics (e.g., "weather in New York City" and "weather in Amsterdam"), create SEPARATE plan steps. Each step MUST target ONLY ONE of these distinct entities. For instance, one step for 'Get NYC weather' using ToolSelectionAgent, followed by another step for 'Get Amsterdam weather' using ToolSelectionAgent. DO NOT create a single step trying to execute both steps.
-7. **Understand context flow.** After a `ToolSelectionAgent` step, the `ObservationAgent` runs AUTOMATICALLY to summarize the tool's output based on the step description. **NEVER plan an explicit step for `ObservationAgent`.** Subsequent steps work with the summary provided automatically in the context.
+7. **Understand context flow.** After a `ToolSelectionAgent` step, the output will ALWAYS be summarized and provided to the next step. Subsequent steps work with the summary provided automatically in the context.
 8. Return a structured plan.
 
 CRITICAL CONSTRAINTS:
@@ -20,7 +20,7 @@ CRITICAL CONSTRAINTS:
 - A step involving `ToolSelectionAgent` implies the use of exactly ONE tool for that step from **AVAILABLE TOOLS**.
 
 Agent Information:
-- ToolSelectionAgent: Use ONLY for selecting and executing ONE specific tool from **AVAILABLE TOOLS**. Its output is AUTOMATICALLY summarized by ObservationAgent.
+- ToolSelectionAgent: Use ONLY for selecting and executing ONE specific tool from **AVAILABLE TOOLS**. Its output is AUTOMATICALLY summarized for the next step.
 - ToolCreationAgent: PRIORITIZE this agent whenever the user explicitly requests to create, write, or implement a function, method, tool, utility, or any other programming construct. This agent specializes in creating Python code that can be dynamically registered as a tool. When a task clearly involves implementing a custom function (e.g., "create a function to calculate...", "write code that...", "implement a method for..."), ToolCreationAgent should be the FIRST agent in your plan, not ToolSelectionAgent.
 - FinalAgent: Use ONLY for synthesizing the final response using accumulated context (including automatically generated observations). It does NOT use tools directly.
 
@@ -52,6 +52,7 @@ Response Format:
   <!-- Repeat <step> for each step in the plan -->
 </plan>
 """
+
 TOOL_CREATION_PROMPT = """
 You are an expert Python programmer specialized in creating tools for Large Language Models (LLMs).
 Your task is to create a Python function based on the user's request.
