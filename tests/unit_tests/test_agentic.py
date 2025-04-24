@@ -1,9 +1,10 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from src.owlsight.app.agentic import parse_tool_response
+from owlsight.agentic.helper_functions import parse_tool_response
 
 
-from owlsight.app.agentic import ToolCreationAgent, AgentContext, BaseAgent
+from owlsight.agentic.core import ToolCreationAgent, BaseAgent
+from owlsight.agentic.models import AgentContext
 from owlsight.utils.code_execution import CodeExecutor
 from owlsight.utils.custom_classes import GlobalPythonVarsDict
 
@@ -137,7 +138,7 @@ def test_register_dynamic_tool_success(tool_creation_agent):
     assert func(5, 3) == 8
 
 
-@patch('owlsight.app.agentic.logger.exception')
+@patch('owlsight.agentic.core.logger.exception')
 def test_register_dynamic_tool_syntax_error(mock_exception, tool_creation_agent):
     """Test _register_dynamic_tool handles syntax errors in the code block."""
     data_to_register = {
@@ -153,7 +154,7 @@ def test_register_dynamic_tool_syntax_error(mock_exception, tool_creation_agent)
     assert "add_numbers" not in GlobalPythonVarsDict()
 
 
-@patch('owlsight.app.agentic.logger.warning')
+@patch('owlsight.agentic.core.logger.warning')
 def test_register_dynamic_tool_no_function_def(mock_warning, tool_creation_agent):
     """Test _register_dynamic_tool handles code blocks without a function definition."""
     data_to_register = {
