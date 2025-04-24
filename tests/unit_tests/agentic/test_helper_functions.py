@@ -1,21 +1,11 @@
-import pytest
-import ast
-import sys
-import os
-import logging
+from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
-# Add src directory to sys.path to allow importing owlsight
-SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-if SRC_DIR not in sys.path:
-    sys.path.insert(0, SRC_DIR)
-
-from typing import Any, Dict, List, Optional
+import pytest
 
 from owlsight.agentic.helper_functions import execute_tool
-from owlsight.agentic.models import ToolResult
 
-# --- Mock Tools ---
+
 def mock_tool_basic(name: str, age: int) -> str:
     """A simple mock tool with basic types."""
     return f"Hello {name}, you are {age} years old."
