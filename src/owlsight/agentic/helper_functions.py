@@ -1,10 +1,6 @@
-# --------------------------------------------------------------------------- #
-# Helper functions                                                            #
-# --------------------------------------------------------------------------- #
 import ast
 import inspect
 import json
-import traceback
 import re
 from typing import Any, Dict, get_type_hints, get_origin, get_args, Optional, Union
 import xml.etree.ElementTree as ET
@@ -129,6 +125,47 @@ def execute_tool(globals_dict: dict[str, Any], tool_data: dict[str, Any]):
         logger.exception("Error while executing tool '%s'", tool_name)
         err_msg = f"A {type(exc).__name__} occurred while executing tool '{tool_name}': {str(exc)}"
         return ToolResult(False, err_msg)
+
+def parse_tool_response(response: str) -> Dict[str, Any]:
+    """
+    Accepts a single JSON object *or* a single XML <selection> element.
+    Returns dict with 'tool_name', 'parameters', 'reason'.
+    Raises ValueError if the input format is invalid or cannot be parsed as either JSON or XML.
+    """
+    # Preprocessing: strip whitespace and markdown code fences
+    response = response.strip()
+    response = re.sub(r"^```[a-zA-Z0-9]*\s*|```\s*$", "", response, flags=re.MULTILINE).strip()
+
+    logger.debug(f"Processing tool response (length {len(response)}): {response[:200]}...")
+
+    # Step 1: Try heuristic extraction for JSON embedded in text
+    heuristic_result = _try_heuristic_json_extraction(response)
+    if heuristic_result:
+        return heuristic_result
+
+    # Step 2: Try standard JSON parsing
+    json_error = None
+    try:
+        return _parse_tool_response_json(response)
+    except ValueError as e:
+        json_error = e
+        logger.debug(f"Standard JSON parsing failed: {e}")
+
+    # Step 3: Try XML parsing as fallback
+    xml_error = None
+    try:
+        return _parse_tool_response_xml(response)
+    except ValueError as e:
+        xml_error = e
+        logger.error(f"XML parsing also failed: {e}")
+
+    # All parsing methods failed - raise a comprehensive error
+    raise ValueError(
+        f"Tool response could not be parsed as JSON or XML.\n"
+        f"JSON error: {json_error}\n"
+        f"XML error: {xml_error}\n"
+        f"Response: {response[:500]}..."
+    ) from xml_error  # Chain the XML error for context
 
 
 def _extract_complete_json(response: str, match_text: str, start_idx: int) -> Optional[Dict[str, Any]]:
@@ -330,45 +367,3 @@ def _parse_tool_response_json(response: str) -> Dict[str, Any]:
         logger.warning(f"Unexpected error during JSON processing: {e}")
         # Wrap unexpected errors
         raise ValueError("Unexpected error parsing JSON response.") from e
-
-
-def parse_tool_response(response: str) -> Dict[str, Any]:
-    """
-    Accepts a single JSON object *or* a single XML <selection> element.
-    Returns dict with 'tool_name', 'parameters', 'reason'.
-    Raises ValueError if the input format is invalid or cannot be parsed as either JSON or XML.
-    """
-    # Preprocessing: strip whitespace and markdown code fences
-    response = response.strip()
-    response = re.sub(r"^```[a-zA-Z0-9]*\s*|```\s*$", "", response, flags=re.MULTILINE).strip()
-
-    logger.debug(f"Processing tool response (length {len(response)}): {response[:200]}...")
-
-    # Step 1: Try heuristic extraction for JSON embedded in text
-    heuristic_result = _try_heuristic_json_extraction(response)
-    if heuristic_result:
-        return heuristic_result
-
-    # Step 2: Try standard JSON parsing
-    json_error = None
-    try:
-        return _parse_tool_response_json(response)
-    except ValueError as e:
-        json_error = e
-        logger.debug(f"Standard JSON parsing failed: {e}")
-
-    # Step 3: Try XML parsing as fallback
-    xml_error = None
-    try:
-        return _parse_tool_response_xml(response)
-    except ValueError as e:
-        xml_error = e
-        logger.error(f"XML parsing also failed: {e}")
-
-    # All parsing methods failed - raise a comprehensive error
-    raise ValueError(
-        f"Tool response could not be parsed as JSON or XML.\n"
-        f"JSON error: {json_error}\n"
-        f"XML error: {xml_error}\n"
-        f"Response: {response[:500]}..."
-    ) from xml_error  # Chain the XML error for context
