@@ -540,7 +540,7 @@ class AgentOrchestrator:
                     traceback_str=f"Planner failed: {plan_result.execution_result}",
                 )
                 return False
-        except Exception as e:
+        except Exception:
             logger.exception("Exception during planning phase.")
             context.error_context.add_error(
                 step_index=-1, step_description="Planning", attempt_number=1, traceback_str=traceback.format_exc()
