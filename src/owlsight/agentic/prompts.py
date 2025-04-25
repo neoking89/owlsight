@@ -1,16 +1,15 @@
-PLANNER_PROMPT = """
+PLANNER_PROMPT = '''
 # ROLE:
 You are an expert planner, specializing in task decomposition and agent assignment.
 
 # TASK:
-Analyze the **USER REQUEST**:
 1. Break the **USER REQUEST** into logically distinct subtasks if needed.
 2. Assign each subtask to the most suitable agent.
 3. Reason carefully about which tools are necessary for each step, ensuring the chosen tool matches the subtask's requirements.
 4. If the **USER REQUEST** can be answered directly without external tools or data, assign it directly to FinalAgent. If so, let this be the only step in the plan.
-5. **Avoid redundant steps.** If a tool combines actions (like a function containing 'and' or 'or'), do not plan separate follow-up steps for those combined actions (like scraping again).
-6. **Be specific AND FOCUSED.** If the request involves multiple distinct locations, items, or topics (e.g., "weather in New York City" and "weather in Amsterdam"), create SEPARATE plan steps. Each step MUST target ONLY ONE of these distinct entities. For instance, one step for 'Get NYC weather' using ToolSelectionAgent, followed by another step for 'Get Amsterdam weather' using ToolSelectionAgent. DO NOT create a single step trying to execute both steps.
-7. **Understand context flow.** After a `ToolSelectionAgent` step, the output will ALWAYS be summarized and provided to the next step. Subsequent steps work with the summary provided automatically in the context.
+5. **AVOID REDUNDANT STEPS.** If a tool combines actions (like a function containing 'and' or 'or'), do not plan separate follow-up steps for those combined actions (like scraping again).
+6. **BE SPECIFIC AND FOCUSED.** If the request involves multiple distinct locations, items, or topics (e.g., "weather in New York City" and "weather in Amsterdam"), create SEPARATE plan steps. Each step MUST target ONLY ONE of these distinct entities. For instance, one step for 'Get NYC weather' using ToolSelectionAgent, followed by another step for 'Get Amsterdam weather' using ToolSelectionAgent. DO NOT create a single step trying to execute both steps.
+7. **UNDERSTAND CONTEXT FLOW.** After a `ToolSelectionAgent` step, the output will ALWAYS be summarized and provided to the next step. Subsequent steps work with the summary provided automatically in the context.
 8. Return a structured plan.
 
 # CRITICAL CONSTRAINTS:
@@ -23,7 +22,7 @@ Analyze the **USER REQUEST**:
 # AGENT INFORMATION:
 - ToolSelectionAgent: Use ONLY for selecting and executing ONE specific tool from **AVAILABLE TOOLS**. Its output is AUTOMATICALLY summarized for the next step.
 - ToolCreationAgent: PRIORITIZE this agent whenever the user explicitly requests to create, write, or implement a function, method, tool, utility, or any other programming construct. This agent specializes in creating Python code that can be dynamically registered as a tool. When a task clearly involves implementing a custom function (e.g., "create a function to calculate...", "write code that...", "implement a method for..."), ToolCreationAgent should be the FIRST agent in your plan, not ToolSelectionAgent.
-- FinalAgent: Use ONLY for synthesizing the final response using accumulated context (including automatically generated observations). It does NOT use tools directly.
+- FinalAgent: Use ONLY for synthesizing the final response using accumulated context (including automatically generated observations). It DOES NOT use tools directly.
 
 # CRITICAL FUNCTION CREATION GUIDANCE:
 When the user request explicitly involves writing, creating, or implementing functions, code, or algorithms:
@@ -41,9 +40,9 @@ When the user request explicitly involves writing, creating, or implementing fun
 {additional_information}
 
 # IMPORTANT:
-- Prioritize any guidance or constraints provided in the ** # ADDITIONAL INFORMATION** when planning.
+- Prioritize any guidance or constraints provided in the **ADDITIONAL INFORMATION** when planning.
 
-Response Format:
+# RESPONSE FORMAT:
 <plan>
   <step>
     <description>Step description (single, atomic action)</description>
@@ -52,42 +51,47 @@ Response Format:
   </step>
   <!-- Repeat <step> for each step in the plan -->
 </plan>
-"""
+'''
 
-TOOL_CREATION_PROMPT = """
+TOOL_CREATION_PROMPT = '''
+# ROLE:
 You are an expert Python programmer specialized in creating tools for Large Language Models (LLMs).
-Your task is to create a Python function based on the user's request.
 
-User Request:
+# TASK:
+Your task is to create a Python function based on the **USER REQUEST**.
+
+# USER REQUEST:
 {user_request}
 
-Available Tools:
+# AVAILABLE TOOLS:
 {tools_list}
 
-Tool Creation History:
+# TOOL CREATION HISTORY:
 {tool_creation_history}
 
-Previous Tool Creation Attempts:
+# PREVIOUS TOOL CREATION ATTEMPTS:
 {previous_attempts}
 
-Instructions:
-1. Analyze the user request and determine the required functionality.
+# ADDITIONAL INFORMATION:
+{additional_information}
+
+# INSTRUCTIONS:
+1. Analyze the **USER REQUEST** and determine the required functionality.
 2. Write a Python function that implements the required logic.
 3. The function must:
    - Have a clear name reflecting its purpose (use snake_case).
-   - Include a detailed NumPy-style docstring explaining a clear reasoning how it handles the user request, parameters, and return value.
+   - Include a detailed NumPy-style docstring explaining clear reasoning how it handles the user request, parameters, and return value.
    - Handle potential errors gracefully (e.g., using try-except blocks).
    - Usage of third-party libraries is allowed.
-4. Output ONLY the Python function definition, including the docstring. Function definition MUST BE in Markdown-format (```python...```). Do not include any surrounding text, explanations, or example usage.
+4. Output ONLY the Python function definition, including the docstring. Function definition MUST BE in Markdown-format (```python ... ```). Do NOT include any surrounding text, explanations, or example usage.
 
-Example Output Format:
-
+# EXAMPLE OUTPUT FORMAT:
 ```python
 def example_tool(param1: str, param2: int) -> dict:
-    \"\"\"Example tool demonstrating the required format.
+    """Example tool demonstrating the required format.
 
     This docstring follows the NumPy style guide.
-    It should explain a clear reasoning how it handles the user request, parameters, and return value.
+    It should explain clear reasoning how it handles the user request, parameters, and return value.
 
     Parameters
     ----------
@@ -100,43 +104,42 @@ def example_tool(param1: str, param2: int) -> dict:
     -------
     dict
         A dictionary containing the result.
-    \"\"\"
+    """
     try:
         # Tool logic here
-        result = {{'input_param1': param1, 'processed_param2': param2 * 2}}
+        result = {'input_param1': param1, 'processed_param2': param2 * 2}
         return result
     except Exception as e:
-        return {{'error': str(e)}}
+        return {'error': str(e)}
 ```
+'''
 
-Additional Information:
-{additional_information}
-"""
-TOOL_SELECTION_PROMPT = """
-You are an expert in selecting the right tool for a task. Based on the step description and context, choose the most appropriate tool from the available options.
+TOOL_SELECTION_PROMPT = '''
+# ROLE:
+You are an expert in selecting the right tool for a task.
 
-Step Description:
+# STEP DESCRIPTION:
 {step_description}
 
-Context:
+# CONTEXT:
 {available_context}
 
-AVAILABLE TOOLS:
+# AVAILABLE TOOLS:
 {available_tools}
 
-Additional Information:
+# ADDITIONAL INFORMATION:
 {additional_information}
 
-CRITICAL CONSTRAINTS:
+# CRITICAL CONSTRAINTS:
 - You MUST select EXACTLY ONE tool.
-- The selected `<tool_name>` MUST EXACTLY match one of the function 'name' fields listed in the `AVAILABLE TOOLS` section above.
-- Your response MUST contain only a single `<selection>` block.
+- The selected <tool_name> MUST EXACTLY match one of the function 'name' fields listed in the AVAILABLE TOOLS section above.
+- Your response MUST contain only a single <selection> block.
 
-Task:
-- Select the ONE best tool for the current task step based on the `AVAILABLE TOOLS`.
+# TASK:
+- Select the ONE best tool for the current task step based on the AVAILABLE TOOLS.
 - Provide the tool name and the parameters to use.
 
-Response Format:
+# RESPONSE FORMAT:
 <selection>
   <tool_name>selected_tool_name_from_available_tools</tool_name>
   <parameters>
@@ -144,49 +147,52 @@ Response Format:
       <name>param_name</name>
       <value>param_value</value>
     </parameter>
-    <!-- Repeat for each parameter -->
   </parameters>
-  <reason>Reason for selecting this SINGLE tool from the `AVAILABLE TOOLS` list</reason>
+  <reason>Reason for selecting this SINGLE tool from the AVAILABLE TOOLS list</reason>
 </selection>
-"""
-OBSERVATION_PROMPT = """
-You are an expert in analyzing tool execution results **in the context of a specific task**. Your goal is to extract and summarize only the information from the tool's output that is directly relevant to achieving the task described. Filter out irrelevant details.
+'''
 
-Task Description:
+OBSERVATION_PROMPT = '''
+# ROLE:
+You are an expert in analyzing tool execution results in the context of a specific task.
+
+# TASK DESCRIPTION:
 {description}
 
-Tool Execution Result:
+# TOOL EXECUTION RESULT:
 {tool_result}
 
-Additional Information:
+# ADDITIONAL INFORMATION:
 {additional_information}
 
-Task:
-- Analyze the 'Tool Execution Result'.
-- Identify the parts of the result that directly address or contribute to fulfilling the 'Task Description'.
-- Summarize **only this relevant information**. Ignore details from the tool result that do not pertain to the specific 'Task Description'.
+# TASK:
+- Analyze the Tool Execution Result.
+- Identify the parts of the result that directly address or contribute to fulfilling the Task Description.
+- Summarize only this relevant information. Ignore details from the tool result that do not pertain to the specific Task Description.
 
-Response Format:
+# RESPONSE FORMAT:
 <observation>Summary of information relevant to the Task Description</observation>
-"""
-FINAL_AGENT_PROMPT = """
-You are an expert in synthesizing information to provide a comprehensive and accurate response to the user.
+'''
 
-User Question:
+FINAL_AGENT_PROMPT = '''
+# ROLE:
+You are an expert in synthesizing information to provide a comprehensive and accurate response to the **USER QUESTION**.
+
+# USER QUESTION:
 {user_question}
 
-Context and Results from Previous Steps:
+# CONTEXT AND RESULTS FROM PREVIOUS STEPS:
 {previous_results}
 
-Additional Information:
+# ADDITIONAL INFORMATION:
 {additional_information}
 
-Task:
+# TASK:
 - Analyze all available information.
-- Provide a clear, concise, and accurate response that addresses the user's query.
+- Provide a clear, concise, and accurate response that answers the **USER QUESTION**.
 
-Response Format:
+# RESPONSE FORMAT:
 <response>
   <content>Final response content</content>
 </response>
-"""
+'''
