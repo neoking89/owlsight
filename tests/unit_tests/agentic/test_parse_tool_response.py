@@ -1,6 +1,7 @@
 import pytest
 import sys
 import json
+import pytest
 from owlsight.agentic.helper_functions import parse_tool_response
 
 
@@ -67,85 +68,6 @@ class TestParseToolResponse:
         assert result["parameters"] == {"param1": "value1"}
         assert result["reason"] == "This JSON is embedded in text"
 
-    def test_xml_parsing(self):
-        """Test parsing an XML tool response."""
-        xml_response = """<selection>
-            <tool_name>xml_tool</tool_name>
-            <parameters>
-                <parameter>
-                    <name>param1</name>
-                    <value>value1</value>
-                </parameter>
-                <parameter>
-                    <name>param2</name>
-                    <value>2</value>
-                </parameter>
-            </parameters>
-            <reason>XML test reason</reason>
-        </selection>"""
-        
-        result = parse_tool_response(xml_response)
-        
-        assert result["tool_name"] == "xml_tool"
-        assert result["parameters"] == {"param1": "value1", "param2": "2"}
-        assert result["reason"] == "XML test reason"
-        
-    def test_xml_parsing_json_parameters(self):
-        """Test parsing XML with JSON values in parameters."""
-        xml_response = """<selection>
-            <tool_name>xml_json_tool</tool_name>
-            <parameters>
-                <parameter>
-                    <name>listParam</name>
-                    <value>[1, 2, 3]</value>
-                </parameter>
-                <parameter>
-                    <name>dictParam</name>
-                    <value>{"key": "value"}</value>
-                </parameter>
-            </parameters>
-            <reason>XML with JSON params</reason>
-        </selection>"""
-        
-        result = parse_tool_response(xml_response)
-        
-        assert result["tool_name"] == "xml_json_tool"
-        assert result["parameters"]["listParam"] == [1, 2, 3]
-        assert result["parameters"]["dictParam"] == {"key": "value"}
-        assert result["reason"] == "XML with JSON params"
-
-    def test_xml_parsing_minimal(self):
-        """Test parsing a minimal XML tool response."""
-        xml_response = """<selection>
-            <tool_name>minimal_xml_tool</tool_name>
-        </selection>"""
-        
-        result = parse_tool_response(xml_response)
-        
-        assert result["tool_name"] == "minimal_xml_tool"
-        assert result["parameters"] == {}
-        assert result["reason"] == ""
-
-    def test_xml_with_surrounding_text(self):
-        """Test parsing XML embedded in surrounding text."""
-        # Only passing the actual XML portion - the surrounding text causes parsing to fail
-        # as the XML parser needs a clean XML document
-        xml_response = """<selection>
-            <tool_name>embedded_xml_tool</tool_name>
-            <parameters>
-                <parameter>
-                    <name>param1</name>
-                    <value>value1</value>
-                </parameter>
-            </parameters>
-        </selection>"""
-        
-        result = parse_tool_response(xml_response)
-        
-        assert result["tool_name"] == "embedded_xml_tool"
-        assert result["parameters"] == {"param1": "value1"}
-        assert result["reason"] == ""
-
     def test_parse_failure(self):
         """Test handling when parsing fails for both JSON and XML."""
         invalid_response = "This is neither valid JSON nor valid XML"
@@ -153,7 +75,7 @@ class TestParseToolResponse:
         with pytest.raises(ValueError) as excinfo:
             parse_tool_response(invalid_response)
         
-        assert "could not be parsed as JSON or XML" in str(excinfo.value)
+        assert "Tool response could not be parsed as JSON" in str(excinfo.value)
 
     def test_invalid_json_format(self):
         """Test handling of valid JSON but invalid format (missing tool_name)."""
@@ -162,31 +84,7 @@ class TestParseToolResponse:
         with pytest.raises(ValueError) as excinfo:
             parse_tool_response(invalid_json)
         
-        assert "Expected a single object with 'tool_name'" in str(excinfo.value)
-
-    def test_invalid_xml_format(self):
-        """Test handling of valid XML but invalid format (missing tool_name)."""
-        invalid_xml = """<selection>
-            <not_tool_name>something</not_tool_name>
-            <parameters></parameters>
-        </selection>"""
-        
-        with pytest.raises(ValueError) as excinfo:
-            parse_tool_response(invalid_xml)
-        
-        assert "Missing <tool_name>" in str(excinfo.value)
-
-    def test_nested_xml_selection_rejection(self):
-        """Test rejection of nested selection tags in XML."""
-        nested_xml = """<selection>
-            <tool_name>nested_xml</tool_name>
-            <parameters><selection></selection></parameters>
-        </selection>"""
-        
-        with pytest.raises(ValueError) as excinfo:
-            parse_tool_response(nested_xml)
-        
-        assert "Nested <selection> tags detected" in str(excinfo.value)
+        assert "Tool response could not be parsed as JSON" in str(excinfo.value)
 
     def test_deep_nested_json_extraction(self):
         """Test extracting JSON with nested objects and arrays."""

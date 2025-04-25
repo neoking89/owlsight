@@ -42,15 +42,19 @@ When the user request explicitly involves writing, creating, or implementing fun
 # IMPORTANT:
 - Prioritize any guidance or constraints provided in the **ADDITIONAL INFORMATION** when planning.
 
-# RESPONSE FORMAT:
-<plan>
-  <step>
-    <description>Step description (single, atomic action)</description>
-    <agent>AgentName</agent>
-    <reason>Reason for this step, including potential tool usage (if ToolSelectionAgent), expected inputs (e.g., previous observation), and why this agent is chosen.</reason>
-  </step>
-  <!-- Repeat <step> for each step in the plan -->
-</plan>
+# RESPONSE FORMAT (JSON):
+```json
+{
+  "plan": [
+    {
+      "description": "Step description (single, atomic action)",
+      "agent": "AgentName",
+      "reason": "Reason for this step, including potential tool usage (if ToolSelectionAgent), expected inputs, and why this agent is chosen."
+    }
+    /* Repeat the object for each step in the plan */
+  ]
+}
+```
 '''
 
 TOOL_CREATION_PROMPT = '''
@@ -83,7 +87,7 @@ Your task is to create a Python function based on the **USER REQUEST**.
    - Include a detailed NumPy-style docstring explaining clear reasoning how it handles the user request, parameters, and return value.
    - Handle potential errors gracefully (e.g., using try-except blocks).
    - Usage of third-party libraries is allowed.
-4. Output ONLY the Python function definition, including the docstring. Function definition MUST BE in Markdown-format (```python ... ```). Do NOT include any surrounding text, explanations, or example usage.
+4. Output ONLY the Python function definition, including the docstring. Function definition MUST BE in Markdown-format (```python ... ```). DO NOT include any surrounding text, explanations, or example usage.
 
 # EXAMPLE OUTPUT FORMAT:
 ```python
@@ -139,17 +143,17 @@ You are an expert in selecting the right tool for a task.
 - Select the ONE best tool for the current task step based on the AVAILABLE TOOLS.
 - Provide the tool name and the parameters to use.
 
-# RESPONSE FORMAT:
-<selection>
-  <tool_name>selected_tool_name_from_available_tools</tool_name>
-  <parameters>
-    <parameter>
-      <name>param_name</name>
-      <value>param_value</value>
-    </parameter>
-  </parameters>
-  <reason>Reason for selecting this SINGLE tool from the AVAILABLE TOOLS list</reason>
-</selection>
+# RESPONSE FORMAT (JSON):
+```json
+{
+  "tool_name": "selected_tool_name_from_available_tools",
+  "parameters": {
+    "query": "Search query",
+    "max_results": 5
+  },
+  "reason": "Reason for selecting this SINGLE tool from the AVAILABLE TOOLS list"
+}
+```
 '''
 
 OBSERVATION_PROMPT = '''
@@ -170,8 +174,12 @@ You are an expert in analyzing tool execution results in the context of a specif
 - Identify the parts of the result that directly address or contribute to fulfilling the Task Description.
 - Summarize only this relevant information. Ignore details from the tool result that do not pertain to the specific Task Description.
 
-# RESPONSE FORMAT:
-<observation>Summary of information relevant to the Task Description</observation>
+# RESPONSE FORMAT (JSON):
+```json
+{
+  "observation": "Summary of information relevant to the Task Description"
+}
+```
 '''
 
 FINAL_AGENT_PROMPT = '''
@@ -191,8 +199,12 @@ You are an expert in synthesizing information to provide a comprehensive and acc
 - Analyze all available information.
 - Provide a clear, concise, and accurate response that answers the **USER QUESTION**.
 
-# RESPONSE FORMAT:
-<response>
-  <content>Final response content</content>
-</response>
+# RESPONSE FORMAT (JSON):
+```json
+{
+  "response": {
+    "content": "Final response content"
+  }
+}
+```
 '''

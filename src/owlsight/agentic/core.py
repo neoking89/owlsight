@@ -30,7 +30,7 @@ from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
 from owlsight.configurations.config_manager import ConfigManager
-from owlsight.utils.helper_functions import parse_markdown, parse_xml
+from owlsight.utils.helper_functions import parse_markdown
 from owlsight.utils.logger import logger
 
 
@@ -141,18 +141,21 @@ class PlannerAgent(BaseAgent):
             context.planner_feedback_from_guardrails = f"Plan validation failed: {e}. Please revise the plan."
             return StepResult(False, f"Plan validation failed: {e}")
         
-    def _extract(self, xml: str) -> List[PlanStep]:
-        plan_xml = parse_xml(xml, "plan")
-        if not plan_xml:
+    def _extract(self, plan_json: str) -> List[PlanStep]:
+        try:
+            data = json.loads(plan_json)
+        except json.JSONDecodeError:
+            return []
+        plan_list = data.get("plan", [])
+        if not isinstance(plan_list, list):
             return []
         parsed: List[PlanStep] = []
-        for seg in re.findall(r"<step>(.*?)</step>", plan_xml, re.DOTALL):
-            desc = parse_xml(seg, "description")
-            ag = parse_xml(seg, "agent")
-            reason = parse_xml(seg, "reason")
+        for item in plan_list:
+            desc = item.get("description", "")
+            ag = item.get("agent", "")
+            reason = item.get("reason", "")
             if desc and ag:
                 parsed.append(PlanStep(desc, ag, reason or ""))
-        # Enforce that only valid agents are used in plan steps
         allowed = set(AGENT_INFORMATION.keys())
         invalid = [s.agent_name for s in parsed if s.agent_name not in allowed]
         if invalid:
@@ -293,7 +296,7 @@ class ToolSelectionAgent(BaseAgent):
                 prompt += (
                     "\nPREVIOUS_ERROR:\n"
                     + error_feedback
-                    + "\nPlease fix the issue and output ONLY a valid <selection> XML or JSON object."
+                    + "\nPlease fix the issue and output ONLY a valid <selection> JSON object."
                 )
             reply = self.llm_call(prompt)
 
@@ -346,8 +349,13 @@ class ObservationAgent(BaseAgent):
             tool_result=tool_result.result,
             additional_information=self.get_additional_information(),
         )
-        summary_xml = self.llm_call(prompt)
-        summary = parse_xml(summary_xml, "observation").strip()
+        summary_json = self.llm_call(prompt)
+        try:
+            summary_dict = json.loads(summary_json)
+            summary = summary_dict.get("observation", "").strip()
+        except json.JSONDecodeError as e:
+            logger.error(f"Observation JSON parsing failed: {e}")
+            return StepResult(False, f"Failed to parse observation JSON: {e}")
 
         # Replace the previous ToolResult with the Observation summary
         if context.accumulated_results and isinstance(context.accumulated_results[-1], ToolResult):
