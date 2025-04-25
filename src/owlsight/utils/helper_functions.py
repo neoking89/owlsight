@@ -50,6 +50,10 @@ def parse_xml(string: str, tag: str) -> str:
 def parse_markdown(md_string: str) -> List[Tuple[str, str]]:
     """
     Parses language and code blocks from a markdown string.
+
+    Returns
+    -------
+    list of tuples: Each tuple contains (language, code)
     """
     pattern = r"```(\w+)([\s\S]*?)```"
     return [(match[0].strip(), match[1].strip()) for match in re.findall(pattern, md_string)]
