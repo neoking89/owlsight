@@ -125,7 +125,7 @@ class PlannerAgent(BaseAgent):
             )
 
         if not steps:
-            return StepResult(False, "Planning failed")
+            return StepResult(False, "No plansteps where found. Planning failed.")
 
         execution_plan = ExecutionPlan(steps)
         
@@ -142,6 +142,10 @@ class PlannerAgent(BaseAgent):
             return StepResult(False, f"Plan validation failed: {e}")
         
     def _extract(self, plan_json: str) -> List[PlanStep]:
+        try:
+            _, plan_json = parse_markdown(plan_json)[-1]
+        except IndexError:
+            logger.warning("No markdown code block found in plan JSON. Trying to parse as JSON directly.")
         try:
             data = json.loads(plan_json)
         except json.JSONDecodeError:
@@ -296,7 +300,7 @@ class ToolSelectionAgent(BaseAgent):
                 prompt += (
                     "\nPREVIOUS_ERROR:\n"
                     + error_feedback
-                    + "\nPlease fix the issue and output ONLY a valid <selection> JSON object."
+                    + "\nPlease fix the issue and output ONLY a valid 'selection' JSON object."
                 )
             reply = self.llm_call(prompt)
 
