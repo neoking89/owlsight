@@ -44,16 +44,16 @@ When the user request explicitly involves writing, creating, or implementing fun
 
 # RESPONSE FORMAT (JSON):
 ```json
-{
+{{
   "plan": [
-    {
+    {{
       "description": "Step description (single, atomic action)",
       "agent": "AgentName",
       "reason": "Reason for this step, including potential tool usage (if ToolSelectionAgent), expected inputs, and why this agent is chosen."
-    }
+    }}
     /* Repeat the object for each step in the plan */
   ]
-}
+}}
 ```
 '''
 
@@ -145,14 +145,14 @@ You are an expert in selecting the right tool for a task.
 
 # RESPONSE FORMAT (JSON):
 ```json
-{
+{{
   "tool_name": "selected_tool_name_from_available_tools",
-  "parameters": {
+  "parameters": {{
     "query": "Search query",
     "max_results": 5
-  },
+  }},
   "reason": "Reason for selecting this SINGLE tool from the AVAILABLE TOOLS list"
-}
+}}
 ```
 '''
 
@@ -176,9 +176,9 @@ You are an expert in analyzing tool execution results in the context of a specif
 
 # RESPONSE FORMAT (JSON):
 ```json
-{
+{{
   "observation": "Summary of information relevant to the Task Description"
-}
+}}
 ```
 '''
 
@@ -201,10 +201,10 @@ You are an expert in synthesizing information to provide a comprehensive and acc
 
 # RESPONSE FORMAT (JSON):
 ```json
-{
-  "response": {
+{{
+  "response": {{
     "content": "Final response content"
-  }
-}
+  }}
+}}
 ```
 '''
