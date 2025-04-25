@@ -111,10 +111,10 @@ def example_tool(param1: str, param2: int) -> dict:
     """
     try:
         # Tool logic here
-        result = {'input_param1': param1, 'processed_param2': param2 * 2}
+        result = {{'input_param1': param1, 'processed_param2': param2 * 2}}
         return result
     except Exception as e:
-        return {'error': str(e)}
+        return {{'error': str(e)}}
 ```
 '''
 
