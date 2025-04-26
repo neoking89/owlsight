@@ -25,6 +25,7 @@ def parse_json_markdown(response: str) -> dict:
     dict
         The parsed JSON data. Returns an empty dict if parsing fails.
     """
+    plan_json = ""
     try:
         _, plan_json = parse_markdown(response)[-1]
     except IndexError:
