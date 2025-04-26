@@ -7,7 +7,33 @@ from typing import Any, Dict, get_type_hints, get_origin, get_args, Optional, Un
 from owlsight.agentic.constants import AGENT_INFORMATION
 from owlsight.agentic.models import ToolResult
 from owlsight.app.default_functions import OwlDefaultFunctions
+from owlsight.utils.helper_functions import parse_markdown
 from owlsight.utils.logger import logger
+
+
+def parse_json_markdown(response: str) -> dict:
+    """
+    Parses a markdown response to extract JSON data.
+    
+    Parameters
+    ----------
+    response: str
+        The markdown response to parse.
+
+    Returns
+    -------
+    dict
+        The parsed JSON data. Returns an empty dict if parsing fails.
+    """
+    try:
+        _, plan_json = parse_markdown(response)[-1]
+    except IndexError:
+        logger.warning("No markdown code block found in plan JSON. Trying to parse as JSON directly.")
+    try:
+        data = json.loads(plan_json)
+        return data
+    except json.JSONDecodeError:
+        return {}
 
 
 def get_agent_information() -> str:
@@ -63,8 +89,7 @@ def execute_tool(globals_dict: dict[str, Any], tool_data: dict[str, Any]):
         if func is None:
             return ToolResult(False, f"Tool '{tool_name}' not found.")
         sig = inspect.signature(func)
-        required_params = [p.name for p in sig.parameters.values() 
-                          if p.default == inspect.Parameter.empty]
+        required_params = [p.name for p in sig.parameters.values() if p.default == inspect.Parameter.empty]
         missing = [p for p in required_params if p not in raw_params]
         if missing:
             return ToolResult(False, f"Missing required parameters: {missing}")
@@ -124,6 +149,7 @@ def execute_tool(globals_dict: dict[str, Any], tool_data: dict[str, Any]):
         logger.exception("Error while executing tool '%s'", tool_name)
         err_msg = f"A {type(exc).__name__} occurred while executing tool '{tool_name}': {str(exc)}"
         return ToolResult(False, err_msg)
+
 
 def parse_tool_response(response: str) -> Dict[str, Any]:
     """
