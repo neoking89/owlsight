@@ -208,3 +208,58 @@ You are an expert in synthesizing information to provide a comprehensive and acc
 }}
 ```
 '''
+
+PLAN_VALIDATION_PROMPT = '''
+# ROLE:
+You are an expert plan validator, ensuring execution plans adhere to guardrails and are optimized for task completion.
+
+# TASK:
+1. Review the **GENERATED PLAN** against the **USER REQUEST** and **AVAILABLE TOOLS**.
+2. Verify that the plan adheres to all **GUARDRAILS**.
+3. Revise the plan if necessary to ensure it follows guardrails and optimally addresses the user request.
+4. Return a validated or revised plan.
+
+# USER REQUEST:
+{user_request}
+
+# GENERATED PLAN:
+{generated_plan}
+
+# AVAILABLE TOOLS:
+{available_tools}
+
+# GUARDRAILS:
+{guardrails}
+
+# ADDITIONAL INFORMATION:
+{additional_information}
+
+# VALIDATION INSTRUCTIONS:
+1. Check if the plan is logically structured to address the user request.
+2. Ensure each step uses the appropriate agent for its task.
+3. Verify the plan doesn't violate any guardrails.
+4. Make minimal changes to fix issues - only revise what's necessary.
+5. Preserve the original plan's intention and approach when possible.
+
+# GUARDRAIL VIOLATION HANDLING:
+- If the **GUARDRAILS** section contains error messages, this indicates the plan has FAILED validation against one or more guardrails.
+- When guardrail violations are detected, you MUST revise the plan to address these specific violations.
+- Pay close attention to the exact nature of the violation and make appropriate changes to ensure the revised plan complies with all guardrails.
+- Your validation_result MUST be "revised" when addressing guardrail violations, and your validation_notes should explain how you fixed the violations.
+
+# RESPONSE FORMAT (JSON):
+```json
+{{
+  "validation_result": "valid" or "revised",
+  "validation_notes": "Reasoning for validation or revision decisions",
+  "plan": [
+    {{
+      "description": "Step description (single, atomic action)",
+      "agent": "AgentName",
+      "reason": "Reason for this step, including potential tool usage (if ToolSelectionAgent), expected inputs, and why this agent is chosen."
+    }}
+    /* Repeat for each step in the plan */
+  ]
+}}
+```
+'''
