@@ -17,9 +17,9 @@ class PlannerAgent:
     pass
 
 class StepResult:
-    def __init__(self, success: bool, output: str):
+    def __init__(self, success: bool, execution_result: str):
         self.success = success
-        self.output = output
+        self.execution_result = execution_result
 
 # Helper to create steps
 def create_step(agent_name: str, description: str = "") -> PlanStep:
