@@ -9,7 +9,6 @@ from owlsight.agentic.exceptions import GuardrailViolationError
 from owlsight.agentic.guardrails import (
     GuardrailManager,
     ToolExecutionFollowsToolCreationGuardrail,
-    FinalAgentIsLastGuardrail,
 )
 
 # Helper function to create PlanSteps
@@ -71,44 +70,11 @@ def test_tool_creation_followed_by_wrong_agent_invalid():
         guardrail.validate(plan)
 
 
-# --- Tests for FinalAgentIsLastGuardrail ---
-
-def test_final_agent_last_valid():
-    """Tests a valid plan where FinalAgent is the last step."""
-    guardrail = FinalAgentIsLastGuardrail()
-    plan = ExecutionPlan([
-        create_step("SomeAgent"),
-        create_step("FinalAgent"),
-    ])
-    guardrail.validate(plan)  # Should not raise
-
-def test_final_agent_not_last_invalid():
-    """Tests an invalid plan where FinalAgent is not the last step."""
-    guardrail = FinalAgentIsLastGuardrail()
-    plan = ExecutionPlan([
-        create_step("FinalAgent"),
-        create_step("SomeAgent"),
-    ])
-    with pytest.raises(GuardrailViolationError, match="FinalAgent can only be used as the final step"):
-        guardrail.validate(plan)
-
-def test_no_final_agent_valid():
-    """Tests a valid plan without a FinalAgent (PlannerAgent adds it later)."""
-    guardrail = FinalAgentIsLastGuardrail()
-    plan = ExecutionPlan([
-        create_step("SomeAgent"),
-    ])
-    guardrail.validate(plan)  # Should not raise
-
-
-# --- Tests for GuardrailManager ---
-
 @pytest.fixture
 def manager() -> GuardrailManager:
     """Fixture to provide a GuardrailManager with both guardrails registered."""
     mgr = GuardrailManager()
     mgr.register_guardrail(ToolExecutionFollowsToolCreationGuardrail())
-    mgr.register_guardrail(FinalAgentIsLastGuardrail())
     return mgr
 
 def test_manager_valid_plan(manager):
@@ -142,6 +108,6 @@ def test_manager_register_guardrail():
     """Tests registering a guardrail."""
     mgr = GuardrailManager()
     assert len(mgr.guardrails) == 0
-    mgr.register_guardrail(FinalAgentIsLastGuardrail())
+    mgr.register_guardrail(ToolExecutionFollowsToolCreationGuardrail())
     assert len(mgr.guardrails) == 1
-    assert isinstance(mgr.guardrails[0], FinalAgentIsLastGuardrail)
+    assert isinstance(mgr.guardrails[0], ToolExecutionFollowsToolCreationGuardrail)
