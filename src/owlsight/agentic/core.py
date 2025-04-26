@@ -181,6 +181,34 @@ class PlanValidationAgent(BaseAgent):
             logger.error(f"Plan validation failed due to guardrail violation: {e}")
             return StepResult(False, f"Plan validation failed: {e}")
 
+    def _validate_llm_response(self, result_json: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+        """Validate the structure and required fields of the LLM response JSON."""
+        required_fields = ["validation_result", "validation_notes"]
+        
+        # The "plan" field is only required if the plan is revised
+        if result_json.get("validation_result") == "revised":
+            required_fields.append("plan")
+            
+        missing_fields = [field for field in required_fields if field not in result_json]
+        if missing_fields:
+            err_msg = f"Missing required fields in LLM response: {', '.join(missing_fields)}"
+            logger.error(err_msg)
+            return False, f"Failed to validate plan: {err_msg}"
+            
+        # Additional validation for 'plan' field if it exists
+        if "plan" in result_json:
+            if not isinstance(result_json["plan"], list):
+                err_msg = "Invalid 'plan' field: expected a list."
+                logger.error(err_msg)
+                return False, f"Failed to validate plan: {err_msg}"
+            for step in result_json["plan"]:
+                 if not all(k in step for k in ("description", "agent")):
+                    err_msg = "Invalid step in 'plan': missing 'description' or 'agent'."
+                    logger.error(err_msg)
+                    return False, f"Failed to validate plan: {err_msg}"
+                    
+        return True, None
+
     def execute(self, context: AgentContext) -> StepResult:
         # First validate the plan against guardrails
         guardrail_validation = self.validate_plan_by_guardrails(context.execution_plan)
@@ -191,7 +219,7 @@ class PlanValidationAgent(BaseAgent):
             logger.info(f"Plan validation detected guardrail violation: {guardrail_error}. Requesting LLM to revise the plan.")
         
         # Format the plan for inclusion in the prompt
-        plan_json = json.dumps({
+        plan_json = json.dumps({ 
             "plan": [{
                 "description": step.description, 
                 "agent": step.agent_name, 
@@ -216,13 +244,27 @@ class PlanValidationAgent(BaseAgent):
         logger.debug(f"Plan validation raw output:\n{response}")
         
         try:
-            # Extract the validation result
+            # Attempt to parse the response as JSON
             result_json = json.loads(response)
+        except json.JSONDecodeError as e:
+            err_msg = f"Failed to parse PlanValidationAgent response as JSON: {e}"
+            logger.error(err_msg)
+            return StepResult(
+                success=False,
+                execution_result=f"Failed to validate plan: {err_msg}",
+            )
             
+        # Validate the structure and required fields of the parsed JSON
+        is_valid, error_message = self._validate_llm_response(result_json)
+        if not is_valid:
+            return StepResult(success=False, execution_result=error_message)
+
+        # Process the validated response
+        try:
             if result_json["validation_result"] == "revised":
-                # Update the plan with the revised version
+                # Update the plan with the revised version from the validated JSON
                 new_steps = []
-                for step_data in result_json["plan"]:
+                for step_data in result_json["plan"]:  # Accessing 'plan' is now safe
                     new_step = PlanStep(
                         description=step_data["description"],
                         agent_name=step_data["agent"],
@@ -235,20 +277,22 @@ class PlanValidationAgent(BaseAgent):
                 
                 return StepResult(
                     success=True,
-                    execution_result=f"Plan revised: {result_json['validation_notes']}",
+                    execution_result=f"Plan revised: {result_json['validation_notes']}", # Accessing 'validation_notes' is safe
                 )
-            else:
+            else: # validation_result is 'valid' or potentially something else handled as valid
                 # Plan was validated without changes
                 return StepResult(
                     success=True,
-                    execution_result=f"Plan validated: {result_json['validation_notes']}",
+                    execution_result=f"Plan validated: {result_json['validation_notes']}", # Accessing 'validation_notes' is safe
                 )
-                
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.error(f"Failed to parse PlanValidationAgent response: {e}")
+        except KeyError as e:
+            # This catch block is now less likely due to _validate_llm_response,
+            # but kept as a safeguard against unexpected issues.
+            err_msg = f"Unexpected missing key after validation: {e}"
+            logger.error(err_msg)
             return StepResult(
                 success=False,
-                execution_result=f"Failed to validate plan: {str(e)}",
+                execution_result=f"Failed to process validated plan: {err_msg}",
             )
 
 
