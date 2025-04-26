@@ -10,7 +10,6 @@ from owlsight.agentic.exceptions import GuardrailViolationError
 from owlsight.agentic.guardrails import (
     GuardrailManager,
     ToolExecutionFollowsToolCreationGuardrail,
-    FinalAgentIsLastGuardrail,
 )
 from owlsight.agentic.helper_functions import (
     execute_tool,
@@ -23,6 +22,7 @@ from owlsight.agentic.models import AgentContext, AgentPrompt, ExecutionPlan, Pl
 from owlsight.agentic.prompts import (
     FINAL_AGENT_PROMPT,
     OBSERVATION_PROMPT,
+    PLAN_VALIDATION_PROMPT,
     PLANNER_PROMPT,
     TOOL_CREATION_PROMPT,
     TOOL_SELECTION_PROMPT,
@@ -96,10 +96,6 @@ class PlannerAgent(BaseAgent):
 
     def __init__(self):
         super().__init__("PlannerAgent", AgentPrompt(PLANNER_PROMPT))
-        # Default instance for the application
-        self.guardrail_manager = GuardrailManager()
-        for rails in [ToolExecutionFollowsToolCreationGuardrail(), FinalAgentIsLastGuardrail()]:
-            self.guardrail_manager.register_guardrail(rails)
 
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
@@ -128,16 +124,8 @@ class PlannerAgent(BaseAgent):
         execution_plan = ExecutionPlan(steps)
 
         # Validate the plan against guardrails
-        try:
-            self.guardrail_manager.validate_plan(execution_plan)
-            # Only set the plan in context if validation passes
-            context.execution_plan = execution_plan
-            return StepResult(True, steps)
-        except GuardrailViolationError as e:
-            logger.error(f"Plan validation failed due to guardrail violation: {e}")
-            # Include the specific guardrail error message to help the LLM correct the issue
-            context.planner_feedback_from_guardrails = f"Plan validation failed: {e}. Please revise the plan."
-            return StepResult(False, f"Plan validation failed: {e}")
+        step_result = PlanValidationAgent().validate_plan_by_guardrails(execution_plan)
+        return step_result
 
     def _extract(self, plan_json: str) -> List[PlanStep]:
         data = parse_json_markdown(plan_json)
@@ -157,6 +145,111 @@ class PlannerAgent(BaseAgent):
             logger.error(f"PlannerAgent: Invalid agent(s) in plan steps: {invalid}")
             return []
         return parsed
+
+
+class PlanValidationAgent(BaseAgent):
+    """The PlanValidationAgent is responsible for validating and potentially revising the execution plan.
+    It follows the PlannerAgent to ensure the plan adheres to guardrails and is optimized for the task.
+    """
+
+    def __init__(self):
+        super().__init__("PlanValidationAgent", AgentPrompt(PLAN_VALIDATION_PROMPT))
+
+    def validate_plan_by_guardrails(self, plan: ExecutionPlan) -> StepResult:
+        """
+        Validates the execution plan against all registered guardrails.
+        
+        Parameters
+        ----------
+        plan : ExecutionPlan
+            The execution plan to validate.
+            
+        Returns
+        -------
+        StepResult
+            Result of the validation: success/failure and execution_result message.
+        """
+        # Default instance for the application
+        guardrail_manager = GuardrailManager()
+        for rails in [ToolExecutionFollowsToolCreationGuardrail()]:
+            guardrail_manager.register_guardrail(rails)
+        
+        try:
+            guardrail_manager.validate_plan(plan)
+            return StepResult(True, plan.steps)
+        except GuardrailViolationError as e:
+            logger.error(f"Plan validation failed due to guardrail violation: {e}")
+            return StepResult(False, f"Plan validation failed: {e}")
+
+    def execute(self, context: AgentContext) -> StepResult:
+        # First validate the plan against guardrails
+        guardrail_validation = self.validate_plan_by_guardrails(context.execution_plan)
+        guardrail_error = None
+        if not guardrail_validation.success:
+            # Instead of returning early, capture the error message to send to the LLM
+            guardrail_error = guardrail_validation.execution_result
+            logger.info(f"Plan validation detected guardrail violation: {guardrail_error}. Requesting LLM to revise the plan.")
+        
+        # Format the plan for inclusion in the prompt
+        plan_json = json.dumps({
+            "plan": [{
+                "description": step.description, 
+                "agent": step.agent_name, 
+                "reason": step.reason
+            } for step in context.execution_plan.steps]
+        }, indent=2)
+        
+        # Format the prompt with context information
+        prompt_params = {
+            "user_request": context.user_question,
+            "generated_plan": plan_json,
+            "available_tools": context.get_available_tools_content(),
+            "guardrails": guardrail_error if guardrail_error else "",  # Pass the guardrail error message if any
+            "additional_information": self.get_additional_information(),
+        }
+        
+        logger.debug(f"Plan validation input:\n{json.dumps(prompt_params, indent=2)}")
+        
+        # Generate response from the LLM
+        formatted_prompt = self.system_prompt.format(**prompt_params)
+        response = self.llm_call(formatted_prompt)
+        logger.debug(f"Plan validation raw output:\n{response}")
+        
+        try:
+            # Extract the validation result
+            result_json = json.loads(response)
+            
+            if result_json["validation_result"] == "revised":
+                # Update the plan with the revised version
+                new_steps = []
+                for step_data in result_json["plan"]:
+                    new_step = PlanStep(
+                        description=step_data["description"],
+                        agent_name=step_data["agent"],
+                        reason=step_data.get("reason", "")
+                    )
+                    new_steps.append(new_step)
+                
+                # Replace the existing plan with the revised one
+                context.execution_plan.steps = new_steps
+                
+                return StepResult(
+                    success=True,
+                    execution_result=f"Plan revised: {result_json['validation_notes']}",
+                )
+            else:
+                # Plan was validated without changes
+                return StepResult(
+                    success=True,
+                    execution_result=f"Plan validated: {result_json['validation_notes']}",
+                )
+                
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.error(f"Failed to parse PlanValidationAgent response: {e}")
+            return StepResult(
+                success=False,
+                execution_result=f"Failed to validate plan: {str(e)}",
+            )
 
 
 class ToolCreationAgent(BaseAgent):
@@ -402,6 +495,7 @@ class AgentOrchestrator:
 
         self.agents: Dict[str, BaseAgent] = {
             "PlannerAgent": PlannerAgent(),
+            "PlanValidationAgent": PlanValidationAgent(),
             "ToolCreationAgent": ToolCreationAgent(),
             "ToolSelectionAgent": ToolSelectionAgent(),
             "ObservationAgent": ObservationAgent(),
@@ -519,6 +613,7 @@ class AgentOrchestrator:
             logger.critical("PlannerAgent not found in orchestrator configuration!")
             context.error_context.add_error(-1, "Planning", 1, "PlannerAgent not found.")
             return False
+            
         try:
             # If we have planner_feedback from a previous guardrail validation failure,
             # pass it as additional_information to help fix the plan
@@ -540,10 +635,7 @@ class AgentOrchestrator:
                 )
                 return False
 
-            if plan_result.success and context.execution_plan and context.execution_plan.steps:
-                logger.info(f"Planning successful. Execution plan created with {len(context.execution_plan)} steps.")
-                return True
-            else:
+            if not plan_result.success or not context.execution_plan or not context.execution_plan.steps:
                 logger.error(f"PlannerAgent failed to produce a valid plan. Result: {plan_result.execution_result}")
                 context.error_context.add_error(
                     step_index=-1,  # Indicate planning phase error
@@ -552,6 +644,45 @@ class AgentOrchestrator:
                     traceback_str=f"Planner failed: {plan_result.execution_result}",
                 )
                 return False
+                
+            logger.info(f"Initial planning completed successfully with {len(context.execution_plan.steps)} steps.")
+            
+            # Now pass the plan to the PlanValidationAgent for validation and possible revision
+            validator = self.agents.get("PlanValidationAgent")
+            if validator:
+                logger.info("Starting plan validation phase...")
+                try:
+                    validation_result = validator.execute(context)
+                    
+                    if not validation_result.success:
+                        logger.error(f"Plan validation failed: {validation_result.error if validation_result.error else 'Unknown error'}")
+                        context.error_context.add_error(
+                            step_index=-1,  # Indicate planning phase error
+                            step_description="Plan Validation",
+                            attempt_number=1,
+                            traceback_str=f"Validation failed: {validation_result.execution_result}",
+                        )
+                        return False
+                        
+                    logger.info(f"Plan validation completed: {validation_result.execution_result}")
+                except Exception:
+                    logger.exception("Exception during plan validation phase.")
+                    context.error_context.add_error(
+                        step_index=-1, 
+                        step_description="Plan Validation", 
+                        attempt_number=1, 
+                        traceback_str=traceback.format_exc()
+                    )
+                    return False
+            else:
+                logger.warning("PlanValidationAgent not found in registered agents, skipping validation")
+
+            # Log the final plan
+            plan_steps = "\n".join([f"Step {i+1}: {step.description} (Agent: {step.agent_name})" 
+                                for i, step in enumerate(context.execution_plan.steps)])
+            logger.info(f"Final execution plan:\n{plan_steps}")
+            
+            return True
         except Exception:
             logger.exception("Exception during planning phase.")
             context.error_context.add_error(
