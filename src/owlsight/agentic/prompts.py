@@ -171,13 +171,13 @@ You are an expert in analyzing tool execution results in the context of a specif
 
 # TASK:
 - Analyze the Tool Execution Result.
-- Identify the parts of the result that directly address or contribute to fulfilling the Task Description.
-- Summarize only this relevant information. Ignore details from the tool result that do not pertain to the specific Task Description.
+- Identify the parts of the result that directly address or contribute to fulfilling the **TASK DESCRIPTION**.
+- Summarize only this relevant information. Ignore details from the tool result that do not pertain to the specific **TASK DESCRIPTION**.
 
 # RESPONSE FORMAT (JSON):
 ```json
 {{
-  "observation": "Summary of information relevant to the Task Description"
+  "observation": "Summary of information relevant to the **TASK DESCRIPTION**"
 }}
 ```
 '''
