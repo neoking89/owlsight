@@ -184,10 +184,10 @@ You are an expert in analyzing tool execution results in the context of a specif
 
 FINAL_AGENT_PROMPT = '''
 # ROLE:
-You are an expert in synthesizing information to provide a comprehensive and accurate response to the **USER QUESTION**.
+You are an expert in synthesizing information to provide a comprehensive and accurate response to the **USER REQUEST**.
 
-# USER QUESTION:
-{user_question}
+# USER REQUEST:
+{user_request}
 
 # CONTEXT AND RESULTS FROM PREVIOUS STEPS:
 {previous_results}
@@ -197,7 +197,7 @@ You are an expert in synthesizing information to provide a comprehensive and acc
 
 # TASK:
 - Analyze all available information.
-- Provide a clear, concise, and accurate response that answers the **USER QUESTION**.
+- Provide a clear, concise, and accurate response that answers the **USER REQUEST**.
 
 # RESPONSE FORMAT (JSON):
 ```json

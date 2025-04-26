@@ -84,7 +84,7 @@ def test_main_menu_navigation(manager, code_executor):
 #     "How to use pandas?"
 # ])
 # def test_question_processing(question, manager, code_executor):
-#     """Test that user questions are properly processed"""
+#     """Test that user requests are properly processed"""
 #     with patch('owlsight.app.run_app.get_user_input') as mock_get_user_input, \
 #          patch('owlsight.app.run_app.process_user_question') as mock_process_question:
         

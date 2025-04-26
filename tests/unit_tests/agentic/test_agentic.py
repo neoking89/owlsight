@@ -168,7 +168,7 @@ def test_execute_integration(tool_creation_agent):
     # fill vars_dict to prevent ValueError that occurs when vars_dict is empty
     vars_dict = GlobalPythonVarsDict()
     vars_dict["a"] = 1
-    context = AgentContext(user_question="Create a function")
+    context = AgentContext(user_request="Create a function")
     tool_creation_agent.llm_call.return_value = SAMPLE_FUNCTION_MARKDOWN
 
     result = tool_creation_agent.execute(context)

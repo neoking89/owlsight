@@ -15,9 +15,9 @@ def create_step(agent_name: str, description: str = "") -> PlanStep:
 
 # Create a custom AgentContext class for testing
 class MockAgentContext:
-    def __init__(self, execution_plan, user_question="Test question"):
+    def __init__(self, execution_plan, user_request="Test user request"):
         self.execution_plan = execution_plan
-        self.user_question = user_question
+        self.user_request = user_request
         self.accumulated_results = []
         self.current_step = 0
         self.error_context = MagicMock()

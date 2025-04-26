@@ -86,9 +86,9 @@ def test_orchestrator_replan_on_guardrail_violation():
     with patch.object(orchestrator, '_plan', side_effect=plan_side_effect) as mock_plan, \
          patch.object(orchestrator, '_execute', side_effect=execute_side_effect) as mock_execute:
 
-        print("Calling orchestrator.process_user_question...")
-        final_result = orchestrator.process_user_question(user_question)
-        print(f"orchestrator.process_user_question returned: {final_result}")
+        print("Calling orchestrator.process_user_request...")
+        final_result = orchestrator.process_user_request(user_question)
+        print(f"orchestrator.process_user_request returned: {final_result}")
 
     # --- Assert ---
     print("Asserting call counts...")

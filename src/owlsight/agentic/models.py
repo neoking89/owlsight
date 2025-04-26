@@ -121,7 +121,7 @@ class AgentPrompt:
 class AgentContext:
     """
     Represents the shared state (or central memory) passed among agents, including:
-    - The user's original question
+    - The user's original request
     - The index of the current step
     - The execution plan
     - An ErrorContext that can contain multiple StepErrorInfo records
@@ -130,7 +130,7 @@ class AgentContext:
     - Planner feedback from guardrail validations
     """
 
-    user_question: str
+    user_request: str
     current_step: int = 0
     execution_plan: Optional[ExecutionPlan] = None
     error_context: ErrorContext = field(default_factory=ErrorContext)

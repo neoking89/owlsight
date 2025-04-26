@@ -92,14 +92,14 @@ class BaseAgent(ABC):
 
 
 class PlannerAgent(BaseAgent):
-    """The PlannerAgent is responsible for creating an execution plan based on the user's question."""
+    """The PlannerAgent is responsible for creating an execution plan based on the user's request."""
 
     def __init__(self):
         super().__init__("PlannerAgent", AgentPrompt(PLANNER_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
-            user_request=context.user_question,
+            user_request=context.user_request,
             agent_information=get_agent_information(),
             available_tools=get_available_tools(BaseAgent.code_executor.globals_dict),
             additional_information=self.get_additional_information(),
@@ -229,7 +229,7 @@ class PlanValidationAgent(BaseAgent):
         
         # Format the prompt with context information
         prompt_params = {
-            "user_request": context.user_question,
+            "user_request": context.user_request,
             "generated_plan": plan_json,
             "available_tools": context.get_available_tools_content(),
             "guardrails": guardrail_error if guardrail_error else "",  # Pass the guardrail error message if any
@@ -307,7 +307,7 @@ class ToolCreationAgent(BaseAgent):
 
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
-            user_request=context.user_question,
+            user_request=context.user_request,
             tools_list=get_available_tools(BaseAgent.code_executor.globals_dict),
             tool_creation_history="",
             previous_attempts="",
@@ -510,7 +510,7 @@ class FinalAgent(BaseAgent):
 
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
-            user_question=context.user_question,
+            user_request=context.user_request,
             previous_results=self.get_previous_results(context),
             additional_information=self.get_additional_information(),
         )
@@ -549,12 +549,12 @@ class AgentOrchestrator:
         BaseAgent.manager = manager
         BaseAgent.code_executor = code_executor
 
-    def process_user_question(self, question: str) -> str:
+    def process_user_request(self, request: str) -> str:
         """
-        Main entry point to process a user question through the agentic framework.
+        Main entry point to process a user request through the agentic framework.
         Handles initial planning, execution with retries/replanning, and final response generation.
         """
-        context = AgentContext(user_question=question)
+        context = AgentContext(user_request=request)
         replan_count = 0  # Initial replan count for the overall process
 
         while replan_count <= self.max_replans:
@@ -626,7 +626,7 @@ class AgentOrchestrator:
                     return "An unexpected error occurred during planning."
 
             except Exception as e:
-                # Catch unexpected errors in the process_user_question loop itself
+                # Catch unexpected errors in the process_user_request loop itself
                 logger.critical(f"Critical unexpected error during orchestration: {e}", exc_info=True)
                 context.error_context.add_error(
                     step_index=context.current_step,
