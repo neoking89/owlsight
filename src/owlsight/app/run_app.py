@@ -42,8 +42,7 @@ class CommandResult(Enum):
     PROCEED = auto()
 
 
-# Replace the old process_user_question with the new orchestrated version
-def process_user_question(
+def process_user_request(
     user_choice: str,
     code_executor: CodeExecutor,
     manager: TextGenerationManager,
@@ -53,7 +52,7 @@ def process_user_question(
     Optionally involves multi-step tool usage and result validation.
     """
     orchestrator = AgentOrchestrator(code_executor, manager)
-    return orchestrator.process_user_question(user_choice)
+    return orchestrator.process_user_request(user_choice)
 
 
 def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, code_executor: CodeExecutor) -> None:
@@ -88,7 +87,7 @@ def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, co
                         continue
                     manager.update_config(key, value)
         else:
-            _ = process_user_question(choice, code_executor, manager)
+            _ = process_user_request(choice, code_executor, manager)
 
 
 def clear_history(code_executor: CodeExecutor, manager: TextGenerationManager) -> None:
