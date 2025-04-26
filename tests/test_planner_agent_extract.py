@@ -47,12 +47,9 @@ class TestPlannerAgentExtract:
         assert result[0].reason == "To gather up-to-date information on recent AI developments"
         assert result[1].agent_name == "FinalAgent"
 
-    @patch('owlsight.agentic.core.logger')
+    @patch('owlsight.agentic.helper_functions.logger')
     def test_valid_json_without_markdown(self, mock_logger, planner_agent):
         """Test extraction from a valid JSON string without markdown formatting."""
-        # Mock the warning log
-        mock_logger.warning = MagicMock()
-        
         json_without_markdown = """{
           "plan": [
             {
@@ -255,12 +252,9 @@ And here's the actual plan:
         result = planner_agent._extract(plan_not_list)
         assert len(result) == 0, "Should return empty list when plan is not a list"
 
-    @patch('owlsight.agentic.core.logger')
+    @patch('owlsight.agentic.helper_functions.logger')
     def test_missing_markdown_code_block(self, mock_logger, planner_agent):
         """Test extraction when there's no markdown code block."""
-        # Mock the warning log
-        mock_logger.warning = MagicMock()
-        
         no_code_block = "This response has no code blocks at all."
         result = planner_agent._extract(no_code_block)
         assert len(result) == 0, "Should return empty list when no code blocks exist"
@@ -402,12 +396,9 @@ And here's the actual plan:
         assert result[1].agent_name == "FinalAgent"
         # Extra fields should be ignored and not affect the extraction
     
-    @patch('owlsight.agentic.core.logger')
+    @patch('owlsight.agentic.helper_functions.logger')
     def test_malformed_markdown_format(self, mock_logger, planner_agent):
         """Test extraction when markdown format is malformed but JSON is valid."""
-        # Mock the warning log
-        mock_logger.warning = MagicMock()
-        
         malformed_markdown = """
 Here's the plan:
 json
