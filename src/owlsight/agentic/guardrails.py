@@ -81,36 +81,6 @@ class ToolExecutionFollowsToolCreationGuardrail(Guardrail):
                     raise GuardrailViolationError(error_msg, self.name)
 
 
-class FinalAgentIsLastGuardrail(Guardrail):
-    """
-    Guardrail that ensures FinalAgent is only used as the last step in the plan.
-    """
-
-    def validate(self, plan: ExecutionPlan) -> None:
-        """
-        Validates that the FinalAgent is only the last step.
-
-        Parameters
-        ----------
-        plan : ExecutionPlan
-            The execution plan to validate.
-
-        Raises
-        ------
-        GuardrailViolationError
-            If FinalAgent is used in any step other than the last one.
-        """
-        steps = plan.steps
-        # Check all steps *except* the last one
-        for i, step in enumerate(steps[:-1]):
-            if step.agent_name == "FinalAgent":
-                error_msg = (
-                    f"Step {i + 1} uses FinalAgent, but it is not the last step. "
-                    f"FinalAgent can only be used as the final step in the plan."
-                )
-                raise GuardrailViolationError(error_msg, self.name)
-
-
 class GuardrailManager:
     """
     Manager for applying guardrails to execution plans.
