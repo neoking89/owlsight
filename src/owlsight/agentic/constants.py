@@ -1,5 +1,5 @@
 AGENT_INFORMATION = {
-    "ToolSelectionAgent": "Use for external data retrieval or specialized tool usage.",
-    "ToolCreationAgent": "Use ONLY to create dynamic tool functions for later use.",
-    "FinalAgent": "Use for synthesizing the final response.",
+    "ToolSelectionAgent": "Select tools with fitting parameter values based on the plan and context.",
+    "ToolCreationAgent": "Create dynamic tool functions in Python for later use.",
+    "FinalAgent": "Synthesize a final response.",
 }
