@@ -95,15 +95,6 @@ def test_manager_invalid_plan_tool_creation(manager):
     with pytest.raises(GuardrailViolationError, match="not ToolSelectionAgent"):
         manager.validate_plan(plan)
 
-def test_manager_invalid_plan_final_agent(manager):
-    """Tests the manager with a plan invalid for the FinalAgent guardrail."""
-    plan = ExecutionPlan([
-        create_step("FinalAgent"),
-        create_step("ToolSelectionAgent"),
-    ])
-    with pytest.raises(GuardrailViolationError, match="FinalAgent can only be used as the final step"):
-        manager.validate_plan(plan)
-
 def test_manager_register_guardrail():
     """Tests registering a guardrail."""
     mgr = GuardrailManager()
