@@ -97,6 +97,17 @@ class PlannerAgent(BaseAgent):
     def __init__(self):
         super().__init__("PlannerAgent", AgentPrompt(PLANNER_PROMPT))
 
+    def _ensure_final_step(self, steps: List[PlanStep]) -> None:
+        """Ensure the plan concludes with a FinalAgent step."""
+        if not steps or steps[-1].agent_name != "FinalAgent":
+            steps.append(
+                PlanStep(
+                    description="Provide the final answer to the user",
+                    agent_name="FinalAgent",
+                    reason="Every plan must conclude with a synthesis step",
+                )
+            )
+
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
             user_request=context.user_request,
@@ -107,16 +118,7 @@ class PlannerAgent(BaseAgent):
         reply = self.llm_call(prompt)
         steps: List[PlanStep] = self._extract(reply)
 
-        # Guarantee every valid plan ends with a FinalAgent step so the user
-        # always receives an answer, even if the LLM forgot to add it.
-        if steps and steps[-1].agent_name != "FinalAgent":
-            steps.append(
-                PlanStep(
-                    description="Provide the final answer to the user",
-                    agent_name="FinalAgent",
-                    reason="Every plan must conclude with a synthesis step",
-                )
-            )
+        self._ensure_final_step(steps)
 
         if not steps:
             return StepResult(False, "No plansteps where found. Planning failed.")
