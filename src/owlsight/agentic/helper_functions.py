@@ -25,13 +25,12 @@ def parse_json_markdown(response: str) -> dict:
     dict
         The parsed JSON data. Returns an empty dict if parsing fails.
     """
-    plan_json = ""
     try:
-        _, plan_json = parse_markdown(response)[-1]
+        _, response = parse_markdown(response)[-1]
     except IndexError:
         logger.warning("No markdown code block found in plan JSON. Trying to parse as JSON directly.")
     try:
-        data = json.loads(plan_json)
+        data = json.loads(response)
         return data
     except json.JSONDecodeError:
         return {}
