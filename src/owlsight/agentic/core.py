@@ -112,11 +112,14 @@ class PlannerAgent(BaseAgent):
         if not steps:
             return StepResult(False, "No plansteps where found. Planning failed.")
 
+        # Create the execution plan
         execution_plan = ExecutionPlan(steps)
 
-        # Validate the plan against guardrails
-        step_result = PlanValidationAgent().validate_plan_by_guardrails(execution_plan)
-        return step_result
+        # Store the generated plan in the context
+        context.execution_plan = execution_plan
+
+        # Planner's job is done; validation happens implicitly in the orchestrator's _plan method
+        return StepResult(success=True, execution_result="Plan generated successfully.")
 
     def _extract(self, plan_json: str) -> List[PlanStep]:
         data = parse_json_markdown(plan_json)
@@ -221,6 +224,7 @@ class PlanValidationAgent(BaseAgent):
             logger.info(
                 f"Plan validation detected guardrail violation: {guardrail_error}. Requesting LLM to revise the plan."
             )
+            context.planner_feedback_from_guardrails = guardrail_error
 
         # Format the plan for inclusion in the prompt
         plan_json = json.dumps(
@@ -237,7 +241,7 @@ class PlanValidationAgent(BaseAgent):
         prompt_params = {
             "user_request": context.user_request,
             "generated_plan": plan_json,
-            "available_tools": context.get_available_tools_content(),
+            "available_tools": get_available_tools(BaseAgent.code_executor.globals_dict),
             "guardrails": guardrail_error if guardrail_error else "",  # Pass the guardrail error message if any
             "additional_information": self.get_additional_information(),
         }
@@ -529,6 +533,15 @@ class AgentOrchestrator:
     """
     The AgentOrchestrator is responsible for managing the execution of agents in a step-by-step manner.
     It handles planning, execution, and replanning if necessary.
+
+    Parameters
+    ----------
+    max_retries_per_step : int
+        Maximum number of retries per PlanStep
+    max_replans : int
+        Maximum number of total replans
+    max_validation_retries : int
+        Maximum number of validation attempts per planning phase when guardrail violations occur
     """
 
     def __init__(
@@ -537,7 +550,9 @@ class AgentOrchestrator:
         manager: TextGenerationManager,
         max_retries_per_step: int = 3,
         max_replans: int = 2,
+        max_validation_retries: int = 2,
     ):
+        self.max_validation_retries = max_validation_retries
         self.code_executor = code_executor
         self.manager = manager
         self.max_retries_per_step = max_retries_per_step
@@ -652,278 +667,262 @@ class AgentOrchestrator:
         # Should ideally not be reached if logic is correct, but as a fallback
         return "I was unable to complete your request after multiple attempts."
 
-    def _plan(self, context: AgentContext) -> bool:
-        """
-        Invokes the PlannerAgent to create or update the execution plan in the context.
-        Returns True if planning was successful, False otherwise.
-        """
+    def _invoke_planner(self, context: AgentContext) -> Optional[StepResult]:
+        """Invokes the PlannerAgent and returns its result."""
         logger.info("Invoking PlannerAgent...")
         planner = self.agents.get("PlannerAgent")
         if not planner:
-            logger.critical("PlannerAgent not found in orchestrator configuration!")
+            logger.critical("PlannerAgent not found!")
             context.error_context.add_error(-1, "Planning", 1, "PlannerAgent not found.")
-            return False
+            return None
 
         try:
-            # If we have planner_feedback from a previous guardrail validation failure,
-            # pass it as additional_information to help fix the plan
+            # Handle feedback
             if context.planner_feedback_from_guardrails:
                 logger.info(f"Replanning with feedback: {context.planner_feedback_from_guardrails}")
                 planner.set_additional_information(context.planner_feedback_from_guardrails)
-                # Clear feedback after using it to avoid reusing stale feedback
-                context.planner_feedback_from_guardrails = None
+                context.planner_feedback_from_guardrails = None # Clear after use
             else:
                 planner.set_additional_information(None)
 
             plan_result = planner.execute(context)
 
-            # If planning failed due to guardrail violation, the feedback is already set in context
-            # We'll return false and let the orchestrator handle replanning
-            if not plan_result.success and context.planner_feedback_from_guardrails:
-                logger.warning(
-                    f"Plan validation failed due to guardrail violation: {context.planner_feedback_from_guardrails}"
-                )
-                return False
+            if not plan_result.success:
+                logger.warning(f"PlannerAgent failed. Result: {plan_result.execution_result}. Validation might still catch guardrail issues.")
+                # Don't add error context here yet; validation or plan check handles final failure state
 
-            if not plan_result.success or not context.execution_plan or not context.execution_plan.steps:
-                logger.error(f"PlannerAgent failed to produce a valid plan. Result: {plan_result.execution_result}")
-                context.error_context.add_error(
-                    step_index=-1,  # Indicate planning phase error
-                    step_description="Planning",
-                    attempt_number=1,
-                    traceback_str=f"Planner failed: {plan_result.execution_result}",
-                )
-                return False
+            return plan_result # Return result for caller check
 
-            logger.info(f"Initial planning completed successfully with {len(context.execution_plan.steps)} steps.")
-
-            # Now pass the plan to the PlanValidationAgent for validation and possible revision
-            validator = self.agents.get("PlanValidationAgent")
-            if validator:
-                logger.info("Starting plan validation phase...")
-                try:
-                    validation_result = validator.execute(context)
-
-                    if not validation_result.success:
-                        logger.error(
-                            f"Plan validation failed: {validation_result.error if validation_result.error else 'Unknown error'}"
-                        )
-                        context.error_context.add_error(
-                            step_index=-1,  # Indicate planning phase error
-                            step_description="Plan Validation",
-                            attempt_number=1,
-                            traceback_str=f"Validation failed: {validation_result.execution_result}",
-                        )
-                        return False
-
-                    logger.info(f"Plan validation completed: {validation_result.execution_result}")
-                except Exception:
-                    logger.exception("Exception during plan validation phase.")
-                    context.error_context.add_error(
-                        step_index=-1,
-                        step_description="Plan Validation",
-                        attempt_number=1,
-                        traceback_str=traceback.format_exc(),
-                    )
-                    return False
-            else:
-                logger.warning("PlanValidationAgent not found in registered agents, skipping validation")
-
-            # Log the final plan
-            plan_steps = "\n".join(
-                [
-                    f"Step {i + 1}: {step.description} (Agent: {step.agent_name})"
-                    for i, step in enumerate(context.execution_plan.steps)
-                ]
-            )
-            logger.info(f"Final execution plan:\n{plan_steps}")
-
-            return True
         except Exception:
-            logger.exception("Exception during planning phase.")
-            context.error_context.add_error(
-                step_index=-1, step_description="Planning", attempt_number=1, traceback_str=traceback.format_exc()
-            )
+            logger.exception("Exception during PlannerAgent invocation.")
+            context.error_context.add_error(-1, "Planning Exception", 1, traceback.format_exc())
+            return None
+
+    def _validate_plan(self, context: AgentContext) -> bool:
+        """Validates the plan in the context using PlanValidationAgent with retries."""
+        validator = self.agents.get("PlanValidationAgent")
+        if not validator:
+            logger.warning("PlanValidationAgent not found, skipping validation.")
+            return True # No validator means trivially valid
+
+        validation_attempts = 0
+        while validation_attempts < self.max_validation_retries:
+            logger.info(f"Starting implicit plan validation (attempt {validation_attempts + 1}/{self.max_validation_retries})...")
+            try:
+                validation_result = validator.execute(context)
+
+                if validation_result.success:
+                    logger.info(f"Implicit plan validation successful after {validation_attempts + 1} attempts.")
+                    context.planner_feedback_from_guardrails = None # Clear feedback on success
+                    return True # Validation succeeded
+
+                # Handle validation failure
+                if context.planner_feedback_from_guardrails:
+                    validation_attempts += 1
+                    logger.warning(f"Guardrail violation in validation attempt {validation_attempts}: {context.planner_feedback_from_guardrails}")
+                    if validation_attempts >= self.max_validation_retries:
+                        logger.error(f"Max validation retries ({self.max_validation_retries}) reached. Failing validation.")
+                        # Feedback remains set for replan
+                        return False # Exhausted retries
+                else:
+                    # Non-guardrail failure within validator
+                    logger.error(f"Non-guardrail validation failure: {validation_result.execution_result}. Aborting validation.")
+                    context.error_context.add_error(-1, "Validation Failure", 1, f"Validation failed: {validation_result.execution_result}")
+                    context.planner_feedback_from_guardrails = None # Clear feedback
+                    return False # Halt
+
+            except Exception:
+                logger.exception("Exception during PlanValidationAgent execution.")
+                context.error_context.add_error(-1, "Validation Exception", 1, traceback.format_exc())
+                context.planner_feedback_from_guardrails = None # Clear feedback
+                return False # Halt
+
+        # Loop finished due to max retries
+        return False
+
+    def _plan(self, context: AgentContext) -> bool:
+        """Creates and validates the execution plan."""
+        plan_result = self._invoke_planner(context)
+
+        # Check planner outcome - MUST have a plan to validate
+        if not plan_result or not context.execution_plan or not context.execution_plan.steps:
+            if not context.planner_feedback_from_guardrails:
+                 logger.error("Planning failed or produced no steps, and no guardrail feedback was provided.")
+                 if plan_result and not plan_result.success:
+                     context.error_context.add_error( -1, "Planning Failure", 1, f"Planner failed: {plan_result.execution_result}")
+            # Even with feedback, lack of plan steps is a failure for this phase
             return False
 
+        # Validate the generated plan
+        validation_successful = self._validate_plan(context)
+        if not validation_successful:
+            logger.warning("Plan validation failed after retries (if applicable). Check logs for details.")
+            # Feedback (if any) is already set by _validate_plan
+            return False
+
+        # Log the final, validated plan
+        plan_steps_str = "\n".join(
+            [
+                f"Step {i + 1}: {step.description} (Agent: {step.agent_name})"
+                for i, step in enumerate(context.execution_plan.steps)
+            ]
+        )
+        logger.info(f"Final validated execution plan:\n{plan_steps_str}")
+
+        return True # Planning and validation successful
+
+    def _execute_step(self, context: AgentContext, step: PlanStep, step_index: int) -> bool:
+        """Executes a single plan step with retries."""
+        retries = 0
+        while retries < self.max_retries_per_step:
+            attempt_number = retries + 1
+            logger.info(
+                f"Executing step {step_index + 1}/{len(context.execution_plan.steps)} (Attempt {attempt_number}/{self.max_retries_per_step}): {step.description} | Agent: {step.agent_name}"
+            )
+            try:
+                agent = self.agents.get(step.agent_name)
+                if not agent:
+                    raise ValueError(f"Configuration Error: Agent '{step.agent_name}' not found.")
+
+                result = agent.execute(context)
+                step.result = result # Store result
+
+                if result.success:
+                    logger.info(f"Step {step_index + 1} successful.")
+                    # Auto-run ObservationAgent after successful ToolSelectionAgent
+                    if step.agent_name == "ToolSelectionAgent":
+                        self._run_observation_agent(context)
+                    return True # Step succeeded
+                else:
+                    # Explicit failure reported by the agent
+                    raise RuntimeError(f"Agent '{step.agent_name}' reported failure: {result.execution_result}")
+
+            except Exception as exc:
+                retries += 1
+                error_type = type(exc).__name__
+                error_message = str(exc)
+                traceback_str = traceback.format_exc()
+                logger.error(
+                    f"Error in step {step_index + 1} ('{step.description}') Agent '{step.agent_name}' on attempt {attempt_number}: [{error_type}] {error_message}",
+                    exc_info=False,
+                )
+                logger.debug(f"Full traceback for step {step_index + 1} error:\n{traceback_str}")
+
+                context.error_context.add_error(
+                    step_index=step_index,
+                    step_description=step.description,
+                    attempt_number=attempt_number,
+                    traceback_str=f"[{error_type}] {error_message}\n{traceback_str}",
+                )
+
+                is_recoverable, is_planning_error = self._analyze_execution_error(exc, agent.name if 'agent' in locals() else 'UnknownAgent')
+
+                if retries >= self.max_retries_per_step or not is_recoverable:
+                    logger.error(f"Step {step_index + 1} failed permanently after {retries} attempts.")
+                    return False # Step failed permanently, signal back to _execute
+
+                # If recoverable, loop continues to retry
+  
+        return False # Retries exhausted
+
+    def _run_observation_agent(self, context: AgentContext):
+        """Attempts to run the ObservationAgent after a tool execution."""
+        logger.info("Attempting to run ObservationAgent...")
+        try:
+            observer = self.agents.get("ObservationAgent")
+            if observer:
+                obs_result = observer.execute(context)
+                if obs_result.success:
+                    logger.info("ObservationAgent executed successfully.")
+                else:
+                    logger.warning(f"ObservationAgent reported failure: {obs_result.execution_result}")
+            else:
+                logger.error("ObservationAgent not found in orchestrator agents list.")
+        except Exception as obs_exc:
+            logger.error(f"Error during automatic ObservationAgent execution: {obs_exc}", exc_info=True)
+
+    def _analyze_execution_error(self, exc: Exception, agent_name: str) -> tuple[bool, bool]:
+        """Analyzes an execution error to determine if it's recoverable or indicates a planning issue.
+        Returns: (is_recoverable_by_retry, is_planning_error)
+        """
+        is_recoverable_by_retry = True
+        is_planning_error = False
+
+        if isinstance(exc, (json.JSONDecodeError, ET.ParseError, ValueError)) and agent_name == "ToolSelectionAgent":
+            logger.warning("Parsing error in ToolSelectionAgent, retrying...")
+        elif isinstance(exc, KeyError) and agent_name == "ToolSelectionAgent":
+            logger.error("Tool specified by ToolSelectionAgent not found. Likely requires replanning.")
+            is_recoverable_by_retry = False
+            is_planning_error = True
+        elif isinstance(exc, RuntimeError) and "Invalid tool selected" in str(exc) and agent_name == "ToolSelectionAgent":
+            logger.error("Invalid tool chosen by ToolSelectionAgent. Triggering replan.")
+            is_recoverable_by_retry = False
+            is_planning_error = True
+        # Add more specific error checks here
+
+        return is_recoverable_by_retry, is_planning_error
+
+    def _prepare_for_replan(self, context: AgentContext, failed_step_index: int, failed_step_description: str):
+        """Appends error context to planner's additional information for replanning."""
+        planner_agent = self.agents.get("PlannerAgent")
+        if planner_agent and isinstance(planner_agent, PlannerAgent):
+            last_error = context.error_context.step_errors[-1].traceback_str if context.error_context.step_errors else "Unknown error"
+            current_info = planner_agent.get_additional_information() or ""
+            new_info = f"{current_info}\n\nPrevious attempt failed at step {failed_step_index + 1} ('{failed_step_description}') with error: {last_error}\nPlease analyze this error and adjust the plan accordingly."
+            planner_agent.set_additional_information(new_info.strip())
+            logger.info("Appended error context to planner's additional_information.")
+        else:
+            logger.warning("Could not find PlannerAgent to append error context.")
+
     def _execute(self, context: AgentContext) -> bool:
-        """
-        Executes the plan step-by-step with retry and replan logic.
-        Returns True if execution completes successfully, False otherwise.
-        """
+        """Executes the plan step-by-step, handling failures and triggering replans."""
         if not context.execution_plan:
             logger.error("Execution attempt failed: No execution plan exists.")
-            return False  # Cannot execute without a plan
+            return False
 
-        replan_count = context.error_context.replan_attempts  # Get current replan count
-        current_plan_steps = context.execution_plan.steps
         step_index = 0
+        current_plan_steps = context.execution_plan.steps
 
         while step_index < len(current_plan_steps):
             step = current_plan_steps[step_index]
-            context.current_step = step_index  # Ensure context reflects current step index
-            retries = 0
+            context.current_step = step_index
 
-            # Retry loop for a single step
-            while retries < self.max_retries_per_step:
-                attempt_number = retries + 1
-                logger.info(
-                    f"Executing step {step_index + 1}/{len(current_plan_steps)} (Attempt {attempt_number}/{self.max_retries_per_step}): {step.description} | Agent: {step.agent_name}"
-                )
-                try:
-                    agent = self.agents.get(step.agent_name)
-                    if not agent:
-                        raise ValueError(f"Configuration Error: Agent '{step.agent_name}' not found in orchestrator.")
+            step_successful = self._execute_step(context, step, step_index)
 
-                    result = agent.execute(context)
-                    step.result = result  # Store result on the step itself
+            if step_successful:
+                step_index += 1
+                continue # Move to the next step
 
-                    if result.success:
-                        logger.info(f"Step {step_index + 1} successful.")
-                        # Special handling: Auto-run ObservationAgent after successful ToolSelectionAgent
-                        if step.agent_name == "ToolSelectionAgent":
-                            logger.info("Attempting to run ObservationAgent after successful ToolSelection.")
-                            try:
-                                observer = self.agents.get("ObservationAgent")
-                                if observer:
-                                    logger.debug("Found ObservationAgent. Executing...")
-                                    obs_result = observer.execute(context)
-                                    if obs_result.success:
-                                        logger.info("ObservationAgent executed successfully.")
-                                    else:
-                                        # Log failure but likely continue execution
-                                        logger.warning(
-                                            f"ObservationAgent reported failure: {obs_result.execution_result}"
-                                        )
-                                else:
-                                    # Changed from WARNING to ERROR as this shouldn't happen if initialized correctly
-                                    logger.error(
-                                        "ObservationAgent not found in orchestrator agents list. Cannot auto-observe tool result."
-                                    )
-                            except Exception as obs_exc:
-                                # Catch errors specifically from the ObservationAgent execution
-                                logger.error(
-                                    f"Error during automatic ObservationAgent execution: {obs_exc}", exc_info=True
-                                )
-                                # Decide if this error should halt execution or just be logged. Logging for now.
+            # --- Step failed permanently --- 
+            logger.error(f"Step {step_index + 1} ('{step.description}') failed permanently.")
+            replan_count = context.error_context.replan_attempts # Get current count
 
-                        break  # Break retry loop on success
+            # Analyze error to see if replan might help (using the last error added)
+            _, is_planning_error = self._analyze_execution_error(
+                Exception(context.error_context.step_errors[-1].traceback_str if context.error_context.step_errors else "Unknown"),
+                 step.agent_name
+            )
 
-                    else:
-                        # Step reported failure explicitly
-                        raise RuntimeError(f"Agent '{step.agent_name}' reported failure: {result.execution_result}")
+            if replan_count < self.max_replans and (is_planning_error or True): # Replan on most permanent errors for now
+                replan_count += 1
+                context.error_context.replan_attempts = replan_count
+                logger.warning(f"Triggering replan attempt {replan_count}/{self.max_replans} due to step failure.")
 
-                except Exception as exc:
-                    retries += 1
-                    error_type = type(exc).__name__
-                    error_message = str(exc)
-                    traceback_str = traceback.format_exc()
-                    logger.error(
-                        f"Error in step {step_index + 1} ('{step.description}') Agent '{step.agent_name}' on attempt {attempt_number}: [{error_type}] {error_message}",
-                        exc_info=False,  # Avoid duplicate logging if traceback included below
-                    )
-                    logger.debug(
-                        f"Full traceback for step {step_index + 1} error:\n{traceback_str}"
-                    )  # Log full traceback at debug level
+                self._prepare_for_replan(context, step_index, step.description)
 
-                    context.error_context.add_error(
-                        step_index=step_index,
-                        step_description=step.description,
-                        attempt_number=attempt_number,
-                        traceback_str=f"[{error_type}] {error_message}\n{traceback_str}",  # Include type and message
-                    )
+                if self._plan(context):
+                    logger.info("Replanning successful. Restarting execution with the new plan.")
+                    current_plan_steps = context.execution_plan.steps # Get new steps
+                    step_index = 0 # Restart from step 0
+                    continue # Continue outer loop with new plan
+                else:
+                    logger.error("Replanning failed. Halting execution.")
+                    return False # Replanning itself failed
+            else:
+                # Max replans reached or error deemed unrecoverable
+                logger.error(f"Cannot recover from error in step {step_index + 1}. Max replans ({self.max_replans}) reached or error is fatal. Halting execution.")
+                return False # Halt execution
 
-                    # --- Intelligent Error Handling Logic (Basic Example) ---
-                    # More sophisticated logic could go here based on error types
-                    is_recoverable_by_retry = True  # Default assumption
-                    is_planning_error = False  # Example flag
-
-                    if (
-                        isinstance(exc, (json.JSONDecodeError, ET.ParseError, ValueError))
-                        and agent.name == "ToolSelectionAgent"
-                    ):
-                        # Parsing errors in tool selection might benefit from retry if LLM is flaky
-                        logger.warning(
-                            f"Parsing error encountered in ToolSelectionAgent, retrying ({retries}/{self.max_retries_per_step})..."
-                        )
-                    elif isinstance(exc, KeyError) and agent.name == "ToolSelectionAgent":
-                        # Tool not found error - likely a planning issue or tool creation failure
-                        logger.error("Tool specified by ToolSelectionAgent not found. This might require replanning.")
-                        is_recoverable_by_retry = False
-                        is_planning_error = True
-                    elif (
-                        isinstance(exc, RuntimeError)
-                        and "Invalid tool selected" in str(exc)
-                        and agent.name == "ToolSelectionAgent"
-                    ):
-                        # The ToolSelectionAgent chose something that isn't in the available tools list.
-                        # This is a planning issue – no point retrying the same prompt over and over.
-                        logger.error("Invalid tool chosen by ToolSelectionAgent – triggering immediate replanning.")
-                        is_recoverable_by_retry = False
-                        is_planning_error = True
-                    # Add more specific error checks here (e.g., temporary network errors, API errors)
-
-                    if retries >= self.max_retries_per_step or not is_recoverable_by_retry:
-                        logger.error(f"Step {step_index + 1} failed permanently after {retries} attempts.")
-                        # Decide whether to replan or halt
-                        if replan_count < self.max_replans and (
-                            is_planning_error or True
-                        ):  # Replan on most permanent errors for now
-                            replan_count += 1
-                            context.error_context.replan_attempts = replan_count  # Update context
-                            logger.warning(
-                                f"Maximum retries reached for step {step_index + 1}. Triggering replan attempt {replan_count}/{self.max_replans}."
-                            )
-
-                            # --- Append Error Context to Additional Information --- START
-                            planner_agent = self.agents.get("PlannerAgent")
-                            if planner_agent and isinstance(planner_agent, PlannerAgent):
-                                last_error = (
-                                    context.error_context.step_errors[-1].traceback_str
-                                    if context.error_context.step_errors
-                                    else "Unknown error"
-                                )
-                                current_info = planner_agent.get_additional_information()
-                                new_info = f"{current_info}\n\nPrevious attempt failed at step {step_index + 1} ('{step.description}') with error: {last_error}\nPlease analyze this error and adjust the plan accordingly."
-                                planner_agent.set_additional_information(new_info.strip())
-                                logger.info(
-                                    "Appended error context to planner's additional_information for replanning."
-                                )
-                            else:
-                                logger.warning("Could not find PlannerAgent to append error context.")
-                            # --- Append Error Context to Additional Information --- END
-
-                            # Pass error context to planner implicitly via AgentContext
-                            if self._plan(context):
-                                logger.info("Replanning successful. Restarting execution with the new plan.")
-                                # Reset execution state for the new plan
-                                current_plan_steps = context.execution_plan.steps  # Get potentially new steps
-                                step_index = 0  # Restart execution from the first step of the new plan
-                                continue  # Continue the outer while loop to start the new plan
-
-                            else:
-                                logger.error("Replanning failed. Halting execution.")
-                                return False  # Replanning itself failed
-                        else:
-                            # Max replans reached or error deemed unrecoverable by replanning
-                            logger.error(
-                                f"Cannot recover from error in step {step_index + 1}. Max replans ({self.max_replans}) reached or error is fatal. Halting execution."
-                            )
-                            return False  # Halt execution
-
-                    # else: continue retry loop (implicitly done by loop structure)
-
-            # Check if step execution was successful after the retry loop
-            if step.result is None or not step.result.success:
-                # This case should now be handled by the exception block leading to replan/halt
-                logger.critical(
-                    f"Execution flow error: Reached end of step {step_index + 1} processing without success, replan, or halt."
-                )
-                return False  # Should not happen if logic above is correct
-
-            # Move to the next step if successful
-            step_index += 1
-
-        # If the loop completes without returning False, all steps succeeded
+        # Loop finished successfully
         logger.info("Execution plan completed successfully.")
         return True
