@@ -102,7 +102,7 @@ class ColoredLogger(logging.Logger):
             filename: Path to the log file
             mode: File open mode, defaults to "a+" (append and read)
         """
-        handler = logging.FileHandler(filename, mode=mode)
+        handler = logging.FileHandler(filename, mode=mode, encoding='utf-8')
         handler.setFormatter(self._get_formatter(self.name, for_file=True))
         self.addHandler(handler)
 
@@ -124,8 +124,7 @@ class ColoredLogger(logging.Logger):
         if isinstance(level, str):
             level = getattr(logging, level.upper())
 
-        # Create and configure file handler
-        handler = logging.FileHandler(filename, mode=mode)
+        handler = logging.FileHandler(filename, mode=mode, encoding='utf-8')
         handler.setFormatter(self._get_formatter(self.name, for_file=True))
         handler.setLevel(level)
         self.addHandler(handler)
