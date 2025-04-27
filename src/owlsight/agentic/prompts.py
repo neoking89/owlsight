@@ -225,15 +225,17 @@ You are an expert in analyzing tool execution results in the context of a specif
 # ADDITIONAL INFORMATION:
 {additional_information}
 
+
 # TASK:
 - Analyze the Tool Execution Result.
 - Identify the parts of the result that directly address or contribute to fulfilling the **TASK DESCRIPTION**.
-- Summarize only this relevant information. Ignore details from the tool result that do not pertain to the specific **TASK DESCRIPTION**.
+- Summarize only this relevant, concrete information. Ignore details from the tool result that do not pertain to the specific **TASK DESCRIPTION**.
+- **Returned observation must be concrete**: provide actual numbers, metrics, or concise statements/summary!
 
 # RESPONSE FORMAT (JSON):
 ```json
 {{
-  "observation": "Summary of information relevant to the **TASK DESCRIPTION**"
+  "observation": "Concrete, rich and shorter observation relevant to the **TASK DESCRIPTION**"
 }}
 ```
 """
