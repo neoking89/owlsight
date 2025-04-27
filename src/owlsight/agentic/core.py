@@ -77,19 +77,45 @@ class BaseAgent(ABC):
         return "\n".join(out)
 
     def get_additional_information(self) -> str:
+        """Retrieves additional information from the config manager as a string."""
         config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
         if config_manager is None:
-            return ""
+            # logger.warning("ConfigManager not found on manager when getting additional information.")
+            return "" # Return empty string
+        # Ensure a default empty string if not set
         return config_manager.get("agentic.additional_information", "")
 
-    def set_additional_information(self, additional_info: str):
-        config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
-        if config_manager is not None:
-            config_manager.set("agentic.additional_information", additional_info)
-        config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
-        if config_manager is not None:
-            config_manager.set("agentic.additional_information", additional_info)
+    def set_additional_information(self, info_to_add: str) -> None:
+        """Appends the given string to the additional information string in the config manager.
 
+        Retrieves the current information string, appends the new string (with a newline),
+        and stores the updated string.
+        """
+        # Check if info_to_add is actually a non-empty string
+        if not isinstance(info_to_add, str) or not info_to_add:
+            logger.warning(f"set_additional_information called with invalid input (must be non-empty string): {type(info_to_add)}. Cannot add information.")
+            return None
+
+        config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
+        if config_manager is None:
+            logger.warning("ConfigManager not found on manager when setting additional information. Cannot save.")
+            return None
+
+        current_info_str = self.get_additional_information() # Use the updated getter
+
+        # The input is already the string to append
+        new_info_str = info_to_add
+
+        # Append the new info string to the current string
+        # Add a newline separator if the current string is not empty
+        if current_info_str:
+            updated_info_str = f"{current_info_str}\n{new_info_str}"
+        else:
+            updated_info_str = new_info_str
+
+        # Save the updated string
+        config_manager.set("agentic.additional_information", updated_info_str)
+        logger.debug(f"Appended to agentic.additional_information. New content snippet: {new_info_str[:100]}...")
 
 class PlannerAgent(BaseAgent):
     """The PlannerAgent is responsible for creating an execution plan based on the user's request."""
@@ -253,15 +279,17 @@ class PlanValidationAgent(BaseAgent):
         response = self.llm_call(formatted_prompt)
         logger.debug(f"Plan validation raw output:\n{response}")
 
-        try:
-            # Attempt to parse the response as JSON
-            result_json = json.loads(response)
-        except json.JSONDecodeError as e:
-            err_msg = f"Failed to parse PlanValidationAgent response as JSON: {e}"
-            logger.error(err_msg)
+        result_json = parse_json_markdown(response)
+
+        # Explicitly check if parsing failed (indicated by empty dict from helper)
+        # Also check original response wasn't just empty/whitespace to avoid false positives
+        if not result_json and response and response.strip():
+            err_msg = "Failed to parse PlanValidationAgent response as JSON."
+            logger.error(err_msg + f" Raw response: {response}")
+            # Return the specific error message the test expects
             return StepResult(
                 success=False,
-                execution_result=f"Failed to validate plan: {err_msg}",
+                execution_result=err_msg, # Match test assertion
             )
 
         # Validate the structure and required fields of the parsed JSON
@@ -682,8 +710,6 @@ class AgentOrchestrator:
                 logger.info(f"Replanning with feedback: {context.planner_feedback_from_guardrails}")
                 planner.set_additional_information(context.planner_feedback_from_guardrails)
                 context.planner_feedback_from_guardrails = None # Clear after use
-            else:
-                planner.set_additional_information(None)
 
             plan_result = planner.execute(context)
 
