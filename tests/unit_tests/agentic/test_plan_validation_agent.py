@@ -6,8 +6,9 @@ import json
 import pytest
 from unittest.mock import MagicMock, patch
 
-from owlsight.agentic.core import PlanValidationAgent
+from owlsight.agentic.core import PlanValidationAgent, BaseAgent
 from owlsight.agentic.models import ExecutionPlan, PlanStep, StepResult
+from owlsight.utils.custom_classes import GlobalPythonVarsDict
 
 # Helper function to create PlanSteps
 def create_step(agent_name: str, description: str = "") -> PlanStep:
@@ -58,6 +59,12 @@ def agent_context_with_invalid_plan(invalid_plan):
 @pytest.fixture
 def validation_agent():
     """Fixture for a PlanValidationAgent with mocked LLM call."""
+    # Mock the class attribute BaseAgent.code_executor
+    # Needed because execute() calls get_available_tools(BaseAgent.code_executor.globals_dict)
+    BaseAgent.code_executor = MagicMock()
+    # Ensure the mock has the required attribute, using the correct type
+    BaseAgent.code_executor.globals_dict = GlobalPythonVarsDict()
+
     agent = PlanValidationAgent()
     agent.llm_call = MagicMock()
     agent.get_additional_information = MagicMock(return_value="")
