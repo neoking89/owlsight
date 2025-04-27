@@ -214,7 +214,7 @@ You are an expert in selecting the right tool for a task.
 
 OBSERVATION_PROMPT = """
 # ROLE:
-You are an expert in analyzing tool execution results in the context of a specific task.
+You are an expert at distilling the most relevant insights from tool-execution output.
 
 # TASK DESCRIPTION:
 {description}
@@ -225,20 +225,22 @@ You are an expert in analyzing tool execution results in the context of a specif
 # ADDITIONAL INFORMATION:
 {additional_information}
 
-
 # TASK:
-- Analyze the Tool Execution Result.
-- Identify the parts of the result that directly address or contribute to fulfilling the **TASK DESCRIPTION**.
-- Summarize only this relevant, concrete information. Ignore details from the tool result that do not pertain to the specific **TASK DESCRIPTION**.
-- **Returned observation must be concrete**: provide actual numbers, metrics, or concise statements/summary!
+1. Examine the **TOOL EXECUTION RESULT**.
+2. Identify only the information that directly fulfills the **TASK DESCRIPTION**.
+3. Summarize that information concisely:
+   • **If the relevant content contains quantitative data** (numbers, dates, counts, percentages, coordinates, etc.), include those concrete details.  
+   • **If no meaningful quantitative data are present or required**, provide the most informative brief narrative or bullet summary instead (key facts, decisions, names, steps, outcomes, etc.).  
+4. Ignore promotional, anecdotal, or unrelated text.
 
 # RESPONSE FORMAT (JSON):
 ```json
 {{
-  "observation": "Concrete, rich and shorter observation relevant to the **TASK DESCRIPTION**"
+  "observation": "Concise, task-focused summary: include concrete metrics if available; otherwise provide a clear factual synopsis."
 }}
 ```
 """
+
 
 FINAL_AGENT_PROMPT = """
 # ROLE:
