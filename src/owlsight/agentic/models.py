@@ -1,6 +1,7 @@
 import math
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
+import traceback
 
 from owlsight.utils.logger import logger
 
@@ -137,3 +138,14 @@ class AgentContext:
     final_response: Optional[str] = None
     accumulated_results: List[Any] = field(default_factory=list)
     planner_feedback_from_guardrails: Optional[str] = None
+
+
+    def get_current_step(self) -> PlanStep:
+        try:
+            return self.execution_plan.get_step(self.current_step)
+        except Exception:
+            raise ValueError(f"Failed to get current step {self.current_step} due to:\n{traceback.format_exc()}")
+
+    def get_accumulated_results(self) -> List[Any]:
+        return self.accumulated_results
+        
