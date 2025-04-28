@@ -180,15 +180,15 @@ You are an Observation Analyst who distills any provided information into a conc
 # TASK
 {description}
 
-# SOURCE CONTENT
-{input_text}
+# SOURCE INFORMATION
+{information}
 
 # GUIDELINES
 1. Extract ONLY information that directly fulfils the TASK.
 2. Include key quantitative metrics if available and relevant (numbers, dates, etc.).
-3. If the content is verbose (HTML, long text, logs, tool output, etc.), zero-in on the essential facts.
+3. If the information is verbose (HTML, long text, logs, tool output, API response, etc.), zero-in on the essential facts.
 4. Keep the summary brief (1-3 sentences or a short bullet list, more sentences if that is required to capture the core information).
-5. Ensure the summary is understandable on its own, without needing to read the SOURCE CONTENT.
+5. Ensure the summary is understandable on its own, without needing to read the SOURCE INFORMATION.
 
 # RESPONSE FORMAT (JSON)
 ```json
