@@ -23,7 +23,7 @@ from owlsight.agentic.prompts import (
     FINAL_AGENT_PROMPT,
     OBSERVATION_PROMPT,
     PLAN_VALIDATION_PROMPT,
-    PLANNER_PROMPT,
+    PLAN_PROMPT,
     TOOL_CREATION_PROMPT,
     TOOL_SELECTION_PROMPT,
 )
@@ -105,11 +105,11 @@ class BaseAgent(ABC):
         config_manager.set("agentic.additional_information", updated_info_str)
         logger.debug(f"Appended to agentic.additional_information. New content snippet: {new_info_str[:100]}...")
 
-class PlannerAgent(BaseAgent):
-    """The PlannerAgent is responsible for creating an execution plan based on the user's request."""
+class PlanAgent(BaseAgent):
+    """The PlanAgent is responsible for creating an execution plan based on the user's request."""
 
     def __init__(self):
-        super().__init__("PlannerAgent", AgentPrompt(PLANNER_PROMPT))
+        super().__init__("PlanAgent", AgentPrompt(PLAN_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
@@ -150,7 +150,7 @@ class PlannerAgent(BaseAgent):
         allowed = set(AGENT_INFORMATION.keys())
         invalid = [s.agent_name for s in parsed if s.agent_name not in allowed]
         if invalid:
-            logger.error(f"PlannerAgent: Invalid agent(s) in plan steps: {invalid}")
+            logger.error(f"PlanAgent: Invalid agent(s) in plan steps: {invalid}")
             return []
         return parsed
 
@@ -168,7 +168,7 @@ class PlannerAgent(BaseAgent):
 
 class PlanValidationAgent(BaseAgent):
     """The PlanValidationAgent is responsible for validating and potentially revising the execution plan.
-    It follows the PlannerAgent to ensure the plan adheres to guardrails and is optimized for the task.
+    It follows the PlanAgent to ensure the plan adheres to guardrails and is optimized for the task.
     """
 
     def __init__(self):
@@ -566,7 +566,7 @@ class AgentOrchestrator:
         self.max_replans = max_replans
 
         self.agents: Dict[str, BaseAgent] = {
-            "PlannerAgent": PlannerAgent(),
+            "PlanAgent": PlanAgent(),
             "PlanValidationAgent": PlanValidationAgent(),
             "ToolCreationAgent": ToolCreationAgent(),
             "ToolSelectionAgent": ToolSelectionAgent(),
@@ -675,12 +675,12 @@ class AgentOrchestrator:
         return "I was unable to complete your request after multiple attempts."
 
     def _invoke_planner(self, context: AgentContext) -> Optional[StepResult]:
-        """Invokes the PlannerAgent and returns its result."""
-        logger.info("Invoking PlannerAgent...")
-        planner = self.agents.get("PlannerAgent")
+        """Invokes the PlanAgent and returns its result."""
+        logger.info("Invoking PlanAgent...")
+        planner = self.agents.get("PlanAgent")
         if not planner:
-            logger.critical("PlannerAgent not found!")
-            context.error_context.add_error(-1, "Planning", 1, "PlannerAgent not found.")
+            logger.critical("PlanAgent not found!")
+            context.error_context.add_error(-1, "Planning", 1, "PlanAgent not found.")
             return None
 
         try:
@@ -693,13 +693,13 @@ class AgentOrchestrator:
             plan_result = planner.execute(context)
 
             if not plan_result.success:
-                logger.warning(f"PlannerAgent failed. Result: {plan_result.execution_result}. Validation might still catch guardrail issues.")
+                logger.warning(f"PlanAgent failed. Result: {plan_result.execution_result}. Validation might still catch guardrail issues.")
                 # Don't add error context here yet; validation or plan check handles final failure state
 
             return plan_result # Return result for caller check
 
         except Exception:
-            logger.exception("Exception during PlannerAgent invocation.")
+            logger.exception("Exception during PlanAgent invocation.")
             context.error_context.add_error(-1, "Planning Exception", 1, traceback.format_exc())
             return None
 
@@ -869,15 +869,15 @@ class AgentOrchestrator:
 
     def _prepare_for_replan(self, context: AgentContext, failed_step_index: int, failed_step_description: str):
         """Appends error context to planner's additional information for replanning."""
-        planner_agent = self.agents.get("PlannerAgent")
-        if planner_agent and isinstance(planner_agent, PlannerAgent):
+        plan_agent = self.agents.get("PlanAgent")
+        if plan_agent and isinstance(plan_agent, PlanAgent):
             last_error = context.error_context.step_errors[-1].traceback_str if context.error_context.step_errors else "Unknown error"
-            current_info = planner_agent.get_additional_information() or ""
+            current_info = plan_agent.get_additional_information() or ""
             new_info = f"{current_info}\n\nPrevious attempt failed at step {failed_step_index + 1} ('{failed_step_description}') with error: {last_error}\nPlease analyze this error and adjust the plan accordingly."
-            planner_agent.set_additional_information(new_info.strip())
+            plan_agent.set_additional_information(new_info.strip())
             logger.info("Appended error context to planner's additional_information.")
         else:
-            logger.warning("Could not find PlannerAgent to append error context.")
+            logger.warning("Could not find PlanAgent to append error context.")
 
     def _execute(self, context: AgentContext) -> bool:
         """

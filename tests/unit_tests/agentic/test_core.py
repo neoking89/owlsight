@@ -11,15 +11,6 @@ from owlsight.agentic.models import AgentContext, ExecutionPlan, PlanStep
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.processors.text_generation_manager import TextGenerationManager
 
-# --- Mocks and placeholders for missing classes --- #
-class PlannerAgent:
-    pass
-
-class StepResult:
-    def __init__(self, success: bool, execution_result: str):
-        self.success = success
-        self.execution_result = execution_result
-
 # Helper to create steps
 def create_step(agent_name: str, description: str = "") -> PlanStep:
     return PlanStep(description=description or f"Step for {agent_name}", agent_name=agent_name, reason="Test reason")
