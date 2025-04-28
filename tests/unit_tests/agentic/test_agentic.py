@@ -4,7 +4,7 @@ from owlsight.agentic.helper_functions import parse_tool_response
 
 
 from owlsight.agentic.core import ToolCreationAgent, BaseAgent
-from owlsight.agentic.models import AgentContext
+from owlsight.agentic.models import AgentContext, PlanStep, ExecutionPlan
 from owlsight.utils.code_execution import CodeExecutor
 from owlsight.utils.custom_classes import GlobalPythonVarsDict
 
@@ -160,19 +160,20 @@ def test_register_dynamic_tool_no_function_def(mock_warning, tool_creation_agent
     assert "example_tool" not in GlobalPythonVarsDict()
 
 
-# --- Test for execute (simplified) ---
-
-
 def test_execute_integration(tool_creation_agent):
     """Simplified integration test for the execute method."""
     # fill vars_dict to prevent ValueError that occurs when vars_dict is empty
     vars_dict = GlobalPythonVarsDict()
     vars_dict["a"] = 1
-    context = AgentContext(user_request="Create a function")
+    execution_plan = ExecutionPlan([
+        PlanStep(description="Create a function", agent_name="ToolCreationAgent", reason="Test reason")
+    ])
+    context = AgentContext(user_request="Create a function", execution_plan=execution_plan)
     tool_creation_agent.llm_call.return_value = SAMPLE_FUNCTION_MARKDOWN
 
     result = tool_creation_agent.execute(context)
 
+    assert result.success, f"Failed with message: {result.execution_result}"
     assert "example_tool" in vars_dict
     assert result.execution_result == ['example_tool']
 
