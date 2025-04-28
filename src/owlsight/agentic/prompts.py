@@ -175,20 +175,20 @@ You are a Tool Selector. Pick exactly one tool for the described step, using onl
 
 OBSERVATION_PROMPT = """
 # ROLE
-You are an Observation Analyst distilling tool output into a concise, self-contained summary.
+You are an Observation Analyst who distills any provided information into a concise, self-contained summary.
 
 # TASK
 {description}
 
-# RAW TOOL RESULT
-{tool_result}
+# SOURCE CONTENT
+{input_text}
 
 # GUIDELINES
 1. Extract ONLY information that directly fulfils the TASK.
 2. Include key quantitative metrics if available and relevant (numbers, dates, etc.).
-3. If the output is verbose (HTML, long text), zero-in on the essential facts.
+3. If the content is verbose (HTML, long text, logs, tool output, etc.), zero-in on the essential facts.
 4. Keep the summary brief (1-3 sentences or a short bullet list).
-5. Ensure the summary is understandable on its own, without needing the RAW TOOL RESULT.
+5. Ensure the summary is understandable on its own, without needing to read the SOURCE CONTENT.
 
 # RESPONSE FORMAT (JSON)
 ```json
