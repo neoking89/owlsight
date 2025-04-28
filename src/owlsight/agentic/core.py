@@ -268,8 +268,8 @@ class PlanValidationAgent(BaseAgent):
             "user_request": context.user_request,
             "generated_plan": plan_json,
             "available_tools": get_available_tools(BaseAgent.code_executor.globals_dict),
-            "guardrails": guardrail_error if guardrail_error else "",  # Pass the guardrail error message if any
-            "additional_information": self.get_additional_information(),
+            "guardrails": guardrail_error if guardrail_error else "",
+            "additional_information": self.get_additional_information(), # Kept: Matches {additional_information}
         }
 
         logger.debug(f"Plan validation input:\n{json.dumps(prompt_params, indent=2)}")
@@ -344,11 +344,9 @@ class ToolCreationAgent(BaseAgent):
         super().__init__("ToolCreationAgent", AgentPrompt(TOOL_CREATION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
+        step = context.get_current_step()
         prompt = self.system_prompt.format(
-            user_request=context.user_request,
-            tools_list=get_available_tools(BaseAgent.code_executor.globals_dict),
-            tool_creation_history="",
-            previous_attempts="",
+            step_description=step.description,
             additional_information=self.get_additional_information(),
         )
         reply = self.llm_call(prompt)
@@ -450,13 +448,10 @@ class ToolSelectionAgent(BaseAgent):
         attempt = 0
         error_feedback: str = ""  # passed back to the LLM to aid self‑correction
 
-        # Get the current step description
-        current_step = context.execution_plan[context.current_step]
-        step_description = current_step.description
-
+        step = context.get_current_step()
         while attempt < max_attempts:
             prompt = self.system_prompt.format(
-                step_description=step_description,
+                step_description=step.description,
                 available_context=self.get_previous_results(context),
                 available_tools=get_available_tools(BaseAgent.code_executor.globals_dict),
                 additional_information=self.get_additional_information(),
@@ -508,16 +503,14 @@ class ObservationAgent(BaseAgent):
         super().__init__("ObservationAgent", AgentPrompt(OBSERVATION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        # use the most recent tool result
-        tool_result = next((r for r in reversed(context.accumulated_results) if isinstance(r, ToolResult)), None)
-        if tool_result is None:
+        most_recent_tool_result = next((r for r in reversed(context.accumulated_results) if isinstance(r, ToolResult)), None)
+        if most_recent_tool_result is None:
             return StepResult(False, "No tool result to observe.")
 
         desc = context.execution_plan[context.current_step].description
         prompt = self.system_prompt.format(
             description=desc,
-            tool_result=tool_result.result,
-            additional_information=self.get_additional_information(),
+            tool_result=most_recent_tool_result.result,
         )
         summary_json = self.llm_call(prompt)
         try:
@@ -550,7 +543,6 @@ class FinalAgent(BaseAgent):
         prompt = self.system_prompt.format(
             user_request=context.user_request,
             previous_results=self.get_previous_results(context),
-            additional_information=self.get_additional_information(),
         )
         reply = self.llm_call(prompt)
         context.final_response = reply
