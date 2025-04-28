@@ -64,18 +64,6 @@ class BaseAgent(ABC):
         """
         ...
 
-    def get_previous_results(self, context: AgentContext) -> str:
-        """
-        Format accumulated results from previous steps for inclusion in prompts.
-        """
-        if not context.accumulated_results:
-            return "No previous results"
-        out = []
-        for i, r in enumerate(context.accumulated_results):
-            tag = "tool" if isinstance(r, ToolResult) else "note"
-            out.append(f"Step {i + 1} ({tag}): {r.result if isinstance(r, ToolResult) else r}")
-        return "\n".join(out)
-
     def get_additional_information(self) -> str:
         """Retrieves additional information from the config manager as a string."""
         config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
@@ -347,6 +335,8 @@ class ToolCreationAgent(BaseAgent):
         step = context.get_current_step()
         prompt = self.system_prompt.format(
             step_description=step.description,
+            available_context=context.get_previous_results(),
+            available_tools=get_available_tools(BaseAgent.code_executor.globals_dict),
             additional_information=self.get_additional_information(),
         )
         reply = self.llm_call(prompt)
@@ -452,7 +442,7 @@ class ToolSelectionAgent(BaseAgent):
         while attempt < max_attempts:
             prompt = self.system_prompt.format(
                 step_description=step.description,
-                available_context=self.get_previous_results(context),
+                available_context=context.get_previous_results(),
                 available_tools=get_available_tools(BaseAgent.code_executor.globals_dict),
                 additional_information=self.get_additional_information(),
             )
@@ -542,7 +532,7 @@ class FinalAgent(BaseAgent):
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
             user_request=context.user_request,
-            previous_results=self.get_previous_results(context),
+            previous_results=context.get_previous_results(),
         )
         reply = self.llm_call(prompt)
         context.final_response = reply
