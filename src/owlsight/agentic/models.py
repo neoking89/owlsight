@@ -9,6 +9,7 @@ from owlsight.utils.logger import logger
 @dataclass
 class ToolResult:
     """Represents the result of a tool execution, including success status and the result itself."""
+
     success: bool
     result: Any
 
@@ -16,6 +17,7 @@ class ToolResult:
 @dataclass
 class StepResult:
     """Represents the result of a PlanStep"""
+
     success: bool
     execution_result: Any = None
 
@@ -23,6 +25,7 @@ class StepResult:
 @dataclass
 class PlanStep:
     """Represents a step in the execution plan, including the description, agent name, and reason for the step."""
+
     description: str
     agent_name: str
     reason: str
@@ -32,6 +35,7 @@ class PlanStep:
 @dataclass
 class StepErrorInfo:
     """Represents an error that occurred during the execution of a step, including the step index, description, and traceback."""
+
     step_index: int
     step_description: str
     attempt_number: int
@@ -41,6 +45,7 @@ class StepErrorInfo:
 @dataclass
 class ErrorContext:
     """Represents the context of errors that occurred during the execution of a plan, including a list of StepErrorInfo records."""
+
     step_errors: List[StepErrorInfo] = field(default_factory=list)
     replan_attempts: int = 0
 
@@ -62,6 +67,7 @@ class ExecutionPlan:
     Represents the execution plan for a set of PlanSteps, including the list of steps to be executed.
     This plan is made by the Planner agent.
     """
+
     steps: List[PlanStep]
 
     def get_step(self, index: int) -> Optional[PlanStep]:
@@ -139,13 +145,21 @@ class AgentContext:
     accumulated_results: List[Any] = field(default_factory=list)
     planner_feedback_from_guardrails: Optional[str] = None
 
-
     def get_current_step(self) -> PlanStep:
         try:
             return self.execution_plan.get_step(self.current_step)
         except Exception:
             raise ValueError(f"Failed to get current step {self.current_step} due to:\n{traceback.format_exc()}")
 
-    def get_accumulated_results(self) -> List[Any]:
-        return self.accumulated_results
-        
+    def get_previous_results(self) -> str:
+        """
+        Format accumulated results from previous steps for inclusion in prompts.
+        This method provides a summary of the results from all previous steps.
+        """
+        if not self.accumulated_results:
+            return "No previous results"
+        out = []
+        for i, r in enumerate(self.accumulated_results):
+            tag = "tool" if isinstance(r, ToolResult) else "note"
+            out.append(f"Step {i + 1} ({tag}): {r.result if isinstance(r, ToolResult) else r}")
+        return "\n".join(out)
