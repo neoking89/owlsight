@@ -71,6 +71,13 @@ class ExecutionPlan:
     steps: List[PlanStep]
 
     def get_step(self, index: int) -> Optional[PlanStep]:
+        """
+        Get a specific step from the execution plan by its index.
+        This method retrieves the step at the specified index from the list of steps.
+        If the index is out of range, it returns None.
+        """
+        if not self.steps:
+            raise ValueError("Execution plan is empty.")
         return self.steps[index] if 0 <= index < len(self.steps) else None
 
     def __getitem__(self, index: int) -> PlanStep:
@@ -132,8 +139,8 @@ class AgentContext:
     - The index of the current step
     - The execution plan
     - An ErrorContext that can contain multiple StepErrorInfo records
-    - A final_response (if any)
-    - Accumulated results from previous steps
+    - A final_response (if any). This is the final output of the entire chain of agents.
+    - Accumulated (summarized) results from previous steps
     - Planner feedback from guardrail validations
     """
 
@@ -146,10 +153,19 @@ class AgentContext:
     planner_feedback_from_guardrails: Optional[str] = None
 
     def get_current_step(self) -> PlanStep:
+        """
+        Get the current step from the execution plan.
+        This method retrieves the step at the current index from the execution plan.
+        """
+        if self.execution_plan is None:
+            raise ValueError("Execution plan is not set.")
         try:
-            return self.execution_plan.get_step(self.current_step)
-        except Exception:
-            raise ValueError(f"Failed to get current step {self.current_step} due to:\n{traceback.format_exc()}")
+            current_step = self.execution_plan.get_step(self.current_step)
+            if current_step is None:
+                raise IndexError(f"Current step index {self.current_step} is out of range.")
+            return current_step
+        except Exception as e:
+            raise ValueError(f"Failed to get current step {self.current_step} due to:\n{traceback.format_exc()}") from e
 
     def get_previous_results(self) -> str:
         """
