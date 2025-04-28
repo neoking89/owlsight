@@ -105,11 +105,19 @@ You are a senior Python engineer creating reusable, self-contained LLM tools.
 # TASK
 {step_description}
 
+# CONTEXT
+{available_context}
+
+# EXISTING TOOLS
+{available_tools}
+
 # INSTRUCTIONS
-1. Design a Python function that fulfils *only* the specific TASK.
-2. The function MUST be self-contained: rely *only* on its input parameters and explicitly imported libraries.
-3. You are allowed to use third-party libraries, but explicitly import them in the function.
-4. The function must:
+1. Before designing a new python function, check if the function already exists in the existing tools.
+2. Consider the information in the CONTEXT closely to understand the already existing data. If necessary, use this data when designing the new tool.
+3. Design a Python function that fulfils *only* the specific TASK.
+4. The function MUST be self-contained: rely *only* on its input parameters and explicitly imported libraries.
+5. You are allowed to use third-party libraries, but explicitly import them in the function.
+6. The function must:
    - Use snake_case for its name.
    - Contain a detailed NumPy-style docstring explaining its precise purpose, parameters, return value, and reasoning for its design.
    - Gracefully handle potential errors with try/except blocks, returning `{{\'error\': str(e)}}` upon failure.
@@ -150,6 +158,7 @@ You are a Tool Selector. Pick exactly one tool for the described step, using onl
 - Output one JSON object only.
 - The `tool_name` MUST exactly match a name in AVAILABLE TOOLS.
 - Provide parameters exactly matching the tool's schema, using information from the TASK or CONTEXT.
+- Choose parameter values that best accomplish the TASK using the available CONTEXT.
 ```json
 {{
   "tool_name": "exact_tool_name_from_list",
