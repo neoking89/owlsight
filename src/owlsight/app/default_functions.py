@@ -32,7 +32,7 @@ EXCLUDE_TOOLS = [
     "owl_history",
     "owl_models",
     "owl_import",
-    "owl_search_and_scrape"
+    "owl_search_and_scrape",
 ]
 
 
@@ -95,7 +95,7 @@ class OwlDefaultFunctions:
         timeout: int = 5,
     ) -> Union[str, Dict[str, str]]:
         """
-        Read LOCAL FILE CONTENTS with advanced document processing. 
+        Read LOCAL FILE CONTENTS with advanced document processing.
 
         Parameters
         ----------
@@ -290,6 +290,139 @@ class OwlDefaultFunctions:
                     print(f"All {max_retries} attempts failed")
                     raise RuntimeError(f"Search failed after {max_retries} attempts: {'; '.join(errors)}")
 
+    def owl_terminal(
+        self,
+        command: Union[str, List[str]],
+        shell: bool,
+        cwd: Union[str, Path] = ".",
+        capture_output: bool = True,
+        timeout: Optional[int] = None,
+        raise_on_error: bool = False,
+        encoding: str = "utf-8",
+    ) -> Dict[str, Union[str, int]]:
+        """
+        Execute a terminal / shell command.
+
+        Internally this is executed by the native shell:
+        ─ ``/bin/sh`` on Linux & macOS (POSIX)
+        ─ ``cmd.exe`` on Windows
+        If your workflow insists on another shell, include it explicitly,
+        e.g. ``["bash", "-c", "..."]`` or ``["powershell", "-NoProfile", "-Command", "..."]``.
+
+        Parameters
+        ----------
+        command : Union[str, List[str]]
+            The program (and its arguments) to run.
+        shell : bool
+            Enables shell interpretation **only** when *command* is a *str*.
+            Set this to True to use shell built-ins, like ``dir`` on Windows or ``ls`` on Linux/Mac.
+        cwd : str | Path, default="."
+            Working directory in which to launch the process.
+        capture_output : bool, default=True
+            • *True*  → capture **stdout** and **stderr** and return them
+            • *False* → stream output live to the current process’ stdio
+        timeout : int | None, default=None
+            Kill the process after this many **seconds** (``None`` → no limit).
+        raise_on_error : bool, default=False
+            If *True* and the subprocess exits non-zero, raise
+            ``subprocess.CalledProcessError``.
+        encoding : str, default="utf-8"
+            Encoding used to decode bytes into the returned text.
+
+        Returns
+        -------
+        Dict[str, Union[str, int]]
+            ``{"stdout": str, "stderr": str, "returncode": int}``
+            All fields are present even when *capture_output* is *False*
+            (in that case ``stdout`` / ``stderr`` are empty strings).
+
+        Raises
+        ------
+        ValueError
+            If *command* is neither *str* nor *List[str]*.
+        subprocess.TimeoutExpired
+            When the execution exceeds *timeout* seconds.
+        subprocess.CalledProcessError
+            When the process ends with non-zero exit-status **and**
+            ``raise_on_error=True``.
+
+        Notes
+        -----
+        * Works unchanged on Linux, macOS, and Windows—no platform checks needed.
+        * Uses :pymod:`subprocess.run` under the hood with ``text=True`` so the
+          agent receives **decoded Unicode text**, never raw bytes.
+
+        Examples
+        --------
+        >>> owl_terminal(["echo", "hello"])
+        {'stdout': 'hello\\n', 'stderr': '', 'returncode': 0}
+
+        # set shell=True to use shell built-ins!!
+        >>> owl_terminal("dir", shell=True)  # Windows
+        >>> owl_terminal("ls -1 | wc -l", shell=True) # Linux/Mac
+        """
+        import shlex  # local import to avoid polluting global namespace
+
+        # Validate and normalize command
+        if isinstance(command, str):
+            cmd = command if shell else shlex.split(command)
+        elif isinstance(command, list):
+            cmd = command
+        else:
+            raise ValueError("command must be a str or a List[str]")
+
+        # Execute
+        try:
+            # Convert timeout="None" (string) to timeout=None (object)
+            if timeout == "None":
+                timeout = None
+
+            proc = subprocess.run(
+                cmd,
+                cwd=str(cwd),
+                capture_output=capture_output,
+                text=True,
+                shell=shell,
+                timeout=timeout,
+                encoding=encoding,
+                # Add check=False explicitly, although it's the default.
+                # We handle errors based on returncode or FileNotFoundError.
+                check=False,
+            )
+            stdout = proc.stdout if capture_output and proc.stdout else ""
+            stderr = proc.stderr if capture_output and proc.stderr else ""
+            returncode = proc.returncode
+
+            # Error handling for non-zero return code (only if process started)
+            if raise_on_error and returncode != 0:
+                raise subprocess.CalledProcessError(
+                    returncode,
+                    cmd,
+                    output=stdout,
+                    stderr=stderr,
+                )
+
+        except FileNotFoundError as e:
+            # Handle case where the command executable itself was not found
+            stdout = ""
+            stderr = str(e)
+            returncode = -1 # Use a specific code for file not found
+            # Note: raise_on_error doesn't apply here, as CalledProcessError
+            # is for non-zero return codes, not failure to find the command.
+
+        except subprocess.TimeoutExpired as e:
+            # Handle timeout separately if needed, or re-raise
+            # For now, let's re-raise it as it's a distinct condition.
+            # Alternatively, return a specific dict like FileNotFoundError.
+            raise e
+
+        # Return result in stable, JSON-serialisable shape
+        return {
+            "stdout": stdout,
+            "stderr": stderr,
+            "returncode": returncode,
+        }
+
     def owl_import(self, file_path: str):
         """
         Import Python module into the current execution environment.
@@ -304,7 +437,7 @@ class OwlDefaultFunctions:
         - Makes all module symbols available in global namespace
         - Overwrites existing names with same identifiers
         - Handles relative imports within the module
-        
+
         Raises
         ------
         Exception
@@ -341,7 +474,7 @@ class OwlDefaultFunctions:
         -----
         - Filters out builtins and internal objects (starting with '_')
         - Object types shown in parentheses after names
-        
+
         Raises
         ------
         Exception
@@ -388,7 +521,7 @@ class OwlDefaultFunctions:
         - Overwrites existing files without warning
         - Uses UTF-8 encoding
         - Limited to text-based formats
-        
+
         Raises
         ------
         Exception
@@ -416,7 +549,7 @@ class OwlDefaultFunctions:
         - Excludes internal variables (starting with '_' or 'owl_')
         - Serialization uses dill package
         - Not all object types can be serialized
-        
+
         Raises
         ------
         Exception
@@ -443,7 +576,7 @@ class OwlDefaultFunctions:
         ----------
         file_path : str
             The path to the file to load the namespace from.
-            
+
         Raises
         ------
         FileNotFoundError
@@ -704,7 +837,7 @@ class OwlDefaultFunctions:
         -----
         - Runs in separate process to avoid blocking
         - Timings approximate due to system scheduling
-        
+
         Raises
         ------
         Exception
@@ -786,7 +919,7 @@ class OwlDefaultFunctions:
         - Use a (domain-specific) sentence transformer model for embeddings.
         Check https://huggingface.co/spaces/mteb/leaderboard with "Should be sentence-transformers compatible" turned on.
         - Caches DocumentSearcher instances based on input parameters for reuse
-        
+
         Raises
         ------
         Exception
