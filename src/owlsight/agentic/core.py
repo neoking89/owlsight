@@ -500,7 +500,7 @@ class ObservationAgent(BaseAgent):
         step_description = context.get_current_step().description
         prompt = self.system_prompt.format(
             description=step_description,
-            input_text=most_recent_result,
+            information=most_recent_result,
         )
 
         summary_json = self.llm_call(prompt)
@@ -916,7 +916,7 @@ class AgentOrchestrator:
             if replan_count < self.max_replans and (is_planning_error or True): # Replan on most permanent errors for now
                 replan_count += 1
                 context.error_context.replan_attempts = replan_count
-                logger.warning(f"Triggering replan attempt {replan_count}/{self.max_replans} due to step failure.")
+                logger.warning(f"Triggering replan attempt {replan_count} out of{self.max_replans} replans left due to step failure.")
 
                 self._prepare_for_replan(context, step_index, step.description)
 
