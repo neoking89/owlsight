@@ -485,23 +485,24 @@ class ToolSelectionAgent(BaseAgent):
 class ObservationAgent(BaseAgent):
     """
     The ObservationAgent is responsible for observing the results of the previous step and summarizing them.
-    The ObservationAgent always follows after a toolresponse in the execution plan to compress and enrich the output.
-    This is to ensure that the toolresponse is as concise and relevant as possible.
+    The ObservationAgent always follows a step in the execution plan which fetched/generated information which needs to be compressed, like a ToolResult.
+    This is to ensure that information is as concise, short but rich and relevant as possible.
     """
 
     def __init__(self):
         super().__init__("ObservationAgent", AgentPrompt(OBSERVATION_PROMPT))
 
     def execute(self, context: AgentContext) -> StepResult:
-        most_recent_tool_result = next((r for r in reversed(context.accumulated_results) if isinstance(r, ToolResult)), None)
-        if most_recent_tool_result is None:
-            return StepResult(False, "No tool result to observe.")
+        most_recent_result = next((r for r in reversed(context.accumulated_results)), None)
+        if most_recent_result is None:
+            return StepResult(False, "No result to observe.")
 
-        desc = context.execution_plan[context.current_step].description
+        step_description = context.get_current_step().description
         prompt = self.system_prompt.format(
-            description=desc,
-            tool_result=most_recent_tool_result.result,
+            description=step_description,
+            input_text=most_recent_result,
         )
+
         summary_json = self.llm_call(prompt)
         try:
             summary_dict = parse_json_markdown(summary_json)
@@ -510,12 +511,8 @@ class ObservationAgent(BaseAgent):
             logger.error(f"Observation JSON parsing failed: {e}")
             return StepResult(False, f"Failed to parse observation JSON: {e}")
 
-        # Replace the previous ToolResult with the Observation summary
-        if context.accumulated_results and isinstance(context.accumulated_results[-1], ToolResult):
-            context.accumulated_results[-1] = summary
-        else:
-            context.accumulated_results.append(summary)
-            logger.warning("ObservationAgent appended summary instead of replacing. Last result was not ToolResult.")
+        # replace last result with its summary to keep all data concise
+        context.accumulated_results[-1] = summary
 
         return StepResult(True, summary)
 
@@ -883,7 +880,12 @@ class AgentOrchestrator:
             logger.warning("Could not find PlannerAgent to append error context.")
 
     def _execute(self, context: AgentContext) -> bool:
-        """Executes the plan step-by-step, handling failures and triggering replans."""
+        """
+        Executes the plan step-by-step, handling failures and triggering replans.
+        
+        Returns:
+            bool whether execution was succesful
+        """
         if not context.execution_plan:
             logger.error("Execution attempt failed: No execution plan exists.")
             return False
