@@ -32,6 +32,7 @@ EXCLUDE_TOOLS = [
     "owl_history",
     "owl_models",
     "owl_import",
+    "owl_search_and_scrape"
 ]
 
 
