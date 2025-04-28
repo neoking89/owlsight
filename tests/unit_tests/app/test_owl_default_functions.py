@@ -3,12 +3,13 @@ import tempfile
 import os
 from pathlib import Path
 from unittest.mock import patch, Mock
-
 from pynput.keyboard import Controller
 
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.app._child_process_owl_press import KEY_MAP, execute_key_sequence
-
+import platform
+import subprocess
+import sys
 
 @pytest.fixture
 def temp_dir():
@@ -101,6 +102,55 @@ def test_owl_tools_executed_successfully(owl_instance: OwlDefaultFunctions):
     assert len(tools) > 0
     for tool in tools:
         assert isinstance(tool, dict)
+
+def test_owl_terminal(owl_instance: OwlDefaultFunctions):
+    """Test the owl_terminal function for various scenarios."""
+    # 1. Test simple command without shell=True (should work cross-platform)
+    #    Use sys.executable to get the current python interpreter path
+    python_executable = sys.executable
+    result = owl_instance.owl_terminal([python_executable, "--version"], shell=False)
+    assert result["returncode"] == 0
+    # Handle platform-specific newline characters in echo output
+    assert "Python" in result["stdout"].strip()
+    assert result["stderr"] == ""
+
+    # 2. Test platform-specific shell built-in with shell=True
+    is_windows = platform.system() == "Windows"
+    shell_command = "dir" if is_windows else "ls"
+    result_shell = owl_instance.owl_terminal(shell_command, shell=True)
+    assert result_shell["returncode"] == 0
+    assert result_shell["stdout"] != ""  # Should list some files
+    assert result_shell["stderr"] == ""
+
+    # 3. Test non-existent command (should fail with returncode -1)
+    non_existent_cmd = "this_command_should_not_exist_anywhere"
+    result_fail = owl_instance.owl_terminal(non_existent_cmd, shell=False)
+    assert result_fail["returncode"] == -1 # Specific code for FileNotFoundError
+    # Stderr should contain the FileNotFoundError message
+    assert "The system cannot find the file specified" in result_fail["stderr"] or \
+           "No such file or directory" in result_fail["stderr"] # Linux/Mac message
+
+    # 4. Test non-existent command with raise_on_error=True (should still return -1, not raise)
+    # FileNotFoundError happens before the process runs, so CalledProcessError is not raised.
+    result_fail_raise = owl_instance.owl_terminal(non_existent_cmd, shell=False, raise_on_error=True)
+    assert result_fail_raise["returncode"] == -1
+    assert "The system cannot find the file specified" in result_fail_raise["stderr"] or \
+           "No such file or directory" in result_fail_raise["stderr"]
+
+    # 5. Test shell=True is required for built-ins (should fail with returncode -1 without it)
+    result_no_shell = owl_instance.owl_terminal(shell_command, shell=False)
+    assert result_no_shell["returncode"] == -1 # Specific code for FileNotFoundError
+    assert "The system cannot find the file specified" in result_no_shell["stderr"] or \
+           "No such file or directory" in result_no_shell["stderr"]
+
+    # 6. Test raise_on_error=True with a command that exists but returns non-zero
+    # Use python to run a script that exits with code 1
+    fail_command = [sys.executable, "-c", "import sys; sys.exit(1)"]
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        owl_instance.owl_terminal(fail_command, shell=False, raise_on_error=True)
+    # Check that the raised exception has the correct return code
+    assert excinfo.value.returncode == 1
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
