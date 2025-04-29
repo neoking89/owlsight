@@ -53,8 +53,11 @@ def process_user_request(
     """
     apply_agents = manager.get_config_key("agentic.apply_tools", False)
     if apply_agents:
-        orchestrator = AgentOrchestrator(code_executor, manager)
-        return orchestrator.process_user_request(user_choice)
+        chat_history_is_applied = manager.get_config_key("model.apply_chat_history", False)
+        if chat_history_is_applied:
+            logger.warning("'model.apply_chat_history' is set to true. This may clog the contextwindow and lead to unexpected behaviour and long responsetimes!")
+        agent_orchestrator = AgentOrchestrator(code_executor, manager)
+        return agent_orchestrator.process_user_request(user_choice)
     else:
         return manager.generate(user_choice)
 
