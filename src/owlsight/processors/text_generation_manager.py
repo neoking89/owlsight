@@ -1,30 +1,33 @@
-from typing import Any, Optional, Dict, Union, List
-import traceback
-import pkgutil
 import ast
 import os
+import pkgutil
+import traceback
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
+from owlsight.app.default_functions import EXCLUDE_TOOLS, OwlDefaultFunctions
+from owlsight.agentic.constants import AGENT_INFORMATION
+from owlsight.configurations.config_manager import ConfigManager
 from owlsight.configurations.constants import CONFIG_DEFAULTS
+from owlsight.huggingface.constants import HUGGINGFACE_MEDIA_TASKS
+from owlsight.huggingface.core import show_and_return_model_data
 from owlsight.processors.base import TextGenerationProcessor
-from owlsight.processors.multimodal_processors import MultiModalProcessor
 from owlsight.processors.helper_functions import select_processor_type, warn_processor_not_loaded
+from owlsight.processors.multimodal_processors import MultiModalProcessor
+from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
+from owlsight.rag.python_lib_search import PythonLibSearcher
 from owlsight.ui.console import get_user_choice
 from owlsight.ui.custom_classes import AppDTO
-from owlsight.configurations.config_manager import ConfigManager
-from owlsight.rag.python_lib_search import PythonLibSearcher
-from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
-from owlsight.huggingface.core import show_and_return_model_data
-from owlsight.huggingface.constants import HUGGINGFACE_MEDIA_TASKS
+from owlsight.utils.constants import get_default_config_on_startup_path, get_pickle_cache
+from owlsight.utils.custom_classes import GlobalPythonVarsDict
+from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
 from owlsight.utils.helper_functions import (
     convert_to_real_type,
-    parse_python_placeholders,
-    parse_function_call,
     function_call_to_python_code,
+    parse_function_call,
+    parse_python_placeholders,
 )
-from owlsight.utils.deep_learning import free_cuda_memory, track_measure_usage
-from owlsight.utils.constants import get_pickle_cache, get_default_config_on_startup_path
-from owlsight.utils.custom_classes import GlobalPythonVarsDict
-from owlsight.app.default_functions import OwlDefaultFunctions, EXCLUDE_TOOLS
 from owlsight.utils.logger import logger
 
 
@@ -63,8 +66,9 @@ class TextGenerationManager:
 
         self.config_manager = config_manager
         self.processor: Optional[TextGenerationProcessor] = None
-        
+
         self._original_generate_method = None
+        self._last_loaded_config: Optional[str] = None
         self._tool_history: set[str] = set()
         self._init_excluded_tools = EXCLUDE_TOOLS.copy()
 
@@ -119,7 +123,7 @@ class TextGenerationManager:
                     logger.warning(f"For example: '[[{mediatype}:path/to/{mediatype}]]'")
                 logger.warning("Or for QA: 'What color is the car? [[image:path/to/image.jpg]]'")
         else:
-            # else try to parse the generated text if it's a function call. if no function call, return the generated text as is
+            # else try to parse the generated text if it is a function call. if no function call, return the generated text as is
             func_name, arguments = parse_function_call(generated_text)
             # if a function call is found and arguments are valid, try to process it
             if func_name is not None and arguments is not None:
@@ -151,6 +155,13 @@ class TextGenerationManager:
         # Update configuration store
         try:
             value = convert_to_real_type(value)
+            outer_key, inner_key = key.split(".", 1)
+
+            # handle special cases which need to rollback if config update fails
+            if outer_key == "agentic" and inner_key == "config_per_agent":
+                self._update_agentic_config_per_agent(inner_key, value)
+                return
+
             self.config_manager.set(key, value)
             logger.debug(f"Configuration updated: {key} = {value}")
         except Exception:
@@ -158,7 +169,6 @@ class TextGenerationManager:
             return
 
         # Handle specific configuration sections
-        outer_key, inner_key = key.split(".", 1)
         if outer_key == "main":
             self._update_main_config(inner_key, value)
         elif outer_key == "model":
@@ -278,7 +288,9 @@ class TextGenerationManager:
             print(f"Available tools:\n{sep}\n{available_tools}")
         elif inner_key == "exclude_tools":
             available_tool_names = [
-                getattr(obj, "__name__") for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False) if hasattr(obj, "__name__")
+                getattr(obj, "__name__")
+                for obj in OwlDefaultFunctions(GlobalPythonVarsDict()).owl_tools(as_json=False)
+                if hasattr(obj, "__name__")
             ]
 
             # Reset EXCLUDE_TOOLS to initial state before updating
@@ -293,7 +305,84 @@ class TextGenerationManager:
                 if tool not in EXCLUDE_TOOLS:
                     logger.info(f"Adding tool to exclude list: {tool}")
                     EXCLUDE_TOOLS.append(tool)
+        elif inner_key == "config_per_agent":
+            self._update_agentic_config_per_agent(inner_key, value)
 
+    def _update_agentic_config_per_agent(self, inner_key: str, value: Any) -> None:
+        """
+        Update agentic.config_per_agent
+        """
+        config_key = f"agentic.{inner_key}"
+
+        # Parse the incoming value into a dictionary
+        if isinstance(value, dict):
+            config_per_agent = value
+        elif isinstance(value, str):
+            config_per_agent = self._parse_config_string(value)
+            if config_per_agent is None:  # parsing failed
+                return
+        else:
+            logger.error(
+                "agentic.%s must be a dict or str, got %s. Skipping.",
+                inner_key,
+                type(value).__name__,
+            )
+            return
+
+        # Type-check result
+        if not isinstance(config_per_agent, dict):
+            logger.error("agentic.%s must resolve to a dictionary. Skipping.", inner_key)
+            return
+
+        # Validate agent names
+        invalid_agents = [a for a in config_per_agent if a not in AGENT_INFORMATION]
+        if invalid_agents:
+            logger.error(
+                "agentic.%s: invalid agent names: %s. Skipping.",
+                inner_key,
+                ", ".join(invalid_agents),
+            )
+            return
+
+        # Validate (and normalise) paths
+        missing_for_agents: list[str] = []
+        for agent, cfg_path in config_per_agent.items():
+            if not cfg_path:  # empty string means "no config for this agent"
+                continue
+            if not isinstance(cfg_path, str):
+                logger.error(
+                    "agentic.%s: expected a string path for agent %s, got %s. Skipping.",
+                    inner_key,
+                    agent,
+                    type(cfg_path).__name__,
+                )
+                return
+            
+            if not cfg_path.endswith(".json"):
+                logger.error(
+                    "agentic.%s: expected a JSON file path for agent %s, got: '%s'. Skipping.",
+                    inner_key,
+                    agent,
+                    cfg_path,
+                )
+                return
+            
+            path = Path(cfg_path).expanduser()
+            resolved = path if path.is_absolute() else Path.cwd() / path
+            if not resolved.exists():
+                missing_for_agents.append(agent)
+
+        if missing_for_agents:
+            logger.error(
+                "agentic.%s: config file not found for agents: %s. Skipping.",
+                inner_key,
+                ", ".join(missing_for_agents),
+            )
+            return
+
+        self.config_manager.set(config_key, config_per_agent)
+        logger.debug(f"Configuration updated: {config_key} = {config_per_agent}")
+        
     def _update_huggingface_config(self, inner_key: str):
         """Handle updates to Hugging Face-related configuration."""
         if inner_key == "search":
@@ -318,7 +407,7 @@ class TextGenerationManager:
         self.config_manager.set("huggingface.select_model", list(model_dict.keys()))
 
     def _handle_model_selection(self):
-        """Handle model selection and loading process."""
+        """Handle model selection and loading process through Hugging Face"""
         select_model = self.config_manager.get(
             "huggingface.select_model", CONFIG_DEFAULTS["huggingface"]["select_model"]
         )
@@ -367,14 +456,29 @@ class TextGenerationManager:
         self.config_manager.set("huggingface.select_model", "")
         self.config_manager.save(path)
 
-    def load_config(self, path: str) -> bool:
+    def load_config(self, path: str, execute_sequence_on_loading: bool = True) -> bool:
         """
         Load the configuration from a file.
+
+        Parameters
+        ----------
+        path : str
+            Path to the configuration file to load.
+        execute_sequence_on_loading : bool, optional
+            If True, execute the sequence of actions defined in the configuration file after loading.
+            Defaults to True.
+
+        Returns
+        -------
+        bool
+            True if the configuration was loaded successfully, False otherwise.
         """
+        self._last_loaded_config = path
         config_successfully_loaded = self.config_manager.load(path)
         if config_successfully_loaded:
             self.load_model_processor(reload=self.processor is not None)
-            self._execute_sequence_on_loading()
+            if execute_sequence_on_loading:
+                self._execute_sequence_on_loading()
 
         return config_successfully_loaded
 
@@ -511,3 +615,33 @@ class TextGenerationManager:
         """Restore the processor's original generate method if it was modified."""
         if self._original_generate_method:
             self.processor.generate = self._original_generate_method
+
+    @staticmethod
+    def _parse_config_string(raw: str) -> dict[str, Any] | None:
+        """
+        Convert raw string into a dict.
+
+        1. First attempt: strict ``json.loads`` (expects double quotes).
+        2. Second attempt: ``ast.literal_eval`` after doubling backslashes.
+           This handles single-quoted dict literals and Windows paths.
+
+        Returns
+        -------
+        dict | None
+            Parsed mapping, or *None* if parsing failed.
+        """
+        # Strict JSON first
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        # Fallback: safe Python literal
+        safe_raw = raw.replace("\\", "\\\\")  # prevent \Uxxxx issues
+        try:
+            return ast.literal_eval(safe_raw)
+        except (SyntaxError, ValueError):
+            logger.error(
+                "Invalid format for config_per_agent string. Expected valid JSON or Python dict literal. Skipping."
+            )
+            return None
