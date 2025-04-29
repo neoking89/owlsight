@@ -905,10 +905,10 @@ class TextGenerationProcessorGGUF(TextGenerationProcessor):
                         files_list = literal_eval(files_str)
                         gguf_files = sorted(f for f in files_list if f.endswith(".gguf"))
 
-                        logger.error("Specify a valid GGUF file in the 'gguf__filename' parameter")
-                        logger.error("Available .gguf files:")
+                        logger.info("Specify a valid GGUF file in the 'gguf__filename' parameter")
+                        logger.info("Available .gguf files:")
                         for file in gguf_files:
-                            logger.error(file)
+                            logger.info(file)
                     except (ValueError, SyntaxError):
                         logger.error("Could not parse available files list")
                 raise InvalidGGUFFileError(message=error_msg) from exc
