@@ -51,8 +51,12 @@ def process_user_request(
     Process the user's choice and generate a response.
     Optionally involves multi-step tool usage and result validation.
     """
-    orchestrator = AgentOrchestrator(code_executor, manager)
-    return orchestrator.process_user_request(user_choice)
+    apply_agents = manager.get_config_key("agentic.apply_tools", False)
+    if apply_agents:
+        orchestrator = AgentOrchestrator(code_executor, manager)
+        return orchestrator.process_user_request(user_choice)
+    else:
+        return manager.generate(user_choice)
 
 
 def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, code_executor: CodeExecutor) -> None:
