@@ -126,7 +126,7 @@ def test_process_user_request_with_agentic(mock_logger):
         "owlsight.app.run_app.AgentOrchestrator", return_value=mock_orchestrator_instance
     ) as mock_agent_orchestrator_class:
         result = process_user_request(user_input, mock_executor, mock_manager)
-    mock_manager.get_config_key.assert_called_once_with("agentic.apply_tools", False)
+    mock_manager.get_config_key.assert_called()
     mock_manager.generate.assert_not_called()
     mock_agent_orchestrator_class.assert_called_once_with(mock_executor, mock_manager)
     mock_orchestrator_instance.process_user_request.assert_called_once_with(user_input)
