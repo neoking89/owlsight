@@ -14,7 +14,7 @@ from owlsight.agentic.guardrails import (
 )
 from owlsight.agentic.helper_functions import (
     execute_tool,
-    get_agent_information,
+    get_agent_information_for_prompts,
     get_available_tools,
     parse_tool_response,
     parse_json_markdown,
@@ -151,7 +151,7 @@ class PlanAgent(BaseAgent):
     def execute(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
             user_request=context.user_request,
-            agent_information=get_agent_information(),
+            agent_information=get_agent_information_for_prompts(),
             available_tools=get_available_tools(BaseAgent.code_executor.globals_dict),
             additional_information=self.get_additional_information(),
         )

@@ -14,7 +14,7 @@ from owlsight.utils.logger import logger
 def parse_json_markdown(response: str) -> dict:
     """
     Parses a markdown response to extract JSON data.
-    
+
     Parameters
     ----------
     response: str
@@ -36,11 +36,12 @@ def parse_json_markdown(response: str) -> dict:
         return {}
 
 
-def get_agent_information() -> str:
+def get_agent_information_for_prompts() -> str:
     """
-    Returns a formatted string of agent information for better representation in prompts.
+    Returns a formatted string of agent information for injection into agent prompts.
     """
-    return "\n".join(f"- {k}: {v}" for k, v in AGENT_INFORMATION.items())
+    exclude_agents = ["ObservationAgent"]
+    return "\n".join(f"- {k}: {v}" for k, v in AGENT_INFORMATION.items() if k not in exclude_agents)
 
 
 def get_available_tools(globals_dict: Dict[str, Any]) -> str:
