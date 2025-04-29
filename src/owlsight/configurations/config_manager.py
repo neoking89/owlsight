@@ -140,6 +140,7 @@ class ConfigManager:
             "additional_information": self._get_basic_choice("agentic", "additional_information"),
             "show_available_tools": None,
             "exclude_tools": str(self._get_basic_choice("agentic", "exclude_tools")),
+            "config_per_agent": str(self._get_basic_choice("agentic", "config_per_agent")),
         }
 
     def _create_huggingface_choices(self):
@@ -230,7 +231,7 @@ class ConfigManager:
         """
         err_msg = "Cannot load config."
         if not isinstance(path, str) or not path:
-            logger.error("Invalid file path provided.")
+            logger.error(f"{err_msg} Invalid file path provided: {path}")
             return False
 
         if not os.path.exists(path):
