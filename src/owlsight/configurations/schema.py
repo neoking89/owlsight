@@ -8,10 +8,12 @@ from owlsight.huggingface.constants import HUGGINGFACE_TASKS
 from owlsight.processors.custom_classes import GGUF_Utils
 from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.ui.custom_classes import MenuItem, OptionType
+from owlsight.agentic.constants import AGENT_INFORMATION
 
 
 class Schema:
     """Configuration schema definition and validation."""
+    CONFIG_TO_SCHEMA_EXAMPLE = {agent: "path/to/config.json" for agent in AGENT_INFORMATION.keys()}
 
     CONFIG = {
         "main": {
@@ -233,7 +235,7 @@ class Schema:
         "agentic": {
             "back": MenuItem(
                 type=OptionType.ACTION,
-                description="Orchestrate a sequential multi-agent workflow: RouterPlanningAgent -> ToolAgent | PythonAgent -> ValidationAgent -> ResponseSynthesisAgent",
+                description="Orchestrate a sequential multi-agent workflow: PlanAgent -> PlanValidationAgent -> ToolSelectionAgent | ToolExecutionAgent -> FinalAgent",
             ),
             "apply_tools": MenuItem(
                 type=OptionType.TOGGLE,
@@ -255,6 +257,12 @@ class Schema:
                 type=OptionType.EDITABLE,
                 description="Comma-separated list of tools (as string) to exclude from the available tools. These tools can be used by the Tool agent. E.g. ['owl_scrape,owl_search']",
                 default=[],
+                choices=None,
+            ),
+            "config_per_agent": MenuItem(
+                type=OptionType.EDITABLE,
+                description=f"Set configurations per agent, allowing unique models for each agent type. For Example: {CONFIG_TO_SCHEMA_EXAMPLE}",
+                default={},
                 choices=None,
             ),
         },
