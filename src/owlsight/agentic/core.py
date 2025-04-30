@@ -110,11 +110,12 @@ class BaseAgent(ABC):
 
     def load_config_agent(self) -> None:
         """
-        Load the specific owlsight configuration for the agent.
+        Load the specific owlsight configuration for the child-agent.
+        This way, the child-agent can have its own owlsight configuration/model.
         """
         config_per_agent = self._get_config_per_agent()
         agent_config_path = config_per_agent.get(self.name, "")
-        if self._config_path_exists() and agent_config_path != self.manager._last_loaded_config:
+        if self._agent_config_path_exists() and agent_config_path != self.manager._last_loaded_config:
             model_succesfully_loaded = self.manager.load_config(agent_config_path)
             if not model_succesfully_loaded:
                 logger.warning(f"Failed to load config {agent_config_path} for agent '{self.name}'.")
@@ -129,7 +130,7 @@ class BaseAgent(ABC):
         config_per_agent = config_manager.get("agentic.config_per_agent", {})
         return config_per_agent
 
-    def _config_path_exists(self) -> bool:
+    def _agent_config_path_exists(self) -> bool:
         path_str = self._get_config_per_agent().get(self.name)
         if not path_str:
             return False
