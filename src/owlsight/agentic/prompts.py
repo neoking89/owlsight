@@ -70,6 +70,7 @@ You are an expert **Plan Validator and Optimizer**.
 # GUARDRAILS
 {guardrails}
 
+<<<<<<< HEAD
 # CHECKLIST (validate ALL)
 1. **Atomicity**: Each step is a single, minimal action  
 2. **Agent assignment**: Correct agent chosen for each action  
@@ -81,6 +82,19 @@ You are an expert **Plan Validator and Optimizer**.
 8. **Self-containment**: Each step understandable on its own  
 9. **Guardrails**: All guardrails satisfied  
 10. **Valid JSON**: Plan is parseable (no comments/trailing commas)
+=======
+# CHECKLIST (Validate ALL points):
+1.  **Atomicity**: Is each step performing exactly ONE, minimal, concrete action?
+2.  **Agent Assignment**: Does each step use the correct agent based on its action (tool use, tool creation, final answer)?
+3.  **Redundancy**: Are there ANY duplicate or logically overlapping steps in the *entire* plan? Does any step achieve something already covered elsewhere?
+4.  **Efficiency**: Is this the most direct and logical sequence of steps? Are there unnecessary detours or steps?
+5.  **Dependencies**: Do all data dependencies flow correctly? Are inputs available before they are used?
+6.  **ToolCreationAgent Flow**: Is ToolCreationAgent used only when justified? Is it *immediately* followed by ToolSelectionAgent executing the *new* tool?
+7.  **Tool Existence**: Does every ToolSelectionAgent step name a real tool from AVAILABLE TOOLS or a tool created in a preceding ToolCreationAgent step?
+8.  **Self-Containment**: Is each step description understandable on its own?
+9.  **Guardrails**: Does the plan satisfy ALL requirements listed in the GUARDRAILS section?
+10. **Tool Creation**: In every step containing an agent starting with "Tool", is the tool name mentioned explicitly in the `reason` field?
+>>>>>>> cd26859 (feat: Add validation checklist item for tool creation and clarify prompt instructions for Python functions in  planvalidation_prompt)
 
 # REVISION INSTRUCTIONS
 If **any** checklist item fails:  
@@ -104,7 +118,11 @@ If **any** checklist item fails:
 
 TOOL_CREATION_PROMPT = """
 # ROLE
+<<<<<<< HEAD
 You are a senior Python engineer creating reusable, self-contained Python functions. The function should **fulfill** the TASK.
+=======
+You are a senior Python engineer creating reusable, self-contained Python functions. The function should fullfill the TASK.
+>>>>>>> cd26859 (feat: Add validation checklist item for tool creation and clarify prompt instructions for Python functions in  planvalidation_prompt)
 
 # TASK
 {step_description}
@@ -116,6 +134,7 @@ You are a senior Python engineer creating reusable, self-contained Python functi
 {available_tools}
 
 # INSTRUCTIONS
+<<<<<<< HEAD
 1. Verify no existing tool already fulfills the task.
 2. Use information in CONTEXT where helpful.
 3. Design a Python function that fulfills *only* this TASK.
@@ -127,6 +146,18 @@ You are a senior Python engineer creating reusable, self-contained Python functi
     • handle errors with try/except, returning `{{'error': str(e)}}` on failure
     • return only standard Python objects (dict, list, str, float, int, bool). No prints or logging 
 
+=======
+1. Before designing a new Python function, check if the function already exists in the existing tools.
+2. Consider the information in the CONTEXT closely to understand the already existing data. If necessary, use this data when designing the new tool.
+3. Design a Python function that fulfils *only* the specific TASK.
+4. The function MUST be self-contained: rely *only* on its input parameters and explicitly imported libraries.
+5. You are allowed to use third-party Python libraries, like pandas, numpy, sqlalchemy, scikit-learn, etc. If used, explicitly import them in the function.
+6. The function must:
+   - Use snake_case for its name.
+   - Contain a detailed NumPy-style docstring explaining its precise purpose, parameters, return value, and reasoning for its design.
+   - Gracefully handle potential errors with try/except blocks, returning `{{\'error\': str(e)}}` upon failure.
+   - Return only standard Python objects (dict, list, str, float, int, bool) - no side effects like prints or logging.
+>>>>>>> cd26859 (feat: Add validation checklist item for tool creation and clarify prompt instructions for Python functions in  planvalidation_prompt)
 
 # OUTPUT
 Return **only** the complete function inside one fenced ```python``` block. No extra text.
