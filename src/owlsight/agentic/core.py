@@ -1,5 +1,5 @@
 import json
-import re
+import os
 import traceback
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
@@ -18,8 +18,9 @@ from owlsight.agentic.helper_functions import (
     get_available_tools,
     parse_tool_response,
     parse_json_markdown,
+    create_temp_config_filename,
 )
-from owlsight.agentic.models import AgentContext, AgentPrompt, ExecutionPlan, PlanStep, StepResult, ToolResult
+from owlsight.agentic.models import AgentContext, AgentPrompt, ExecutionPlan, PlanStep, StepResult
 from owlsight.agentic.prompts import (
     FINAL_AGENT_PROMPT,
     OBSERVATION_PROMPT,
@@ -41,6 +42,10 @@ class BaseAgent(ABC):
 
     manager: ClassVar[Optional[TextGenerationManager]] = None
     code_executor: ClassVar[Optional[CodeExecutor]] = None
+
+    # Class variables for configuration management
+    temp_config_filename: ClassVar[Optional[str]] = None
+    config_per_agent: ClassVar[Optional[Dict[str, str]]] = None
 
     def __init__(self, name: str, system_prompt: AgentPrompt):
         self.name = name
@@ -70,7 +75,7 @@ class BaseAgent(ABC):
         config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
         if config_manager is None:
             # logger.warning("ConfigManager not found on manager when getting additional information.")
-            return "" # Return empty string
+            return ""  # Return empty string
         # Ensure a default empty string if not set
         return config_manager.get("agentic.additional_information", "")
 
@@ -114,14 +119,55 @@ class BaseAgent(ABC):
         This way, the child-agent can have its own owlsight configuration/model.
         """
         config_per_agent = self._get_config_per_agent()
+        config_per_agent = BaseAgent._set_classvar_config_per_agent(config_per_agent)
         agent_config_path = config_per_agent.get(self.name, "")
-        if self._agent_config_path_exists() and agent_config_path != self.manager._last_loaded_config:
+        last_config_is_same = agent_config_path == self.manager._last_loaded_config
+        if self._agent_config_path_exists() and not last_config_is_same:
+            # if another config is used for the first time, remember the first config so that we can sync agents per config even when different configs are used
             model_succesfully_loaded = self.manager.load_config(agent_config_path)
             if not model_succesfully_loaded:
                 logger.warning(f"Failed to load config {agent_config_path} for agent '{self.name}'.")
         else:
-            logger.debug(f"Configuration file for agent '{self.name}' does not exist: {agent_config_path}")
+            if last_config_is_same:
+                logger.debug(f"Configuration file for agent '{self.name}' is the same as the last loaded config. Not loading new config.")
+            else:
+                logger.debug(f"Configuration file for agent '{self.name}' does not exist: {agent_config_path}")
+
+    @classmethod
+    def reset_config_per_agent_classvars(cls) -> None:
+        """
+        Reset the config-related class variables.
+        """
+        if cls.temp_config_filename:
+            os.remove(cls.temp_config_filename)
+        cls.config_per_agent: Optional[Dict[str, str]] = None
+        cls.temp_config_filename: Optional[str] = None
+
+    @classmethod
+    def _set_classvar_config_per_agent(cls, config_per_agent: Dict[str, str]) -> Dict[str, str]:
+        """
+        Initialize class variable config_per_agent with temporary config filenames.
+
+        Parameters
+        ----------
+        config_per_agent: dict[str, str]
+            Existing dict with agent names as keys and config file paths as values.
+        """
+        if cls.temp_config_filename is None:
+            cls.temp_config_filename = create_temp_config_filename()
+            logger.debug(f"Created temporary config filename for keeping state of 'agentic.config_per_agent': {cls.temp_config_filename}")
+
+        if cls.config_per_agent is None:
+            for agent_name in AGENT_INFORMATION.keys():
+                if not config_per_agent.get(agent_name, None):
+                    config_per_agent[agent_name] = cls.temp_config_filename
             
+            cls.config_per_agent = config_per_agent
+            cls.manager.save_config(cls.temp_config_filename)
+
+        return cls.config_per_agent
+
+
     def _get_config_per_agent(self) -> Dict[str, str]:
         config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
         if config_manager is None:
@@ -142,6 +188,7 @@ class BaseAgent(ABC):
 {step.description}
 Reason: {step.reason}
         """.strip()
+
 
 class PlanAgent(BaseAgent):
     """The PlanAgent is responsible for creating an execution plan based on the user's request."""
@@ -708,7 +755,9 @@ class AgentOrchestrator:
                     logger.warning(f"Attempting replan {replan_count}/{self.max_replans} due to critical error.")
                     context.execution_plan = None  # Force replanning
                     continue  # Go back to the start of the while loop to replan
-
+            finally:
+                BaseAgent.reset_config_per_agent_classvars()
+                
         # Should ideally not be reached if logic is correct, but as a fallback
         return "I was unable to complete your request after multiple attempts."
 
@@ -843,7 +892,7 @@ class AgentOrchestrator:
 
                 # Load agent-specific config if its name is in AGENT_INFORMATION
                 if agent.name in AGENT_INFORMATION:
-                    logger.debug(f"Agent '{agent.name}' found in AGENT_INFORMATION. Loading its config.")
+                    logger.debug(f"Agent '{agent.name}' found in AGENT_INFORMATION. Attempting to load its config.")
                     agent.load_config_agent()
                 # else: No specific config loading required for this agent based on AGENT_INFORMATION
 
