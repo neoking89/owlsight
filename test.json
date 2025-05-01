@@ -10,14 +10,14 @@
         "sequence_on_loading": []
     },
     "model": {
-        "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
+        "model_id": "Qwen/Qwen2.5-Coder-3B-Instruct-GGUF",
         "apply_chat_history": false,
         "system_prompt": "You are a helpful assistant, specialized in giving answers to user questions.",
         "model_kwargs": {},
         "transformers__device": null,
         "transformers__quantization_bits": null,
         "transformers__stream": true,
-        "gguf__filename": "qwen2.5-coder-7b-instruct-q6_k.gguf",
+        "gguf__filename": "qwen2.5-coder-3b-instruct-q6_k.gguf",
         "gguf__verbose": true,
         "gguf__n_ctx": 65536,
         "gguf__n_gpu_layers": -1,
@@ -42,11 +42,16 @@
         "search": ""
     },
     "agentic": {
-            "apply_tools": true,
-            "additional_information": "Always search for at least 7 results when using a search tool",
-            "exclude_tools": [],
-            "config_per_agent": {"FinalAgent": "test.json", "ToolSelectionAgent": "test.json", "PlanAgent": "test.json"}
-        },
+        "apply_tools": false,
+        "additional_information": "Always search for at least 7 results when using a search tool",
+        "exclude_tools": [],
+        "config_per_agent": {
+            "FinalAgent": "configs\\qwen_coder.json",
+            "ToolSelectionAgent": "configs\\qwen_coder.json",
+            "ToolCreationAgent": "",
+            "ObservationAgent": ""
+        }
+    },
     "huggingface": {
         "search": "",
         "top_k": 10,
