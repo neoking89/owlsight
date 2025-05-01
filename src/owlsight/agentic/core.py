@@ -84,7 +84,6 @@ class BaseAgent(ABC):
         """
         # Load agent-specific config if its name is in AGENT_INFORMATION
         if self.name in AGENT_INFORMATION:
-            logger.debug(f"Agent '{self.name}' found in AGENT_INFORMATION. Attempting to load its config.")
             self.load_config_agent()
 
     def get_additional_information(self) -> str:
@@ -141,6 +140,7 @@ class BaseAgent(ABC):
         last_config_is_same = agent_config_path == self.manager._last_loaded_config
         if self._agent_config_path_exists() and not last_config_is_same:
             # if another config is used for the first time, remember the first config so that we can sync agents per config even when different configs are used
+            logger.debug(f"Agent '{self.name}' found in config_per_agent. Attempting to load its config.")
             model_succesfully_loaded = self.manager.load_config(agent_config_path)
             if not model_succesfully_loaded:
                 logger.warning(f"Failed to load config {agent_config_path} for agent '{self.name}'.")
@@ -155,7 +155,7 @@ class BaseAgent(ABC):
         """
         Reset the config-related class variables.
         """
-        if cls.temp_config_filename and Path(cls.temp_config_filename).exists():
+        if cls.temp_config_filename and Path(cls.temp_config_filename).exists() and cls.temp_config_filename != get_default_config_on_startup_path():
             os.remove(cls.temp_config_filename)
         cls.config_per_agent: Optional[Dict[str, str]] = None
         cls.temp_config_filename: Optional[str] = None
