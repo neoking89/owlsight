@@ -3,6 +3,7 @@ import inspect
 import json
 import re
 from typing import Any, Dict, get_type_hints, get_origin, get_args, Optional, Union
+import uuid
 
 from owlsight.agentic.constants import AGENT_INFORMATION
 from owlsight.agentic.models import ToolResult
@@ -10,6 +11,20 @@ from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.helper_functions import parse_markdown
 from owlsight.utils.logger import logger
 
+
+def create_temp_config_filename() -> str:
+    """
+    Creates a unique temporary configuration filename.
+    
+    Returns
+    -------
+    str
+        A unique filename
+    """
+    unique_id = uuid.uuid4().hex   
+    temp_filename = f"tmp_owlsight_config_{unique_id}.json"
+    
+    return temp_filename
 
 def parse_json_markdown(response: str) -> dict:
     """
