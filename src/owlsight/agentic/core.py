@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional
 
-from owlsight.agentic.constants import AGENT_INFORMATION
+from owlsight.agentic.constants import AGENT_INFORMATION, EXCLUDED_AGENTS
 from owlsight.agentic.exceptions import GuardrailViolationError
 from owlsight.agentic.guardrails import (
     GuardrailManager,
@@ -232,7 +232,7 @@ class PlanAgent(BaseAgent):
             reason = item.get("reason", "")
             if desc and ag:
                 parsed.append(PlanStep(desc, ag, reason or ""))
-        allowed = set(AGENT_INFORMATION.keys())
+        allowed = set(agent_name for agent_name in AGENT_INFORMATION.keys() if agent_name not in EXCLUDED_AGENTS)
         invalid = [s.agent_name for s in parsed if s.agent_name not in allowed]
         if invalid:
             logger.error(f"PlanAgent: Invalid agent(s) in plan steps: {invalid}")
