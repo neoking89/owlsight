@@ -5,7 +5,7 @@ import re
 from typing import Any, Dict, get_type_hints, get_origin, get_args, Optional, Union
 import uuid
 
-from owlsight.agentic.constants import AGENT_INFORMATION
+from owlsight.agentic.constants import AGENT_INFORMATION, EXCLUDED_AGENTS
 from owlsight.agentic.models import ToolResult
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.utils.helper_functions import parse_markdown
@@ -55,8 +55,7 @@ def get_agent_information_for_prompts() -> str:
     """
     Returns a formatted string of agent information for injection into agent prompts.
     """
-    exclude_agents = ["ObservationAgent"]
-    return "\n".join(f"- {k}: {v}" for k, v in AGENT_INFORMATION.items() if k not in exclude_agents)
+    return "\n".join(f"- {k}: {v}" for k, v in AGENT_INFORMATION.items() if k not in EXCLUDED_AGENTS)
 
 
 def get_available_tools(globals_dict: Dict[str, Any]) -> str:
