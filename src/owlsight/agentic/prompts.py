@@ -17,9 +17,10 @@ Your job is to break down the **USER REQUEST** into the smallest possible sequen
 # CRITICAL CONSTRAINTS
 - **Strict Atomicity**: Each step MUST perform exactly ONE concrete action (e.g., "Search web for topic X", "Scrape content from URL list Y", "Calculate Z based on input A"). NO COMBINED ACTIONS in a single step.
 - **Single-Tool Rule**: Any step handled by ToolSelectionAgent must select and execute only ONE tool from AVAILABLE TOOLS.
-- **No Duplication/Redundancy**: Do not repeat actions. Do not include steps whose purpose is already covered by another step or tool (e.g., if using 'owl_search_and_scrape', do not add a separate 'scrape' step for the same search).
+- **No Duplication/Redundancy**: Do not repeat actions. Do not include steps whose purpose is already covered by another step or tool.
 - **Dependency Order**: A step consuming data (e.g., "compute average temperature") must follow the step(s) that produce that data (e.g., "Scrape NYC weather data", "Scrape Amsterdam weather data").
 - **ToolCreationAgent Flow**: Only use ToolCreationAgent when the user explicitly requests code creation OR no existing tool suffices. If used, the *immediate* next step MUST be a ToolSelectionAgent step executing the newly created tool.
+- **Naming of tools**: For a step where agent is ToolCreationAgent, it MUST name the tool it is gonna create in the `reason` field. For a step where agent is ToolSelectionAgent, it MUST name the tool it is gonna execute in the `reason` field.
 - **Context Flow**: Assume outputs from `ToolSelectionAgent` steps *will be summarized* before being available as context for subsequent steps. Subsequent steps rely *only* on these summaries (via `available_context`) and the original request. Do not assume access to raw tool output from previous steps.
 - **FinalAgent**: Use *only* as the very last step for synthesising the final answer. It never calls tools.
 
@@ -36,7 +37,7 @@ Your job is to break down the **USER REQUEST** into the smallest possible sequen
     {{
       "description": "Strictly atomic action description (self-contained)",
       "agent": "AgentName",
-      "reason": "Why this agent/tool is best for this atomic step. Mention data dependencies if any."
+      "reason": "Why this agent/tool is best for this atomic step. Mention data dependencies if any. Mention tool name if agent is one of ToolCreationAgent or ToolSelectionAgent"
     }}
     /* repeat for each step */
   ]
