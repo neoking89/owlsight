@@ -34,6 +34,7 @@ from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.helper_functions import parse_markdown
+from owlsight.utils.constants import get_default_config_on_startup_path
 from owlsight.utils.logger import logger
 
 
@@ -169,17 +170,24 @@ class BaseAgent(ABC):
         config_per_agent: dict[str, str]
             Existing dict with agent names as keys and config file paths as values.
         """
+        default_config_on_startup = get_default_config_on_startup_path(return_cache_path=False)
         if cls.temp_config_filename is None:
-            cls.temp_config_filename = create_temp_config_filename()
+            # first we check if a default config is present, meaning we already loaded a model through an existing config
+            if default_config_on_startup:
+                cls.temp_config_filename = default_config_on_startup
+            else:
+                cls.temp_config_filename = create_temp_config_filename()
             logger.debug(f"Created temporary config filename for keeping state of 'agentic.config_per_agent': {cls.temp_config_filename}")
-
+        
         if cls.config_per_agent is None:
             for agent_name in AGENT_INFORMATION.keys():
                 if not config_per_agent.get(agent_name, None):
                     config_per_agent[agent_name] = cls.temp_config_filename
             
             cls.config_per_agent = config_per_agent
-            cls.manager.save_config(cls.temp_config_filename)
+            # no need to save config if it was the one loaded on startup
+            if not default_config_on_startup:
+                cls.manager.save_config(cls.temp_config_filename)
 
         return cls.config_per_agent
 
