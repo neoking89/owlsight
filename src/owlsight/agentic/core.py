@@ -358,7 +358,7 @@ class PlanValidationAgent(BaseAgent):
             "generated_plan": plan_json,
             "available_tools": get_available_tools(BaseAgent.code_executor.globals_dict),
             "guardrails": guardrail_error if guardrail_error else "",
-            "additional_information": self.get_additional_information(),  # Kept: Matches {additional_information}
+            "additional_information": self.get_additional_information(),
         }
 
         logger.debug(f"Plan validation input:\n{json.dumps(prompt_params, indent=2)}")
