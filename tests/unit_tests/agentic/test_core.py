@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from owlsight.agentic.core import AgentOrchestrator, BaseAgent, AgentPrompt
-from owlsight.agentic.models import AgentContext, ExecutionPlan, PlanStep
+from owlsight.agentic.models import AgentContext, ExecutionPlan, PlanStep, StepResult
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.processors.text_generation_manager import TextGenerationManager
 
@@ -99,6 +99,11 @@ def test_orchestrator_replan_on_guardrail_violation():
 
 # Create a concrete implementation of BaseAgent for testing
 class ConcreteAgent(BaseAgent):
+    def _execute_impl(self, context): # type: ignore
+        """Minimal implementation for abstract method."""
+        # Return a simple value or StepResult if needed by tests
+        return StepResult(True, "ConcreteAgent executed")
+
     def execute(self, context): # type: ignore
         raise NotImplementedError
 

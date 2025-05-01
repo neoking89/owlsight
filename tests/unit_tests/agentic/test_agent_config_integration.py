@@ -5,14 +5,14 @@ the agent execution flow.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 from owlsight.agentic.core import (
     BaseAgent, 
     AgentOrchestrator,
     PlanAgent,
-    ObservationAgent
+    ObservationAgent,
 )
 from owlsight.agentic.constants import AGENT_INFORMATION
 from owlsight.agentic.models import AgentContext, ExecutionPlan, PlanStep, StepResult
@@ -151,45 +151,6 @@ def test_agent_config_path_exists_false_nonexistent_path(mock_manager):
         assert result is False
 
 
-@patch('owlsight.agentic.helper_functions.create_temp_config_filename')
-def test_orchestrator_execute_step_loads_agent_config(
-    mock_create_temp, 
-    orchestrator, 
-    mock_manager
-):
-    """Test that _execute_step calls load_config_agent for agents in AGENT_INFORMATION."""
-    # Setup
-    mock_create_temp.return_value = "temp_config.json"
-    BaseAgent.manager = mock_manager
-    agent_name = "ObservationAgent"
-    
-    # Create context with a plan
-    context = AgentContext(user_request="Test request")
-    plan_step = PlanStep(
-        description="Test step", 
-        agent_name=agent_name,  # This is in AGENT_INFORMATION
-        reason="Test reason"
-    )
-    context.execution_plan = ExecutionPlan([plan_step])
-    
-    # Mock the agent.execute to return success
-    orchestrator.agents[agent_name].execute = MagicMock(
-        return_value=StepResult(True, "Success")
-    )
-    
-    # Create a spy on load_config_agent
-    with patch.object(
-        orchestrator.agents[agent_name], 
-        'load_config_agent',
-        wraps=orchestrator.agents[agent_name].load_config_agent
-    ) as mock_load_config:
-        # Execute
-        orchestrator._execute_step(context, plan_step, 0)
-        
-        # Verify load_config_agent was called
-        mock_load_config.assert_called_once()
-
-
 def test_shared_config_file_between_agents(orchestrator, mock_manager):
     """
     Test that multiple agents can share the same temporary config file.
@@ -202,41 +163,85 @@ def test_shared_config_file_between_agents(orchestrator, mock_manager):
         PlanStep("Step 2", "ObservationAgent", "Reason 2"),
     ]
     context.execution_plan = ExecutionPlan(steps)
-    
-    # Mock agents' execute methods to return success
-    for agent_name in ["PlanAgent", "ObservationAgent"]:
-        orchestrator.agents[agent_name].execute = MagicMock(
-            return_value=StepResult(True, "Success")
-        )
-    
-    # Create spies on load_config_agent for ObservationAgent
-    with patch.object(
-        orchestrator.agents["ObservationAgent"], 
-        'load_config_agent',
-        wraps=orchestrator.agents["ObservationAgent"].load_config_agent
-    ) as mock_obs_load:
-        with patch.object(
-            orchestrator.agents["PlanAgent"], 
-            'load_config_agent',
-            wraps=orchestrator.agents["PlanAgent"].load_config_agent
-        ) as mock_plan:
-            # Mock _set_classvar_config_per_agent to verify it stores the same file
-            with patch.object(
-                BaseAgent, 
-                '_set_classvar_config_per_agent',
-                wraps=BaseAgent._set_classvar_config_per_agent
-            ) as mock_set_config:
-                assert BaseAgent.temp_config_filename is None
-                orchestrator._execute_step(context, steps[0], 0)
-                # Verify temp filename is created
-                assert BaseAgent.temp_config_filename.endswith(".json")
-                config_name = BaseAgent.temp_config_filename
-                orchestrator._execute_step(context, steps[1], 1)
-            
-                # Verify load_config_agent was called for both agents
-                mock_obs_load.assert_called_once()
-                mock_plan.assert_called_once()
 
-                assert mock_set_config.call_count == 2
-                assert config_name == BaseAgent.temp_config_filename
-            
+    # 1. Mock _execute_impl for both agents
+    mock_plan_execute_impl = patch.object(
+        orchestrator.agents["PlanAgent"], '_execute_impl',
+        return_value=StepResult(True, "Success")
+    )
+    mock_obs_execute_impl = patch.object(
+        orchestrator.agents["ObservationAgent"], '_execute_impl',
+        return_value=StepResult(True, "Success")
+    )
+
+    # 3. Spy on ObservationAgent's load_config_agent
+    spy_obs_load = patch.object(
+        orchestrator.agents["ObservationAgent"], 'load_config_agent',
+        wraps=orchestrator.agents["ObservationAgent"].load_config_agent
+    )
+    # 4. Spy on PlanAgent's load_config_agent
+    spy_plan_load = patch.object(
+        orchestrator.agents["PlanAgent"], 'load_config_agent',
+        wraps=orchestrator.agents["PlanAgent"].load_config_agent
+    )
+
+    # 2. Mock create_temp_config_filename directly
+    mock_create_temp = patch(
+        'owlsight.agentic.core.create_temp_config_filename',
+        return_value="shared_temp_config.json"
+    )
+    # 5. Mock save_config
+    mock_save_config = patch.object(mock_manager, 'save_config')
+    # 6. Mock manager.get specifically for agentic.config_per_agent
+    mock_get_config = patch.object(
+        mock_manager.config_manager, 'get',
+        return_value={} # Ensure it returns dict, not mock
+    )
+
+    # Use context managers for all patches
+    with mock_plan_execute_impl, mock_obs_execute_impl, \
+         spy_obs_load as mock_obs_load_spy, spy_plan_load as mock_plan_load_spy, \
+         mock_create_temp as mock_create_temp_func, mock_save_config as mock_save_config_func, \
+         mock_get_config as mock_get_config_func:
+
+        assert BaseAgent.temp_config_filename is None
+        # Execute first step (PlanAgent)
+        orchestrator._execute_step(context, steps[0], 0)
+
+        # Verify temp filename was created and stored
+        assert BaseAgent.temp_config_filename == "shared_temp_config.json"
+        mock_create_temp_func.assert_called_once()
+        mock_save_config_func.assert_called_once_with("shared_temp_config.json")
+        mock_plan_load_spy.assert_called_once() # PlanAgent load called
+
+        # Reset mocks for second step if needed (though save/create shouldn't be called again)
+        mock_create_temp_func.reset_mock()
+        mock_save_config_func.reset_mock()
+
+        # Execute second step (ObservationAgent)
+        orchestrator._execute_step(context, steps[1], 1)
+
+        # Verify temp filename is unchanged
+        assert BaseAgent.temp_config_filename == "shared_temp_config.json"
+        mock_obs_load_spy.assert_called_once() # ObservationAgent load called
+        mock_create_temp_func.assert_not_called() # Temp file not created again
+        mock_save_config_func.assert_not_called() # Save not called again
+
+        # Verify manager.get was called (once per agent load_config call)
+        # It's called twice per load_config: once directly, once via _agent_config_path_exists
+        assert mock_get_config_func.call_count == 4 # Once in PlanAgent, once in ObsAgent (each calls it twice)
+        mock_get_config_func.assert_called_with("agentic.config_per_agent", {})
+
+        # Verify final state of config_per_agent if necessary
+        expected_config = {
+            agent_name: "shared_temp_config.json"
+            for agent_name in AGENT_INFORMATION.keys()
+        }
+        # Add any non-AGENT_INFORMATION agents if they exist in the orchestrator
+        for agent_name in orchestrator.agents:
+            if agent_name not in expected_config:
+                # Assuming they should also share the temp config if no specific one is defined
+                expected_config[agent_name] = "shared_temp_config.json"
+
+        # Accessing the class variable directly for assertion
+        assert BaseAgent.config_per_agent == expected_config
