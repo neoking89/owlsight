@@ -29,13 +29,13 @@ def create_file(path: Union[str, Path], base: Optional[Path] = None) -> Path:
 
 def get_default_config_on_startup_path(return_cache_path: bool = False) -> str:
     """
-    Returns the path to the JSON configuration file.
+    Returns the path to the JSON configuration file which is used for the default config on startup.
     Use this as value for the main.default_config_on_startup key.
 
     Parameters
     ----------
     return_cache_path : bool, optional
-        Whether to return the path to the cache file instead of the path to the JSON file, by default False.
+        Whether to return the path to the cache file where the path to the config file is stored instead of the path to the config file, by default False.
 
     Returns
     -------
