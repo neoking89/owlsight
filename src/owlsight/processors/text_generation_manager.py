@@ -338,9 +338,10 @@ class TextGenerationManager:
         invalid_agents = [a for a in config_per_agent if a not in AGENT_INFORMATION]
         if invalid_agents:
             logger.error(
-                "agentic.%s: invalid agent names: %s. Skipping.",
+                "agentic.%s: invalid agent names: '%s'. Valid agent names: %s. Skipping.",
                 inner_key,
                 ", ".join(invalid_agents),
+                ", ".join(AGENT_INFORMATION.keys()),
             )
             return
 
