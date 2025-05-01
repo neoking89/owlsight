@@ -151,11 +151,13 @@ def test_agent_config_path_exists_false_nonexistent_path(mock_manager):
         assert result is False
 
 
-def test_shared_config_file_between_agents(orchestrator, mock_manager):
+@patch('owlsight.agentic.core.get_default_config_on_startup_path')
+def test_shared_config_file_between_agents(mock_get_default_path, orchestrator, mock_manager):
     """
     Test that multiple agents can share the same temporary config file.
     """
-    # Setup 
+    # Setup
+    mock_get_default_path.return_value = None # Ensure default path doesn't interfere
     # Create plan with multiple steps using different agents
     context = AgentContext(user_request="Test request")
     steps = [
@@ -204,44 +206,51 @@ def test_shared_config_file_between_agents(orchestrator, mock_manager):
          mock_create_temp as mock_create_temp_func, mock_save_config as mock_save_config_func, \
          mock_get_config as mock_get_config_func:
 
-        assert BaseAgent.temp_config_filename is None
-        # Execute first step (PlanAgent)
-        orchestrator._execute_step(context, steps[0], 0)
+        try:
+            assert BaseAgent.temp_config_filename is None
+            assert BaseAgent.config_per_agent is None
+            # Execute first step (PlanAgent)
+            orchestrator._execute_step(context, steps[0], 0)
 
-        # Verify temp filename was created and stored
-        assert BaseAgent.temp_config_filename == "shared_temp_config.json"
-        mock_create_temp_func.assert_called_once()
-        mock_save_config_func.assert_called_once_with("shared_temp_config.json")
-        mock_plan_load_spy.assert_called_once() # PlanAgent load called
+            # Verify temp filename was created and stored
+            assert BaseAgent.temp_config_filename == "shared_temp_config.json"
+            mock_create_temp_func.assert_called_once()
+            mock_save_config_func.assert_called_once_with("shared_temp_config.json")
+            mock_plan_load_spy.assert_called_once() # PlanAgent load called
 
-        # Reset mocks for second step if needed (though save/create shouldn't be called again)
-        mock_create_temp_func.reset_mock()
-        mock_save_config_func.reset_mock()
+            # Reset mocks for second step if needed (though save/create shouldn't be called again)
+            mock_create_temp_func.reset_mock()
+            mock_save_config_func.reset_mock()
 
-        # Execute second step (ObservationAgent)
-        orchestrator._execute_step(context, steps[1], 1)
+            # Execute second step (ObservationAgent)
+            orchestrator._execute_step(context, steps[1], 1)
 
-        # Verify temp filename is unchanged
-        assert BaseAgent.temp_config_filename == "shared_temp_config.json"
-        mock_obs_load_spy.assert_called_once() # ObservationAgent load called
-        mock_create_temp_func.assert_not_called() # Temp file not created again
-        mock_save_config_func.assert_not_called() # Save not called again
+            # Verify temp filename is unchanged
+            assert BaseAgent.temp_config_filename == "shared_temp_config.json"
+            mock_obs_load_spy.assert_called_once() # ObservationAgent load called
+            mock_create_temp_func.assert_not_called() # Temp file not created again
+            mock_save_config_func.assert_not_called() # Save not called again
 
-        # Verify manager.get was called (once per agent load_config call)
-        # It's called twice per load_config: once directly, once via _agent_config_path_exists
-        assert mock_get_config_func.call_count == 4 # Once in PlanAgent, once in ObsAgent (each calls it twice)
-        mock_get_config_func.assert_called_with("agentic.config_per_agent", {})
+            # Verify manager.get was called (once per agent load_config call)
+            # It's called twice per load_config: once directly, once via _agent_config_path_exists
+            assert mock_get_config_func.call_count == 4 # Once in PlanAgent, once in ObsAgent (each calls it twice)
+            mock_get_config_func.assert_called_with("agentic.config_per_agent", {})
 
-        # Verify final state of config_per_agent if necessary
-        expected_config = {
-            agent_name: "shared_temp_config.json"
-            for agent_name in AGENT_INFORMATION.keys()
-        }
-        # Add any non-AGENT_INFORMATION agents if they exist in the orchestrator
-        for agent_name in orchestrator.agents:
-            if agent_name not in expected_config:
-                # Assuming they should also share the temp config if no specific one is defined
-                expected_config[agent_name] = "shared_temp_config.json"
+            # Verify final state of config_per_agent if necessary
+            expected_config = {
+                agent_name: "shared_temp_config.json"
+                for agent_name in AGENT_INFORMATION.keys()
+            }
+            # Add any non-AGENT_INFORMATION agents if they exist in the orchestrator
+            for agent_name in orchestrator.agents:
+                if agent_name not in expected_config:
+                    # Assuming they should also share the temp config if no specific one is defined
+                    expected_config[agent_name] = "shared_temp_config.json"
 
-        # Accessing the class variable directly for assertion
-        assert BaseAgent.config_per_agent == expected_config
+            # Accessing the class variable directly for assertion
+            assert BaseAgent.config_per_agent == expected_config
+
+        finally:
+            # Reset class variables to avoid state leakage
+            BaseAgent.temp_config_filename = None
+            BaseAgent.config_per_agent = None

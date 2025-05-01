@@ -95,31 +95,42 @@ def test_reset_config_per_agent_classvars_with_file(mock_remove, test_agent):
     mock_remove.assert_not_called()
 
 
+@patch('owlsight.agentic.core.get_default_config_on_startup_path')
 @patch('owlsight.agentic.core.create_temp_config_filename')
-def test_set_classvar_config_per_agent_first_call(mock_create_temp, test_agent):
+def test_set_classvar_config_per_agent_first_call(mock_create_temp, mock_get_default_path, test_agent):
     """Test _set_classvar_config_per_agent when called for the first time."""
     # Setup
+    mock_get_default_path.return_value = None # Ensure default path doesn't interfere
     mock_create_temp.return_value = "tmp_test_config_123.json"
     BaseAgent.manager = test_agent.manager
     input_config = {"ObservationAgent": "existing_config.json"}
-    
-    # Execute
-    result = BaseAgent._set_classvar_config_per_agent(input_config)
-    
-    # Verify temp filename created
-    assert BaseAgent.temp_config_filename == "tmp_test_config_123.json"
-    mock_create_temp.assert_called_once()
-    
-    # Verify config_per_agent populated with all agents from AGENT_INFORMATION
-    for agent_name in AGENT_INFORMATION.keys():
-        if agent_name not in input_config:
-            assert result[agent_name] == "tmp_test_config_123.json"
-    
-    # Verify existing config entry preserved
-    assert result["ObservationAgent"] == "existing_config.json"
-    
-    # Verify config saved
-    test_agent.manager.save_config.assert_called_once_with("tmp_test_config_123.json")
+
+    try:
+        assert BaseAgent.temp_config_filename is None
+        assert BaseAgent.config_per_agent is None
+
+        # Execute
+        result = BaseAgent._set_classvar_config_per_agent(input_config)
+
+        # Verify temp filename created
+        assert BaseAgent.temp_config_filename == "tmp_test_config_123.json"
+        mock_create_temp.assert_called_once()
+        
+        # Verify config_per_agent populated with all agents from AGENT_INFORMATION
+        for agent_name in AGENT_INFORMATION.keys():
+            if agent_name not in input_config:
+                assert result[agent_name] == "tmp_test_config_123.json"
+        
+        # Verify existing config entry preserved
+        assert result["ObservationAgent"] == "existing_config.json"
+        
+        # Verify config saved
+        test_agent.manager.save_config.assert_called_once_with("tmp_test_config_123.json")
+
+    finally:
+        # Reset class variables to avoid state leakage
+        BaseAgent.temp_config_filename = None
+        BaseAgent.config_per_agent = None
 
 
 def test_set_classvar_config_per_agent_subsequent_call(test_agent):
