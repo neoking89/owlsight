@@ -79,6 +79,7 @@ Validate the GENERATED PLAN against the user request, available tools, and guard
 7.  **Tool Existence**: Does every ToolSelectionAgent step name a real tool from AVAILABLE TOOLS or a tool created in a preceding ToolCreationAgent step?
 8.  **Self-Containment**: Is each step description understandable on its own?
 9.  **Guardrails**: Does the plan satisfy ALL requirements listed in the GUARDRAILS section?
+10. **Tool Creation**: In every step containing an agent starting with "Tool", is the tool name mentioned explicitly in the `reason` field?
 
 # REVISION INSTRUCTIONS
 - If ANY checklist item fails, set `validation_result` to "revised".
@@ -101,7 +102,7 @@ Validate the GENERATED PLAN against the user request, available tools, and guard
 
 TOOL_CREATION_PROMPT = """
 # ROLE
-You are a senior Python engineer creating reusable, self-contained LLM tools.
+You are a senior Python engineer creating reusable, self-contained Python functions. The function should fullfill the TASK.
 
 # TASK
 {step_description}
@@ -113,11 +114,11 @@ You are a senior Python engineer creating reusable, self-contained LLM tools.
 {available_tools}
 
 # INSTRUCTIONS
-1. Before designing a new python function, check if the function already exists in the existing tools.
+1. Before designing a new Python function, check if the function already exists in the existing tools.
 2. Consider the information in the CONTEXT closely to understand the already existing data. If necessary, use this data when designing the new tool.
 3. Design a Python function that fulfils *only* the specific TASK.
 4. The function MUST be self-contained: rely *only* on its input parameters and explicitly imported libraries.
-5. You are allowed to use third-party libraries, but explicitly import them in the function.
+5. You are allowed to use third-party Python libraries, like pandas, numpy, sqlalchemy, scikit-learn, etc. If used, explicitly import them in the function.
 6. The function must:
    - Use snake_case for its name.
    - Contain a detailed NumPy-style docstring explaining its precise purpose, parameters, return value, and reasoning for its design.
