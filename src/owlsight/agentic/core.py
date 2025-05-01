@@ -63,12 +63,28 @@ class BaseAgent(ABC):
         logger.debug(f"Agent '{self.name}' received LLM response:\n{response}")
         return response
 
-    @abstractmethod
     def execute(self, context: AgentContext) -> StepResult:
         """
-        Execute the agent's task.
+        Execute the agent's task, ensuring pre-execution steps are run.
+        """
+        self.pre_execute(context)
+        return self._execute_impl(context)
+
+    @abstractmethod
+    def _execute_impl(self, context: AgentContext) -> StepResult:
+        """
+        Core implementation of the agent's task. Subclasses must override this.
         """
         ...
+
+    def pre_execute(self, context: AgentContext) -> None:
+        """
+        Perform any pre-execution tasks.
+        """
+        # Load agent-specific config if its name is in AGENT_INFORMATION
+        if self.name in AGENT_INFORMATION:
+            logger.debug(f"Agent '{self.name}' found in AGENT_INFORMATION. Attempting to load its config.")
+            self.load_config_agent()
 
     def get_additional_information(self) -> str:
         """Retrieves additional information from the config manager as a string."""
@@ -138,7 +154,7 @@ class BaseAgent(ABC):
         """
         Reset the config-related class variables.
         """
-        if cls.temp_config_filename:
+        if cls.temp_config_filename and Path(cls.temp_config_filename).exists():
             os.remove(cls.temp_config_filename)
         cls.config_per_agent: Optional[Dict[str, str]] = None
         cls.temp_config_filename: Optional[str] = None
@@ -196,7 +212,7 @@ class PlanAgent(BaseAgent):
     def __init__(self):
         super().__init__("PlanAgent", AgentPrompt(PLAN_PROMPT))
 
-    def execute(self, context: AgentContext) -> StepResult:
+    def _execute_impl(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
             user_request=context.user_request,
             agent_information=get_agent_information_for_prompts(),
@@ -313,7 +329,7 @@ class PlanValidationAgent(BaseAgent):
 
         return True, None
 
-    def execute(self, context: AgentContext) -> StepResult:
+    def _execute_impl(self, context: AgentContext) -> StepResult:
         # First validate the plan against guardrails
         guardrail_validation = self.validate_plan_by_guardrails(context.execution_plan)
         guardrail_error = None
@@ -416,7 +432,7 @@ class ToolCreationAgent(BaseAgent):
     def __init__(self):
         super().__init__("ToolCreationAgent", AgentPrompt(TOOL_CREATION_PROMPT))
 
-    def execute(self, context: AgentContext) -> StepResult:
+    def _execute_impl(self, context: AgentContext) -> StepResult:
         step = context.get_current_step()
         prompt = self.system_prompt.format(
             step_description=BaseAgent._form_description(step),
@@ -517,7 +533,7 @@ class ToolSelectionAgent(BaseAgent):
     def __init__(self):
         super().__init__("ToolSelectionAgent", AgentPrompt(TOOL_SELECTION_PROMPT))
 
-    def execute(self, context: AgentContext) -> StepResult:
+    def _execute_impl(self, context: AgentContext) -> StepResult:
         # Allow the LLM several chances to self‑correct invalid outputs.
         max_attempts = 4  # increased by one for improved resiliency
         attempt = 0
@@ -577,7 +593,7 @@ class ObservationAgent(BaseAgent):
     def __init__(self):
         super().__init__("ObservationAgent", AgentPrompt(OBSERVATION_PROMPT))
 
-    def execute(self, context: AgentContext) -> StepResult:
+    def _execute_impl(self, context: AgentContext) -> StepResult:
         most_recent_result = next((r for r in reversed(context.accumulated_results)), None)
         if most_recent_result is None:
             return StepResult(False, "No result to observe.")
@@ -611,7 +627,7 @@ class FinalAgent(BaseAgent):
     def __init__(self):
         super().__init__("FinalAgent", AgentPrompt(FINAL_AGENT_PROMPT))
 
-    def execute(self, context: AgentContext) -> StepResult:
+    def _execute_impl(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
             user_request=context.user_request,
             previous_results=context.get_previous_results(),
@@ -889,12 +905,6 @@ class AgentOrchestrator:
                 agent = self.agents.get(step.agent_name)
                 if not agent:
                     raise ValueError(f"Configuration Error: Agent '{step.agent_name}' not found.")
-
-                # Load agent-specific config if its name is in AGENT_INFORMATION
-                if agent.name in AGENT_INFORMATION:
-                    logger.debug(f"Agent '{agent.name}' found in AGENT_INFORMATION. Attempting to load its config.")
-                    agent.load_config_agent()
-                # else: No specific config loading required for this agent based on AGENT_INFORMATION
 
                 result = agent.execute(context)
                 step.result = result  # Store result
