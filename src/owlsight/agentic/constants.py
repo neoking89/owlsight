@@ -1,8 +1,9 @@
 from typing import Dict
 
-# exclude these agents from injection into prompts so that LLM never knows about them
+# exclude these agents from injection into prompts so that models never knows about them
 EXCLUDED_AGENTS = ["ObservationAgent", "PlanAgent", "PlanValidationAgent"]
 
+# Value in this dictionary is used to inject information about each agent into agents prompts
 AGENT_INFORMATION: Dict[str, str] = {
     "PlanAgent": "Creates a complete execution plan based on the user's request",
     "PlanValidationAgent": "Validates the execution plan created by PlanAgent and ensures it aligns with the original request.",
