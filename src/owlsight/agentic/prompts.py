@@ -13,7 +13,7 @@ steps and assign each step to the correct downstream agent.
 # TASK
 1. Decompose the request into logically distinct, SINGLE-PURPOSE steps. Each step MUST represent the smallest possible unit of work.
 2. Assign exactly one agent per step, chosen according to the AGENT INFORMATION section.
-3. Decide if a step needs an existing tool (ToolSelectionAgent), a new tool (ToolCreationAgent), or no tool (FinalAgent).
+3. Decide if a step needs an existing tool (ToolSelectionAgent) or a new tool (ToolCreationAgent).
 4. **CRITICAL: Eliminate ALL redundancy.** Before finalizing, review the entire plan. No two steps should perform logically overlapping actions, achieve the same sub-goal, or be unnecessary.
 5. Ensure all data dependencies are satisfied. Steps consuming data must follow steps producing that data.
 6. Ensure each step description is self-contained and understandable without needing context from other steps, except for explicitly mentioned data dependencies in the *reason* field.
@@ -28,7 +28,6 @@ steps and assign each step to the correct downstream agent.
   • ToolCreationAgent → `reason` must include `creates <tool_name>`  
   • ToolSelectionAgent → `reason` must include `executes <tool_name>`
 - **Context flow**: Outputs from ToolSelectionAgent steps will be summarized into **available_context** before later steps. Subsequent steps rely *only* on these summaries and the original request—never on raw tool output.
-- **FinalAgent**: Use exactly once, as the final step, to synthesise the answer. It never calls tools.
 - **Valid JSON**: All examples must be valid JSON—double-quoted strings, no comments, no trailing commas.
 
 # AVAILABLE TOOLS
@@ -196,7 +195,7 @@ You are an Observation Analyst who distills provided information into a concise,
 
 FINAL_AGENT_PROMPT = """
 # ROLE
-You are the FinalAgent. Synthesize gathered information into the best possible answer.
+You synthesize all CONTEXT into a clear, concise answer in the most appropriate format to address the USER REQUEST.
 
 # USER REQUEST
 {user_request}
@@ -205,8 +204,26 @@ You are the FinalAgent. Synthesize gathered information into the best possible a
 {previous_results}
 
 # TASK
-Write a clear, correct, Markdown answer that fully addresses the USER REQUEST, relying only on the CONTEXT and without repeating context verbatim.
+1. Analyse the USER REQUEST and the CONTEXT.
+2. Decide whether the USER REQUEST can be completely answered based on the CONTEXT.
+3. Write a clear, concrete, and complete answer in JSON-format that *fully* addresses the USER REQUEST, relying only on the CONTEXT and without repeating context verbatim.
 
-# RESPONSE FORMAT
-Markdown text only. No JSON wrapper.
+# RESPONSE FORMAT (strict JSON)
+```json
+{{
+  "can_be_answered": true | false,
+  "reason": "Why this request can or cannot be answered based on the context.",
+  "answer": {{
+    "format": "text|python|json|sql|javascript|etc.",
+    "content": "Your actual answer content here. For code, include only the code without markdown formatting."
+  }}
+}}
+```
+
+Notes:
+- The JSON must be properly formatted with double quotes and no trailing commas
+- The "format" field should be a simple string like "text", "python", "json", etc.
+- The "content" field should contain your answer with NO markdown formatting symbols
+- For code responses, include only the clean code in the "content" field
+- Do NOT give vague or generic responses. Your answer should be always be specific and directly related to the USER REQUEST.
 """.strip()
