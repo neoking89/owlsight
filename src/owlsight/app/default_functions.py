@@ -13,6 +13,8 @@ import random
 from typing import Optional, List, Dict, Union, Iterable, Callable, TypeVar, Any
 from datetime import datetime
 from pathlib import Path
+import shutil
+import platform
 
 
 from huggingface_hub import CachedRepoInfo
@@ -78,7 +80,6 @@ class OwlDefaultFunctions:
 
         Notes
         -----
-        - Excludes itself from the returned tools to prevent recursion
         - Maintains compatibility with OpenAI's tool calling specifications
         """
         if not hasattr(self.globals_dict, "get_tools"):
@@ -95,45 +96,30 @@ class OwlDefaultFunctions:
         timeout: int = 5,
     ) -> Union[str, Dict[str, str]]:
         """
-        Read LOCAL FILE CONTENTS with advanced document processing.
+        Read **local** files or directories; web URLs trigger an error.
 
         Parameters
         ----------
-        file_source : Union[str, Path, bytes, Iterable[Union[str, Path]]]
-            LOCAL FILE SYSTEM PATHS OR BUFFERS ONLY. Can be:
-            - Single local file path (str or Path)
-            - Single buffer content from a file (bytes)
-            - Directory path (requires recursive=True)
-            - List of local file paths
-            DOES NOT SUPPORT WEB URLS
-        recursive : bool, default=False
-            Whether to recursively process subdirectories when file_source is a directory
-        ignore_patterns : List[str], optional
-            List of gitignore-style patterns to exclude
-        ocr_enabled : bool, default=True
-            Whether to enable OCR for image files
-        timeout : int, default=5
-            Timeout in seconds for document processing
+        file_source : str | Path | bytes | iterable
+            Single path, buffer, directory or list of paths.
+        recursive : bool, default False
+            Scan sub-folders when *file_source* is a directory.
+        ignore_patterns : list of str, optional
+            Git-ignore style globs to skip.
+        ocr_enabled : bool, default True
+            Use OCR for image files.
+        timeout : int, default 5
+            Seconds to wait for advanced parsing.
 
         Returns
         -------
-        Union[str, Dict[str, str]]
-            For single file/buffer: The extracted text content
-            For directory/multiple files: Dict mapping file paths to their content
+        str or dict
+            File content or ``{path: content}``.
 
-        Raises
-        ------
-        ValueError
-            If a URL is provided instead of a local file path
-        Exception
-            For other processing errors
-
-        Notes
-        -----
-        - ONLY use this if you know the names/paths of any local files
-        - For web content/URLs use owl_scrape() instead
-        - URL inputs will raise ValueError
-        - Falls back to basic file reading if advanced processing fails
+        Examples
+        --------
+        >>> owl_read("README.md")
+        >>> owl_read("docs", recursive=True)
         """
         if isinstance(file_source, (str, Path)) and is_url(file_source):
             raise ValueError(f"owl_read requires local files. Use owl_scrape() for URLs like '{file_source}'")
@@ -217,33 +203,25 @@ class OwlDefaultFunctions:
 
     def owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> Dict[str, str]:
         """
-        Execute web search using DuckDuckGo's API.
+        DuckDuckGo text search with simple back-off.
 
         Parameters
         ----------
         query : str
-            Search phrase to look up
-        max_results : int, default=10
-            Maximum number of results to return (1-20)
-        max_retries : int, default=3
-            Number of retry attempts for failed requests
+            Search phrase.
+        max_results : int, default 10
+            Limit between 1-20.
+        max_retries : int, default 3
+            Retry attempts on failure.
 
         Returns
         -------
-        Dict[str, str]
-            Dictionary mapping URLs to their extracted content
+        dict
+            ``{url: "title. snippet"}``.
 
-        Raises
-        ------
-        ImportError
-            If the required package is not installed
-        RuntimeError
-            After exhausting all retry attempts without success
-
-        Notes
-        -----
-        - Implements exponential backoff with jitter between retries
-        - Results are limited to text-based web content
+        Examples
+        --------
+        >>> owl_search("numpy masked array", max_results=5)
         """
         try:
             from duckduckgo_search import DDGS
@@ -301,127 +279,167 @@ class OwlDefaultFunctions:
         encoding: str = "utf-8",
     ) -> Dict[str, Union[str, int]]:
         """
-        Execute a terminal / shell command.
-
-        Internally this is executed by the native shell:
-        ─ ``/bin/sh`` on Linux & macOS (POSIX)
-        ─ ``cmd.exe`` on Windows
-        If your workflow insists on another shell, include it explicitly,
-        e.g. ``["bash", "-c", "..."]`` or ``["powershell", "-NoProfile", "-Command", "..."]``.
+        Cross-platform shell command runner.
 
         Parameters
         ----------
-        command : Union[str, List[str]]
-            The program (and its arguments) to run.
+        command : str | list[str]
+            String when *shell=True*; else list.
         shell : bool
-            Enables shell interpretation **only** when *command* is a *str*.
-            Set this to True to use shell built-ins, like ``dir`` on Windows or ``ls`` on Linux/Mac.
-        cwd : str | Path, default="."
-            Working directory in which to launch the process.
-        capture_output : bool, default=True
-            • *True*  → capture **stdout** and **stderr** and return them
-            • *False* → stream output live to the current process’ stdio
-        timeout : int | None, default=None
-            Kill the process after this many **seconds** (``None`` → no limit).
-        raise_on_error : bool, default=False
-            If *True* and the subprocess exits non-zero, raise
-            ``subprocess.CalledProcessError``.
-        encoding : str, default="utf-8"
-            Encoding used to decode bytes into the returned text.
+            Allow shell built-ins when *True*.
+        cwd : str | Path, default "."
+            Working directory.
+        capture_output : bool, default True
+            Capture stdout/stderr.
+        timeout : int, optional
+            Kill after *timeout* seconds.
+        raise_on_error : bool, default False
+            Raise on non-zero exit.
+        encoding : str, default "utf-8"
+            Decode byte output.
 
         Returns
         -------
-        Dict[str, Union[str, int]]
-            ``{"stdout": str, "stderr": str, "returncode": int}``
-            All fields are present even when *capture_output* is *False*
-            (in that case ``stdout`` / ``stderr`` are empty strings).
-
-        Raises
-        ------
-        ValueError
-            If *command* is neither *str* nor *List[str]*.
-        subprocess.TimeoutExpired
-            When the execution exceeds *timeout* seconds.
-        subprocess.CalledProcessError
-            When the process ends with non-zero exit-status **and**
-            ``raise_on_error=True``.
-
-        Notes
-        -----
-        * Works unchanged on Linux, macOS, and Windows—no platform checks needed.
-        * Uses :pymod:`subprocess.run` under the hood with ``text=True`` so the
-          agent receives **decoded Unicode text**, never raw bytes.
+        dict
+            ``{"stdout": str, "stderr": str, "returncode": int}``.
 
         Examples
         --------
-        >>> owl_terminal(["echo", "hello"])
-        {'stdout': 'hello\\n', 'stderr': '', 'returncode': 0}
-
-        # set shell=True to use shell built-ins!!
-        >>> owl_terminal("dir", shell=True)  # Windows
-        >>> owl_terminal("ls -1 | wc -l", shell=True) # Linux/Mac
+        >>> owl_terminal(["echo", "hi"], shell=False)
+        >>> owl_terminal("dir", shell=True)
         """
         import shlex  # local import to avoid polluting global namespace
-
-        # Validate and normalize command
         if isinstance(command, str):
-            cmd = command if shell else shlex.split(command)
-        elif isinstance(command, list):
-            cmd = command
-        else:
-            raise ValueError("command must be a str or a List[str]")
+            if not shell:
+                # shlex uses POSIX rules by default; on Windows switch to native.
+                posix_mode = platform.system() != "Windows"
+                command = shlex.split(command, posix=posix_mode)
+        elif not isinstance(command, list):
+            raise TypeError("command must be a str or list[str]")
 
-        # Execute
-        try:
-            # Convert timeout="None" (string) to timeout=None (object)
-            if timeout == "None":
-                timeout = None
+        cmd: Union[str, List[str]] = command  # after normalisation, keep the type.
 
-            proc = subprocess.run(
-                cmd,
-                cwd=str(cwd),
-                capture_output=capture_output,
-                text=True,
-                shell=shell,
-                timeout=timeout,
-                encoding=encoding,
-                # Add check=False explicitly, although it's the default.
-                # We handle errors based on returncode or FileNotFoundError.
-                check=False,
+        # ── 2. Prepare subprocess.run kwargs ──────────────────────────────────────
+        run_kwargs = {
+            "cwd": os.fspath(cwd),
+            "shell": shell,
+            "timeout": timeout,
+            "check": raise_on_error,
+        }
+
+        if capture_output:
+            run_kwargs.update(
+                {
+                    "capture_output": True,
+                    "text": True,
+                    "encoding": encoding,
+                }
             )
-            stdout = proc.stdout if capture_output and proc.stdout else ""
-            stderr = proc.stderr if capture_output and proc.stderr else ""
-            returncode = proc.returncode
 
-            # Error handling for non-zero return code (only if process started)
-            if raise_on_error and returncode != 0:
-                raise subprocess.CalledProcessError(
-                    returncode,
-                    cmd,
-                    output=stdout,
-                    stderr=stderr,
+        # ── 3. Execute ────────────────────────────────────────────────────────────
+        try:
+            proc = subprocess.run(cmd, **run_kwargs)
+        except subprocess.TimeoutExpired:
+            # Let the caller decide how to handle a real timeout.
+            raise
+        # FileNotFoundError is raised automatically if the executable is missing.
+
+        # ── 4. Package result ─────────────────────────────────────────────────────
+        return {
+            "stdout": proc.stdout if capture_output else None,
+            "stderr": proc.stderr if capture_output else None,
+            "returncode": proc.returncode,
+        }
+    
+
+    def owl_edit_file(
+        self,
+        file_path: Union[str, Path],
+        edits: List[Dict[str, str]],
+        *,
+        regex: bool = True,
+        create_backup: bool = True,
+        backup_suffix: str = ".bak",
+        encoding: str = "utf-8",
+    ) -> str:
+        """
+        Apply multiple substitutions to one local file.
+
+        Parameters
+        ----------
+        file_path : str | Path
+            Target file.
+        edits : list of dict
+            Each dict needs ``"pattern"`` and ``"replacement"``.
+        regex : bool, default True
+            Interpret *pattern* as regex.
+        create_backup : bool, default True
+            Save a copy with *backup_suffix*.
+        backup_suffix : str, default ".bak"
+            Extension for backups.
+        encoding : str, default "utf-8"
+            File encoding.
+
+        Returns
+        -------
+        str
+            Edited file path.
+
+        Examples
+        --------
+        >>> owl_edit_file("notes.txt", [{"pattern": r"foo\\d+", "replacement": "bar"}])
+        """
+        file_path = Path(file_path)
+
+        # --- pre-flight checks -------------------------------------------------
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        if not edits or not isinstance(edits, list):
+            raise ValueError("Parameter 'edits' must be a non-empty list.")
+
+        for op in edits:
+            if "pattern" not in op or "replacement" not in op:
+                raise ValueError(
+                    "Each edit operation must contain 'pattern' and 'replacement' keys."
                 )
 
-        except FileNotFoundError as e:
-            # Handle case where the command executable itself was not found
-            stdout = ""
-            stderr = str(e)
-            returncode = -1 # Use a specific code for file not found
-            # Note: raise_on_error doesn't apply here, as CalledProcessError
-            # is for non-zero return codes, not failure to find the command.
+        try:
+            original_text = file_path.read_text(encoding=encoding)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to read {file_path}: {exc}")
 
-        except subprocess.TimeoutExpired as e:
-            # Handle timeout separately if needed, or re-raise
-            # For now, let's re-raise it as it's a distinct condition.
-            # Alternatively, return a specific dict like FileNotFoundError.
-            raise e
+        # --- create backup if requested ---------------------------------------
+        if create_backup:
+            backup_path = file_path.with_suffix(file_path.suffix + backup_suffix)
+            try:
+                shutil.copyfile(file_path, backup_path)
+            except Exception as exc:
+                raise RuntimeError(f"Could not create backup file: {exc}")
 
-        # Return result in stable, JSON-serialisable shape
-        return {
-            "stdout": stdout,
-            "stderr": stderr,
-            "returncode": returncode,
-        }
+        # --- apply edits -------------------------------------------------------
+        new_text = original_text
+        for op in edits:
+            pattern = op["pattern"]
+            replacement = op["replacement"]
+
+            if regex:
+                new_text = re.sub(pattern, replacement, new_text, flags=re.MULTILINE)
+            else:
+                new_text = new_text.replace(pattern, replacement)
+
+        # --- write back to disk -----------------------------------------------
+        try:
+            file_path.write_text(new_text, encoding=encoding)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to write edited file {file_path}: {exc}")
+
+        print(f"Applied {len(edits)} edit(s) to {file_path}")
+        if create_backup:
+            print(f"Backup saved to {backup_path}")
+
+        return str(file_path)
+
 
     def owl_import(self, file_path: str):
         """
@@ -442,6 +460,9 @@ class OwlDefaultFunctions:
         ------
         Exception
             If there is an error importing the module
+        Examples
+        --------
+        >>> owl_import("my_utils.py")
         """
         try:
             module_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -473,7 +494,7 @@ class OwlDefaultFunctions:
         Notes
         -----
         - Filters out builtins and internal objects (starting with '_')
-        - Object types shown in parentheses after names
+        - Displays name, parameters and docstring (if available)
 
         Raises
         ------
@@ -506,26 +527,18 @@ class OwlDefaultFunctions:
 
     def owl_write(self, file_path: str, content: str) -> None:
         """
-        Write text content to filesystem.
+        Write *content* to *file_path* (UTF-8, overwrite).
 
         Parameters
         ----------
         file_path : str
-            Absolute path for output file.
-            Preferably use a descriptive filename.
+            Destination.
         content : str
-            Text content to write
+            Data to write.
 
-        Notes
-        -----
-        - Overwrites existing files without warning
-        - Uses UTF-8 encoding
-        - Limited to text-based formats
-
-        Raises
-        ------
-        Exception
-            If there is an error writing to the file
+        Examples
+        --------
+        >>> owl_write("output.txt", "hello")
         """
         try:
             with open(file_path, "w") as file:
@@ -606,32 +619,25 @@ class OwlDefaultFunctions:
         timeout: int = 10,
     ) -> Dict[str, str]:
         """
-        Scrape web content from URLs (use instead of owl_read for web resources).
+        Download and parse the main text from web pages.
 
         Parameters
         ----------
-        urls : List[str]
-            VALID HTTP/HTTPS URLS TO PROCESS
-            Does not support local file paths
-        max_concurrent : int, default=5
-            Simultaneous requests allowed
-        timeout : int, default=10
-            Request timeout in seconds
+        urls : list of str
+            HTTP/HTTPS addresses.
+        max_concurrent : int, default 5
+            Maximum simultaneous requests.
+        timeout : int, default 10
+            Seconds before any single request aborts.
 
         Returns
         -------
         dict
-            Dictionary mapping URLs to their extracted content in markdown format
+            ``{url: content (in markdown)}``.
 
-        Raises
-        ------
-        ImportError
-            If required packages are not installed
-
-        Notes
-        -----
-        - Respects robots.txt and website rate limits
-        - Extracts main article content when possible
+        Examples
+        --------
+        >>> scraped_content = owl_scrape(["https://pypi.org/project/requests/"])
         """
         from owlsight.app.url_processor import fetch_and_parse_urls, AIOHTTP_AVAILABLE, LXML_AVAILABLE
 
@@ -663,40 +669,29 @@ class OwlDefaultFunctions:
         max_retries: int = 3,
     ) -> Dict[str, str]:
         """
-        Combines web search and content scraping into a single operation.
-        First searches for URLs using DuckDuckGo, then scrapes content from the found URLs.
+        Search the web then scrape the resulting URLs.
 
         Parameters
         ----------
         query : str
-            Search phrase to look up
-        max_results : int, default=10
-            Maximum number of results to return from search (1-20)
-        max_concurrent : int, default=5
-            Maximum number of simultaneous scraping requests allowed
-        timeout : int, default=10
-            Request timeout in seconds for scraping
-        max_retries : int, default=3
-            Number of retry attempts for failed search requests
+            DuckDuckGo query.
+        max_results : int, default 10
+            URL limit.
+        max_concurrent : int, default 5
+            Concurrent scrapes.
+        timeout : int, default 10
+            Seconds per scrape.
+        max_retries : int, default 3
+            Retries for search.
 
         Returns
         -------
-        Dict[str, str]
-            Dictionary mapping URLs to their extracted content in markdown format
+        dict
+            ``{url: content (in markdown)}``.
 
-        Raises
-        ------
-        ImportError
-            If required packages are not installed
-        RuntimeError
-            If search or scraping operations fail
-
-        Notes
-        -----
-        - Combines functionality of owl_search and owl_scrape
-        - First performs search to get URLs, then scrapes content from those URLs
-        - Uses exponential backoff with jitter for search retries
-        - Scrapes content concurrently up to max_concurrent limit
+        Examples
+        --------
+        >>> scraped_content = owl_search_and_scrape("python walrus operator", max_results=3)
         """
         # Check for required packages
         try:
