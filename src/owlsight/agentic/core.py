@@ -88,12 +88,11 @@ class BaseAgent(ABC):
 
     def get_additional_information(self) -> str:
         """Retrieves additional information from the config manager as a string."""
-        config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
+        config_manager: Optional[ConfigManager] = getattr(self.manager, "config_manager", None)
         if config_manager is None:
-            # logger.warning("ConfigManager not found on manager when getting additional information.")
+            logger.warning("ConfigManager not found on manager when getting additional information.")
             return ""  # Return empty string
-        # Ensure a default empty string if not set
-        return config_manager.get("agentic.additional_information", "")
+        return config_manager.get("agentic.additional_information", "").strip()
 
     def set_additional_information(self, info_to_add: str) -> None:
         """Appends the given string to the additional information string in the config manager.
@@ -108,18 +107,20 @@ class BaseAgent(ABC):
             )
             return None
 
-        config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
+        config_manager: Optional[ConfigManager] = getattr(self.manager, "config_manager", None)
         if config_manager is None:
             logger.warning("ConfigManager not found on manager when setting additional information. Cannot save.")
             return None
 
-        current_info_str = self.get_additional_information()  # Use the updated getter
+        current_info_str = self.get_additional_information()
+        new_info_str = info_to_add.strip()
 
-        # The input is already the string to append
-        new_info_str = info_to_add
+        # Check if this exact info already exists
+        if new_info_str in current_info_str:
+            logger.debug(f"Duplicate additional information detected, skipping: {new_info_str[:100]}...")
+            return None
 
         # Append the new info string to the current string
-        # Add a newline separator if the current string is not empty
         if current_info_str:
             updated_info_str = f"{current_info_str}\n{new_info_str}"
         else:
