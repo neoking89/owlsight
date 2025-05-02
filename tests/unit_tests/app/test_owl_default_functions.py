@@ -20,6 +20,83 @@ def temp_dir():
         file.unlink()
     os.rmdir(temp_path)
 
+@pytest.fixture
+def owl(tmp_path: Path):
+    """Return a fresh OwlDefaultFunctions instance for each test."""
+    # We pass an empty globals dict because owl_edit_file does not rely on it.
+    return OwlDefaultFunctions({})
+
+
+@pytest.fixture
+def sample_file(tmp_path: Path) -> Path:
+    """Create a sample text file for editing and return its Path."""
+    content = "hello world\nfoo123\n"
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text(content, encoding="utf-8")
+    return file_path
+
+
+def test_literal_replace(owl: OwlDefaultFunctions, sample_file: Path):
+    """Literal (non-regex) replacement works."""
+    owl.owl_edit_file(
+        sample_file,
+        edits=[{"pattern": "world", "replacement": "universe"}],
+        regex=False,
+    )
+    assert sample_file.read_text() == "hello universe\nfoo123\n"
+
+
+def test_regex_replace(owl: OwlDefaultFunctions, sample_file: Path):
+    """Regex replacement works with default regex=True."""
+    owl.owl_edit_file(
+        sample_file,
+        edits=[{"pattern": r"foo\d+", "replacement": "bar"}],
+    )
+    assert sample_file.read_text() == "hello world\nbar\n"
+
+
+def test_backup_created(owl: OwlDefaultFunctions, sample_file: Path):
+    """Backup file is created and contains the original content."""
+    backup_path = sample_file.with_suffix(sample_file.suffix + ".bak")
+
+    owl.owl_edit_file(
+        sample_file,
+        edits=[{"pattern": "hello", "replacement": "hi"}],
+    )
+
+    assert backup_path.exists()
+    assert backup_path.read_text() == "hello world\nfoo123\n"
+
+
+def test_no_backup(owl: OwlDefaultFunctions, sample_file: Path):
+    """No backup is created when create_backup=False."""
+    backup_path = sample_file.with_suffix(sample_file.suffix + ".bak")
+
+    owl.owl_edit_file(
+        sample_file,
+        edits=[{"pattern": "hello", "replacement": "hi"}],
+        create_backup=False,
+    )
+
+    assert not backup_path.exists()
+
+
+def test_file_not_found(owl: OwlDefaultFunctions, tmp_path: Path):
+    """Editing a non-existent file raises FileNotFoundError."""
+    with pytest.raises(FileNotFoundError):
+        owl.owl_edit_file(tmp_path / "missing.txt", edits=[{"pattern": "x", "replacement": "y"}])
+
+
+def test_empty_edits(owl: OwlDefaultFunctions, sample_file: Path):
+    """An empty edits list raises ValueError."""
+    with pytest.raises(ValueError):
+        owl.owl_edit_file(sample_file, edits=[])
+
+
+def test_invalid_edit_schema(owl: OwlDefaultFunctions, sample_file: Path):
+    """Each edit dict must contain both 'pattern' and 'replacement'."""
+    with pytest.raises(ValueError):
+        owl.owl_edit_file(sample_file, edits=[{"pattern": "x"}])
 
 def test_owl_read_write(owl_instance: OwlDefaultFunctions, temp_dir: Path):
     """Test the owl_read and owl_write functions"""
@@ -104,51 +181,44 @@ def test_owl_tools_executed_successfully(owl_instance: OwlDefaultFunctions):
         assert isinstance(tool, dict)
 
 def test_owl_terminal(owl_instance: OwlDefaultFunctions):
-    """Test the owl_terminal function for various scenarios."""
-    # 1. Test simple command without shell=True (should work cross-platform)
-    #    Use sys.executable to get the current python interpreter path
-    python_executable = sys.executable
-    result = owl_instance.owl_terminal([python_executable, "--version"], shell=False)
+    """Comprehensive behaviour checks for `owl_terminal`."""
+    is_windows = platform.system() == "Windows"
+    shell_command = "dir" if is_windows else "ls"
+
+    # 1. Simple command, no shell
+    result = owl_instance.owl_terminal([sys.executable, "--version"], shell=False)
     assert result["returncode"] == 0
-    # Handle platform-specific newline characters in echo output
     assert "Python" in result["stdout"].strip()
     assert result["stderr"] == ""
 
-    # 2. Test platform-specific shell built-in with shell=True
-    is_windows = platform.system() == "Windows"
-    shell_command = "dir" if is_windows else "ls"
+    # 2. Shell built-in with shell=True
     result_shell = owl_instance.owl_terminal(shell_command, shell=True)
     assert result_shell["returncode"] == 0
-    assert result_shell["stdout"] != ""  # Should list some files
+    assert result_shell["stdout"] != ""
     assert result_shell["stderr"] == ""
 
-    # 3. Test non-existent command (should fail with returncode -1)
-    non_existent_cmd = "this_command_should_not_exist_anywhere"
-    result_fail = owl_instance.owl_terminal(non_existent_cmd, shell=False)
-    assert result_fail["returncode"] == -1 # Specific code for FileNotFoundError
-    # Stderr should contain the FileNotFoundError message
-    assert "The system cannot find the file specified" in result_fail["stderr"] or \
-           "No such file or directory" in result_fail["stderr"] # Linux/Mac message
+    # 3 & 4. Non-existent command should raise
+    missing = "this_command_should_not_exist_anywhere"
+    with pytest.raises(FileNotFoundError):
+        owl_instance.owl_terminal(missing, shell=False)
 
-    # 4. Test non-existent command with raise_on_error=True (should still return -1, not raise)
-    # FileNotFoundError happens before the process runs, so CalledProcessError is not raised.
-    result_fail_raise = owl_instance.owl_terminal(non_existent_cmd, shell=False, raise_on_error=True)
-    assert result_fail_raise["returncode"] == -1
-    assert "The system cannot find the file specified" in result_fail_raise["stderr"] or \
-           "No such file or directory" in result_fail_raise["stderr"]
+    with pytest.raises(FileNotFoundError):
+        owl_instance.owl_terminal(missing, shell=False, raise_on_error=True)
 
-    # 5. Test shell=True is required for built-ins (should fail with returncode -1 without it)
-    result_no_shell = owl_instance.owl_terminal(shell_command, shell=False)
-    assert result_no_shell["returncode"] == -1 # Specific code for FileNotFoundError
-    assert "The system cannot find the file specified" in result_no_shell["stderr"] or \
-           "No such file or directory" in result_no_shell["stderr"]
+    # 5. Built-in *without* shell=True → OS-specific expectation
+    if is_windows:
+        with pytest.raises(FileNotFoundError):
+            owl_instance.owl_terminal(shell_command, shell=False)
+    else:  # POSIX: `ls` is a real executable, so expect success
+        result_no_shell = owl_instance.owl_terminal(shell_command, shell=False)
+        assert result_no_shell["returncode"] == 0
+        assert result_no_shell["stdout"] != ""
+        assert result_no_shell["stderr"] == ""
 
-    # 6. Test raise_on_error=True with a command that exists but returns non-zero
-    # Use python to run a script that exits with code 1
-    fail_command = [sys.executable, "-c", "import sys; sys.exit(1)"]
+    # 6. Command that exists but returns non-zero with raise_on_error=True
+    fail_cmd = [sys.executable, "-c", "import sys; sys.exit(1)"]
     with pytest.raises(subprocess.CalledProcessError) as excinfo:
-        owl_instance.owl_terminal(fail_command, shell=False, raise_on_error=True)
-    # Check that the raised exception has the correct return code
+        owl_instance.owl_terminal(fail_cmd, shell=False, raise_on_error=True)
     assert excinfo.value.returncode == 1
 
 
