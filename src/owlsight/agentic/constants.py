@@ -1,7 +1,7 @@
 from typing import Dict
 
 # exclude these agents from injection into prompts so that models never knows about them
-EXCLUDED_AGENTS = ["ObservationAgent", "PlanAgent", "PlanValidationAgent"]
+EXCLUDED_AGENTS = ["ObservationAgent", "PlanAgent", "PlanValidationAgent", "FinalAgent"]
 
 # Value in this dictionary is used to inject information about each agent into agents prompts
 AGENT_INFORMATION: Dict[str, str] = {
