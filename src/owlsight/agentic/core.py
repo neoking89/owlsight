@@ -615,7 +615,9 @@ class ObservationAgent(BaseAgent):
         summary_json = self.llm_call(prompt)
         try:
             summary_dict = parse_json_markdown(summary_json)
-            summary = summary_dict.get("observation", "").strip()
+            summary = summary_dict.get("observation", "")
+            if summary and isinstance(summary, str):
+                summary = summary.strip()
         except json.JSONDecodeError as e:
             logger.error(f"Observation JSON parsing failed: {e}")
             return StepResult(False, f"Failed to parse observation JSON: {e}")
@@ -641,8 +643,32 @@ class FinalAgent(BaseAgent):
             previous_results=context.get_previous_results(),
         )
         reply = self.llm_call(prompt)
-        context.final_response = reply
-        return StepResult(True, reply)
+        
+        # Parse the JSON response
+        try:
+            parsed_data = parse_json_markdown(reply)
+            if self._json_is_valid(parsed_data):
+                content = parsed_data["answer"]["content"]
+                content_format = parsed_data["answer"]["format"]
+                
+                if content_format != "text":
+                    formatted_reply = f"```{content_format}\n{content}\n```"
+                else:
+                    formatted_reply = content
+                
+                context.final_response = formatted_reply
+                return StepResult(True, formatted_reply)
+            else:
+                logger.warning("Failed to parse FinalAgent response as JSON or missing required fields")
+                context.final_response = reply
+                return StepResult(True, reply)
+        except Exception as e:
+            logger.warning(f"Error parsing FinalAgent response: {str(e)}")
+            context.final_response = reply
+            return StepResult(True, reply)
+
+    def _json_is_valid(self, parsed_data: Dict[str, Any]) -> bool:
+        return parsed_data and "answer" in parsed_data and "format" in parsed_data["answer"] and "content" in parsed_data["answer"]
 
 
 class AgentOrchestrator:
@@ -883,6 +909,9 @@ class AgentOrchestrator:
             # Even with feedback, lack of plan steps is a failure for this phase
             return False
 
+        # Ensure FinalAgent is always the last step of the plan
+        self._ensure_final_agent_as_last_step(context)
+
         # Validate the generated plan
         validation_successful = self._validate_plan(context)
         if not validation_successful:
@@ -900,6 +929,27 @@ class AgentOrchestrator:
         logger.info(f"Final validated execution plan:\n{plan_steps_str}")
 
         return True  # Planning and validation successful
+        
+    def _ensure_final_agent_as_last_step(self, context: AgentContext) -> None:
+        """Ensure FinalAgent is always the last step of the execution plan."""
+        if not context.execution_plan or not context.execution_plan.steps:
+            return
+            
+        steps = context.execution_plan.steps
+        
+        # If the last step is already FinalAgent, nothing to do
+        if steps[-1].agent_name == "FinalAgent":
+            return
+            
+        # Otherwise, add FinalAgent as the last step
+        steps.append(
+            PlanStep(
+                description="Provide the final answer to the user",
+                agent_name="FinalAgent",
+                reason="Every plan must conclude with a synthesis step",
+            )
+        )
+        logger.info("Added FinalAgent as the last step of the execution plan")
 
     def _execute_step(self, context: AgentContext, step: PlanStep, step_index: int) -> bool:
         """Executes a single plan step with retries."""
