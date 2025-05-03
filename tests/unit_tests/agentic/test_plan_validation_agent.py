@@ -112,11 +112,6 @@ def test_execute_valid_plan_validated(validation_agent, agent_context):
                 "description": "Execute the tool",
                 "agent": "ToolSelectionAgent",
                 "reason": "Test reason"
-            },
-            {
-                "description": "Final response",
-                "agent": "FinalAgent",
-                "reason": "Test reason"
             }
         ]
     })
@@ -155,11 +150,6 @@ def test_execute_guardrail_violation_but_llm_fixes(validation_agent, agent_conte
                 "description": "Execute the tool",
                 "agent": "ToolSelectionAgent",  # Added the missing ToolSelectionAgent
                 "reason": "Test reason"
-            },
-            {
-                "description": "Final response",
-                "agent": "FinalAgent",
-                "reason": "Test reason"
             }
         ]
     })
@@ -185,7 +175,7 @@ def test_execute_guardrail_violation_but_llm_fixes(validation_agent, agent_conte
         assert guardrail_error in prompt_call_args
         
         # Plan should be updated with the fixed version
-        assert len(agent_context_with_invalid_plan.execution_plan.steps) == 3
+        assert len(agent_context_with_invalid_plan.execution_plan.steps) == 2
         assert agent_context_with_invalid_plan.execution_plan.steps[1].agent_name == "ToolSelectionAgent"
 
 def test_execute_invalid_llm_response(validation_agent, agent_context):
@@ -240,11 +230,6 @@ def test_execute_llm_response_with_revised_plan(validation_agent, agent_context)
                 "description": "Process results",
                 "agent": "ToolSelectionAgent",  # Additional step
                 "reason": "Additional processing"
-            },
-            {
-                "description": "Final response",
-                "agent": "FinalAgent",
-                "reason": "Test reason"
             }
         ]
     })
@@ -259,7 +244,7 @@ def test_execute_llm_response_with_revised_plan(validation_agent, agent_context)
     assert "Added an additional step" in result.execution_result
     
     # Check that the plan was updated with the new steps
-    assert len(agent_context.execution_plan.steps) == 4  # Original was 3
+    assert len(agent_context.execution_plan.steps) == 3
     assert agent_context.execution_plan.steps[2].description == "Process results"
     assert agent_context.execution_plan.steps[2].agent_name == "ToolSelectionAgent"
 
@@ -307,11 +292,6 @@ def test_full_validation_process_with_invalid_plan(invalid_plan):
             "description": "Execute the tool",
             "agent": "ToolSelectionAgent",  # Fixed: Added ToolSelectionAgent
             "reason": "Required by guardrails"
-        },
-        {
-            "description": "Final response",
-            "agent": "FinalAgent",
-            "reason": "Test reason"
         }
     ]
     
@@ -330,5 +310,5 @@ def test_full_validation_process_with_invalid_plan(invalid_plan):
     # Assert
     assert result.success is True
     assert "Plan revised" in result.execution_result
-    assert len(context.execution_plan.steps) == 3
+    assert len(context.execution_plan.steps) == 2
     assert context.execution_plan.steps[1].agent_name == "ToolSelectionAgent"

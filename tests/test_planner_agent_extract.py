@@ -30,22 +30,16 @@ class TestPlanAgentExtract:
       "description": "Search the web for recent news on AI advancements",
       "agent": "ToolSelectionAgent",
       "reason": "To gather up-to-date information on recent AI developments"
-    },
-    {
-      "description": "Provide the final answer to the user",
-      "agent": "FinalAgent",
-      "reason": "To synthesize the information and answer the user's question"
     }
   ]
 }
 ```
 """
         result = plan_agent._extract(valid_json)
-        assert len(result) == 2
+        assert len(result) == 1
         assert result[0].description == "Search the web for recent news on AI advancements"
         assert result[0].agent_name == "ToolSelectionAgent"
         assert result[0].reason == "To gather up-to-date information on recent AI developments"
-        assert result[1].agent_name == "FinalAgent"
 
     @patch('owlsight.agentic.helper_functions.logger')
     def test_valid_json_without_markdown(self, mock_logger, plan_agent):
@@ -61,20 +55,14 @@ class TestPlanAgentExtract:
               "description": "Test the created Fibonacci function",
               "agent": "ToolSelectionAgent", 
               "reason": "To verify the function works correctly"
-            },
-            {
-              "description": "Provide the final answer to the user",
-              "agent": "FinalAgent",
-              "reason": "To explain the implementation and provide the results"
             }
           ]
         }"""
         
         result = plan_agent._extract(json_without_markdown)
-        assert len(result) == 3
+        assert len(result) == 2
         assert result[0].agent_name == "ToolCreationAgent"
         assert result[1].agent_name == "ToolSelectionAgent"
-        assert result[2].agent_name == "FinalAgent"
         # Verify that warning was logged
         mock_logger.warning.assert_called_once()
 
@@ -124,10 +112,6 @@ This is not JSON at all!
   "plan": [
     {
       "description": "Search the web"
-    },
-    {
-      "agent": "FinalAgent",
-      "reason": "To provide the final answer"
     }
   ]
 }
@@ -175,11 +159,6 @@ This is not JSON at all!
       "description": "Search for information",
       "agent": "InvalidAgent",
       "reason": "This agent doesn't exist"
-    },
-    {
-      "description": "Provide the final answer",
-      "agent": "FinalAgent",
-      "reason": "Valid agent"
     }
   ]
 }
@@ -211,20 +190,14 @@ And here's the actual plan:
       "description": "Create a tool",
       "agent": "ToolCreationAgent",
       "reason": "To implement the requested functionality"
-    },
-    {
-      "description": "Provide the final answer",
-      "agent": "FinalAgent",
-      "reason": "To explain the implementation"
     }
   ]
 }
 ```
 """
         result = plan_agent._extract(multiple_blocks)
-        assert len(result) == 2
+        assert len(result) == 1
         assert result[0].agent_name == "ToolCreationAgent"
-        assert result[1].agent_name == "FinalAgent"
 
     @patch('owlsight.agentic.core.logger')
     def test_empty_plan_list(self, mock_logger, plan_agent):
@@ -280,11 +253,6 @@ And here's the actual plan:
       "description": "Invalid step",
       "agent": "NonExistentAgent",
       "reason": "Invalid agent"
-    },
-    {
-      "description": "Another valid step",
-      "agent": "FinalAgent",
-      "reason": "Valid final step"
     }
   ]
 }
@@ -313,11 +281,6 @@ And here's the actual plan:
       "description": "Create a function to calculate Fibonacci numbers",
       "agent": "ToolCreationAgent",
       "reason": "To implement the Fibonacci algorithm"
-    },
-    {
-      "description": "Provide the final answer",
-      "agent": "FinalAgent",
-      "reason": "To explain the implementation and show the result"
     }
   ]
 }
@@ -325,10 +288,9 @@ And here's the actual plan:
 """
         result = plan_agent._extract(incorrect_order)
         # The extraction itself should work, even though the plan is logically flawed
-        assert len(result) == 3
+        assert len(result) == 2
         assert result[0].agent_name == "ToolSelectionAgent"
         assert result[1].agent_name == "ToolCreationAgent"
-        assert result[2].agent_name == "FinalAgent"
         
     @patch('owlsight.agentic.core.logger')
     def test_final_agent_is_last_guardrail(self, mock_logger, plan_agent):
@@ -345,11 +307,6 @@ And here's the actual plan:
       "reason": "To implement the Fibonacci algorithm"
     },
     {
-      "description": "Provide a preliminary answer",
-      "agent": "FinalAgent",
-      "reason": "To explain what will be done"
-    },
-    {
       "description": "Execute the fibonacci function",
       "agent": "ToolSelectionAgent",
       "reason": "To get the result of the calculation"
@@ -360,10 +317,9 @@ And here's the actual plan:
 """
         result = plan_agent._extract(final_agent_not_last)
         # The extraction itself should work, even though the plan is logically flawed
-        assert len(result) == 3
+        assert len(result) == 2
         assert result[0].agent_name == "ToolCreationAgent"
-        assert result[1].agent_name == "FinalAgent"
-        assert result[2].agent_name == "ToolSelectionAgent"
+        assert result[1].agent_name == "ToolSelectionAgent"
     
     @patch('owlsight.agentic.core.logger')
     def test_json_with_extra_fields(self, mock_logger, plan_agent):
@@ -378,12 +334,6 @@ And here's the actual plan:
       "reason": "To find relevant data",
       "extra_field": "This should be ignored",
       "another_extra": 123
-    },
-    {
-      "description": "Provide the final answer",
-      "agent": "FinalAgent",
-      "reason": "To synthesize the information",
-      "irrelevant": "This doesn't matter"
     }
   ],
   "extra_top_level": "This should also be ignored"
@@ -391,9 +341,8 @@ And here's the actual plan:
 ```
 """
         result = plan_agent._extract(extra_fields)
-        assert len(result) == 2
+        assert len(result) == 1
         assert result[0].agent_name == "ToolSelectionAgent"
-        assert result[1].agent_name == "FinalAgent"
         # Extra fields should be ignored and not affect the extraction
     
     @patch('owlsight.agentic.helper_functions.logger')
@@ -408,11 +357,6 @@ json
       "description": "Create a function",
       "agent": "ToolCreationAgent",
       "reason": "To implement the functionality"
-    },
-    {
-      "description": "Provide the final answer",
-      "agent": "FinalAgent",
-      "reason": "To explain the implementation"
     }
   ]
 }
@@ -435,11 +379,6 @@ json
       "description": "Search for information",
       "agent": "ToolSelectionAgent",
       "reason": "To find relevant data"
-    },
-    {
-      "description": "Provide the final answer",
-      "agent": "FinalAgent",
-      "reason": "To synthesize the information"
     }
   ]
 }
@@ -493,20 +432,15 @@ json
       "description": "Execute the visualization function",
       "agent": "ToolSelectionAgent",
       "reason": "To generate the weather visualization"
-    },
-    {
-      "description": "Provide the final weather report to the user",
-      "agent": "FinalAgent",
-      "reason": "To present the complete weather analysis with visualizations"
     }
   ]
 }
 ```
 """
         result = plan_agent._extract(large_plan)
-        assert len(result) == 8
+        assert len(result) == 7
         assert result[0].agent_name == "ToolCreationAgent"
-        assert result[-1].agent_name == "FinalAgent"
+        assert result[-1].agent_name == "ToolSelectionAgent"
         # Check that all steps were properly extracted
         for step in result:
             assert step.description, "Each step should have a description"
@@ -527,11 +461,6 @@ json
             "description"  :   "Search for information"   ,
             "agent"   :   "ToolSelectionAgent"   ,
             "reason"   :   "To find relevant data"
-         }   ,
-         {
-            "description"   :   "Provide the final answer"   ,
-            "agent"   :   "FinalAgent"   ,
-            "reason"   :   "To synthesize the information"
          }
       ]
 
@@ -541,7 +470,6 @@ json
 ```
 """
         result = plan_agent._extract(excessive_whitespace)
-        assert len(result) == 2
+        assert len(result) == 1
         assert result[0].agent_name == "ToolSelectionAgent"
-        assert result[1].agent_name == "FinalAgent"
         # Excessive whitespace should not affect the extraction
