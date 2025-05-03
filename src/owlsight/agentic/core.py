@@ -505,19 +505,13 @@ class ToolCreationAgent(BaseAgent):
                     logger.warning("Function name is None after AST walk")
                     continue
 
-                # Execute the code in an isolated namespace
-                exec_globals = {}  # Start fresh for execution context
+                # Execute the code using the centralized code executor. Executed code will be available in the globals_dict (which is a singleton).
                 try:
-                    exec(code_to_execute, exec_globals, exec_globals)  # Use cleaned code
+                    BaseAgent.code_executor.execute_python_code(code_to_execute)
                 except Exception as exec_exc:
-                    logger.error(f"Exception during exec: {exec_exc}", exc_info=True)  # DEBUG
-                    continue  # Don't proceed if exec failed
-
-                # Add the function and any other definitions from the code block to the main globals dict
-                BaseAgent.code_executor.globals_dict.update(exec_globals)
-
-                # Check if the expected function was defined in the isolated execution
-                check_result = function_name in exec_globals
+                    logger.error(f"Exception during dynamic tool code execution: {exec_exc}", exc_info=True)
+                    continue
+                check_result = function_name in BaseAgent.code_executor.globals_dict
                 if check_result:
                     logger.info(
                         "Dynamic tool '%s' and related definitions registered from markdown code block.", function_name
