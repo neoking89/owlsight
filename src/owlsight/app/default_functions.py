@@ -352,7 +352,7 @@ class OwlDefaultFunctions:
         }
     
 
-    def owl_edit_file(
+    def owl_edit(
         self,
         file_path: Union[str, Path],
         edits: List[Dict[str, str]],
@@ -387,7 +387,7 @@ class OwlDefaultFunctions:
 
         Examples
         --------
-        >>> owl_edit_file("notes.txt", [{"pattern": r"foo\\d+", "replacement": "bar"}])
+        >>> owl_edit("notes.txt", [{"pattern": r"foo\\d+", "replacement": "bar"}])
         """
         file_path = Path(file_path)
 
