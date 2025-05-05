@@ -4,11 +4,5 @@ from typing import Dict
 EXCLUDED_AGENTS = ["ObservationAgent", "PlanAgent", "PlanValidationAgent", "FinalAgent"]
 
 # Value in this dictionary is used to inject information about each agent into agents prompts
-AGENT_INFORMATION: Dict[str, str] = {
-    "PlanAgent": "Creates a complete execution plan based on the user's request",
-    "PlanValidationAgent": "Validates the execution plan created by PlanAgent and ensures it aligns with the original request.",
-    "ToolSelectionAgent": "Chooses & executes ONE existing tool. The tool output will be summarized before the next step.",
-    "ToolCreationAgent": "Writes a python function, serving as a *new* tool. MUST be followed immediately by ToolSelectionAgent to run the new tool.",
-    "ObservationAgent": "Observes the output of the previous step and provides a summary.",
-    "FinalAgent": "Drafts the ultimate reply based on all accumulated context. Always the last step.",
-}
+# This dictionary is populated dynamically at runtime from agent docstrings via BaseAgent.__init_subclass__ in core.py
+AGENT_INFORMATION: Dict[str, str] = {}
