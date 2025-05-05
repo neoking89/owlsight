@@ -88,11 +88,19 @@ If **any** checklist item fails:
 • summarise changes in `validation_notes`
 
 # OUTPUT FORMAT (strict JSON)
+If VALID:
 ```json
 {{
-  "validation_result": "valid" | "revised",
-  "validation_notes": "...",
-  "plan": [ /* validated or revised steps */ ]
+  "validation_result": "valid",
+  "validation_notes": "Plan is valid."
+}}
+```
+If REVISED:
+```json
+{{
+  "validation_result": "revised",
+  "validation_notes": "Summary of changes made to the plan.",
+  "plan": [ /* revised steps */ ]
 }}
 ```
 

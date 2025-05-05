@@ -23,7 +23,7 @@ def temp_dir():
 @pytest.fixture
 def owl(tmp_path: Path):
     """Return a fresh OwlDefaultFunctions instance for each test."""
-    # We pass an empty globals dict because owl_edit_file does not rely on it.
+    # We pass an empty globals dict because owl_edit does not rely on it.
     return OwlDefaultFunctions({})
 
 
@@ -38,7 +38,7 @@ def sample_file(tmp_path: Path) -> Path:
 
 def test_literal_replace(owl: OwlDefaultFunctions, sample_file: Path):
     """Literal (non-regex) replacement works."""
-    owl.owl_edit_file(
+    owl.owl_edit(
         sample_file,
         edits=[{"pattern": "world", "replacement": "universe"}],
         regex=False,
@@ -48,7 +48,7 @@ def test_literal_replace(owl: OwlDefaultFunctions, sample_file: Path):
 
 def test_regex_replace(owl: OwlDefaultFunctions, sample_file: Path):
     """Regex replacement works with default regex=True."""
-    owl.owl_edit_file(
+    owl.owl_edit(
         sample_file,
         edits=[{"pattern": r"foo\d+", "replacement": "bar"}],
     )
@@ -59,7 +59,7 @@ def test_backup_created(owl: OwlDefaultFunctions, sample_file: Path):
     """Backup file is created and contains the original content."""
     backup_path = sample_file.with_suffix(sample_file.suffix + ".bak")
 
-    owl.owl_edit_file(
+    owl.owl_edit(
         sample_file,
         edits=[{"pattern": "hello", "replacement": "hi"}],
     )
@@ -72,7 +72,7 @@ def test_no_backup(owl: OwlDefaultFunctions, sample_file: Path):
     """No backup is created when create_backup=False."""
     backup_path = sample_file.with_suffix(sample_file.suffix + ".bak")
 
-    owl.owl_edit_file(
+    owl.owl_edit(
         sample_file,
         edits=[{"pattern": "hello", "replacement": "hi"}],
         create_backup=False,
@@ -84,19 +84,19 @@ def test_no_backup(owl: OwlDefaultFunctions, sample_file: Path):
 def test_file_not_found(owl: OwlDefaultFunctions, tmp_path: Path):
     """Editing a non-existent file raises FileNotFoundError."""
     with pytest.raises(FileNotFoundError):
-        owl.owl_edit_file(tmp_path / "missing.txt", edits=[{"pattern": "x", "replacement": "y"}])
+        owl.owl_edit(tmp_path / "missing.txt", edits=[{"pattern": "x", "replacement": "y"}])
 
 
 def test_empty_edits(owl: OwlDefaultFunctions, sample_file: Path):
     """An empty edits list raises ValueError."""
     with pytest.raises(ValueError):
-        owl.owl_edit_file(sample_file, edits=[])
+        owl.owl_edit(sample_file, edits=[])
 
 
 def test_invalid_edit_schema(owl: OwlDefaultFunctions, sample_file: Path):
     """Each edit dict must contain both 'pattern' and 'replacement'."""
     with pytest.raises(ValueError):
-        owl.owl_edit_file(sample_file, edits=[{"pattern": "x"}])
+        owl.owl_edit(sample_file, edits=[{"pattern": "x"}])
 
 def test_owl_read_write(owl_instance: OwlDefaultFunctions, temp_dir: Path):
     """Test the owl_read and owl_write functions"""
