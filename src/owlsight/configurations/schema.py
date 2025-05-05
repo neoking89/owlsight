@@ -13,7 +13,15 @@ from owlsight.agentic.constants import AGENT_INFORMATION
 
 class Schema:
     """Configuration schema definition and validation."""
-    CONFIG_TO_SCHEMA_EXAMPLE = {agent: "path/to/config.json" for agent in AGENT_INFORMATION.keys()}
+    _known_agent_names = [
+        "PlanAgent",
+        "PlanValidationAgent",
+        "ToolCreationAgent",
+        "ToolSelectionAgent",
+        "ObservationAgent",
+        "FinalAgent",
+    ]
+    CONFIG_TO_SCHEMA_EXAMPLE = {agent: "path/to/config.json" for agent in _known_agent_names}
 
     CONFIG = {
         "main": {
