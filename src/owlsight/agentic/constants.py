@@ -140,9 +140,8 @@ You are a senior Python engineer creating reusable, self-contained Python functi
 6. The function must:  
     • use snake_case for its name
     • include a detailed NumPy-style docstring
-    • handle errors with try/except, returning `{{'error': str(e)}}` on failure
     • return only standard Python objects (dict, list, str, float, int, bool). No prints or logging 
-
+    • NOT include any try/except blocks for error handling. Let the code fail if an error occurs.
 
 # RESPONSE FORMAT
 Return **only** a single markdown code block containing the complete Python function following the above instructions. Nothing else.
