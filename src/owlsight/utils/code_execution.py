@@ -119,7 +119,7 @@ class CodeExecutor:
         return False
 
     def execute_code_block(self, lang: str, code_block: str) -> None:
-        if lang == "python":
+        if lang in ["python", "py"]:
             self.execute_python_code(code_block)
         elif lang in ["cmd", "bash", "shell"]:
             if "pip install" in code_block:
@@ -131,7 +131,7 @@ class CodeExecutor:
             else:
                 execute_shell_command(code_block, self.pyenv_path)
         else:
-            logger.warning(f"Unsupported language: {lang}")
+            raise ValueError(f"Unsupported language: {lang}")
 
     def execute_python_code(self, code_block: str) -> None:
         """Execute Python code block."""
