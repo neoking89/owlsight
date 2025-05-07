@@ -119,9 +119,9 @@ class CodeExecutor:
         return False
 
     def execute_code_block(self, lang: str, code_block: str) -> None:
-        if lang in ["python", "py"]:
+        if lang.lower() in ["python", "py"]:
             self.execute_python_code(code_block)
-        elif lang in ["cmd", "bash", "shell"]:
+        elif lang.lower() in ["cmd", "bash", "shell"]:
             if "pip install" in code_block:
                 modules_to_install = code_block.split("pip install")[1].strip()
                 logger.info(
