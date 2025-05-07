@@ -277,7 +277,7 @@ class OwlDefaultFunctions:
         cwd: Union[str, Path] = ".",
         capture_output: bool = True,
         timeout: Optional[int] = None,
-        raise_on_error: bool = False,
+        raise_on_error: bool = True,
         encoding: str = "utf-8",
     ) -> Dict[str, Union[str, int]]:
         """
@@ -295,7 +295,7 @@ class OwlDefaultFunctions:
             Capture stdout/stderr.
         timeout : int, optional
             Kill after *timeout* seconds.
-        raise_on_error : bool, default False
+        raise_on_error : bool, default True
             Raise on non-zero exit.
         encoding : str, default "utf-8"
             Decode byte output.
