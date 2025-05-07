@@ -15,21 +15,12 @@ from owlsight.agentic.guardrails import (
 )
 from owlsight.agentic.helper_functions import (
     execute_tool,
-    get_agent_information_for_prompts,
     get_available_tools,
     parse_tool_response,
     parse_json_markdown,
     create_temp_config_filename,
 )
 from owlsight.agentic.models import AgentContext, AgentPrompt, ExecutionPlan, PlanStep, StepResult
-from owlsight.agentic.prompts import (
-    FINAL_AGENT_PROMPT,
-    OBSERVATION_PROMPT,
-    PLAN_VALIDATION_PROMPT,
-    PLAN_PROMPT,
-    TOOL_CREATION_PROMPT,
-    TOOL_SELECTION_PROMPT,
-)
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
@@ -45,22 +36,11 @@ class BaseAgent(ABC):
     manager: ClassVar[Optional[TextGenerationManager]] = None
     code_executor: ClassVar[Optional[CodeExecutor]] = None
 
-    # Class variable for storing agent descriptions collected via __init_subclass__
-    agent_descriptions: ClassVar[Dict[str, str]] = {}
-
     # Class variables for configuration management
     temp_config_filename: ClassVar[Optional[str]] = None
     config_per_agent: ClassVar[Optional[Dict[str, str]]] = None
 
-    @classmethod
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        # Automatically register the agent's description from its docstring
-        docstring = inspect.getdoc(cls)
-        if docstring:
-            cls.agent_descriptions[cls.__name__] = inspect.cleandoc(docstring)
-        else:
-            logger.warning(f"Agent class '{cls.__name__}' is missing a docstring. No description will be registered.")
+
 
     def __init__(self, name: str, system_prompt: AgentPrompt):
         self.name = name
@@ -242,12 +222,11 @@ class PlanAgent(BaseAgent):
     """
 
     def __init__(self):
-        super().__init__("PlanAgent", AgentPrompt(PLAN_PROMPT))
+        super().__init__("PlanAgent", AgentPrompt(AGENT_INFORMATION["PlanAgent"]))
 
     def _execute_impl(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
             user_request=context.user_request,
-            agent_information=get_agent_information_for_prompts(),
             available_tools=get_available_tools(BaseAgent.code_executor.globals_dict),
             additional_information=self.get_additional_information(),
         )
@@ -312,7 +291,7 @@ class PlanValidationAgent(BaseAgent):
     """
 
     def __init__(self):
-        super().__init__("PlanValidationAgent", AgentPrompt(PLAN_VALIDATION_PROMPT))
+        super().__init__("PlanValidationAgent", AgentPrompt(AGENT_INFORMATION["PlanValidationAgent"]))
 
     def validate_plan_by_guardrails(self, plan: ExecutionPlan) -> StepResult:
         """
@@ -475,7 +454,7 @@ class ToolCreationAgent(BaseAgent):
     """
 
     def __init__(self):
-        super().__init__("ToolCreationAgent", AgentPrompt(TOOL_CREATION_PROMPT))
+        super().__init__("ToolCreationAgent", AgentPrompt(AGENT_INFORMATION["ToolCreationAgent"]))
 
     def _execute_impl(self, context: AgentContext) -> StepResult:
         step = context.get_current_step()
@@ -577,7 +556,7 @@ class ToolSelectionAgent(BaseAgent):
     """
 
     def __init__(self):
-        super().__init__("ToolSelectionAgent", AgentPrompt(TOOL_SELECTION_PROMPT))
+        super().__init__("ToolSelectionAgent", AgentPrompt(AGENT_INFORMATION["ToolSelectionAgent"]))
 
     def _execute_impl(self, context: AgentContext) -> StepResult:
         # Allow the LLM several chances to self‑correct invalid outputs.
@@ -642,7 +621,7 @@ class ObservationAgent(BaseAgent):
     """
 
     def __init__(self):
-        super().__init__("ObservationAgent", AgentPrompt(OBSERVATION_PROMPT))
+        super().__init__("ObservationAgent", AgentPrompt(AGENT_INFORMATION["ObservationAgent"]))
 
     def _execute_impl(self, context: AgentContext) -> StepResult:
         most_recent_result = next((r for r in reversed(context.accumulated_results)), None)
@@ -661,6 +640,11 @@ class ObservationAgent(BaseAgent):
             summary = summary_dict.get("observation", "")
             if summary and isinstance(summary, str):
                 summary = summary.strip()
+
+            sources = summary_dict.get("sources", [])
+            if sources and isinstance(sources, list):
+                sources = [s.strip() for s in sources]
+                summary = {"observation": summary, "sources": sources}
         except json.JSONDecodeError as e:
             logger.error(f"Observation JSON parsing failed: {e}")
             return StepResult(False, f"Failed to parse observation JSON: {e}")
@@ -684,7 +668,7 @@ class FinalAgent(BaseAgent):
     """
 
     def __init__(self):
-        super().__init__("FinalAgent", AgentPrompt(FINAL_AGENT_PROMPT))
+        super().__init__("FinalAgent", AgentPrompt(AGENT_INFORMATION["FinalAgent"]))
 
     def _execute_impl(self, context: AgentContext) -> StepResult:
         prompt = self.system_prompt.format(
@@ -719,11 +703,6 @@ class FinalAgent(BaseAgent):
     def _json_is_valid(self, parsed_data: Dict[str, Any]) -> bool:
         return parsed_data and "answer" in parsed_data and "format" in parsed_data["answer"] and "content" in parsed_data["answer"]
 
-
-# === Populate AGENT_INFORMATION after all agent classes are defined ===
-AGENT_INFORMATION.update(BaseAgent.agent_descriptions)
-logger.debug(f"Dynamically populated AGENT_INFORMATION with {len(BaseAgent.agent_descriptions)} descriptions.")
-# =====================================================================
 
 class AgentOrchestrator:
     """
