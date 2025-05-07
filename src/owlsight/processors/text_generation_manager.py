@@ -3,6 +3,7 @@ import os
 import pkgutil
 import traceback
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -527,9 +528,9 @@ class TextGenerationManager:
                 self.processor.chat_history = old_chat_history
             else:
                 self.processor = processor_type(**processor_kwargs)
-        except Exception as e:
-            logger.error(f"Error loading model_processor: {traceback.format_exc()}")
-            return e
+        except Exception:
+            logger.critical(f"Critical Error loading model_processor: {traceback.format_exc()}")
+            sys.exit(1)
 
         logger.info(f"Processor reloaded with model_id: {model_id}")
 
