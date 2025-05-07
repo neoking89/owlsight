@@ -245,7 +245,7 @@ class Schema:
                 type=OptionType.ACTION,
                 description="Orchestrate a sequential multi-agent workflow: PlanAgent -> PlanValidationAgent -> ToolSelectionAgent | ToolExecutionAgent -> FinalAgent",
             ),
-            "apply_tools": MenuItem(
+            "active": MenuItem(
                 type=OptionType.TOGGLE,
                 description="Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace.",
                 default=False,

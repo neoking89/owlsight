@@ -51,7 +51,7 @@ def process_user_request(
     Process the user's choice and generate a response.
     Optionally involves multi-step tool usage and result validation.
     """
-    apply_agents = manager.get_config_key("agentic.apply_tools", False)
+    apply_agents = manager.get_config_key("agentic.active", False)
     if apply_agents:
         chat_history_is_applied = manager.get_config_key("model.apply_chat_history", False)
         if chat_history_is_applied:

@@ -315,7 +315,7 @@ Owlsight automatically tries to fix and retry any code that encounters a **Modul
 ## Agentic system
 
 Owlsight implements a multistep agentic system, which allows for more complex tasks to be executed than would normally be possible with one language model.
-This agentic system is accessible through the CLI by setting the *config.agentic.apply_tools* parameter to *true*.
+This agentic system is accessible through the CLI by setting the *config.agentic.active* parameter to *true*.
 
 The agents consist of:
 {list(AGENT_INFORMATION.keys())}
@@ -554,7 +554,7 @@ TIP 2: Using above tag in combination with `sequence_on_loading` in the configur
 Note that both TextSplitter classes can be used as input for the `DocumentSearcher` class.
 - Added `main.default_config_on_startup` to the `config:main` section. This option can be used to specify a default configuration file to load when starting Owlsight.
 This will load the configuration file specified in `main.default_config_on_startup` when every time when starting Owlsight.
-- Added an experimental new section in `config`, called `config:agentic`. This section can be enabled through the "apply_tools" option.
+- Added an experimental new section in `config`, called `config:agentic`. This section can be enabled through the "active" option.
 The section consists of a multi-step agentic system, where the the agents are in fixed order: ToolAgent (can search the internet, scrape, etc) -> Pythonagent (specialized in generating Python code) -> JudgeAgent. 
 In the end, the final response is computed by a last agent. All agents are the currently loaded model with different roles.
 - Added --log and --level flags to the CLI. This can be used to specify a log file and log level, like so:

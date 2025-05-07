@@ -276,11 +276,11 @@ class TextGenerationManager:
         print(f"Context for library '{library}' with top_k={top_k}:\n{context}")
 
     def _update_agentic_config(self, inner_key: str, value: Any):
-        if inner_key == "apply_tools":
+        if inner_key == "active":
             if self.processor is None:
                 warn_processor_not_loaded()
                 return
-            self.processor.apply_tools = self._update_apply_tools(value)
+            self.processor.apply_tools = self._update_agentic_active(value)
         elif inner_key == "show_available_tools":
             sep = "#" * 50
             available_tools = f"\n{sep}\n".join(
@@ -502,8 +502,8 @@ class TextGenerationManager:
         model_kwargs = self.config_manager.get("model", {})
         task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
         processor_kwargs = {"task": task, **model_kwargs}
-        apply_tools = self.config_manager.get("agentic.apply_tools", False)
-        processor_kwargs["apply_tools"] = self._update_apply_tools(apply_tools)
+        agentic_active = self.config_manager.get("agentic.active", False)
+        processor_kwargs["apply_tools"] = self._update_agentic_active(agentic_active)
 
         model_id = self.config_manager.get("model.model_id", "")
         if not model_id:
@@ -592,11 +592,11 @@ class TextGenerationManager:
         except Exception:
             return value
 
-    def _update_apply_tools(self, value: bool) -> Optional[Dict[str, Any]]:
+    def _update_agentic_active(self, value: bool) -> Optional[Dict[str, Any]]:
         if value:
             global_vars_dict = GlobalPythonVarsDict()
-            apply_tools = OwlDefaultFunctions(global_vars_dict).owl_tools(as_json=True)
-            return apply_tools
+            active = OwlDefaultFunctions(global_vars_dict).owl_tools(as_json=True)
+            return active
         else:
             return None
 

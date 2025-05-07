@@ -99,7 +99,7 @@ def test_command_result_enum():
 
 
 def test_process_user_request_without_agentic(mock_logger):
-    """Test process_user_request when agentic.apply_tools is False."""
+    """Test process_user_request when agentic.active is False."""
     mock_manager = MagicMock(spec=TextGenerationManager)
     mock_manager.get_config_key.return_value = False
     mock_manager.generate.return_value = "Direct Generate Response"
@@ -107,7 +107,7 @@ def test_process_user_request_without_agentic(mock_logger):
     user_input = "Tell me a joke"
     with patch("owlsight.app.run_app.AgentOrchestrator") as mock_agent_orchestrator_class:
         result = process_user_request(user_input, mock_executor, mock_manager)
-    mock_manager.get_config_key.assert_called_once_with("agentic.apply_tools", False)
+    mock_manager.get_config_key.assert_called_once_with("agentic.active", False)
     mock_manager.generate.assert_called_once_with(user_input)
     mock_agent_orchestrator_class.assert_not_called()
     assert result == "Direct Generate Response"
@@ -115,7 +115,7 @@ def test_process_user_request_without_agentic(mock_logger):
 
 
 def test_process_user_request_with_agentic(mock_logger):
-    """Test process_user_request when agentic.apply_tools is True."""
+    """Test process_user_request when agentic.active is True."""
     mock_manager = MagicMock(spec=TextGenerationManager)
     mock_manager.get_config_key.return_value = True
     mock_executor = MagicMock(spec=CodeExecutor)
