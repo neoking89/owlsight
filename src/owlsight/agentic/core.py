@@ -23,7 +23,7 @@ from owlsight.agentic.helper_functions import (
 from owlsight.agentic.models import AgentContext, AgentPrompt, ExecutionPlan, PlanStep, StepResult
 from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.processors.text_generation_manager import TextGenerationManager
-from owlsight.utils.code_execution import CodeExecutor
+from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
 from owlsight.configurations.config_manager import ConfigManager
 from owlsight.utils.helper_functions import parse_markdown
 from owlsight.utils.constants import get_default_config_on_startup_path
@@ -39,8 +39,6 @@ class BaseAgent(ABC):
     # Class variables for configuration management
     temp_config_filename: ClassVar[Optional[str]] = None
     config_per_agent: ClassVar[Optional[Dict[str, str]]] = None
-
-
 
     def __init__(self, name: str, system_prompt: AgentPrompt):
         self.name = name
@@ -141,7 +139,9 @@ class BaseAgent(ABC):
                 logger.warning(f"Failed to load config {agent_config_path} for agent '{self.name}'.")
         else:
             if last_config_is_same:
-                logger.debug(f"Configuration file for agent '{self.name}' is the same as the last loaded config. Not loading new config.")
+                logger.debug(
+                    f"Configuration file for agent '{self.name}' is the same as the last loaded config. Not loading new config."
+                )
             else:
                 logger.debug(f"Configuration file for agent '{self.name}' does not exist: {agent_config_path}")
 
@@ -150,7 +150,11 @@ class BaseAgent(ABC):
         """
         Reset the config-related class variables.
         """
-        if cls.temp_config_filename and Path(cls.temp_config_filename).exists() and cls.temp_config_filename != get_default_config_on_startup_path():
+        if (
+            cls.temp_config_filename
+            and Path(cls.temp_config_filename).exists()
+            and cls.temp_config_filename != get_default_config_on_startup_path()
+        ):
             os.remove(cls.temp_config_filename)
         cls.config_per_agent: Optional[Dict[str, str]] = None
         cls.temp_config_filename: Optional[str] = None
@@ -172,20 +176,21 @@ class BaseAgent(ABC):
                 cls.temp_config_filename = default_config_on_startup
             else:
                 cls.temp_config_filename = create_temp_config_filename()
-            logger.debug(f"Created temporary config filename for keeping state of 'agentic.config_per_agent': {cls.temp_config_filename}")
-        
+            logger.debug(
+                f"Created temporary config filename for keeping state of 'agentic.config_per_agent': {cls.temp_config_filename}"
+            )
+
         if cls.config_per_agent is None:
             for agent_name in AGENT_INFORMATION.keys():
                 if not config_per_agent.get(agent_name, None):
                     config_per_agent[agent_name] = cls.temp_config_filename
-            
+
             cls.config_per_agent = config_per_agent
             # no need to save config if it was the one loaded on startup
             if not default_config_on_startup:
                 cls.manager.save_config(cls.temp_config_filename)
 
         return cls.config_per_agent
-
 
     def _get_config_per_agent(self) -> Dict[str, str]:
         config_manager: ConfigManager = getattr(self.manager, "config_manager", None)
@@ -458,89 +463,61 @@ class ToolCreationAgent(BaseAgent):
 
     def _execute_impl(self, context: AgentContext) -> StepResult:
         step = context.get_current_step()
+        step_description = BaseAgent._form_description(step)
         prompt = self.system_prompt.format(
-            step_description=BaseAgent._form_description(step),
+            step_description=step_description,
             available_context=context.get_previous_results(),
             available_tools=get_available_tools(BaseAgent.code_executor.globals_dict),
             additional_information=self.get_additional_information(),
         )
         reply = self.llm_call(prompt)
-        data = self._extract(reply)
-        if not data:
-            err_msg = "Tool extraction failed. No valid markdown Python code block found in LLM response."
+        registered, err_msg = self._define_and_register_tool(step_description, reply)
+        if err_msg:
             return StepResult(False, err_msg)
-        registered = self._register_dynamic_tool(data)
         context.accumulated_results.append({"dynamic_tools_created": registered})
         return StepResult(True, registered)
 
-    def _extract(self, markdown: str) -> Dict[str, Any]:
-        """
-        Extract Python function code blocks from markdown.
-        Only processes markdown-formatted Python code blocks.
-        """
-        code_blocks = parse_markdown(markdown)
-        python_blocks = [(lang, code) for lang, code in code_blocks if lang.lower() in ("python", "py")]
 
-        if python_blocks:
-            return {"code_blocks": python_blocks}
-
-        return {}
-
-    def _register_dynamic_tool(self, data: Dict[str, Any]) -> List[str]:
+    def _define_and_register_tool(self, step_description: str, response: str) -> tuple[set, str]:
         """
-        Register Python functions extracted from markdown code blocks as dynamic tools.
+        Define and register Python functions extracted from markdown code blocks as dynamic tools.
         """
-        registered_tools = []
+        err_msg = ""
+        registered_tools = set()
+        existing_tools = set(BaseAgent.code_executor.globals_dict.keys())
+        response = response.strip()
 
-        for _, code_block in data.get("code_blocks", []):
-            # Clean the code block: remove leading/trailing whitespace and the language identifier if present
-            code_lines = code_block.strip().splitlines()
-            if code_lines and code_lines[0].strip().lower() == "python":
-                code_to_execute = "\n".join(code_lines[1:]).strip()  # Remove 'python' line and strip again
+        try:
+            results = execute_code_with_feedback(
+                response=response,
+                original_question=step_description,
+                code_executor=BaseAgent.code_executor,
+                prompt_code_execution=BaseAgent.manager.get_config_key("main.prompt_code_execution", True),
+                prompt_retry_on_error=BaseAgent.manager.get_config_key("main.prompt_retry_on_error", True),
+            )
+            if not results:
+                err_msg = "No results returned from dynamic tool code execution. The response should contain a code block in markdown."
+                logger.error(err_msg)
+                return registered_tools, err_msg
+            if not results[-1]["success"]:
+                err_msg = f"Error during dynamic tool code execution using the codeblock:\n{results[-1]['code']}"
+                logger.error(err_msg)
+                return registered_tools, err_msg
+            new_tools = set(BaseAgent.code_executor.globals_dict.keys())
+            dict_diff = new_tools.difference(existing_tools)
+            dict_diff = {val for val in dict_diff if not val.startswith("_")}
+            if dict_diff:
+                logger.info("Dynamic tool '%s' and related definitions registered from markdown code block.", dict_diff)
+                registered_tools.update(dict_diff)
             else:
-                code_to_execute = "\n".join(code_lines).strip()
+                err_msg = "Function not found in exec_globals."
+                logger.warning(err_msg)
 
-            if not code_to_execute:  # Skip if block is empty after cleaning
-                continue
+        except Exception as exc:
+            err_msg = f"Could not register generated tool from markdown code block due to error: {exc}"
+            logger.exception(err_msg)
 
-            try:
-                # Extract the function name using AST to correctly identify it
-                import ast
-
-                tree = ast.parse(code_to_execute)  # Use cleaned code
-                function_name = None
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.FunctionDef):
-                        function_name = node.name
-                        break
-                else:
-                    logger.warning("Could not identify function name in code block via AST")
-                    continue
-
-                if function_name is None:  # Should be redundant but safe
-                    logger.warning("Function name is None after AST walk")
-                    continue
-
-                # Execute the code using the centralized code executor. Executed code will be available in the globals_dict (which is a singleton).
-                try:
-                    BaseAgent.code_executor.execute_python_code(code_to_execute)
-                except Exception as exec_exc:
-                    logger.error(f"Exception during dynamic tool code execution: {exec_exc}", exc_info=True)
-                    continue
-                check_result = function_name in BaseAgent.code_executor.globals_dict
-                if check_result:
-                    logger.info(
-                        "Dynamic tool '%s' and related definitions registered from markdown code block.", function_name
-                    )
-                    registered_tools.append(function_name)
-                else:
-                    # This case should ideally not happen if AST parsing succeeded, but log it.
-                    logger.warning(f"Function '{function_name}' parsed by AST but not found in exec_globals.")
-
-            except Exception as exc:
-                logger.exception("Could not register generated tool from markdown code block: %s", exc)
-
-        return registered_tools
+        return registered_tools, err_msg
 
 
 class ToolSelectionAgent(BaseAgent):
@@ -676,19 +653,19 @@ class FinalAgent(BaseAgent):
             previous_results=context.get_previous_results(),
         )
         reply = self.llm_call(prompt)
-        
+
         # Parse the JSON response
         try:
             parsed_data = parse_json_markdown(reply)
             if self._json_is_valid(parsed_data):
                 content = parsed_data["answer"]["content"]
                 content_format = parsed_data["answer"]["format"]
-                
+
                 if content_format != "text":
                     formatted_reply = f"```{content_format}\n{content}\n```"
                 else:
                     formatted_reply = content
-                
+
                 context.final_response = formatted_reply
                 return StepResult(True, formatted_reply)
             else:
@@ -701,7 +678,12 @@ class FinalAgent(BaseAgent):
             return StepResult(True, reply)
 
     def _json_is_valid(self, parsed_data: Dict[str, Any]) -> bool:
-        return parsed_data and "answer" in parsed_data and "format" in parsed_data["answer"] and "content" in parsed_data["answer"]
+        return (
+            parsed_data
+            and "answer" in parsed_data
+            and "format" in parsed_data["answer"]
+            and "content" in parsed_data["answer"]
+        )
 
 
 class AgentOrchestrator:
@@ -840,7 +822,7 @@ class AgentOrchestrator:
                     continue  # Go back to the start of the while loop to replan
             finally:
                 BaseAgent.reset_config_per_agent_classvars()
-                
+
         # Should ideally not be reached if logic is correct, but as a fallback
         return "I was unable to complete your request after multiple attempts."
 
@@ -962,18 +944,18 @@ class AgentOrchestrator:
         logger.info(f"Final validated execution plan:\n{plan_steps_str}")
 
         return True  # Planning and validation successful
-        
+
     def _ensure_final_agent_as_last_step(self, context: AgentContext) -> None:
         """Ensure FinalAgent is always the last step of the execution plan."""
         if not context.execution_plan or not context.execution_plan.steps:
             return
-            
+
         steps = context.execution_plan.steps
-        
+
         # If the last step is already FinalAgent, nothing to do
         if steps[-1].agent_name == "FinalAgent":
             return
-            
+
         # Otherwise, add FinalAgent as the last step
         steps.append(
             PlanStep(
