@@ -551,6 +551,14 @@ Voice control features include:
 - Implement lazy loading in all classes where SentenceTransformer models are used, so that they only get loaded if `sentence_transformer_weight` is more than 0. First, SentenceTransformer models were loaded without being sure that they would be used.
 - Several minor bugfixes and improvements.
 
+**2.6.0**
+- Significantly enhanced agentic workflow through a major refactoring of the core agentic system, replacing the old agentic system with a new one.
+Current flow is now: `PlanAgent` -> `PlanValidationAgent` -> `ToolCreationAgent` | `ToolSelectionAgent` -> `ObservationAgent` -> [Until all steps have been executed] -> `FinalAgent`
+- Added `owl_edit` function to the Python interpreter. This function can be used to edit a given file.
+- Added `config_per_agent` option to the `config:agentic` section. This option can be used to specify a different configuration file for each agent.
+- Various minor bugfixes, features and stability improvements.
+
+
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
 
