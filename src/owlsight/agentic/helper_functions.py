@@ -12,7 +12,7 @@ from owlsight.utils.helper_functions import parse_markdown
 from owlsight.utils.logger import logger
 
 
-def create_temp_config_filename() -> str:
+def create_temp_config_filename(prefix: str = "tmp_owlsight_config__") -> str:
     """
     Creates a unique temporary configuration filename.
 
@@ -22,7 +22,7 @@ def create_temp_config_filename() -> str:
         A unique filename
     """
     unique_id = uuid.uuid4().hex
-    temp_filename = f"tmp_owlsight_config_{unique_id}.json"
+    temp_filename = f"{prefix}{unique_id}.json"
 
     return temp_filename
 
