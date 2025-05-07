@@ -15,16 +15,17 @@ from owlsight.utils.logger import logger
 def create_temp_config_filename() -> str:
     """
     Creates a unique temporary configuration filename.
-    
+
     Returns
     -------
     str
         A unique filename
     """
-    unique_id = uuid.uuid4().hex   
+    unique_id = uuid.uuid4().hex
     temp_filename = f"tmp_owlsight_config_{unique_id}.json"
-    
+
     return temp_filename
+
 
 def parse_json_markdown(response: str) -> dict:
     """
@@ -49,13 +50,6 @@ def parse_json_markdown(response: str) -> dict:
         return data
     except json.JSONDecodeError:
         return {}
-
-
-def get_agent_information_for_prompts() -> str:
-    """
-    Returns a formatted string of agent information for injection into agent prompts.
-    """
-    return "\n".join(f"- {k}: {v}" for k, v in AGENT_INFORMATION.items() if k not in EXCLUDED_AGENTS)
 
 
 def get_available_tools(globals_dict: Dict[str, Any]) -> str:
