@@ -25,8 +25,6 @@ from owlsight.app.default_functions import OwlDefaultFunctions
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
 from owlsight.configurations.config_manager import ConfigManager
-from owlsight.utils.helper_functions import parse_markdown
-from owlsight.utils.constants import get_default_config_on_startup_path
 from owlsight.utils.logger import logger
 
 
@@ -131,7 +129,7 @@ class BaseAgent(ABC):
         config_per_agent = BaseAgent._set_classvar_config_per_agent(config_per_agent)
         agent_config_path = config_per_agent.get(self.name, "")
         last_config_is_same = agent_config_path == self.manager._last_loaded_config
-        if self._agent_config_path_exists() and not last_config_is_same:
+        if agent_config_path and Path(agent_config_path).exists() and not last_config_is_same:
             # if another config is used for the first time, remember the first config so that we can sync agents per config even when different configs are used
             logger.debug(f"Agent '{self.name}' found in config_per_agent. Attempting to load its config.")
             model_succesfully_loaded = self.manager.load_config(agent_config_path)
@@ -153,7 +151,6 @@ class BaseAgent(ABC):
         if (
             cls.temp_config_filename
             and Path(cls.temp_config_filename).exists()
-            and cls.temp_config_filename != get_default_config_on_startup_path()
         ):
             os.remove(cls.temp_config_filename)
         cls.config_per_agent: Optional[Dict[str, str]] = None
@@ -169,26 +166,22 @@ class BaseAgent(ABC):
         config_per_agent: dict[str, str]
             Existing dict with agent names as keys and config file paths as values.
         """
-        default_config_on_startup = get_default_config_on_startup_path(return_cache_path=False)
         if cls.temp_config_filename is None:
-            # first we check if a default config is present, meaning we already loaded a model through an existing config
-            if default_config_on_startup:
-                cls.temp_config_filename = default_config_on_startup
-            else:
-                cls.temp_config_filename = create_temp_config_filename()
+            # create a temporary config filename for keeping state of config_per_agent
+            cls.temp_config_filename = create_temp_config_filename()
             logger.debug(
                 f"Created temporary config filename for keeping state of 'agentic.config_per_agent': {cls.temp_config_filename}"
             )
 
+        # assign the temporary config filename to each agent that doesn't have one
+        # this way, we should load back the right config for each agent
         if cls.config_per_agent is None:
             for agent_name in AGENT_INFORMATION.keys():
                 if not config_per_agent.get(agent_name, None):
                     config_per_agent[agent_name] = cls.temp_config_filename
 
             cls.config_per_agent = config_per_agent
-            # no need to save config if it was the one loaded on startup
-            if not default_config_on_startup:
-                cls.manager.save_config(cls.temp_config_filename)
+            cls.manager.save_config(cls.temp_config_filename)
 
         return cls.config_per_agent
 
@@ -199,12 +192,6 @@ class BaseAgent(ABC):
             return {}
         config_per_agent = config_manager.get("agentic.config_per_agent", {})
         return config_per_agent
-
-    def _agent_config_path_exists(self) -> bool:
-        path_str = self._get_config_per_agent().get(self.name)
-        if not path_str:
-            return False
-        return Path(path_str).exists()
 
     @staticmethod
     def _form_description(step: PlanStep) -> str:
