@@ -289,7 +289,11 @@ Owlsight uses a configuration file in JSON-format to adjust various parameters. 
 
 {Schema.generate_diagram()}
 
-Here's an example of what the default configuration looks like:
+Here is a diagram illustrating the agentic flow within Owlsight-CLI (config:agentic):
+
+<img src="docs/agent_flow_diagram.png" alt="Agent Flow Diagram" width="600"/>
+
+Here is an example of what the default configuration looks like:
 
 ```json
 {Schema.get_config_defaults(as_json=True)}
@@ -554,7 +558,7 @@ Voice control features include:
 **2.6.0**
 - Significantly enhanced agentic workflow through a major refactoring of the core agentic system, replacing the old agentic system with a new one.
 Current flow is now: `PlanAgent` -> `PlanValidationAgent` -> `ToolCreationAgent` | `ToolSelectionAgent` -> `ObservationAgent` -> [Until all steps have been executed] -> `FinalAgent`
-- Added `owl_edit` function to the Python interpreter. This function can be used to edit a given file.
+- Added `owl_edit` and `owl_terminate` functions to the Python interpreter.
 - Added `config_per_agent` option to the `config:agentic` section. This option can be used to specify a different configuration file for each agent.
 - Various minor bugfixes, features and stability improvements.
 

@@ -320,9 +320,9 @@ Main Menu:
   - agentic settings:
     - back: Return to previous menu
     - apply_tools: Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace., Options: False, True, Type: OptionType.TOGGLE
-    - max_steps: Maximum number of steps/retries for the agentic system to perform all planning steps created by the RouterPlanningAgent, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Type: OptionType.TOGGLE
     - additional_information: Additional information specifically for the Tool agent. E.g. 'Do NOT use owl_scrape and owl_search, because there is no internet connection', Type: OptionType.EDITABLE
     - exclude_tools: Comma-separated list of tools (as string) to exclude from the available tools. These tools can be used by the Tool agent. E.g. ['owl_scrape,owl_search'], Type: OptionType.EDITABLE
+    - config_per_agent: Set configurations per agent, allowing unique models for each agent type. For Example: {'PlanAgent': 'path/to/config.json', 'PlanValidationAgent': 'path/to/config.json', 'ToolCreationAgent': 'path/to/config.json', 'ToolSelectionAgent': 'path/to/config.json', 'ObservationAgent': 'path/to/config.json', 'FinalAgent': 'path/to/config.json'}, Type: OptionType.EDITABLE
   - huggingface settings:
     - back: Return to previous menu
     - search: Search for a model on the Hugging Face Hub by pressing ENTER. Keywords can be used optionally to finetune searchresults, e.g. 'llama 3b gguf', Type: OptionType.EDITABLE
@@ -334,7 +334,11 @@ Main Menu:
 - clear history: Clear owlsight cache (directory called '.owlsight') and chat history
 - quit: Exit application
 
-Here's an example of what the default configuration looks like:
+Here is a diagram illustrating the agentic flow within Owlsight-CLI (config:agentic):
+
+<img src="docs/agent_flow_diagram.png" alt="Agent Flow Diagram" width="600"/>
+
+Here is an example of what the default configuration looks like:
 
 ```json
 {
@@ -383,9 +387,9 @@ Here's an example of what the default configuration looks like:
     },
     "agentic": {
         "apply_tools": false,
-        "max_steps": 5,
         "additional_information": "",
-        "exclude_tools": []
+        "exclude_tools": [],
+        "config_per_agent": {}
     },
     "huggingface": {
         "search": "",
@@ -983,6 +987,8 @@ This class is open for extension, as possibly more useful functions can be added
 
 - `owl_create_document_searcher(self, documents: Dict[str, str], sentence_transformer_model_name: str, sentence_transformer_kwargs: Optional[Dict[str, Any]] = None, percentile: float = 0.99, target_chunk_length: int = 400, device: Optional[str] = None, **document_searcher_kwargs) -> ~DocumentSearcher`
   - Utility function to create a DocumentSearcher instance from a dictionary of documents.
+- `owl_edit(self, file_path: Union[str, pathlib.Path], edits: List[Dict[str, str]], *, regex: bool = True, create_backup: bool = True, backup_suffix: str = '.bak', encoding: str = 'utf-8') -> str`
+  - Apply multiple substitutions to one local file.
 - `owl_import(self, file_path: str)`
   - Import Python module into the current execution environment.
 - `owl_load_namespace(self, file_path: str)`
@@ -992,21 +998,23 @@ This class is open for extension, as possibly more useful functions can be added
 - `owl_press(self, sequence: List[str], exit_python_before_sequence: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12) -> bool`
   - Simulate keyboard input for application control.
 - `owl_read(self, file_source: Union[str, pathlib.Path, bytes, Iterable[Union[str, pathlib.Path]]], recursive: bool = False, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5) -> Union[str, Dict[str, str]]`
-  - Read LOCAL FILE CONTENTS with advanced document processing.
+  - Read **local** files or directories; web URLs trigger an error.
 - `owl_save_namespace(self, file_path: str)`
   - Serialize current namespace state to disk.
 - `owl_scrape(self, urls: List[str], max_concurrent: int = 5, timeout: int = 10) -> Dict[str, str]`
-  - Scrape web content from URLs (use instead of owl_read for web resources).
+  - Download and parse the main text from web pages.
 - `owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> Dict[str, str]`
-  - Execute web search using DuckDuckGo's API.
+  - DuckDuckGo text search with simple back-off.
 - `owl_search_and_scrape(self, query: str, max_results: int = 10, max_concurrent: int = 5, timeout: int = 10, max_retries: int = 3) -> Dict[str, str]`
-  - Combines web search and content scraping into a single operation.
+  - Search the web then scrape the resulting URLs.
 - `owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]`
   - Display active namespace objects with documentation.
+- `owl_terminal(self, command: Union[str, List[str]], shell: bool, cwd: Union[str, pathlib.Path] = '.', capture_output: bool = True, timeout: Optional[int] = None, raise_on_error: bool = False, encoding: str = 'utf-8') -> Dict[str, Union[str, int]]`
+  - Cross-platform shell command runner.
 - `owl_tools(self, as_json: bool = True) -> List[Union[Callable, Dict]]`
   - Retrieve available tool-callable functions in OpenAI-compatible format.
 - `owl_write(self, file_path: str, content: str) -> None`
-  - Write text content to filesystem.
+  - Write *content* to *file_path* (UTF-8, overwrite).
 
 #### ExpertPrompts
 
@@ -1396,5 +1404,13 @@ Voice control features include:
   * `exclude_tools`: Exclude certain tools from the `ToolAgent`.
 - Implement lazy loading in all classes where SentenceTransformer models are used, so that they only get loaded if `sentence_transformer_weight` is more than 0. First, SentenceTransformer models were loaded without being sure that they would be used.
 - Several minor bugfixes and improvements.
+
+**2.6.0**
+- Significantly enhanced agentic workflow through a major refactoring of the core agentic system, replacing the old agentic system with a new one.
+Current flow is now: `PlanAgent` -> `PlanValidationAgent` -> `ToolCreationAgent` | `ToolSelectionAgent` -> `ObservationAgent` -> [Until all steps have been executed] -> `FinalAgent`
+- Added `owl_edit` and `owl_terminate` functions to the Python interpreter.
+- Added `config_per_agent` option to the `config:agentic` section. This option can be used to specify a different configuration file for each agent.
+- Various minor bugfixes, features and stability improvements.
+
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
