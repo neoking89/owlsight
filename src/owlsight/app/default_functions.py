@@ -15,9 +15,10 @@ from datetime import datetime
 from pathlib import Path
 import shutil
 import platform
-from functools import lru_cache
 
 from huggingface_hub import CachedRepoInfo
+
+from owlsight.utils.helper_functions import safe_lru_cache
 
 document_searcher_type = TypeVar("DocumentSearcher")
 document_reader_type = TypeVar("DocumentReader")
@@ -201,7 +202,7 @@ class OwlDefaultFunctions:
             print(f"Critical error in owl_read: {str(e)}")
             raise RuntimeError(f"Critical error: {str(e)}")
 
-    @lru_cache(maxsize=MAX_CACHE_SIZE)
+    @safe_lru_cache(maxsize=MAX_CACHE_SIZE)
     def owl_search(self, query: str, max_results: int = 10, max_retries: int = 3) -> Dict[str, str]:
         """
         DuckDuckGo text search with simple back-off.
@@ -613,7 +614,7 @@ class OwlDefaultFunctions:
             print(f"An error occurred while loading: {e}")
             raise
 
-    @lru_cache(maxsize=MAX_CACHE_SIZE)
+    @safe_lru_cache(maxsize=MAX_CACHE_SIZE)
     def owl_scrape(
         self,
         urls: List[str],
@@ -662,7 +663,7 @@ class OwlDefaultFunctions:
         content_dict = {url: content.strip() for url, content in content_dict.items() if content.strip()}
         return content_dict
 
-    @lru_cache(maxsize=MAX_CACHE_SIZE)
+    @safe_lru_cache(maxsize=MAX_CACHE_SIZE)
     def owl_search_and_scrape(
         self,
         query: str,

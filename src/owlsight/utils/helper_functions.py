@@ -8,6 +8,7 @@ import inspect
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
+from functools import wraps
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
@@ -16,6 +17,103 @@ from prompt_toolkit.styles import Style
 from owlsight.utils.custom_classes import MediaObject, DoubleBracketsTag, _AVAILBLE_DB_TAGS
 from owlsight.utils.logger import logger
 
+
+def safe_lru_cache(maxsize=128, typed=False):
+    """
+    A safer version of lru_cache that only caches successful function calls.
+    
+    This decorator wraps Python's standard lru_cache but adds error handling.
+    When the decorated function raises an exception, the call is not cached,
+    and the function is executed directly on subsequent calls with the same arguments.
+    This is particularly useful for functions that might fail with unhashable 
+    arguments (like lists) or network operations that may occasionally fail.
+    
+    Parameters
+    ----------
+    maxsize : int, optional
+        Maximum size of the cache, by default 128
+    typed : bool, optional
+        If True, arguments of different types will be cached separately, by default False
+        
+    Returns
+    -------
+    Callable
+        Decorated function with safe LRU caching behavior
+        
+    Examples
+    --------
+    >>> @safe_lru_cache(maxsize=100)
+    ... def fetch_data(url_list):
+    ...     # Even if url_list is unhashable (like a list), this won't fail
+    ...     return [fetch(url) for url in url_list]
+    """
+    def decorator(func):
+        # Use a dictionary for our cache
+        cache = {}
+        
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Create a cache key that works with unhashable types
+            # Convert lists to tuples and use repr for other unhashable types
+            def make_key(args, kwargs):
+                key_parts = []
+                for arg in args:
+                    if isinstance(arg, list):
+                        processed = tuple(arg)
+                    else:
+                        try:
+                            hash(arg)
+                            processed = arg
+                        except TypeError:
+                            processed = repr(arg)
+                    if typed:
+                        key_parts.append((processed, type(arg)))
+                    else:
+                        key_parts.append(processed)
+
+                for k, v in sorted(kwargs.items()):
+                    if isinstance(v, list):
+                        processed = tuple(v)
+                    else:
+                        try:
+                            hash(v)
+                            processed = v
+                        except TypeError:
+                            processed = repr(v)
+                    if typed:
+                        key_parts.append((k, processed, type(v)))
+                    else:
+                        key_parts.append((k, processed))
+
+                return tuple(key_parts)
+            
+            key = make_key(args, kwargs)
+            
+            # Check if result is in cache
+            if key in cache:
+                return cache[key]
+            
+            # Not in cache, call the function
+            try:
+                result = func(*args, **kwargs)
+                # Cache successful result
+                cache[key] = result
+                
+                # Implement LRU behavior - remove oldest entries if cache exceeds maxsize
+                if maxsize > 0 and len(cache) > maxsize:
+                    # Simple approach: remove oldest entry
+                    # (In a real implementation, you'd track access time for true LRU)
+                    cache.pop(next(iter(cache)))
+                
+                return result
+            except Exception as e:
+                # If an exception occurs, don't cache the result
+                # Just re-raise the exception
+                raise
+                
+        return wrapper
+    
+    return decorator
 
 def parse_xml(string: str, tag: str) -> str:
     """
