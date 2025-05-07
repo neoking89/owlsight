@@ -554,7 +554,7 @@ class ToolSelectionAgent(BaseAgent):
                 prompt += (
                     "\nPREVIOUS_ERROR:\n"
                     + error_feedback
-                    + "\nPlease fix the issue and output ONLY a valid 'selection' JSON object."
+                    + "\nPlease fix the issue and output ONLY a valid JSON object."
                 )
             reply = self.llm_call(prompt)
 
