@@ -4,7 +4,8 @@ Tests for the agent configuration management functionality in core.py.
 
 import os
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
+import json
 
 from owlsight.agentic.core import BaseAgent, AgentPrompt, StepResult
 from owlsight.agentic.constants import AGENT_INFORMATION
@@ -95,12 +96,10 @@ def test_reset_config_per_agent_classvars_with_file(mock_remove, test_agent):
     mock_remove.assert_not_called()
 
 
-@patch('owlsight.agentic.core.get_default_config_on_startup_path')
 @patch('owlsight.agentic.core.create_temp_config_filename')
-def test_set_classvar_config_per_agent_first_call(mock_create_temp, mock_get_default_path, test_agent):
+def test_set_classvar_config_per_agent_first_call(mock_create_temp, test_agent):
     """Test _set_classvar_config_per_agent when called for the first time."""
     # Setup
-    mock_get_default_path.return_value = None # Ensure default path doesn't interfere
     mock_create_temp.return_value = "tmp_test_config_123.json"
     BaseAgent.manager = test_agent.manager
     input_config = {"ObservationAgent": "existing_config.json"}
@@ -156,15 +155,29 @@ def test_load_config_agent_with_existing_config(test_agent):
     """Test load_config_agent when a config exists for the agent."""
     # Setup
     test_agent.manager.config_manager.get.return_value = {"TestAgent": "agent_config.json"}
-    with patch.object(BaseAgent, '_set_classvar_config_per_agent', return_value={"TestAgent": "agent_config.json"}):
-            # Set different last loaded config
-            test_agent.manager._last_loaded_config = "different_config.json"
-            
+    
+    # Create a temporary agent_config.json file for the test
+
+    
+    # Create a file named exactly 'agent_config.json' in the current directory
+    with open("agent_config.json", "w") as temp_file:
+        json.dump({"config": "test"}, temp_file)
+    
+    try:
+        # Set different last loaded config
+        test_agent.manager._last_loaded_config = "different_config.json"
+        
+        # Patch config_per_agent return value
+        with patch.object(BaseAgent, '_set_classvar_config_per_agent', return_value={"TestAgent": "agent_config.json"}):
             # Execute
             test_agent.load_config_agent()
             
             # Verify config loading attempted
             test_agent.manager.load_config.assert_called_once_with("agent_config.json")
+    finally:
+        # Clean up the temporary file
+        if os.path.exists("agent_config.json"):
+            os.remove("agent_config.json")
 
 
 def test_load_config_agent_with_same_config(test_agent):

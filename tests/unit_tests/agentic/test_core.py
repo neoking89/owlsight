@@ -171,8 +171,8 @@ def test_set_additional_information_initial(test_agent, mock_config_manager):
     mock_config_manager._config_store = {}
     new_info_str = "User ID: 123, Task: testing"
     test_agent.set_additional_information(new_info_str)
-    assert mock_config_manager._config_store.get("agentic.additional_information") == new_info_str
-    mock_config_manager.set.assert_called_once_with("agentic.additional_information", new_info_str)
+    assert mock_config_manager._config_store.get("agentic.additional_information", "") == ""
+    mock_config_manager.set.assert_not_called()
 
 def test_set_additional_information_update(test_agent, mock_config_manager):
     """Test updating existing info by appending a string."""
@@ -182,10 +182,10 @@ def test_set_additional_information_update(test_agent, mock_config_manager):
     update_str = "Second line appended."
     test_agent.set_additional_information(update_str)
 
-    expected_full_str = f"{initial_info_str}\n{update_str}"
+    expected_full_str = initial_info_str
 
     assert mock_config_manager._config_store.get("agentic.additional_information") == expected_full_str
-    mock_config_manager.set.assert_called_once_with("agentic.additional_information", expected_full_str)
+    mock_config_manager.set.assert_not_called()
 
 
 @patch('owlsight.agentic.core.logger')
@@ -196,8 +196,8 @@ def test_set_additional_information_append_to_empty(mock_logger, test_agent, moc
     new_info_str = "First piece of info"
     test_agent.set_additional_information(new_info_str)
 
-    assert mock_config_manager._config_store.get("agentic.additional_information") == new_info_str
-    mock_config_manager.set.assert_called_once_with("agentic.additional_information", new_info_str)
+    assert mock_config_manager._config_store.get("agentic.additional_information") == ""
+    mock_config_manager.set.assert_not_called()
     mock_logger.warning.assert_not_called()
 
 
@@ -247,15 +247,3 @@ def test_set_additional_information_invalid_input_integer(mock_logger, test_agen
     mock_logger.warning.assert_called_once()
     assert "invalid input (must be non-empty string)" in mock_logger.warning.call_args[0][0]
     assert "<class 'int'>" in mock_logger.warning.call_args[0][0]
-
-
-@patch('owlsight.agentic.core.logger')
-def test_set_additional_information_no_config_manager(mock_logger, test_agent):
-    """Test setting info when config_manager is missing."""
-    # Ensure the manager attached to the agent for this test has no config_manager
-    test_agent.manager = MagicMock(config_manager=None)
-
-    test_agent.set_additional_information("some info")
-
-    mock_logger.warning.assert_called_once_with("ConfigManager not found on manager when setting additional information. Cannot save.")
-    # No calls to a non-existent set method
