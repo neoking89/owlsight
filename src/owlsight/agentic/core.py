@@ -40,6 +40,7 @@ class BaseAgent(ABC):
     def __init__(self, name: str, system_prompt: AgentPrompt):
         self.name = name
         self.system_prompt = system_prompt
+        self.step_specific_additional_info: str = ""
 
     def llm_call(self, formatted_prompt: str) -> str:
         """
@@ -76,18 +77,29 @@ class BaseAgent(ABC):
             self.load_config_agent()
 
     def get_additional_information(self) -> str:
-        """Retrieves additional information from the config manager as a string."""
+        """Retrieves additional information by combining base context from config_manager 
+        with agent's step-specific information."""
+        # Get the base context from config_manager (this is read-only from agent's perspective)
         config_manager: Optional[ConfigManager] = getattr(self.manager, "config_manager", None)
         if config_manager is None:
             logger.warning("ConfigManager not found on manager when getting additional information.")
-            return ""  # Return empty string
-        return config_manager.get("agentic.additional_information", "").strip()
+            base_info = ""
+        else:
+            base_info = config_manager.get("agentic.additional_information", "").strip()
+        
+        # Combine base info with step-specific info
+        if base_info and self.step_specific_additional_info:
+            return f"{base_info}\n{self.step_specific_additional_info}"
+        elif self.step_specific_additional_info:
+            return self.step_specific_additional_info
+        else:
+            return base_info
 
     def set_additional_information(self, info_to_add: str) -> None:
-        """Appends the given string to the additional information string in the config manager.
+        """Appends the given string to the agent's step-specific additional information.
 
-        Retrieves the current information string, appends the new string (with a newline),
-        and stores the updated string.
+        This information is kept separate from the base context in config_manager,
+        which should not be modified directly by agents during execution.
         """
         # Check if info_to_add is actually a non-empty string
         if not isinstance(info_to_add, str) or not info_to_add:
@@ -96,28 +108,27 @@ class BaseAgent(ABC):
             )
             return None
 
-        config_manager: Optional[ConfigManager] = getattr(self.manager, "config_manager", None)
-        if config_manager is None:
-            logger.warning("ConfigManager not found on manager when setting additional information. Cannot save.")
-            return None
-
-        current_info_str = self.get_additional_information()
         new_info_str = info_to_add.strip()
 
-        # Check if this exact info already exists
-        if new_info_str in current_info_str:
-            logger.debug(f"Duplicate additional information detected, skipping: {new_info_str[:100]}...")
+        # Check if this exact info already exists in step-specific info
+        if new_info_str in self.step_specific_additional_info:
+            logger.debug(f"Duplicate step-specific information detected, skipping: {new_info_str[:100]}...")
             return None
 
-        # Append the new info string to the current string
-        if current_info_str:
-            updated_info_str = f"{current_info_str}\n{new_info_str}"
+        # Append the new info string to the step-specific information
+        if self.step_specific_additional_info:
+            self.step_specific_additional_info = f"{self.step_specific_additional_info}\n{new_info_str}"
         else:
-            updated_info_str = new_info_str
+            self.step_specific_additional_info = new_info_str
 
-        # Save the updated string
-        config_manager.set("agentic.additional_information", updated_info_str)
-        logger.debug(f"Appended to agentic.additional_information. New content snippet: {new_info_str[:100]}...")
+        logger.debug(f"Step-specific additional info for agent '{self.name}': {self.step_specific_additional_info[:100]}...")
+
+    def clear_step_specific_additional_information(self) -> None:
+        """Clears the agent's step-specific additional information.
+        This should be called by the orchestrator before an agent starts a new step or retries a step.
+        """
+        self.step_specific_additional_info = ""
+        logger.debug(f"Cleared step-specific additional information for agent '{self.name}'")
 
     def load_config_agent(self) -> None:
         """
@@ -964,6 +975,11 @@ class AgentOrchestrator:
                 agent = self.agents.get(step.agent_name)
                 if not agent:
                     raise ValueError(f"Configuration Error: Agent '{step.agent_name}' not found.")
+                
+                # Clear step-specific additional information before the agent executes
+                # This ensures each step/retry starts with a clean slate for temporary context
+                # while preserving the base context from config_manager
+                agent.clear_step_specific_additional_information()
 
                 result = agent.execute(context)
                 step.result = result  # Store result
