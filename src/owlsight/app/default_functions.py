@@ -97,7 +97,7 @@ class OwlDefaultFunctions:
         timeout: int = 5,
     ) -> Union[str, Dict[str, str]]:
         """
-        Read **local** files or directories; web URLs trigger an error.
+        Read ONLY **local** files or directories.
 
         Parameters
         ----------
