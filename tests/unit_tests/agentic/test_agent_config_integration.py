@@ -94,70 +94,11 @@ def test_get_config_per_agent_no_config_manager():
     # Verify
     assert result == {}
 
-
-def test_agent_config_path_exists_true(mock_manager):
-    """Test _agent_config_path_exists when path exists."""
-    # Setup
-    agent = ObservationAgent()
-    agent.manager = mock_manager
-    
-    # Mock config value
-    mock_manager.config_manager.get.return_value = {
-        "ObservationAgent": "existing_config.json"
-    }
-    
-    # Mock Path.exists
-    with patch.object(Path, 'exists', return_value=True):
-        # Execute
-        result = agent._agent_config_path_exists()
-        
-        # Verify
-        assert result is True
-
-
-def test_agent_config_path_exists_false_no_entry(mock_manager):
-    """Test _agent_config_path_exists when agent has no config entry."""
-    # Setup
-    agent = ObservationAgent()
-    agent.manager = mock_manager
-    
-    # Mock empty config
-    mock_manager.config_manager.get.return_value = {}
-    
-    # Execute
-    result = agent._agent_config_path_exists()
-    
-    # Verify
-    assert result is False
-
-
-def test_agent_config_path_exists_false_nonexistent_path(mock_manager):
-    """Test _agent_config_path_exists when config path doesn't exist."""
-    # Setup
-    agent = ObservationAgent()
-    agent.manager = mock_manager
-    
-    # Mock config value
-    mock_manager.config_manager.get.return_value = {
-        "ObservationAgent": "nonexistent_config.json"
-    }
-    
-    # Mock Path.exists
-    with patch.object(Path, 'exists', return_value=False):
-        # Execute
-        result = agent._agent_config_path_exists()
-        
-        # Verify
-        assert result is False
-
-
-@patch('owlsight.agentic.core.get_default_config_on_startup_path')
-def test_shared_config_file_between_agents(mock_get_default_path, orchestrator, mock_manager):
+def test_shared_config_file_between_agents(orchestrator, mock_manager):
     """
     Test that multiple agents can share the same temporary config file.
     """
-    # Setup
-    mock_get_default_path.return_value = None # Ensure default path doesn't interfere
+    orchestrator.manager = mock_manager
     # Create plan with multiple steps using different agents
     context = AgentContext(user_request="Test request")
     steps = [
@@ -232,8 +173,8 @@ def test_shared_config_file_between_agents(mock_get_default_path, orchestrator, 
             mock_save_config_func.assert_not_called() # Save not called again
 
             # Verify manager.get was called (once per agent load_config call)
-            # It's called twice per load_config: once directly, once via _agent_config_path_exists
-            assert mock_get_config_func.call_count == 4 # Once in PlanAgent, once in ObsAgent (each calls it twice)
+            # It's called once per load_config
+            assert mock_get_config_func.call_count == 2 # Once in PlanAgent, once in ObsAgent
             mock_get_config_func.assert_called_with("agentic.config_per_agent", {})
 
             # Verify final state of config_per_agent if necessary

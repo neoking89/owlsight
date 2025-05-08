@@ -156,8 +156,7 @@ def test_load_config_agent_with_existing_config(test_agent):
     """Test load_config_agent when a config exists for the agent."""
     # Setup
     test_agent.manager.config_manager.get.return_value = {"TestAgent": "agent_config.json"}
-    with patch.object(test_agent, '_agent_config_path_exists', return_value=True):
-        with patch.object(BaseAgent, '_set_classvar_config_per_agent', return_value={"TestAgent": "agent_config.json"}):
+    with patch.object(BaseAgent, '_set_classvar_config_per_agent', return_value={"TestAgent": "agent_config.json"}):
             # Set different last loaded config
             test_agent.manager._last_loaded_config = "different_config.json"
             
@@ -172,29 +171,27 @@ def test_load_config_agent_with_same_config(test_agent):
     """Test load_config_agent when the config is already loaded."""
     # Setup
     test_agent.manager.config_manager.get.return_value = {"TestAgent": "agent_config.json"}
-    with patch.object(test_agent, '_agent_config_path_exists', return_value=True):
-        with patch.object(BaseAgent, '_set_classvar_config_per_agent', return_value={"TestAgent": "agent_config.json"}):
-            # Set same last loaded config
-            test_agent.manager._last_loaded_config = "agent_config.json"
-            
-            # Execute
-            test_agent.load_config_agent()
-            
-            # Verify no config loading attempted
-            assert not test_agent.manager.load_config.called
+    with patch.object(BaseAgent, '_set_classvar_config_per_agent', return_value={"TestAgent": "agent_config.json"}):
+        # Set same last loaded config
+        test_agent.manager._last_loaded_config = "agent_config.json"
+        
+        # Execute
+        test_agent.load_config_agent()
+        
+        # Verify no config loading attempted
+        assert not test_agent.manager.load_config.called
 
 
 def test_load_config_agent_with_nonexistent_config(test_agent):
     """Test load_config_agent when the config file doesn't exist."""
     # Setup
     test_agent.manager.config_manager.get.return_value = {"TestAgent": "nonexistent.json"}
-    with patch.object(test_agent, '_agent_config_path_exists', return_value=False):
-        with patch.object(BaseAgent, '_set_classvar_config_per_agent', return_value={"TestAgent": "nonexistent.json"}):
-            # Execute
-            test_agent.load_config_agent()
-            
-            # Verify no config loading attempted
-            assert not test_agent.manager.load_config.called
+    with patch.object(BaseAgent, '_set_classvar_config_per_agent', return_value={"TestAgent": "nonexistent.json"}):
+        # Execute
+        test_agent.load_config_agent()
+        
+        # Verify no config loading attempted
+        assert not test_agent.manager.load_config.called
 
 
 @patch('os.remove')
