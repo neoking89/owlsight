@@ -228,9 +228,12 @@ class DocumentSearcher:
                 cache_dir=self.cache_dir,
                 cache_dir_suffix=f"cache_dir_suffix={self.cache_dir_suffix}",
             )
-            if cache_mixin.get_full_cache_path().exists() and not self.documents:
+            # First check if cache exists - use it regardless of whether documents are provided
+            if cache_mixin.get_full_cache_path().exists():
+                logger.info(f"Loading documents from cache: {cache_mixin.get_full_cache_path()}")
                 self.documents = cache_mixin.load_data()
             elif self.text_splitter:
+                # Only split documents and save to cache if cache doesn't exist
                 self.documents = self.text_splitter.split_documents(self.documents)
                 cache_mixin.save_data(self.documents)
         elif self.text_splitter:
