@@ -92,6 +92,14 @@ class TextGenerationProcessor(ABC):
         self.chat_history.append({"role": "user", "content": input_data})
         self.chat_history.append({"role": "assistant", "content": generated_text.strip()})
 
+    def clear_history(self) -> None:
+        """
+        Clear the chat history.
+        This is useful for resetting the state of the processor.
+        """
+        self.chat_history = []
+        logger.info("Chat history cleared.")
+
     def get_history(self) -> List[Dict[str, str]]:
         """
         Get complete chat history of inputs and outputs and system prompt.
