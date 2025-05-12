@@ -619,7 +619,7 @@ class TextGenerationManager:
             self.processor.generate = self._original_generate_method
 
     @staticmethod
-    def _parse_config_string(raw: str) -> dict[str, Any] | None:
+    def _parse_config_string(raw: str) -> Union[dict[str, Any], None]:
         """
         Convert raw string into a dict.
 
@@ -629,7 +629,7 @@ class TextGenerationManager:
 
         Returns
         -------
-        dict | None
+        Union[dict[str, Any], None]
             Parsed mapping, or *None* if parsing failed.
         """
         # Strict JSON first
