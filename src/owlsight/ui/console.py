@@ -27,11 +27,11 @@ from owlsight.utils.constants import get_prompt_cache, KB_AUTOCOMPLETE
 from owlsight.utils.custom_classes import GlobalPythonVarsDict, _AVAILBLE_DB_TAGS
 from owlsight.utils.logger import logger
 
-try:
+if sys.platform == "win32":
     from prompt_toolkit.output.win32 import NoConsoleScreenBufferError
-except ImportError:
-
+else:
     class NoConsoleScreenBufferError(Exception):
+        """Dummy exception placeholder for non-Windows systems."""
         pass
 
 
