@@ -9,7 +9,7 @@ description = "Owlsight is a command-line tool combining open-source AI models w
 authors = [{ name = "Vincent Ouwendijk" }]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.13"
 dependencies = [
     "psutil",
     "transformers",
@@ -69,8 +69,34 @@ voice = [
 
 # Define the "all" option to include most useful features (base + optional dependencies)
 all = [
-    "owlsight[dev,huggingface_metadata,gguf,onnx,search,multimodal,voice]"
+    # Base dependencies
+    "psutil",
+    "transformers",
+    "pandas",
+    "numpy",
+    "torch",
+    "bitsandbytes",
+    "accelerate",
+    "sentencepiece",
+    "prompt_toolkit<=2.0.10",
+    "scikit-learn",
+    "jinja2",
+    "tqdm",
+    "pynput",
+    "tika",
+    "lxml",
+    "aiohttp",
+    "duckduckgo_search",
+    # Optional
+    "llama-cpp-python",
+    "onnxruntime-genai",
+    "onnxruntime-genai-cuda",
+    "sentence-transformers",
+    "pytesseract",
+    "beautifulsoup4",
+    "pillow",
 ]
+
 
 [project.entry-points.console_scripts]
 owlsight = "owlsight.main:main"
