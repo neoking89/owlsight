@@ -1,35 +1,60 @@
 param(
-    [Parameter(Mandatory=$true)]
-    [string]$Version  # Example usage: ./release.ps1 -Version 1.2.3
+    [Parameter(Mandatory = $true)]
+    [string]$Version  # Example: ./release.ps1 -Version 2.6.0
 )
 
 $BranchName = "release/v$Version"
 $TagName = "v$Version"
 
 function Fail($msg) {
-    Write-Host "❌ ERROR: $msg" -ForegroundColor Red
+    Write-Host "`n[ERROR] $msg`n" -ForegroundColor Red
     exit 1
+}
+
+function Confirm($message) {
+    $response = Read-Host "$message [y/N]"
+    return $response -match '^[Yy]'
 }
 
 # Step 0: Check if branch or tag exists
 Write-Host "🔍 Checking if branch or tag already exists..."
 
-# Check for existing branch
-$existingBranch = git branch -r | Select-String "origin/$BranchName"
-if ($existingBranch) {
-    Fail "Branch '$BranchName' already exists on remote."
+$branchExistsRemote = git ls-remote --heads origin $BranchName
+if ($branchExistsRemote) {
+    if (Confirm "Branch '$BranchName' already exists on remote. Delete and recreate it?") {
+        Write-Host "🗑️ Deleting remote branch '$BranchName'..."
+        git push origin --delete $BranchName
+        if ($LASTEXITCODE -ne 0) { Fail "Failed to delete remote branch '$BranchName'." }
+    } else {
+        Fail "Aborted due to existing remote branch."
+    }
 }
 
 # Check for existing tag
 $existingTag = git tag | Where-Object { $_ -eq $TagName }
 if ($existingTag) {
-    Fail "Git tag '$TagName' already exists."
+    if (Confirm "Tag '$TagName' already exists. Delete and recreate it?") {
+        Write-Host "🗑️ Deleting local and remote tag '$TagName'..."
+        git tag -d $TagName
+        if ($LASTEXITCODE -ne 0) { Fail "Failed to delete local tag." }
+
+        git push --delete origin $TagName
+        if ($LASTEXITCODE -ne 0) { Fail "Failed to delete remote tag." }
+
+        Write-Host "✅ Tag '$TagName' deleted successfully."
+    } else {
+        Fail "Aborted due to existing tag."
+    }
 }
 
-# Create and switch to the release branch
-Write-Host "🌿 Creating and checking out branch '$BranchName'..."
-git checkout -b $BranchName
-if ($LASTEXITCODE -ne 0) { Fail "Could not create or switch to branch." }
+# Create and switch to the release branch (even if local exists)
+if (git rev-parse --verify $BranchName 2>$null) {
+    git checkout $BranchName
+    if ($LASTEXITCODE -ne 0) { Fail "Failed to switch to existing local branch." }
+} else {
+    git checkout -b $BranchName
+    if ($LASTEXITCODE -ne 0) { Fail "Could not create branch '$BranchName'." }
+}
 
 # Step 1: Run tests
 Write-Host "🧪 Running tests locally with pytest..."
@@ -51,7 +76,7 @@ git add .
 if ($LASTEXITCODE -ne 0) { Fail "Git add failed." }
 
 git commit -m "Update version to $Version"
-if ($LASTEXITCODE -ne 0) { Fail "Git commit failed." }
+if ($LASTEXITCODE -ne 0) { Write-Host "⚠️ No changes to commit." }
 
 # Step 4: Create Git tag
 Write-Host "🏷️ Tagging release with '$TagName'..."
@@ -66,4 +91,4 @@ if ($LASTEXITCODE -ne 0) { Fail "Failed to push branch." }
 git push origin $TagName
 if ($LASTEXITCODE -ne 0) { Fail "Failed to push tag." }
 
-Write-Host "✅ Release $Version completed successfully!" -ForegroundColor Green
+Write-Host "`n✅ Release $Version completed successfully!" -ForegroundColor Green
