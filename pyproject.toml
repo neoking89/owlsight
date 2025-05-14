@@ -9,13 +9,14 @@ description = "Owlsight is a command-line tool combining open-source AI models w
 authors = [{ name = "Vincent Ouwendijk" }]
 license = { text = "MIT" }
 readme = "README.md"
+requires-python = ">=3.9"
 dependencies = [
     "psutil",
     "transformers",
     "pandas",
     "numpy",
-    "torch",
-    "bitsandbytes",
+    "torch",  # User must install platform-specific wheel
+    "bitsandbytes; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "accelerate",
     "sentencepiece",
     "prompt_toolkit==2.0.10",
@@ -37,11 +38,11 @@ dev = [
     "black",
     "pylint",
 ]
+
 # useful for getting leaderboards from the Hugging Face Hub
 huggingface_metadata = ["gradio"]
 gguf = ["llama-cpp-python"]
 onnx = ["onnxruntime-genai", "onnxruntime-genai-cuda"]
-# useful for web search and scraping
 search = [
     "lxml",
     "aiohttp",
@@ -63,37 +64,12 @@ offline = []
 voice = [
     "pyaudio",
     "RealtimeSTT",
-    "ctranslate2==3.24.0",
+    "ctranslate2==3.24.0; python_version < '3.13'",
 ]
 
 # Define the "all" option to include most useful features (base + optional dependencies)
 all = [
-    # Base dependencies
-    "psutil",
-    "transformers",
-    "pandas",
-    "numpy",
-    "torch",
-    "bitsandbytes",
-    "accelerate",
-    "sentencepiece",
-    "prompt_toolkit<=2.0.10",
-    "scikit-learn",
-    "jinja2",
-    "tqdm",
-    "pynput",
-    "tika",
-    "lxml",
-    "aiohttp",
-    "duckduckgo_search",
-    # Optional
-    "llama-cpp-python",
-    "onnxruntime-genai",
-    "onnxruntime-genai-cuda",
-    "sentence-transformers",
-    "pytesseract",
-    "beautifulsoup4",
-    "pillow",
+    "owlsight[dev,huggingface_metadata,gguf,onnx,search,multimodal,voice]"
 ]
 
 [project.entry-points.console_scripts]
