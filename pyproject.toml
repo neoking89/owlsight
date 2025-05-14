@@ -116,8 +116,8 @@ where = ["src"]
 "*" = ["blobs/**/*"]
 
 [tool.setuptools_scm]
-version_scheme = "guess-next-dev"
-local_scheme = "node-and-date"
+version_scheme = "post-release"    # stays “2.6.0” on tag, then “2.6.0.post1”
+local_scheme   = "no-local-version"  # omit the +gHASH.DATE suffix
 
 [tool.pytest.ini_options]
 minversion = "6.0"
