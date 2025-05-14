@@ -321,7 +321,7 @@ Main Menu:
     - search: RAG search query. Press ENTER to show the `top_k` results. Only used when `active` is True, Type: OptionType.EDITABLE
   - agentic settings:
     - back: Return to previous menu
-    - apply_tools: Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace., Options: False, True, Type: OptionType.TOGGLE
+    - active: Toggle whether the agentic system is active. Available tools concerns an existing subset of functions (and every new defined one) in the Python Interpreter namespace., Options: False, True, Type: OptionType.TOGGLE
     - additional_information: Additional information specifically for the Tool agent. E.g. 'Do NOT use owl_scrape and owl_search, because there is no internet connection', Type: OptionType.EDITABLE
     - exclude_tools: Comma-separated list of tools (as string) to exclude from the available tools. These tools can be used by the Tool agent. E.g. ['owl_scrape,owl_search'], Type: OptionType.EDITABLE
     - config_per_agent: Set configurations per agent, allowing unique models for each agent type. For Example: {'PlanAgent': 'path/to/config.json', 'PlanValidationAgent': 'path/to/config.json', 'ToolCreationAgent': 'path/to/config.json', 'ToolSelectionAgent': 'path/to/config.json', 'ObservationAgent': 'path/to/config.json', 'FinalAgent': 'path/to/config.json'}, Type: OptionType.EDITABLE
@@ -384,7 +384,7 @@ Here is an example of what the default configuration looks like:
         "search": ""
     },
     "agentic": {
-        "apply_tools": false,
+        "active": false,
         "additional_information": "",
         "exclude_tools": [],
         "config_per_agent": {}
@@ -415,7 +415,7 @@ Owlsight automatically tries to fix and retry any code that encounters a **Modul
 ## Agentic system
 
 Owlsight implements a multistep agentic system, which allows for more complex tasks to be executed than would normally be possible with one language model.
-This agentic system is accessible through the CLI by setting the *config.agentic.apply_tools* parameter to *true*.
+This agentic system is accessible through the CLI by setting the *config.agentic.active* parameter to *true*.
 
 The agents consist of:
 ['PlanAgent', 'PlanValidationAgent', 'ToolCreationAgent', 'ToolSelectionAgent', 'ObservationAgent', 'FinalAgent']
@@ -583,6 +583,8 @@ Notes
 
 - `apply_chat_template(self, input_data: str, tokenizer: transformers.tokenization_utils.PreTrainedTokenizer) -> str`
   - Apply chat template to the input text.
+- `clear_history(self) -> None`
+  - Clear the chat history.
 - `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, buffer_wordsize: int = 10, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
   - Generate text response for the given input.
 - `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None)`
@@ -609,6 +611,8 @@ Text generation processor using transformers library.
 
 - `apply_chat_template(self, input_data: str, tokenizer: transformers.tokenization_utils.PreTrainedTokenizer) -> str`
   - Apply chat template to the input text.
+- `clear_history(self) -> None`
+  - Clear the chat history.
 - `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
   - Generate text response.
 - `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> Generator[str, NoneType, NoneType]`
@@ -686,6 +690,8 @@ Notes
 
 - `apply_chat_template(self, input_data: str) -> List[Dict[str, str]]`
   - Apply chat template to the input text.
+- `clear_history(self) -> None`
+  - Clear the chat history.
 - `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
   - Generate text response for the given input.
 - `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, generation_kwargs: Optional[Dict[str, Any]] = None) -> Generator[str, NoneType, NoneType]`
@@ -744,6 +750,8 @@ Notes
 
 - `apply_chat_template(self, input_data: str, tokenizer: transformers.tokenization_utils.PreTrainedTokenizer) -> str`
   - Apply chat template to the input text.
+- `clear_history(self) -> None`
+  - Clear the chat history.
 - `generate(self, input_data: str, media_objects: Dict[str, owlsight.utils.custom_classes.MediaObject], stopwords: Optional[List[str]] = None, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
   - Generate text based on input text and media objects.
 - `get_history(self) -> List[Dict[str, str]]`
@@ -1029,7 +1037,7 @@ This class is open for extension, as possibly more useful functions can be added
 - `owl_press(self, sequence: List[str], exit_python_before_sequence: bool = True, time_before_sequence: float = 0.5, time_between_keys: float = 0.12) -> bool`
   - Simulate keyboard input for application control.
 - `owl_read(self, file_source: Union[str, pathlib.Path, bytes, Iterable[Union[str, pathlib.Path]]], recursive: bool = False, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True, timeout: int = 5) -> Union[str, Dict[str, str]]`
-  - Read **local** files or directories; web URLs trigger an error.
+  - Read ONLY **local** files or directories.
 - `owl_save_namespace(self, file_path: str)`
   - Serialize current namespace state to disk.
 - `owl_scrape(self, urls: List[str], max_concurrent: int = 5, timeout: int = 10) -> Dict[str, str]`
@@ -1040,7 +1048,7 @@ This class is open for extension, as possibly more useful functions can be added
   - Search the web then scrape the resulting URLs.
 - `owl_show(self, docs: bool = True, return_str: bool = False) -> List[str]`
   - Display active namespace objects with documentation.
-- `owl_terminal(self, command: Union[str, List[str]], shell: bool, cwd: Union[str, pathlib.Path] = '.', capture_output: bool = True, timeout: Optional[int] = None, raise_on_error: bool = False, encoding: str = 'utf-8') -> Dict[str, Union[str, int]]`
+- `owl_terminal(self, command: Union[str, List[str]], shell: bool, cwd: Union[str, pathlib.Path] = '.', capture_output: bool = True, timeout: Optional[int] = None, raise_on_error: bool = True, encoding: str = 'utf-8') -> Dict[str, Union[str, int]]`
   - Cross-platform shell command runner.
 - `owl_tools(self, as_json: bool = True) -> List[Union[Callable, Dict]]`
   - Retrieve available tool-callable functions in OpenAI-compatible format.
@@ -1403,7 +1411,7 @@ TIP 2: Using above tag in combination with `sequence_on_loading` in the configur
 Note that both TextSplitter classes can be used as input for the `DocumentSearcher` class.
 - Added `main.default_config_on_startup` to the `config:main` section. This option can be used to specify a default configuration file to load when starting Owlsight.
 This will load the configuration file specified in `main.default_config_on_startup` when every time when starting Owlsight.
-- Added an experimental new section in `config`, called `config:agentic`. This section can be enabled through the "apply_tools" option.
+- Added an experimental new section in `config`, called `config:agentic`. This section can be enabled through the "active" option.
 The section consists of a multi-step agentic system, where the the agents are in fixed order: ToolAgent (can search the internet, scrape, etc) -> Pythonagent (specialized in generating Python code) -> JudgeAgent. 
 In the end, the final response is computed by a last agent. All agents are the currently loaded model with different roles.
 - Added --log and --level flags to the CLI. This can be used to specify a log file and log level, like so:
