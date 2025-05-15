@@ -1452,7 +1452,7 @@ Current flow is now: `PlanAgent` -> `PlanValidationAgent` -> `ToolCreationAgent`
 - Various minor bugfixes, features and stability improvements.
 
 **2.6.1**
-- Some critical bugfixes, like:
+- Some critical (regression-related) bugfixes, like:
   * fixed error where GGUF models could not be loaded through config:huggingface.
   * fixed error where generated pythoncode was not correctly parsed from modelresponse.
 

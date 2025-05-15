@@ -42,7 +42,7 @@
         "search": ""
     },
     "agentic": {
-        "apply_tools": false,
+        "active": false,
         "additional_information": "Always search for at least 7 results when using a search tool",
         "exclude_tools": [],
         "config_per_agent": {
