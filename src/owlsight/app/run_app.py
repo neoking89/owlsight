@@ -11,14 +11,17 @@ from owlsight.ui.file_dialogs import save_file_dialog, open_file_dialog
 from owlsight.ui.console import get_user_choice, get_user_input
 from owlsight.ui.custom_classes import AppDTO
 from owlsight.processors.text_generation_manager import TextGenerationManager
+from owlsight.rag.python_lib_search import PythonLibSearcher
+from owlsight.prompts.system_prompts import ExpertPrompts
 from owlsight.app.handlers import handle_interactive_code_execution
-from owlsight.utils.code_execution import CodeExecutor
+from owlsight.utils.code_execution import CodeExecutor, execute_code_with_feedback
 from owlsight.utils.helper_functions import (
     force_delete,
     remove_temp_directories,
     extract_square_bracket_tags,
     os_is_windows,
     parse_python_placeholders,
+    parse_media_tags,
 )
 from owlsight.utils.venv_manager import get_lib_path, get_pip_path, get_pyenv_path, get_temp_dir
 from owlsight.utils.constants import (
@@ -59,8 +62,40 @@ def process_user_request(
         agent_orchestrator = AgentOrchestrator(code_executor, manager)
         return agent_orchestrator.process_user_request(user_choice)
     else:
-        return manager.generate(user_choice)
+        response = process_regular_response(user_choice, code_executor, manager)
+        return response
 
+def process_regular_response(user_choice: str, code_executor: CodeExecutor, manager: TextGenerationManager) -> str:
+    """Process the user's choice and generate a response without using agents."""
+    _handle_dynamic_system_prompt(user_choice, manager)
+    # Parse media tags in the user choice, if present.
+    user_question, media_objects = parse_media_tags(user_choice, code_executor.globals_dict)
+    rag_is_active = manager.get_config_key("rag.active", False)
+    library_to_rag = manager.get_config_key("rag.target_library", "")
+    if rag_is_active and library_to_rag:
+        logger.info(f"RAG search enabled. Adding context of python library '{library_to_rag}' to the question.")
+        ctx_to_add = f"""
+# CONTEXT:
+The following context is documentation from the python library {library_to_rag}.
+Use this information to help generate a code snippet that answers the question.
+"""
+        searcher = PythonLibSearcher()
+        context = searcher.search(
+            library_to_rag, user_question, manager.get_config_key("top_k", 3), cache_dir=get_pickle_cache()
+        )
+        ctx_to_add += context
+        user_question = f"{user_question}\n\n{ctx_to_add}".strip()
+        logger.info(f"Context added to the question with approximate amount of {len(context.split())} words")
+
+    response = manager.generate(user_question, media_objects=media_objects)
+    execute_code_with_feedback(
+        response=response,
+        original_question=user_question,
+        code_executor=code_executor,
+        prompt_code_execution=manager.config_manager.get("main.prompt_code_execution", True),
+        prompt_retry_on_error=manager.config_manager.get("main.prompt_retry_on_error", False),
+    )
+    return response
 
 def handle_assistant_prompt(user_choice: str, manager: TextGenerationManager, code_executor: CodeExecutor) -> None:
     user_choice_list = extract_square_bracket_tags(user_choice, tag=["load", "chain"], key="params")
@@ -298,3 +333,16 @@ def _extract_params_chain_tag(param: str) -> Tuple[str, str]:
     key = key.strip()
     value = value.strip()
     return key, value
+
+def _handle_dynamic_system_prompt(user_question: str, manager: TextGenerationManager) -> None:
+    dynamic_system_prompt = manager.get_config_key("main.dynamic_system_prompt", False)
+    if dynamic_system_prompt:
+        prompt_engineer_prompt = ExpertPrompts.prompt_engineering
+        manager.update_config("model.system_prompt", prompt_engineer_prompt)
+        logger.info(
+            "Dynamic system prompt is active. Model will act as Prompt Engineer to create a new system prompt based on user input."
+        )
+        new_system_prompt = manager.generate(user_question)
+        # TODO: handle some kind of parsing of response here?
+        manager.update_config("model.system_prompt", new_system_prompt)
+        manager.update_config("main.dynamic_system_prompt", False)
