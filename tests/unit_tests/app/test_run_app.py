@@ -1,11 +1,12 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 from owlsight.app.run_app import _extract_params_chain_tag, CommandResult
 from owlsight.app.run_app import process_user_request
 from owlsight.processors.text_generation_manager import TextGenerationManager
 from owlsight.utils.code_execution import CodeExecutor
 from owlsight.agentic.core import AgentOrchestrator
+from owlsight.configurations.config_manager import ConfigManager
 
 @pytest.fixture(autouse=True)
 def mock_logger():
@@ -100,19 +101,47 @@ def test_command_result_enum():
 
 def test_process_user_request_without_agentic(mock_logger):
     """Test process_user_request when agentic.active is False."""
+    # Create a properly typed mock for TextGenerationManager
     mock_manager = MagicMock(spec=TextGenerationManager)
-    mock_manager.get_config_key.return_value = False
+    
+    # Use side_effect to control return values based on input parameters
+    def get_config_key_side_effect(key, default=None):
+        # Return appropriate values for each key
+        if key == 'agentic.active':
+            return False
+        elif key == 'main.dynamic_system_prompt':
+            return False
+        elif key == 'rag.active':
+            return False
+        elif key == 'rag.target_library':
+            return ""
+        else:
+            return default
+            
+    mock_manager.get_config_key.side_effect = get_config_key_side_effect
     mock_manager.generate.return_value = "Direct Generate Response"
+    
+    # Set up the remaining mocks
     mock_executor = MagicMock(spec=CodeExecutor)
+    mock_config_manager = MagicMock(spec=ConfigManager)
+    mock_manager.config_manager = mock_config_manager
+    mock_executor.globals_dict = {}
+    
     user_input = "Tell me a joke"
     with patch("owlsight.app.run_app.AgentOrchestrator") as mock_agent_orchestrator_class:
         result = process_user_request(user_input, mock_executor, mock_manager)
-    mock_manager.get_config_key.assert_called_once_with("agentic.active", False)
-    mock_manager.generate.assert_called_once_with(user_input)
+    
+    # Verify individual calls instead of comparing entire lists
+    assert mock_manager.get_config_key.call_args_list[0] == call("agentic.active", False)
+    assert mock_manager.get_config_key.call_args_list[1] == call("main.dynamic_system_prompt", False)
+    assert mock_manager.get_config_key.call_args_list[2] == call("rag.active", False)
+    assert mock_manager.get_config_key.call_args_list[3] == call("rag.target_library", "")
+    assert mock_manager.get_config_key.call_count == 4
+    
+    mock_manager.generate.assert_called_once_with(user_input, media_objects={})
     mock_agent_orchestrator_class.assert_not_called()
     assert result == "Direct Generate Response"
     mock_logger.error.assert_not_called()
-
 
 def test_process_user_request_with_agentic(mock_logger):
     """Test process_user_request when agentic.active is True."""
