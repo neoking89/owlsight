@@ -1451,5 +1451,9 @@ Current flow is now: `PlanAgent` -> `PlanValidationAgent` -> `ToolCreationAgent`
 - Added `config_per_agent` option to the `config:agentic` section. This option can be used to specify a different configuration file for each agent.
 - Various minor bugfixes, features and stability improvements.
 
+**2.6.1**
+- Some critical bugfixes, like:
+  * fixed error where GGUF models could not be loaded through config:huggingface.
+  * fixed error where generated pythoncode was not correctly parsed from modelresponse.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
