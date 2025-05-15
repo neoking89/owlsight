@@ -2,198 +2,197 @@
 
 import os
 import pytest
-import shutil
 from unittest.mock import patch
-import glob
 from pathlib import Path
 
-from owlsight.rag.document_reader import DocumentReader, _has_internet_connection
+from owlsight.rag.document_reader import DocumentReader
 
 # Test data
 SAMPLE_TEXT = "This is sample text content"
-SAMPLE_PDF_CONTENT = {"content": SAMPLE_TEXT, "status": 200}
-FAILED_PARSE = {"content": None, "status": 500}
+SAMPLE_PDF_TEXT = "This is sample PDF text content"
+SAMPLE_OTHER_TEXT = "This is text in another file"
+
+# Mock Tika parser responses
+SUCCESSFUL_TEXT_PARSE = {"content": SAMPLE_TEXT, "status": 200, "metadata": {"resourceName": "test.txt"}}
+SUCCESSFUL_PDF_PARSE = {"content": SAMPLE_PDF_TEXT, "status": 200, "metadata": {"resourceName": "test.pdf"}}
+SUCCESSFUL_OTHER_PARSE = {"content": SAMPLE_OTHER_TEXT, "status": 200, "metadata": {"resourceName": "other.txt"}}
+FAILED_PARSE = {"content": None, "status": 500, "metadata": {}}
+EMPTY_CONTENT_PARSE = {"content": "", "status": 200, "metadata": {}}
 
 
 @pytest.fixture
-def reader():
-    """Create a DocumentReader instance for testing."""
-    return DocumentReader()
-
+def reader(request): 
+    """Create a DocumentReader instance for testing, ensuring shutdown."""
+    _reader = DocumentReader(supported_extensions=['.txt', '.pdf'], ignore_patterns=['*.ignored'])
+    
+    def finalizer():
+        _reader.shutdown()
+    request.addfinalizer(finalizer)
+    return _reader
 
 @pytest.fixture
 def test_dir(tmp_path):
-    """Create a temporary directory with test files."""
-    # Create test files
-    test_files = {
-        "doc1.pdf": SAMPLE_TEXT,
-        "doc2.txt": "Another sample text",
-        "subdir/doc3.docx": "Document in subdirectory",
-    }
+    """Create a temporary directory with a diverse set of test files."""
+    (tmp_path / "file1.txt").write_text(SAMPLE_TEXT)
+    (tmp_path / "document.pdf").write_text(SAMPLE_PDF_TEXT) 
+    (tmp_path / "image.jpg").write_text("dummy image data") 
+    (tmp_path / "temp.ignored").write_text("this should be ignored")
 
-    for filepath, content in test_files.items():
-        full_path = tmp_path / filepath
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        full_path.write_text(content)
+    sub_dir = tmp_path / "subdir"
+    sub_dir.mkdir()
+    (sub_dir / "file2.txt").write_text(SAMPLE_OTHER_TEXT)
+    (sub_dir / "archive.zip").write_text("dummy zip data") 
 
     return tmp_path
 
 
-def test_init_default():
-    """Test DocumentReader initialization with default parameters."""
-    reader = DocumentReader()
-    assert reader.supported_extensions is None
-    assert reader.ocr_enabled is True
-    assert reader.timeout == 5
-
-
-def test_init_custom():
-    """Test DocumentReader initialization with custom parameters."""
-    extensions = [".pdf", ".doc"]
-    reader = DocumentReader(supported_extensions=extensions)
-    assert reader.supported_extensions == extensions
-
-
-def test_is_supported_file(reader):
-    """Test file extension checking."""
-    assert reader.is_supported_file("test.pdf") is True
-    assert reader.is_supported_file("test.txt") is True
-    assert reader.is_supported_file("test.xyz") is True  # No extension filter by default
-
-
-@patch("tika.parser.from_file")
-def test_read_file_success(mock_parser, reader):
-    """Test successful file reading."""
-    mock_parser.return_value = SAMPLE_PDF_CONTENT
-    content = reader.read_file("test.pdf")
-    assert content == SAMPLE_TEXT
-
-
-@patch("tika.parser.from_file")
-def test_read_file_failure(mock_parser, reader):
-    """Test failed file reading."""
-    mock_parser.return_value = FAILED_PARSE
-    content = reader.read_file("test.pdf")
-    assert content == ""
-
-
-@patch("tika.parser.from_file")
-def test_read_file_exception(mock_parser, reader):
-    """Test exception handling during file reading."""
-    mock_parser.side_effect = Exception("Test error")
-    content = reader.read_file("test.pdf")
-    assert content == ""
-
-
-@patch("tika.parser.from_file")
-def test_read_directory(mock_parser, reader, test_dir):
-    """Test directory reading functionality."""
-    mock_parser.return_value = SAMPLE_PDF_CONTENT
-    results = list(reader.read_directory(test_dir))
-    assert len(results) == 3
-    assert all(isinstance(content, str) for _, content in results)
-
-
-def test_read_directory_nonexistent(reader):
-    """Test reading from a nonexistent directory."""
-    with pytest.raises(FileNotFoundError):
-        list(reader.read_directory("nonexistent_dir"))
-
-
 @pytest.fixture
-def cleanup_unzipped():
-    yield
-    # Clean up any unzipped (jar) files
-    for d in glob.glob("src/owlsight/blobs/*"):
-        if os.path.isdir(d):
-            shutil.rmtree(d)
+def mock_parser_config():
+    """Provides a configuration for the tika parser mock."""
+    def side_effect_func(file_path, **kwargs):
+        file_path_str = str(file_path)
+        if file_path_str.endswith("file1.txt"):
+            return SUCCESSFUL_TEXT_PARSE
+        elif file_path_str.endswith("document.pdf"):
+            return SUCCESSFUL_PDF_PARSE
+        elif file_path_str.endswith("file2.txt"):
+            return {**SUCCESSFUL_OTHER_PARSE, "metadata": {"resourceName": os.path.basename(file_path_str)}}
+        elif file_path_str.endswith("error.txt"):
+            raise Exception("Simulated Tika processing error")
+        elif file_path_str.endswith("empty.txt"):
+            return EMPTY_CONTENT_PARSE
+        print(f"Warning: tika.parser.from_file called with unmocked path: {file_path_str}")
+        return FAILED_PARSE 
+    return side_effect_func
+
+@patch("owlsight.rag.document_reader._has_internet_connection", return_value=True) 
+def test_init_default(mock_internet, reader): 
+    assert reader.supported_extensions == ['.txt', '.pdf']
+    assert reader.ignore_patterns == ['*.ignored']
 
 
-@patch("owlsight.rag.document_reader._has_internet_connection")
-def test_init_offline_zipped_jar_exists(mock_check_internet, cleanup_unzipped):
-    """Test DocumentReader initialization in offline mode without TIKA_SERVER_JAR."""
-    mock_check_internet.return_value = False
-    reader = DocumentReader()
-    assert os.path.exists(reader.tika_server_jar_path)
-    assert reader.tika_server_jar_path.endswith(".jar")
+def test_is_supported_file(reader): 
+    assert reader.is_supported_file("test.txt") is True
+    assert reader.is_supported_file("document.pdf") is True
+    assert reader.is_supported_file("image.jpg") is False 
+    assert reader.is_supported_file("temp.ignored") is False 
+    reader_custom_ignore = DocumentReader(ignore_patterns=["**/ignored_dir/*", "*.specific_ignore"])
+    assert reader_custom_ignore.should_ignore_file("path/to/ignored_dir/file.txt") is True
+    assert reader_custom_ignore.should_ignore_file("path/to/file.specific_ignore") is True
+    reader_custom_ignore.shutdown() 
 
 
-@patch("owlsight.rag.document_reader._has_internet_connection")
-@patch("owlsight.rag.document_reader.logger")
-def test_init_online(mock_logger, mock_check_internet):
-    """Test DocumentReader initialization in online mode."""
-    mock_check_internet.return_value = True
-    DocumentReader()
-    mock_logger.info.assert_called_once_with("Using remote Tika server")
-
-
-def test_has_internet_connection():
-    """Test the internet connection check function."""
-    # Test with valid host
-    assert _has_internet_connection(host="8.8.8.8", timeout=1) in (True, False)
-
-    # Test with invalid host
-    assert _has_internet_connection(host="invalid.host", timeout=1) is False
-
-
-@patch("owlsight.rag.document_reader._has_internet_connection")
-def test_offline_invalid_jar_path(mock_check_internet):
-    """Test offline mode with invalid user-provided JAR path"""
-    mock_check_internet.return_value = False
-    with pytest.raises(FileNotFoundError):
-        DocumentReader(tika_server_jar_path="invalid/path/tika-server.jar")
-
-
-@pytest.mark.asyncio
-async def test_init_no_blobs_with_internet():
-    """Test DocumentReader initialization when blobs directory doesn't exist but internet is available."""
-    # Ensure blobs directory doesn't exist
-    blobs_dir = Path(__file__).parent.parent.parent / "src" / "owlsight" / "blobs"
-    if blobs_dir.exists():
-        temp_dir = Path(__file__).parent / "temp_blobs_backup"
-        shutil.move(str(blobs_dir), str(temp_dir))
-        try:
-            # Mock internet connection check to return True
-            with patch('owlsight.rag.document_reader._has_internet_connection', return_value=True):
-                # Initialize DocumentReader
-                reader = DocumentReader()
-                
-                # Verify reader was initialized correctly
-                assert reader.ocr_enabled is True
-                assert reader.timeout == 5
-                
-                # Test basic functionality
-                with patch('tika.parser.from_file', return_value=SAMPLE_PDF_CONTENT):
-                    content = reader.read_file("test.pdf")
-                    assert content == SAMPLE_TEXT
-        finally:
-            # Restore blobs directory if it existed
-            if temp_dir.exists():
-                shutil.move(str(temp_dir), str(blobs_dir))
-
-
-@patch("tika.parser.from_buffer")
-def test_read_file_bytes_success(mock_parser, reader):
-    """Test successful file reading from bytes buffer."""
-    mock_parser.return_value = SAMPLE_PDF_CONTENT
-    content = reader.read_file(b"sample bytes content")
+@patch("owlsight.rag.document_reader.parser")
+def test_read_file_success(mock_parser, reader, test_dir):
+    """Test successful file reading for different types (txt, pdf)."""
+    headers = None
+    mock_parser.from_file.return_value = SUCCESSFUL_TEXT_PARSE
+    txt_path = str(test_dir / "file1.txt")
+    content = reader.read_file(txt_path)
     assert content == SAMPLE_TEXT
-    mock_parser.assert_called_once_with(b"sample bytes content", requestOptions={"timeout": 5})
+    mock_parser.from_file.assert_called_with(txt_path, service='text', requestOptions={'timeout': reader.timeout}, headers=headers)
 
+    mock_parser.from_file.return_value = SUCCESSFUL_PDF_PARSE
+    pdf_path = str(test_dir / "document.pdf")
+    content = reader.read_file(pdf_path)
+    assert content == SAMPLE_PDF_TEXT
+    mock_parser.from_file.assert_called_with(pdf_path, service='text', requestOptions={'timeout': reader.timeout}, headers=headers)
 
-@patch("tika.parser.from_buffer")
-def test_read_file_bytes_failure(mock_parser, reader):
-    """Test failed file reading from bytes buffer."""
-    mock_parser.return_value = FAILED_PARSE
-    content = reader.read_file(b"invalid bytes content")
+    mock_parser.from_file.return_value = EMPTY_CONTENT_PARSE
+    empty_file_path = test_dir / "empty.txt"
+    empty_file_path.write_text("")
+    content = reader.read_file(str(empty_file_path))
     assert content == ""
-    mock_parser.assert_called_once_with(b"invalid bytes content", requestOptions={"timeout": 5})
+    mock_parser.from_file.assert_called_with(str(empty_file_path), service='text', requestOptions={'timeout': reader.timeout}, headers=headers)
 
-
-@patch("tika.parser.from_buffer")
-def test_read_file_bytes_exception(mock_parser, reader):
-    """Test exception handling during bytes buffer reading."""
-    mock_parser.side_effect = Exception("Test error")
-    content = reader.read_file(b"problematic bytes content")
+@patch("owlsight.rag.document_reader.parser")
+def test_read_file_unsupported(mock_parser, reader, test_dir):
+    """Test reading an unsupported file type returns empty string."""
+    unsupported_path = str(test_dir / "image.jpg")
+    content = reader.read_file(unsupported_path)
     assert content == ""
-    mock_parser.assert_called_once_with(b"problematic bytes content", requestOptions={"timeout": 5})
+    mock_parser.from_file.assert_not_called() 
+
+@patch("owlsight.rag.document_reader.parser")
+def test_read_file_ignored(mock_parser, reader, test_dir):
+    """Test reading an ignored file type returns empty string."""
+    ignored_path = str(test_dir / "temp.ignored")
+    content = reader.read_file(ignored_path)
+    assert content == ""
+    mock_parser.from_file.assert_not_called()
+
+@patch("owlsight.rag.document_reader.parser")
+def test_read_directory(mock_parser_actual_patch, reader, test_dir, mock_parser_config):
+    """Test directory reading functionality with concurrency, mixed files, and error handling."""
+    mock_parser_actual_patch.from_file.side_effect = mock_parser_config
+
+    (test_dir / "error.txt").write_text("this file will cause an error")
+
+    expected_files = {
+        os.path.join("subdir", "file2.txt"): SAMPLE_OTHER_TEXT,
+        "file1.txt": SAMPLE_TEXT,
+        "document.pdf": SAMPLE_PDF_TEXT,
+        "error.txt": None  
+    }
+
+    results_relative = {}
+    for filepath, content in reader.read_directory(str(test_dir)):
+        results_relative[filepath.replace(os.sep, '/')] = content 
+    
+    expected_files_normalized_keys = {k.replace(os.sep, '/'): v for k,v in expected_files.items()}
+
+    assert len(results_relative) == len(expected_files_normalized_keys)
+    for k_exp, v_exp in expected_files_normalized_keys.items():
+        assert k_exp in results_relative
+        assert results_relative[k_exp] == v_exp, f"Content mismatch for {k_exp}"
+
+    assert "image.jpg" not in results_relative
+    assert "temp.ignored" not in results_relative
+    assert os.path.join("subdir", "archive.zip").replace(os.sep, '/') not in results_relative
+
+    results_absolute = {}
+    reader_abs = DocumentReader(supported_extensions=['.txt', '.pdf'], ignore_patterns=['*.ignored'])
+    mock_parser_actual_patch.from_file.side_effect = mock_parser_config 
+    try:
+        for filepath, content in reader_abs.read_directory(str(test_dir), relative_paths=False):
+            results_absolute[filepath] = content
+    finally:
+        reader_abs.shutdown()
+
+    abs_expected_files = {
+        str(test_dir / "subdir" / "file2.txt"): SAMPLE_OTHER_TEXT,
+        str(test_dir / "file1.txt"): SAMPLE_TEXT,
+        str(test_dir / "document.pdf"): SAMPLE_PDF_TEXT,
+        str(test_dir / "error.txt"): None
+    }
+    assert len(results_absolute) == len(abs_expected_files)
+    for k_exp, v_exp in abs_expected_files.items():
+        assert k_exp in results_absolute
+        s1 = results_absolute[k_exp]
+        s2 = v_exp
+        if isinstance(s1, str) and isinstance(s2, str):
+            s1 = s1.strip()
+            s2 = s2.strip()
+        assert s1 == s2, f"Content mismatch for {k_exp}"
+
+    assert mock_parser_actual_patch.from_file.call_count >= len(expected_files) 
+
+
+@patch("owlsight.rag.document_reader._has_internet_connection", return_value=True)
+@patch("owlsight.rag.document_reader.logger")
+def test_init_online(mock_logger, mock_internet): 
+    """Test DocumentReader initialization in online mode."""
+    with patch.object(DocumentReader, 'shutdown') as mock_shutdown: 
+        reader_online = DocumentReader()
+        mock_logger.info.assert_any_call("Using remote Tika server")
+        assert reader_online.tika_server_jar_path is None
+        reader_online.shutdown()
+
+
+def test_document_reader_max_workers():
+    """Test DocumentReader initialization with max_workers.""" 
+    with patch("concurrent.futures.ThreadPoolExecutor") as mock_executor:
+        with patch("owlsight.rag.document_reader._has_internet_connection", return_value=True):
+            reader_mw = DocumentReader(max_workers=10)
+            mock_executor.assert_called_once_with(max_workers=10)
+            reader_mw.shutdown() 

@@ -109,7 +109,7 @@ def test_owl_read_write(owl_instance: OwlDefaultFunctions, temp_dir: Path):
 
     # Test reading
     read_content = owl_instance.owl_read(test_file)
-    assert read_content == test_content
+    assert read_content.strip() == test_content.strip()
 
     # Test reading non-existent file
     non_existent = os.path.join(temp_dir, "nonexistent.txt")

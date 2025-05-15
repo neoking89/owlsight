@@ -19,6 +19,7 @@ import platform
 from huggingface_hub import CachedRepoInfo
 
 from owlsight.utils.helper_functions import safe_lru_cache
+from owlsight.utils.logger import logger
 
 document_searcher_type = TypeVar("DocumentSearcher")
 document_reader_type = TypeVar("DocumentReader")
@@ -93,34 +94,71 @@ class OwlDefaultFunctions:
         file_source: Union[str, Path, bytes, Iterable[Union[str, Path]]],
         recursive: bool = False,
         ignore_patterns: Optional[List[str]] = None,
-        ocr_enabled: bool = True,
         timeout: int = 5,
-    ) -> Union[str, Dict[str, str]]:
+        tika_headers: Optional[Dict[str, str]] = None,
+    ) -> Union[str, Dict[str, Optional[str]]]:
         """
-        Read ONLY **local** files or directories.
+        Read content from local files or directories using advanced parsing (e.g., Tika).
+
+        This function is designed for **local** file system paths. For web URLs,
+        use `owl_scrape()`.
 
         Parameters
         ----------
-        file_source : str | Path | bytes | iterable
-            Single path, buffer, directory or list of paths.
+        file_source : str | Path | bytes | Iterable[Union[str, Path]]
+            A single file path, a file-like object (bytes), a directory path,
+            or an iterable of file paths.
         recursive : bool, default False
-            Scan sub-folders when *file_source* is a directory.
-        ignore_patterns : list of str, optional
-            Git-ignore style globs to skip.
-        ocr_enabled : bool, default True
-            Use OCR for image files.
+            If `file_source` is a directory, scan sub-folders recursively.
+        ignore_patterns : Optional[List[str]], default None
+            A list of gitignore-style glob patterns to exclude files.
+            These patterns apply to both file and directory names.
         timeout : int, default 5
-            Seconds to wait for advanced parsing.
+            Timeout in seconds for the advanced parsing process (Tika) for
+            each individual file.
+        tika_headers : Optional[Dict[str, str]], default None
+            Additional headers to send with Tika requests.
 
         Returns
         -------
-        str or dict
-            File content or ``{path: content}``.
+        Union[str, Dict[str, Optional[str]]]
+            - If `file_source` is a single file path or bytes:
+                - `str`: The extracted text content of the file.
+                - Returns an empty string (`""`) if the file is unsupported,
+                  ignored by `ignore_patterns`, or successfully parsed by Tika
+                  but contains no extractable text.
+                - If advanced parsing (Tika) fails for a supported file,
+                  a fallback to basic text reading is attempted. If this also
+                  fails, an error message might be returned or an exception raised.
+            - If `file_source` is a directory or an iterable of paths:
+                - `Dict[str, Optional[str]]`: A dictionary mapping each processed
+                  file path (str) to its extracted content (str or None).
+                - Content for a file will be `None` if advanced parsing (Tika)
+                  failed for that specific file and no fallback was successful.
+                - Content will be an empty string (`""`) for unsupported/ignored
+                  files or files with no extractable text after Tika processing.
 
-        Examples
-        --------
-        >>> owl_read("README.md")
-        >>> owl_read("docs", recursive=True)
+        Raises
+        ------
+        ValueError
+            If `file_source` or any path in an iterable `file_source` is detected
+            as a web URL.
+        RuntimeError
+            If critical errors occur during directory reading or fallback file reading.
+
+        Notes
+        -----
+        - The function first attempts to use advanced parsing (via Apache Tika)
+          to extract rich text content.
+        - If a file is explicitly unsupported by Tika (e.g., based on its extension
+          and not in `DocumentReader.SUPPORTED_EXTENSIONS`) or matches an
+          `ignore_patterns`, it's skipped, and an empty string (`""`) is returned/stored.
+        - If Tika encounters an internal error while processing a *supported* file,
+          `owl_read` logs a warning and attempts a basic fallback read (plain text).
+          If `file_source` is a single file, the result of this fallback is returned.
+          If `file_source` is a directory/iterable, `None` is stored for that file
+          in the results dictionary if Tika failed.
+        - The `timeout` applies to the Tika parsing stage.
         """
         if isinstance(file_source, (str, Path)) and is_url(file_source):
             raise ValueError(f"owl_read requires local files. Use owl_scrape() for URLs like '{file_source}'")
@@ -132,7 +170,7 @@ class OwlDefaultFunctions:
 
         try:
             reader = self._get_document_reader(
-                timeout=timeout, ignore_patterns=ignore_patterns, ocr_enabled=ocr_enabled
+                timeout=timeout, ignore_patterns=ignore_patterns, tika_headers=tika_headers
             )
 
             if isinstance(file_source, bytes):
@@ -150,6 +188,9 @@ class OwlDefaultFunctions:
                     results = {}
                     try:
                         for filepath, content in reader.read_directory(str(file_source), recursive=recursive):
+                            # content can be None if _read_file_task had an exception for that file
+                            # or "" if Tika processed it to empty, or skipped.
+                            # The dict will store None or "" correctly.
                             results[filepath] = content
                         return results
                     except Exception as e:
@@ -159,14 +200,26 @@ class OwlDefaultFunctions:
                     # Handle single file
                     try:
                         content = reader.read_file(str(file_source))
-                        if content:
+                        if content is not None: # Tika processed it (or skipped returning "")
                             return content
-                    except Exception:
-                        pass  # Silently fall back to basic file reading
+                        else: # content is None, meaning a Tika processing exception occurred
+                            # Decide how to handle Tika processing error for a single file.
+                            # Option 1: Return a specific error message, maintaining str return type for success/empty.
+                            # Option 2: Let it fall through to basic read, but log Tika's specific failure.
+                            # Option 3: Raise an error or return None (would change owl_read's type hint for single file).
+                            # For now, let's try to return an error message if Tika fails catastrophically for a single file.
+                            # If content is "" (empty string from Tika), it will be returned by 'if content is not None' (as "" is not None)
+                            # and the fallback won't be triggered unless Tika explicitly errored (returned None).
+                            logger.warning(f"Tika processing failed for {file_source}. Attempting basic read.") # Or return error string
+                            # If we want to indicate Tika error and not fallback:
+                            # return f"Error during advanced processing of {file_source}"
+                    except Exception as e: # Catch exceptions from reader.read_file() itself, though most are handled inside
+                        logger.warning(f"Exception calling DocumentReader.read_file for {file_source}: {e}. Attempting basic read.")
+                        pass # Silently fall back to basic file reading
 
-                    # Fallback to basic file reading
+                    # Fallback to basic file reading if Tika returned None (error) or if above try block had other issues
                     try:
-                        with open(file_source, "r", encoding="utf-8") as file:
+                        with open(file_source, encoding="utf-8") as file:
                             return file.read()
                     except FileNotFoundError:
                         return f"File not found: {file_source}"
@@ -175,24 +228,24 @@ class OwlDefaultFunctions:
             else:
                 # Handle iterable of files
                 results = {}
-                for file_path in file_source:
-                    file_path = Path(file_path)
+                for file_path_item in file_source: # Renamed to avoid conflict with outer scope 'file_path'
+                    file_path = Path(file_path_item)
                     try:
                         content = reader.read_file(str(file_path))
-                        if content:
+                        if content is not None: # Tika processed (or skipped returning ""), or errored returning None
                             results[str(file_path)] = content
-                            continue
-                    except Exception:
-                        pass  # Silently fall back to basic file reading
+                            # If content is "" (empty string from Tika) it's stored.
+                            # If content is None (Tika exception), it's stored as None.
+                        else: # content is None, Tika processing exception
+                            # Store a specific marker or None for this file
+                            results[str(file_path)] = None # Explicitly store None if Tika errored
+                            logger.warning(f"Tika processing failed for {file_path}. Marked as None.")
+                            # No fallback to basic read here, to ensure results dict accurately reflects Tika's outcome per file.
+                            # If fallback is desired per file, it needs more complex logic here.
 
-                    # Fallback to basic file reading
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as file:
-                            results[str(file_path)] = file.read()
-                    except FileNotFoundError:
-                        results[str(file_path)] = f"File not found: {file_path}"
-                    except Exception as e:
-                        raise RuntimeError(f"Error reading file {file_path}: {str(e)}")
+                    except Exception as e: # Catch exceptions from reader.read_file() itself
+                        logger.error(f"Error calling DocumentReader.read_file for {file_path}: {e}. Marking as error.")
+                        results[str(file_path)] = f"Error processing file: {e}" # Or None, or specific error marker
                 return results
 
         except FileNotFoundError as e:
@@ -994,7 +1047,7 @@ class OwlDefaultFunctions:
         subprocess.Popen([sys.executable, str(script_path), params_json])
 
     def _get_document_reader(
-        self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None, ocr_enabled: bool = True
+        self, timeout: int = 5, ignore_patterns: Optional[List[str]] = None, tika_headers: Optional[Dict[str, str]] = None,
     ) -> document_reader_type:
         """
         Lazy initialization of DocumentReader to prevent overhead.
@@ -1004,7 +1057,9 @@ class OwlDefaultFunctions:
 
         if self._document_reader is None:
             self._document_reader = DocumentReader(
-                ocr_enabled=ocr_enabled, timeout=timeout, ignore_patterns=ignore_patterns
+                timeout=timeout,
+                ignore_patterns=ignore_patterns,
+                tika_headers=tika_headers,
             )
         return self._document_reader
 
