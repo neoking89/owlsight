@@ -26,6 +26,10 @@ dependencies = [
     "pynput",
     "dill",
     "tika",
+    "mcp",
+    "python-dotenv",
+    "requests",
+    "uv",
 ]
 
 [project.optional-dependencies]
@@ -87,6 +91,10 @@ all = [
     "lxml",
     "aiohttp",
     "duckduckgo_search",
+    "mcp",
+    "python-dotenv",
+    "requests",
+    "uv",
     # Optional
     "llama-cpp-python",
     "onnxruntime-genai",
