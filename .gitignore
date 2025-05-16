@@ -4,6 +4,7 @@
 /venv
 /models
 /logs
+.env
 
 # Ignore all .pyc files
 *.pyc
