@@ -393,6 +393,9 @@ class TextGenerationManager:
         elif inner_key == "task":
             task = self.config_manager.get("huggingface.task", CONFIG_DEFAULTS["huggingface"]["task"])
             self.config_manager.set("huggingface.task", task)
+        elif inner_key == "timeout":
+            timeout = self.config_manager.get("huggingface.timeout", CONFIG_DEFAULTS["huggingface"]["timeout"])
+            self.config_manager.set("huggingface.timeout", timeout)
 
     def _perform_huggingface_search(self):
         """Perform Hugging Face model search with current configuration settings."""
