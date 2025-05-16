@@ -150,6 +150,7 @@ class ConfigManager:
             "top_k": self._get_toggle_choice("huggingface", "top_k"),
             "task": self._get_toggle_choice("huggingface", "task"),
             "select_model": self._get_toggle_choice("huggingface", "select_model"),
+            "timeout": self._get_toggle_choice("huggingface", "timeout"),
         }
 
     @property

@@ -302,6 +302,12 @@ class Schema:
                 default=None,
                 choices=HUGGINGFACE_TASKS,
             ),
+            "timeout": MenuItem(
+                type=OptionType.EDITABLE,
+                description="API request timeout in seconds for Hugging Face Hub interactions.",
+                default=30,
+                choices=list(range(1, 61)),
+            ),
         },
     }
 
