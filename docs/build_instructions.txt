@@ -1,5 +1,12 @@
 # STEPS FOR BUILDING AND RELEASING NEW VERSION
 
+## IN POWERSHELL (SHORTER):
+- Assuming you are on main-branch and you still need to create release/vX.X.X branch:
+1. run ./release.ps1 -> specify version when asked from script prompt. result -> created binaries in /dist with specified version.
+2. run ./upload.ps1 -> upload wheels in /dist folder to pypi. assumes pypi-token is in .env
+3. run ./merge-branch.ps1 -> merge release-branch with main
+
+## AS SEPERATE STEPS:
 0. git checkout -b release/vX.X.X
 1. Run all tests locally with: pytest -vvv and for linux with different py versions with: docker\run_tests.ps1
 2. Update the README.md in the working directory by running src/owlsight/docs/readme.py

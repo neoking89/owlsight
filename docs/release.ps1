@@ -92,4 +92,10 @@ if ($LASTEXITCODE -ne 0) { Fail "Failed to push branch." }
 git push origin $TagName
 if ($LASTEXITCODE -ne 0) { Fail "Failed to push tag." }
 
+# Step 6: Build distribution
+Write-Host "[INFO] Building package..."
+python -m build
+if ($LASTEXITCODE -ne 0) { Fail "Build failed." }
+
+
 Write-Host "`n✅ Release $Version completed successfully!" -ForegroundColor Green
