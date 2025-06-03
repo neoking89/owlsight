@@ -12,6 +12,13 @@ import torch
 from sklearn.feature_extraction.text import HashingVectorizer, TfidfVectorizer
 from tqdm import tqdm
 
+# Attempt to import CrossEncoder, handle if sentence_transformers is not installed
+try:
+    from sentence_transformers import CrossEncoder
+except ImportError:
+    CrossEncoder = None  # type: ignore
+    # A warning will be logged in __init__ if enable_reranker is True and CrossEncoder is None
+
 from owlsight.rag.constants import SENTENCETRANSFORMER_DEFAULT_MODEL
 from owlsight.rag.custom_classes import CacheMixin, SearchMethod, SearchResult
 from owlsight.rag.text_splitters import SentenceTextSplitter, TextSplitter
@@ -48,6 +55,9 @@ class DocumentSearcher:
         cache_dir_suffix: Optional[str] = None,
         device: Optional[str] = None,
         sentence_transformer_kwargs: Optional[Dict[str, Any]] = None,
+        enable_reranker: bool = False,
+        reranker_model_name: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+        reranker_top_k: int = 50,
     ) -> None:
         """
         Initialize the DocumentSearcher.
@@ -71,6 +81,12 @@ class DocumentSearcher:
             Device to use for Sentence Transformer model
         sentence_transformer_kwargs : Optional[Dict[str, Any]], default=None
             Additional keyword arguments to pass to the SentenceTransformer constructor
+        enable_reranker : bool, default=False
+            Whether to enable the reranking step after initial search.
+        reranker_model_name : str, default="jinaai/jina-reranker-v2-base-multilingual"
+            Name or path of the CrossEncoder model for reranking.
+        reranker_top_k : int, default=50
+            Number of top results from initial search to feed into the reranker.
 
         Notes
         -----
@@ -94,6 +110,7 @@ class DocumentSearcher:
         self.cache_dir = cache_dir
         self.cache_dir_suffix = cache_dir_suffix
         self.text_splitter = text_splitter
+        self.device = device or get_best_device() # Resolve and store device for this instance
 
         self._handle_cache_and_documents()
 
@@ -105,7 +122,7 @@ class DocumentSearcher:
             "pooling_strategy": "mean",
             "model_name": self.sentence_transformer_model,
             "batch_size": self.sentence_transformer_batch_size,
-            "device": device,
+            "device": device, # Pass original device param to EnsembleSearchEngine
         }
 
         # Only add sentence_transformer_kwargs if provided
@@ -120,6 +137,29 @@ class DocumentSearcher:
             cache_dir_suffix=self.cache_dir_suffix,
             init_arguments=engine_init_arguments,
         )
+
+        # Reranker setup
+        self.enable_reranker = enable_reranker
+        self.reranker_model_name = reranker_model_name
+        self.reranker_top_k = reranker_top_k if reranker_top_k > 0 else 50 # Ensure positive
+        self.reranker_model: Optional[CrossEncoder] = None
+
+        if self.enable_reranker:
+            if CrossEncoder is None:
+                logger.warning(
+                    "sentence_transformers library not found or CrossEncoder could not be imported. "
+                    "Reranking feature will be disabled for this instance."
+                )
+                self.enable_reranker = False  # Disable if dependency is missing
+            else:
+                try:
+                    logger.info(f"Initializing reranker model: {self.reranker_model_name} on device {self.device}")
+                    self.reranker_model = CrossEncoder(self.reranker_model_name, device=self.device, trust_remote_code=True)
+                except Exception as e:
+                    logger.error(f"Failed to load reranker model '{self.reranker_model_name}': {e}")
+                    logger.error(traceback.format_exc())
+                    self.reranker_model = None # Ensure model is None if loading failed
+                    # Note: self.enable_reranker remains True, but search will skip if self.reranker_model is None
 
     @classmethod
     def from_cache(cls, cache_dir: str, cache_dir_suffix: str, **init_kwargs) -> "DocumentSearcher":
@@ -189,17 +229,65 @@ class DocumentSearcher:
             SearchMethod.TFIDF: tfidf_weight,
             SearchMethod.SENTENCE_TRANSFORMER: sentence_transformer_weight,
         }
-        results = self.engine.search(query, top_k=top_k, method_weights=method_weights)
+        results_df = self.engine.search(query, top_k=top_k, method_weights=method_weights)
+
+        if self.enable_reranker and self.reranker_model and not results_df.empty:
+            logger.info(f"Reranking up to top {self.reranker_top_k} of {len(results_df)} results using {self.reranker_model_name}.")
+            
+            num_to_rerank = min(self.reranker_top_k, len(results_df))
+            if num_to_rerank > 0:
+                docs_to_rerank_df = results_df.head(num_to_rerank)
+                
+                try:
+                    query_doc_pairs = [(query, row["document"]) for _, row in docs_to_rerank_df.iterrows()]
+                    
+                    if query_doc_pairs:
+                        rerank_scores_raw = self.reranker_model.predict(query_doc_pairs, show_progress_bar=False)
+                        
+                        # Ensure rerank_scores is a 1D list or array of floats
+                        if isinstance(rerank_scores_raw, (np.ndarray, torch.Tensor)):
+                            rerank_scores = rerank_scores_raw.squeeze().tolist() if hasattr(rerank_scores_raw, 'squeeze') else list(rerank_scores_raw)
+                        elif isinstance(rerank_scores_raw, list):
+                            rerank_scores = rerank_scores_raw
+                        else:
+                            logger.error(f"Unexpected type from reranker: {type(rerank_scores_raw)}. Skipping rerank score update.")
+                            rerank_scores = None
+
+                        if rerank_scores is not None and len(rerank_scores) == len(docs_to_rerank_df):
+                            # Update 'aggregated_score' for the reranked documents
+                            # Create a mapping for efficient update
+                            doc_name_to_new_score = {
+                                doc_name: score 
+                                for doc_name, score in zip(docs_to_rerank_df["document_name"], rerank_scores)
+                            }
+
+                            for index, row in results_df.iterrows():
+                                if row["document_name"] in doc_name_to_new_score:
+                                    results_df.loc[index, "aggregated_score"] = doc_name_to_new_score[row["document_name"]]
+                            
+                            # Add a column to indicate reranking (optional, good for debugging)
+                            # results_df["score_source"] = results_df["document_name"].apply(
+                            #    lambda x: "reranker" if x in doc_name_to_new_score else "ensemble"
+                            # )
+
+                            results_df = results_df.sort_values(by="aggregated_score", ascending=False)
+                        elif rerank_scores is not None:
+                            logger.warning(f"Mismatch in reranked scores ({len(rerank_scores)}) and documents to rerank ({len(docs_to_rerank_df)}). Skipping score update.")
+
+                except Exception as e:
+                    logger.error(f"Error during reranking process: {e}")
+                    logger.error(traceback.format_exc())
+                    # Fallback: results_df remains the original from ensemble search, sorted by original scores.
 
         if as_context:
             context_parts = []
-            for _, row in results.iterrows():
+            for _, row in results_df.iterrows():
                 header = f"{row['document_name']}"
                 entry = ["=" * 80, header, "-" * 40, "Content:", row["document"].strip()]
                 context_parts.append("\n".join(entry))
             return "".join(context_parts)
 
-        return results
+        return results_df
 
     def _create_unique_cache_dir_suffix(self) -> str:
         """Create unique cache names based on instance configuration"""
