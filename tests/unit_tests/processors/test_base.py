@@ -1,8 +1,5 @@
 """
 Unit-tests for the OpenAI-compatible generate_openai_comp wrapper.
-The wrapper now returns an OpenAI-style response dictionary (or an SSE
-generator when stream=True) instead of the raw text string that was used
-previously.  The tests have been adjusted accordingly.
 """
 
 from typing import Any, Dict, List, Optional
