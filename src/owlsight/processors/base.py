@@ -114,6 +114,44 @@ class TextGenerationProcessor(ABC):
             messages.insert(0, {"role": "system", "content": self.system_prompt})
         return messages
 
+    def generate_openai_comp(self, messages: list[dict[str, str]], **generate_kwargs: Any) -> str:
+        """
+        Generate text based on input data using OpenAI compatible API.
+
+        Returns
+        -------
+        str
+            The generated text.
+
+        NOTE: This method is not thread-safe and should not be called concurrently.
+        """
+        if not messages:
+            return ""
+
+        original_system_prompt = self.system_prompt
+        original_chat_history = list(self.chat_history)
+
+        current_call_messages_internal = list(messages)
+
+        if current_call_messages_internal[0]["role"] == "system":
+            self.system_prompt = current_call_messages_internal.pop(0)["content"]
+
+        if not current_call_messages_internal:
+            self.system_prompt = original_system_prompt
+            return ""
+
+        last_message = current_call_messages_internal[-1]
+        input_data_for_generate = last_message["content"]
+        self.chat_history = current_call_messages_internal[:-1]
+
+        try:
+            response = self.generate(input_data_for_generate, **generate_kwargs)
+        finally:
+            self.system_prompt = original_system_prompt
+            self.chat_history = original_chat_history
+        
+        return response
+
     @abstractmethod
     def generate(
         self,
