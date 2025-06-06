@@ -296,14 +296,30 @@ if __name__ == "__main__":
     logging.info("Default generation parameters: %s", {k: v for k, v in default_params.items() if k != "model"})
 
     print("Starting FastAPI server with auto-reload enabled:")
-    print("  • Swagger UI: http://localhost:8000/docs")
-    print("  • Endpoint: POST http://localhost:8000/v1/chat/completions")
+    print(f"  • Swagger UI: http://localhost:{args.port}/docs")
+    print(f"  • Endpoint: POST http://localhost:{args.port}/v1/chat/completions")
 
-    # Use the app object directly instead of an import string when running the script directly
+    # Example request:
+    # {
+    # "messages": [
+    #     {
+    #     "role": "system",
+    #     "content": "You are a helpful AI assistant that provides thoughtful, philosophical answers in a warm and friendly manner."
+    #     },
+    #     {
+    #     "role": "user",
+    #     "content": "what is the meaning of life?"
+    #     }
+    # ],
+    # "stream": false,
+    # "max_new_tokens": 512,
+    # "model": "unsloth/Llama-3.2-3B-Instruct-GGUF",
+    # "gguf__filename": "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+    # }
+
     uvicorn.run(
         app,
         host=args.host,
         port=args.port,
         log_level=args.log_level,
-        reload=True,
     )
