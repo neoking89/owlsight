@@ -1,3 +1,4 @@
+
 import time
 import uuid
 import threading
@@ -13,6 +14,7 @@ from owlsight.processors.constants import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATUR
 
 class TextGenerationProcessor(ABC):
     """Abstract base class for text generation processors implementing basic generation."""
+
     def __init__(
         self,
         model_id: str,
@@ -49,7 +51,7 @@ class TextGenerationProcessor(ABC):
         self.model_kwargs = model_kwargs or {}
         self.apply_tools = apply_tools
 
-        # Ensures minimal thread-safety for history / prompt swaps
+        # Ensures minimal thread‑safety for history / prompt swaps
         self._lock = threading.Lock()
 
     def apply_chat_template(
@@ -79,7 +81,7 @@ class TextGenerationProcessor(ABC):
             return tokenizer.apply_chat_template(
                 messages,
                 tokenize=False,
-                add_generation_prompt=bool(self.apply_tools)
+                add_generation_prompt=bool(self.apply_tools),
             )
 
         logger.warning("Chat template not found in tokenizer. Using input text as is.")
@@ -128,7 +130,7 @@ class TextGenerationProcessor(ABC):
         if not messages:
             raise ValueError("`messages` cannot be empty.")
 
-        # --------------------  OpenAI parameter extraction  -------------------- #
+        # --------------------  parameter extraction  -------------------- #
         stream: bool = bool(openai_kwargs.pop("stream", False))
         # max_new_tokens is the OpenAI parameter, max_tokens is the HuggingFace parameter
         if "max_new_tokens" in openai_kwargs:
@@ -136,16 +138,10 @@ class TextGenerationProcessor(ABC):
         elif "max_tokens" in openai_kwargs:
             max_new_tokens: int = int(openai_kwargs.pop("max_tokens"))
         else:
-            max_new_tokens: int = DEFAULT_MAX_TOKENS
+            max_new_tokens = DEFAULT_MAX_TOKENS
+
         temperature: float = float(openai_kwargs.pop("temperature", DEFAULT_TEMPERATURE))
 
-        stop_param = openai_kwargs.pop("stop", None)
-        if isinstance(stop_param, str):
-            stopwords = [stop_param]
-        else:
-            stopwords = stop_param
-
-        # Forward-able generation kwargs (top_p, top_k, …)
         generation_kwargs: Dict[str, Any] = {}
         for key in ("top_p", "top_k"):
             if key in openai_kwargs:
@@ -154,7 +150,7 @@ class TextGenerationProcessor(ABC):
         # Anything *else* the caller supplied is also forwarded unchanged
         generation_kwargs.update(openai_kwargs)
 
-        # --------------------  Prepare inputs & history  -------------------- #
+        # --------------------  prepare inputs & history  ---------------- #
         with self._lock:
             original_system_prompt = self.system_prompt
             original_chat_history = list(self.chat_history)
@@ -172,14 +168,11 @@ class TextGenerationProcessor(ABC):
                 self.chat_history = original_chat_history
                 raise ValueError("No user message found to generate from.")
 
-            last_msg = msgs[-1]
-            user_input = last_msg["content"]
-            # Everything *before* the last message becomes the temp history
+            user_input = msgs[-1]["content"]
             self.chat_history = msgs[:-1]
 
-        # --------------------  Response helpers  -------------------- #
+        # --------------------  helpers  --------------------------------- #
         def _build_final_response(completion: str) -> Dict[str, Any]:
-            """Return the full ChatCompletion JSON (non-stream)."""
             now = int(time.time())
             resp_id = f"chatcmpl-{uuid.uuid4().hex}"
 
@@ -217,59 +210,28 @@ class TextGenerationProcessor(ABC):
             self.system_prompt = original_system_prompt
             self.chat_history = original_chat_history
 
+        # --------------------  streaming / non‑streaming  --------------- #
         if stream:
-            # ----------  Streaming variant  ----------
-            def _sse_generator() -> Generator[Dict[str, Any], None, None]:
-                resp_id = f"chatcmpl-{uuid.uuid4().hex}"
-                created = int(time.time())
-
+            def _safe_stream(gen: Generator[str, None, None]) -> Generator[str, None, None]:
                 try:
-                    for token in self.generate_stream(
-                        user_input,
-                        max_new_tokens=max_new_tokens,
-                        temperature=temperature,
-                        generation_kwargs=generation_kwargs,
-                    ):
-                        yield {
-                            "id": resp_id,
-                            "object": "chat.completion.chunk",
-                            "created": created,
-                            "model": self.model_id,
-                            "choices": [
-                                {
-                                    "index": 0,
-                                    "delta": {"content": token},
-                                    "finish_reason": None,
-                                }
-                            ],
-                        }
-                    # Final, zero-content chunk (OpenAI convention)
-                    yield {
-                        "id": resp_id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": self.model_id,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {},
-                                "finish_reason": "stop",
-                            }
-                        ],
-                    }
+                    for tok in gen:
+                        yield tok
                 finally:
-                    # Very important: restore even if client disconnects
                     _restore_state()
 
-            return _sse_generator()
+            raw_gen = self.generate_stream(
+                user_input,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                generation_kwargs=generation_kwargs,
+            )
+            return _safe_stream(raw_gen)
 
-        # ----------  Non-streaming variant  ----------
         try:
             completion_text = self.generate(
                 user_input,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
-                stopwords=stopwords,
                 generation_kwargs=generation_kwargs,
             )
             return _build_final_response(completion_text)
@@ -296,11 +258,10 @@ class TextGenerationProcessor(ABC):
         **kwargs: Any,
     ) -> Generator[str, None, None]:
         warnings.warn(
-            f"{self.__class__.__name__} does not have a dedicated 'generate_stream' implementation. "
-            f"Falling back to non-streaming 'generate' method. True streaming is not available.",
-            UserWarning
+            f"{self.__class__.__name__} does not have a dedicated 'generate_stream' implementation. " 
+            f"Falling back to non‑streaming 'generate'.",
+            UserWarning,
         )
-        # Call the subclass's implemented 'generate' method
         result = self.generate(
             input_data=input_data,
             max_new_tokens=max_new_tokens,
