@@ -1,30 +1,127 @@
+#!/usr/bin/env python3
+"""
+openai_compatible.py
+--------------------
+
+Run **any** OwlSight text‑generation processor behind a FastAPI server that
+behaves like the real OpenAI **Chat Completions** API – including streaming –
+so that tools such as **Aider**, **LiteLLM**, LangChain, etc. can talk to your
+_local_ model without changes.
+
+Usage (GGUF example):
+
+    python openai_compatible.py \
+        --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF \
+        --gguf__filename DeepSeek-R1-0528-Qwen3-8B-Q4_PK_M.gguf \
+        --port 8000
+
+The server will be reachable at:
+
+    http://localhost:8000/v1/chat/completions
+"""
+
+# --------------------------------------------------------------------------- #
+#  Imports                                                                    #
+# --------------------------------------------------------------------------- #
 import argparse
 import json
 import logging
+import time
+import uuid
 from typing import Any, Dict, List, Optional, Type
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
 from owlsight import select_processor_type
 from owlsight.processors.text_generation_processors import TextGenerationProcessor
 
-# Configure basic logging
+# --------------------------------------------------------------------------- #
+#  Logging                                                                    #
+# --------------------------------------------------------------------------- #
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 
+# --------------------------------------------------------------------------- #
+#  FastAPI app                                                                #
+# --------------------------------------------------------------------------- #
 app = FastAPI(title="Chat Completion API", version="1.0.0")
 
-# Globals (to be populated from CLI)
-DEFAULT_MODEL_ID = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-default_params: Dict[str, Any] = {}
-processor: Optional[TextGenerationProcessor] = None
+# --------------------------------------------------------------------------- #
+#  Globals                                                                    #
+# --------------------------------------------------------------------------- #
+SERVER_MODEL_ID: Optional[str] = None         # Filled from --model CLI arg
+default_params: Dict[str, Any] = {}           # CLI‑specified generation defaults
+processor: Optional[TextGenerationProcessor] = None  # Initialised at startup
+
+# --------------------------------------------------------------------------- #
+#  OpenAI‑compatibility helpers                                               #
+# --------------------------------------------------------------------------- #
+def _wrap_openai_chunk(
+    content: str = "",
+    *,
+    model: str,
+    index: int = 0,
+    finish: bool = False,
+) -> Dict[str, Any]:
+    """Return **one** SSE chunk in strict OpenAI format."""
+    return {
+        "id": f"chatcmpl-{uuid.uuid4()}",
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "delta": {"content": content} if not finish else {},
+                "index": index,
+                "finish_reason": "stop" if finish else None,
+            }
+        ],
+    }
 
 
+def _wrap_openai_full(
+    message: str,
+    *,
+    model: str,
+    usage: Optional[Dict[str, int]] = None,
+) -> Dict[str, Any]:
+    """Wrap a **non‑streaming** answer in the OpenAI response envelope."""
+    return {
+        "id": f"chatcmpl-{uuid.uuid4()}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "message": {"role": "assistant", "content": message},
+                "index": 0,
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": usage
+        or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
+
+
+def _wrap_openai_error(message: str, status_code: int) -> Dict[str, Any]:
+    """Generate the OpenAI error envelope."""
+    return {
+        "error": {
+            "message": message,
+            "type": "server_error" if status_code >= 500 else "invalid_request_error",
+            "code": status_code,
+        }
+    }
+
+
+# --------------------------------------------------------------------------- #
+#  Pydantic models for the request body                                       #
+# --------------------------------------------------------------------------- #
 class Message(BaseModel):
     role: str
     content: str
@@ -32,57 +129,63 @@ class Message(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     messages: List[Message]
-    model: str  # Required parameter - no default value
+    model: str                 # must match SERVER_MODEL_ID
     stream: bool = False
     max_new_tokens: int = 512
 
-    # Allow clients to pass any other OpenAI-like parameters (e.g., temperature, top_p, etc.)
+    # Allow any other OpenAI‑style parameters
     model_config = {"extra": "allow"}
 
 
+# --------------------------------------------------------------------------- #
+#  Main endpoint                                                              #
+# --------------------------------------------------------------------------- #
 @app.post("/v1/chat/completions")
-async def completions(request: ChatCompletionRequest):
+async def completions(
+    body: ChatCompletionRequest, raw_request: Request
+):  # two params: parsed body and raw request
     """
-    Handle chat completion requests, either streaming or single-response.
-    Accepts OpenAI-compatible parameters (e.g., temperature, top_p, etc.) as extras.
+    OpenAI‑compatible **chat completions** endpoint.
+
+    • Supports streaming (text/event‑stream) and non‑stream replies.  
+    • Accepts *all* extra parameters in the request body.  
+    • Ignores but tolerates the `Authorization` header expected by clients.
     """
     try:
-        global processor
-        
-        # Get model ID from the required model parameter
-        model_id = request.model
-        
-        # Check if we need to initialize or change the processor
-        if processor is None or getattr(processor, 'model_id', None) != model_id:
-            # Select and initialize the appropriate processor
-            logging.info(f"Initializing processor for model: {model_id}")
-            processor_type = select_processor_type(model_id)
-            
-            # Get additional model-specific parameters
-            model_init_params = {k: v for k, v in request.model_dump().items() 
-                               if k.startswith(('gguf__', 'transformers__'))}
-            
-            # Initialize the processor with model-specific parameters
-            processor = processor_type(model_id=model_id, **model_init_params)
-            logging.info(f"Processor initialized: {processor.__class__.__name__}")
-        else:
-            logging.info(f"Using existing processor for model: {model_id}")
-            
-        # Make sure a processor is available
-        if processor is None:
+        global processor, SERVER_MODEL_ID
+
+        # ------------------------------------------------------------------ #
+        #  Basic validation                                                   #
+        # ------------------------------------------------------------------ #
+        if body.model != SERVER_MODEL_ID:
             raise HTTPException(
-                status_code=500, detail="Failed to initialize model processor."
+                status_code=400,
+                detail=(
+                    f"Invalid model: '{body.model}'. "
+                    f"Server is configured for model: '{SERVER_MODEL_ID}'."
+                ),
             )
 
-        # Convert the pydantic model into a dict, preserving extra fields
-        request_dict = request.model_dump()
+        if processor is None:  # should never happen after successful startup
+            logging.error("Processor not initialised – startup failure.")
+            raise HTTPException(
+                status_code=500,
+                detail="Model processor not available. Server configuration error.",
+            )
 
-        # Convert each Message object into a dict
-        messages_payload = [msg.model_dump() for msg in request.messages]
+        # ------------------------------------------------------------------ #
+        #  OpenAI auth header (optional)                                      #
+        # ------------------------------------------------------------------ #
+        _ = raw_request.headers.get("authorization")  # accept & ignore
 
-        # Known parameters that the underlying processor supports
+        # ------------------------------------------------------------------ #
+        #  Convert request body                                              #
+        # ------------------------------------------------------------------ #
+        request_dict = body.model_dump()
+        messages_payload = [msg.model_dump() for msg in body.messages]
+
         known_params = {
-            "model_id",  # Changed from 'model' to match TextGenerationProcessor parameter
+            "model_id",              # internal name for underlying processor
             "max_new_tokens",
             "temperature",
             "top_p",
@@ -99,171 +202,135 @@ async def completions(request: ChatCompletionRequest):
             "seed",
         }
 
-        # Filter out only the known parameters (excluding "messages")
+        # Keep only recognised generation args
         filtered_params: Dict[str, Any] = {
-            key: value
-            for key, value in request_dict.items()
-            if key != "messages" and key in known_params and value is not None
+            k: v
+            for k, v in request_dict.items()
+            if k != "messages" and k in known_params and v is not None
         }
 
-        # Fill in defaults from CLI if not provided in the request
-        for param_key, param_value in default_params.items():
-            if param_key not in filtered_params and param_key != "model_id":
-                filtered_params[param_key] = param_value
+        # Fill defaults from CLI
+        for k, v in default_params.items():
+            if k not in filtered_params and k != "model_id":
+                filtered_params[k] = v
 
-        # Remove model and model_id from filtered params to avoid duplicates and errors
-        # IMPORTANT: model_id must NOT be included in filtered_params
-        # as it will cause an error in the transformers generate method
-        if "model" in filtered_params:
-            del filtered_params["model"]
-        
-        if "model_id" in filtered_params:
-            del filtered_params["model_id"]
+        # Ensure we do **not** pass model/model_id twice
+        filtered_params.pop("model", None)
+        filtered_params.pop("model_id", None)
 
-        # If streaming is requested, return an SSE stream
-        if request.stream:
-            logging.info("Starting streaming response with parameters: %s", filtered_params)
+        # ------------------------------------------------------------------ #
+        #  STREAMING mode                                                    #
+        # ------------------------------------------------------------------ #
+        if body.stream:
+            logging.info("Streaming generation with params: %s", filtered_params)
             generator = processor.generate_openai_comp(messages_payload, **filtered_params)
 
-            # Wrap each chunk into SSE "data: ..." format
             async def event_generator():
                 try:
-                    for chunk in generator:
-                        yield f"data: {json.dumps(chunk)}\n\n"
+                    for token in generator:
+                        payload = _wrap_openai_chunk(token, model=SERVER_MODEL_ID)
+                        yield f"data: {json.dumps(payload)}\n\n"
+
+                    # final stop chunk
+                    stop_payload = _wrap_openai_chunk(model=SERVER_MODEL_ID, finish=True)
+                    yield f"data: {json.dumps(stop_payload)}\n\n"
+
+                    # OpenAI sentinel
+                    yield "data: [DONE]\n\n"
                 except Exception as gen_exc:
                     logging.exception("Error during streaming generation:")
-                    # In case of an error mid-stream, send an error event
-                    yield f"data: {{\"error\": \"{str(gen_exc)}\"}}\n\n"
+                    error_event = _wrap_openai_error(str(gen_exc), 500)
+                    yield f"data: {json.dumps(error_event)}\n\n"
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-        # Non-streaming: single JSON response
-        else:
-            logging.info("Generating single response with parameters: %s", filtered_params)
-            output = processor.generate_openai_comp(messages_payload, **filtered_params)
-            return JSONResponse(content=output)
+        # ------------------------------------------------------------------ #
+        #  NON‑streaming mode                                                #
+        # ------------------------------------------------------------------ #
+        logging.info("Generating single response with params: %s", filtered_params)
+        text_out = processor.generate_openai_comp(messages_payload, **filtered_params)
+        wrapped = _wrap_openai_full(text_out, model=SERVER_MODEL_ID)
+        return JSONResponse(content=wrapped)
 
     except HTTPException:
-        raise
-    except Exception as e:
-        # Log the full stack trace for debugging
+        raise  # handled by our custom handler below
+    except Exception as exc:
+        # Log full traceback
         logging.exception("Unhandled exception in /v1/chat/completions:")
-        raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
+        # Re‑raise as HTTPException so FastAPI handler can wrap it
+        raise HTTPException(
+            status_code=500, detail=f"An internal error occurred: {str(exc)}"
+        )
 
 
+# --------------------------------------------------------------------------- #
+#  Global OpenAI‑style error handler                                          #
+# --------------------------------------------------------------------------- #
+@app.exception_handler(HTTPException)
+async def openai_http_exception_handler(request: Request, exc: HTTPException):
+    """Return errors using the official OpenAI error envelope."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_wrap_openai_error(str(exc.detail), exc.status_code),
+    )
+
+
+# --------------------------------------------------------------------------- #
+#  Helper: parse comma‑separated stop list                                    #
+# --------------------------------------------------------------------------- #
 def _parse_stop_list(raw: Optional[str]) -> Optional[List[str]]:
-    """
-    Helper to convert a comma-separated stop-list string into a Python list.
-    If raw is None or empty, returns None.
-    """
-    if not raw:
-        return None
-    # Split on commas, strip whitespace
-    return [token.strip() for token in raw.split(",") if token.strip()]
+    return [tok.strip() for tok in raw.split(",") if tok.strip()] if raw else None
 
 
+# --------------------------------------------------------------------------- #
+#  Main (CLI)                                                                 #
+# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Start the FastAPI chat-completion server with default parameters."
+        description=(
+            "Start the FastAPI chat‑completion server.\n"
+            "Example GGUF launch:\n"
+            "  python openai_compatible.py --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF "
+            "--gguf__filename DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf --port 8000"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
     )
+    # --- required --------------------------------------------------------- #
     parser.add_argument(
         "--model",
         type=str,
-        default=DEFAULT_MODEL_ID,
-        help=f"Model identifier (default: {DEFAULT_MODEL_ID})",
+        required=True,
+        help="Model identifier (HF hub name, local path, etc.).",
     )
-    parser.add_argument(
-        "--temperature",
-        type=float,
-        default=None,
-        help="Sampling temperature for generation (e.g., 0.7).",
-    )
-    parser.add_argument(
-        "--top-p",
-        type=float,
-        dest="top_p",
-        default=None,
-        help="Top-p (nucleus) sampling parameter (e.g., 0.9).",
-    )
-    parser.add_argument(
-        "--top-k",
-        type=int,
-        dest="top_k",
-        default=None,
-        help="Top-k sampling parameter (e.g., 50).",
-    )
-    parser.add_argument(
-        "--repetition-penalty",
-        type=float,
-        dest="repetition_penalty",
-        default=None,
-        help="Repetition penalty for generation (e.g., 1.2).",
-    )
-    parser.add_argument(
-        "--max-new-tokens",
-        type=int,
-        dest="max_new_tokens",
-        default=None,
-        help="Maximum number of new tokens to generate if client does not specify (e.g., 256).",
-    )
-    parser.add_argument(
-        "--n",
-        type=int,
-        default=None,
-        help="Number of completions to generate (e.g., 1).",
-    )
-    parser.add_argument(
-        "--frequency-penalty",
-        type=float,
-        dest="frequency_penalty",
-        default=None,
-        help="Frequency penalty for generation (e.g., 0.5).",
-    )
-    parser.add_argument(
-        "--presence-penalty",
-        type=float,
-        dest="presence_penalty",
-        default=None,
-        help="Presence penalty for generation (e.g., 0.0).",
-    )
-    parser.add_argument(
-        "--stop",
-        type=str,
-        default=None,
-        help="Comma-separated list of stop tokens (e.g., \"\\n, Stop\").",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=None,
-        help="Random seed for reproducibility (e.g., 42).",
-    )
-    parser.add_argument(
-        "--host",
-        type=str,
-        default="0.0.0.0",
-        help="Host interface to bind the server (default: 0.0.0.0).",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="Port to bind the server (default: 8000).",
-    )
+
+    # --- optional generation defaults ------------------------------------- #
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--top-p", dest="top_p", type=float, default=None)
+    parser.add_argument("--top-k", dest="top_k", type=int, default=None)
+    parser.add_argument("--repetition-penalty", dest="repetition_penalty", type=float, default=None)
+    parser.add_argument("--max-new-tokens", dest="max_new_tokens", type=int, default=None)
+    parser.add_argument("--n", type=int, default=None)
+    parser.add_argument("--frequency-penalty", dest="frequency_penalty", type=float, default=None)
+    parser.add_argument("--presence-penalty", dest="presence_penalty", type=float, default=None)
+    parser.add_argument("--stop", type=str, default=None)
+    parser.add_argument("--seed", type=int, default=None)
+
+    # --- server params ----------------------------------------------------- #
+    parser.add_argument("--host", type=str, default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
         "--log-level",
         type=str,
         default="info",
         choices=["critical", "error", "warning", "info", "debug", "trace"],
-        help="Uvicorn log level (default: info).",
     )
 
-    args = parser.parse_args()
+    # Parse known vs unknown CLI args
+    args, unknown_args = parser.parse_known_args()
 
-    # Populate default_params from CLI args
-    # model is always available since we set a default
-    default_params["model"] = args.model
-
+    # --------------------------------------------------------------------- #
+    #  Build default generation params from CLI                            #
+    # --------------------------------------------------------------------- #
     if args.temperature is not None:
         default_params["temperature"] = args.temperature
     if args.top_p is not None:
@@ -286,40 +353,79 @@ if __name__ == "__main__":
     if stop_list is not None:
         default_params["stop"] = stop_list
 
-    # Initialize the processor with the chosen model
-    model_id = args.model  # Use the model from args directly
-    logging.info("Initializing TextGenerationProcessor with model_id: %s", model_id)
-    processor_type: Type[TextGenerationProcessor] = select_processor_type(model_id)
-    processor = processor_type(model_id)
+    # --------------------------------------------------------------------- #
+    #  Collect unknown args for model initialisation                       #
+    # --------------------------------------------------------------------- #
+    def _parse_arg_value(val: str) -> Any:
+        lower = val.lower()
+        if lower == "true":
+            return True
+        if lower == "false":
+            return False
+        try:
+            return int(val)
+        except ValueError:
+            try:
+                return float(val)
+            except ValueError:
+                return val
 
-    # Display summary of defaults for transparency
-    logging.info("Default generation parameters: %s", {k: v for k, v in default_params.items() if k != "model"})
+    model_init_cli_params: Dict[str, Any] = {}
+    idx, num_args = 0, len(unknown_args)
 
-    print("Starting FastAPI server with auto-reload enabled:")
-    print(f"  • Swagger UI: http://localhost:{args.port}/docs")
-    print(f"  • Endpoint: POST http://localhost:{args.port}/v1/chat/completions")
+    while idx < num_args:
+        token = unknown_args[idx]
+        if not token.startswith("--"):
+            logging.warning(f"Ignoring unrecognised token: {token}")
+            idx += 1
+            continue
 
-    # Example request:
-    # {
-    # "messages": [
-    #     {
-    #     "role": "system",
-    #     "content": "You are a helpful AI assistant that provides thoughtful, philosophical answers in a warm and friendly manner."
-    #     },
-    #     {
-    #     "role": "user",
-    #     "content": "what is the meaning of life?"
-    #     }
-    # ],
-    # "stream": false,
-    # "max_new_tokens": 512,
-    # "model": "unsloth/Llama-3.2-3B-Instruct-GGUF",
-    # "gguf__filename": "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
-    # }
+        key = token[2:]
+        if idx + 1 < num_args and not unknown_args[idx + 1].startswith("--"):
+            model_init_cli_params[key] = _parse_arg_value(unknown_args[idx + 1])
+            idx += 2
+        else:
+            # flag without value
+            model_init_cli_params[key] = True
+            idx += 1
+
+    # --------------------------------------------------------------------- #
+    #  Initialise processor                                                 #
+    # --------------------------------------------------------------------- #
+    SERVER_MODEL_ID = args.model
+    logging.info(
+        "Initialising TextGenerationProcessor for model '%s' with params %s",
+        SERVER_MODEL_ID,
+        model_init_cli_params,
+    )
+    try:
+        processor_type: Type[TextGenerationProcessor] = select_processor_type(SERVER_MODEL_ID)
+        processor = processor_type(model_id=SERVER_MODEL_ID, **model_init_cli_params)
+        logging.info("Processor '%s' initialised successfully.", processor.__class__.__name__)
+    except Exception as exc:
+        logging.error("Fatal: Failed to initialise processor.", exc_info=True)
+        print("\nError: Could not initialise the model processor.")
+        print(f"Model ID: {SERVER_MODEL_ID}")
+        print(f"Init params: {model_init_cli_params}")
+        print(f"Details: {exc}\n")
+        exit(1)
+
+    # --------------------------------------------------------------------- #
+    #  Startup banner                                                       #
+    # --------------------------------------------------------------------- #
+    logging.info("Server configured for model: %s", SERVER_MODEL_ID)
+    if default_params:
+        logging.info("Default generation parameters: %s", default_params)
+
+    print("\n🚀  Starting FastAPI Chat‑Completion server")
+    print(f"   • Model: {SERVER_MODEL_ID}")
+    print(f"   • Listen: http://{args.host}:{args.port}")
+    print(f"   • Swagger: http://{args.host}:{args.port}/docs")
+    print("   • Endpoint: POST /v1/chat/completions\n")
 
     uvicorn.run(
         app,
         host=args.host,
         port=args.port,
-        log_level=args.log_level,
+        log_level=args.log_level.lower(),
     )
