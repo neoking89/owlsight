@@ -228,7 +228,6 @@ class TextGenerationProcessor(ABC):
                         user_input,
                         max_new_tokens=max_new_tokens,
                         temperature=temperature,
-                        stopwords=stopwords,
                         generation_kwargs=generation_kwargs,
                     ):
                         yield {
