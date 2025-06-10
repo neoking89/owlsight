@@ -27,8 +27,12 @@ curl, etc.) can instead be pointed to *this* server simply by overriding the
 # Example Usage (GGUF example with Aider, assuming Windows OS):
 
 1. Download the GGUF model from Hugging Face and serve it with this script:
-python examples/openai_compatible.py --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF --gguf__filename DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf --gguf_n_ctx 8192 --port 8000
+python examples/openai_compatible.py --model [model_from_huggingface] --port 8000
 
+For example, to serve the DeepSeek-R1-0528-Qwen3-8B-GGUF model:
+```cmd
+python examples/openai_compatible.py --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF --gguf__filename DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf --gguf_n_ctx 8192 --port 8000
+```
 2. Test through swagger UI if the server is running:
 http://localhost:8000/docs
 
