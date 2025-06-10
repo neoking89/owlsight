@@ -1,4 +1,3 @@
-
 import time
 import uuid
 import threading
@@ -142,12 +141,42 @@ class TextGenerationProcessor(ABC):
 
         temperature: float = float(openai_kwargs.pop("temperature", DEFAULT_TEMPERATURE))
 
+        # Extract and process 'stop' parameter
+        stop_param: Optional[Union[str, List[str]]] = openai_kwargs.pop("stop", None)
+        stop_words_list: Optional[List[str]] = None
+        if isinstance(stop_param, str):
+            stop_words_list = [stop_param]
+        elif isinstance(stop_param, list):
+            # Ensure all elements are strings, filter out None or empty strings if necessary
+            stop_words_list = [s for s in stop_param if isinstance(s, str) and s]
+            if not stop_words_list:  # If list becomes empty after filtering
+                stop_words_list = None
+
         generation_kwargs: Dict[str, Any] = {}
-        for key in ("top_p", "top_k"):
+        # Explicitly pop known OpenAI parameters to prevent them from being unknown kwargs for some models
+        # and to ensure they are handled consistently if the underlying model supports them directly
+        # or via a specific transformation (like 'stop' to 'stop_words').
+        known_openai_params = (
+            "top_p",
+            "top_k",
+            "repetition_penalty",
+            "presence_penalty",
+            "frequency_penalty",
+            "seed",
+            "n",
+            "logit_bias",
+            "logprobs",
+            "top_logprobs",
+            "user",
+        )
+        for key in known_openai_params:
             if key in openai_kwargs:
-                generation_kwargs[key] = openai_kwargs.pop(key)
+                value = openai_kwargs.pop(key)
+                if value is not None:  # Only add if not None, as some models might not like None for these
+                    generation_kwargs[key] = value
 
         # Anything *else* the caller supplied is also forwarded unchanged
+        # 'stop' and other known params have already been popped.
         generation_kwargs.update(openai_kwargs)
 
         # --------------------  prepare inputs & history  ---------------- #
@@ -212,6 +241,7 @@ class TextGenerationProcessor(ABC):
 
         # --------------------  streaming / non‑streaming  --------------- #
         if stream:
+
             def _safe_stream(gen: Generator[str, None, None]) -> Generator[str, None, None]:
                 try:
                     for tok in gen:
@@ -223,6 +253,7 @@ class TextGenerationProcessor(ABC):
                 user_input,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
+                stop_words=stop_words_list,  # Pass processed stop_words_list
                 generation_kwargs=generation_kwargs,
             )
             return _safe_stream(raw_gen)
@@ -232,11 +263,37 @@ class TextGenerationProcessor(ABC):
                 user_input,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
+                stop_words=stop_words_list,  # Pass processed stop_words_list
                 generation_kwargs=generation_kwargs,
             )
             return _build_final_response(completion_text)
         finally:
             _restore_state()
+
+    def generate_stream(
+        self,
+        input_data: str,
+        max_new_tokens: int,
+        temperature: float,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Generator[str, None, None]:
+        """
+        Generate streaming text response. This method should be overridden by subclasses.
+        """
+        warnings.warn(
+            f"{self.__class__.__name__} does not have a dedicated 'generate_stream' implementation. "
+            f"Falling back to non-streaming 'generate'.",
+            UserWarning,
+        )
+        result = self.generate(
+            input_data=input_data,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            generation_kwargs=generation_kwargs,
+            **kwargs,
+        )
+        yield result
 
     @abstractmethod
     def generate(
@@ -248,28 +305,6 @@ class TextGenerationProcessor(ABC):
         **kwargs: Any,
     ) -> str:
         raise NotImplementedError
-
-    def generate_stream(
-        self,
-        input_data: str,
-        max_new_tokens: int,
-        temperature: float,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        **kwargs: Any,
-    ) -> Generator[str, None, None]:
-        warnings.warn(
-            f"{self.__class__.__name__} does not have a dedicated 'generate_stream' implementation. " 
-            f"Falling back to non‑streaming 'generate'.",
-            UserWarning,
-        )
-        result = self.generate(
-            input_data=input_data,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            generation_kwargs=generation_kwargs,
-            **kwargs
-        )
-        yield result
 
     @abstractmethod
     def get_max_context_length(self) -> int:
