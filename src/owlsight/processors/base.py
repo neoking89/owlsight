@@ -87,14 +87,17 @@ class TextGenerationProcessor(ABC):
         return input_data
 
     def update_history(self, input_data: str, generated_text: str) -> None:
+        """Update the chat history with the input and generated text."""
         self.chat_history.append({"role": "user", "content": input_data})
         self.chat_history.append({"role": "assistant", "content": generated_text.strip()})
 
     def clear_history(self) -> None:
+        """Clear the chat history."""
         self.chat_history = []
         logger.info("Chat history cleared.")
 
     def get_history(self) -> List[Dict[str, str]]:
+        """Get the chat history."""
         messages = self.chat_history.copy()
         if self.system_prompt:
             messages.insert(0, {"role": "system", "content": self.system_prompt})
@@ -308,4 +311,5 @@ class TextGenerationProcessor(ABC):
 
     @abstractmethod
     def get_max_context_length(self) -> int:
+        """Get the maximum context length for the model."""
         raise NotImplementedError
