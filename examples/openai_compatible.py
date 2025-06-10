@@ -17,26 +17,25 @@ The program is essentially a light wrapper that:
 3. Translates between the OpenAI JSON payloads and the internal owlsight API,
    supporting both *synchronous* and *streaming* generation modes.
 
-Because the surface API is identical, any client library that speaks to
-``api.openai.com`` (for example, Aider, LiteLLM, LangChain, OpenAI's own SDK,
-curl, etc.) can instead be pointed to *this* server simply by overriding the
-``OPENAI_API_BASE`` environment variable:
-
->>> export OPENAI_API_BASE=http://localhost:8000
-
 # Example Usage (GGUF example with Aider, assuming Windows OS):
 
 1. Download the GGUF model from Hugging Face and serve it with this script:
 python examples/openai_compatible.py --model [model_from_huggingface] --port 8000
 
-For example, to serve the DeepSeek-R1-0528-Qwen3-8B-GGUF model:
+For example, to serve the DeepSeek-R1-0528-Qwen3-8B-GGUF model from Hugging Face to the GPU:
 ```cmd
-python examples/openai_compatible.py --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF --gguf__filename DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf --gguf_n_ctx 8192 --port 8000
+python examples\openai_compatible.py ^
+  --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF ^
+  --gguf__filename DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf ^
+  --gguf__n_ctx 8192 ^
+  --gguf__verbose true ^
+  --gguf__n_gpu_layers -1 ^
+  --port 8000
 ```
 2. Test through swagger UI if the server is running:
 http://localhost:8000/docs
 
-send request to model:
+send a request to the model:
 {
     "model": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
     "messages": [
@@ -44,8 +43,13 @@ send request to model:
             "role": "user",
             "content": "Tell me a joke"
         }
-    ]
+    ],
+    "stream": false,
+    "max_new_tokens": 512,
+    "temperature": 0.7,
+    "top_p": 0.9
 }
+
 
 or get all available models:
 {
