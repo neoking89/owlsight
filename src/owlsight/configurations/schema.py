@@ -173,9 +173,9 @@ class Schema:
         },
         "generate": {
             "back": MenuItem(type=OptionType.ACTION, description="Settings for model generation"),
-            "stopwords": MenuItem(
+            "stop_words": MenuItem(
                 type=OptionType.EDITABLE,
-                description="Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop. Pass these like `['stop', 'word']`",
+                description="stop_words that stop text generation. This can be useful for getting more control over when modelgeneration should stop. Pass these like `['stop', 'word']`",
                 default=[],
                 choices=None,
             ),

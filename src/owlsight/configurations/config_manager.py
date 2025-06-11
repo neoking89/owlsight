@@ -115,7 +115,7 @@ class ConfigManager:
         """Create the config choices for the 'generate' section."""
         return {
             "back": None,
-            "stopwords": str(self._get_basic_choice("generate", "stopwords")),
+            "stop_words": str(self._get_basic_choice("generate", "stop_words")),
             "max_new_tokens": self._get_toggle_choice("generate", "max_new_tokens"),
             "temperature": self._get_toggle_choice("generate", "temperature"),
             "generation_kwargs": str(self._get_basic_choice("generate", "generation_kwargs")),

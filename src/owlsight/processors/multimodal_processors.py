@@ -312,7 +312,7 @@ class MultiModalProcessorTransformers(MultiModalProcessor):
         self,
         input_data: str,
         media_objects: Dict[str, MediaObject],
-        stopwords: Optional[List[str]] = None,
+        stop_words: Optional[List[str]] = None,
         max_new_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -326,7 +326,7 @@ class MultiModalProcessorTransformers(MultiModalProcessor):
             Text prompt or question
         media_objects : Dict[str, MediaObject]
             Dictionary mapping media references to MediaObject instances
-        stopwords : List[str], optional
+        stop_words : List[str], optional
             List of words to stop generation at
         max_new_tokens : int, default=DEFAULT_MAX_TOKENS
             Maximum number of tokens to generate
@@ -350,7 +350,7 @@ class MultiModalProcessorTransformers(MultiModalProcessor):
             input_data=input_data,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
-            stopwords=stopwords,
+            stop_words=stop_words,
             streaming=False,
             generation_kwargs=generation_kwargs,
             apply_chat_template=False,

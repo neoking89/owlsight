@@ -24,7 +24,7 @@ class MockTextGenerationProcessor(TextGenerationProcessor):
         input_data: str,
         max_new_tokens: int = 512,
         temperature: float = 0.0,
-        stopwords: Optional[List[str]] = None,
+        stop_words: Optional[List[str]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         response = self.mock_responses[self.response_index % len(self.mock_responses)]

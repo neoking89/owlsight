@@ -203,6 +203,86 @@ owlsight --voice --voicecontrol-kwargs '{
 
 These options can be combined to create a fully customized voice control experience, which you can also utilize outside of the application.
 
+### OpenAI-Compatible Server
+
+Owlsight can run a local server that mimics the OpenAI Chat Completions API, allowing you to use OpenAI-compatible tools like Aider with your local models.
+
+**Running the Server**
+
+Start the server using the `owlsight-server` command, specifying a model and any model-specific parameters.
+
+```bash
+owlsight-server --model <model_identifier> [options]
+```
+
+-   `--model`: (Required) The model identifier (e.g., `gguf/MyModel`, `hf/mistralai/Mistral-7B`).
+-   `--port`: Server port (default: `8000`).
+-   `--host`: Server host (default: `127.0.0.1`).
+-   Any other `--key value` arguments are passed directly to the model's processor.
+
+**Example: Serving a GGUF Model**
+
+Let's say you have downloaded `DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf` from Hugging Face:
+
+```cmd
+owlsight-server ^
+  --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF ^
+  --gguf__filename DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf ^
+  --gguf__n_ctx 8192 ^
+  --gguf__verbose true ^
+  --gguf__n_gpu_layers -1 ^
+  --port 8000
+```
+
+*   `--model`: Specifies the base model identifier known to Owlsight or a unique name you assign.
+*   `--gguf__filename`: Tells the GGUF processor which specific `.gguf` file to load.
+*   `--gguf__n_ctx`: Sets the context size for the GGUF model.
+*   `--gguf__n_gpu_layers`: Offloads layers to GPU (-1 for all possible).
+*   `--port`: Runs the server on port 8000.
+
+**Testing and Integration**
+
+*   **Test with Swagger UI**: Open `http://localhost:8000/docs` in your browser to send test requests to the `/v1/chat/completions` endpoint.
+
+    **Example Request Body:**
+
+    ```json
+    {
+        "model": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Tell me a joke about AI."
+            }
+        ],
+        "stream": false,
+        "max_tokens": 150,
+        "temperature": 0.7
+    }
+    ```
+
+    **Note:** The `model` field in the request *must* match the `--model` argument you used when starting the server, or at least the part after any prefix (e.g. if server started with `hf/org/model-name`, client can use `org/model-name` or `model-name`).
+
+*   **List Models**: Query the `/v1/models` endpoint to see the active model.
+*   **Integrate with Tools (e.g., Aider)**: Set environment variables to point your tool to the local server.
+
+    ```cmd
+    REM For Windows
+    set OPENAI_API_BASE=http://localhost:8000/v1
+    set OPENAI_API_KEY=dummy
+    ```
+    ```bash
+    # For Linux/macOS
+    export OPENAI_API_BASE="http://localhost:8000/v1"
+    export OPENAI_API_KEY="dummy"
+    ```
+    Then, run your tool specifying the model name (e.g., `aider --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF`).
+
+**Important Notes**
+
+*   A server process serves only **one model** at a time.
+*   The `usage` field (token counts) in API responses is currently populated with placeholders (0).
+
 ### Example Workflow
 
 You can combine Python variables defined in the Python Interpreter together with language models in Owlsight through special double curly-brackets syntax.
@@ -598,6 +678,9 @@ Current flow is now: `PlanAgent` -> `PlanValidationAgent` -> `ToolCreationAgent`
 - Some critical (regression-related) bugfixes, like:
   * fixed error where GGUF models could not be loaded through config:huggingface.
   * fixed error where generated pythoncode was not correctly parsed from modelresponse.
+
+**2.7.0(beta)**
+- Added support for Owlsight servers in the CLI. This allows you to serve a model behind an OpenAI-compatible server.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com""".strip()
 
