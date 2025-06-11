@@ -205,7 +205,7 @@ These options can be combined to create a fully customized voice control experie
 
 ### OpenAI-Compatible Server
 
-Owlsight can run a local server that mimics the OpenAI Chat Completions API, allowing you to use OpenAI-compatible tools like Aider, LiteLLM, or LangChain with your local models.
+Owlsight can run a local server that mimics the OpenAI Chat Completions API, allowing you to use OpenAI-compatible tools like Aider with your local models.
 
 **Running the Server**
 
