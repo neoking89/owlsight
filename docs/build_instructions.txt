@@ -2,9 +2,9 @@
 
 ## IN POWERSHELL (SHORTER):
 - Assuming you are on main-branch and you still need to create release/vX.X.X branch:
-1. run ./release.ps1 -> specify version when asked from script prompt. result -> created binaries in /dist with specified version.
-2. run ./upload.ps1 -> upload wheels in /dist folder to pypi. assumes pypi-token is in .env
-3. run ./merge-branch.ps1 -> merge release-branch with main
+1. run ./docs/release.ps1 -> specify version when asked from script prompt. result -> created binaries in /dist with specified version.
+2. run ./docs/upload.ps1 -> upload wheels in /dist folder to pypi. assumes pypi-token is in .env
+3. run ./docs/merge-branch.ps1 -> merge release-branch with main
 
 ## AS SEPERATE STEPS:
 0. git checkout -b release/vX.X.X
