@@ -17,6 +17,7 @@ __pycache__/
 # custom
 .aider*
 tmp*
+get_context.py
 /logo
 /dist
 /build
