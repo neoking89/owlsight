@@ -71,6 +71,7 @@ voice = [
 server = [
     "fastapi",
     "uvicorn[standard]",
+    "httpx",
 ]
 
 # Define the "all" option to include most useful features (base + optional dependencies)
