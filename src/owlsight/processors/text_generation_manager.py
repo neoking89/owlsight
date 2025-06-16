@@ -425,7 +425,7 @@ class TextGenerationManager:
         self.config_manager.set("model.model_id", select_model)
         exc = self.load_model_processor(reload=self.processor is not None)
 
-        if exc and select_model.lower().endswith("gguf"):
+        if exc and "gguf" in select_model.lower():
             self._handle_gguf_model_selection(exc)
 
     def _handle_gguf_model_selection(self, exc: Exception):
@@ -528,7 +528,7 @@ class TextGenerationManager:
             else:
                 self.processor = processor_type(**processor_kwargs)
         except Exception as e:
-            logger.error(f"Error loading model_processor: {traceback.format_exc()}")
+            logger.error(f"Error loading model_processor with processor_type {processor_type}: {traceback.format_exc()}")
             return e
 
         logger.info(f"Processor reloaded with model_id: {model_id}")
