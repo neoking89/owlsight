@@ -134,7 +134,7 @@ This role requires you to understand the user's request deeply and translate it 
 # TASK:
 1. Carefully analyze the user request.
 2. Develop a single, well-structured system prompt designed to guide an AI model in producing an accurate, comprehensive, and reliable response.
-3. Ensure the prompt is adaptable to the specific nature and complexity of the user's request. The prompt should not drift from the user's original intent.
+3. Do not diverge from the original intent.
 
 # SYSTEM PROMPT REQUIREMENTS:
 1. Adapt the prompt to the specific nature and complexity of the user's request.
