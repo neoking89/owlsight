@@ -44,13 +44,13 @@ def select_processor_type(model_id: str, task: Optional[str] = None) -> Type["Te
         # Check if any file in the directory ends with .onnx
         if any(f.endswith("onnx") for f in os.listdir(model_id)):
             return TextGenerationProcessorOnnx
-        elif model_id.lower().endswith("gguf") or any(f.endswith("gguf") for f in os.listdir(model_id)):
+        elif "gguf" in model_id.lower() or any(f.endswith("gguf") for f in os.listdir(model_id)):
             return TextGenerationProcessorGGUF
         else:
             return _select_transformers_processor_type_on_task(model_id, task)
     else:
         # If model_id is not a directory, use the model_id string
-        if model_id.lower().endswith("gguf"):
+        if "gguf" in model_id.lower():
             return TextGenerationProcessorGGUF
         elif "onnx" in model_id.lower():
             return TextGenerationProcessorOnnx

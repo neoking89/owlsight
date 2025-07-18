@@ -185,6 +185,86 @@ owlsight --voice --voicecontrol-kwargs '{
 
 These options can be combined to create a fully customized voice control experience, which you can also utilize outside of the application.
 
+### OpenAI-Compatible Server
+
+Owlsight can run a local server that mimics the OpenAI Chat Completions API, allowing you to use OpenAI-compatible tools like Aider with your local models.
+
+**Running the Server**
+
+Start the server using the `owlsight-server` command, specifying a model and any model-specific parameters.
+
+```bash
+owlsight-server --model <model_identifier> [options]
+```
+
+-   `--model`: (Required) The model identifier (e.g., `gguf/MyModel`, `hf/mistralai/Mistral-7B`).
+-   `--port`: Server port (default: `8000`).
+-   `--host`: Server host (default: `127.0.0.1`).
+-   Any other `--key value` arguments are passed directly to the model's processor.
+
+**Example: Serving a GGUF Model**
+
+Let's say you have downloaded `DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf` from Hugging Face:
+
+```cmd
+owlsight-server ^
+  --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF ^
+  --gguf__filename DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf ^
+  --gguf__n_ctx 8192 ^
+  --gguf__verbose true ^
+  --gguf__n_gpu_layers -1 ^
+  --port 8000
+```
+
+*   `--model`: Specifies the base model identifier known to Owlsight or a unique name you assign.
+*   `--gguf__filename`: Tells the GGUF processor which specific `.gguf` file to load.
+*   `--gguf__n_ctx`: Sets the context size for the GGUF model.
+*   `--gguf__n_gpu_layers`: Offloads layers to GPU (-1 for all possible).
+*   `--port`: Runs the server on port 8000.
+
+**Testing and Integration**
+
+*   **Test with Swagger UI**: Open `http://localhost:8000/docs` in your browser to send test requests to the `/v1/chat/completions` endpoint.
+
+    **Example Request Body:**
+
+    ```json
+    {
+        "model": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Tell me a joke about AI."
+            }
+        ],
+        "stream": false,
+        "max_tokens": 150,
+        "temperature": 0.7
+    }
+    ```
+
+    **Note:** The `model` field in the request *must* match the `--model` argument you used when starting the server, or at least the part after any prefix (e.g. if server started with `hf/org/model-name`, client can use `org/model-name` or `model-name`).
+
+*   **List Models**: Query the `/v1/models` endpoint to see the active model.
+*   **Integrate with Tools (e.g., Aider)**: Set environment variables to point your tool to the local server.
+
+    ```cmd
+    REM For Windows
+    set OPENAI_API_BASE=http://localhost:8000/v1
+    set OPENAI_API_KEY=dummy
+    ```
+    ```bash
+    # For Linux/macOS
+    export OPENAI_API_BASE="http://localhost:8000/v1"
+    export OPENAI_API_KEY="dummy"
+    ```
+    Then, run your tool specifying the model name (e.g., `aider --model unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF`).
+
+**Important Notes**
+
+*   A server process serves only **one model** at a time.
+*   The `usage` field (token counts) in API responses is currently populated with placeholders (0).
+
 ### Example Workflow
 
 You can combine Python variables defined in the Python Interpreter together with language models in Owlsight through special double curly-brackets syntax.
@@ -307,7 +387,7 @@ Main Menu:
     - onnx__n_cpu_threads: Number of CPU threads to be used by ONNX model, Options: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, Type: OptionType.TOGGLE
   - generate settings:
     - back: Return to previous menu
-    - stopwords: Stopwords that stop text generation. This can be useful for getting more control over when modelgeneration should stop. Pass these like `['stop', 'word']`, Type: OptionType.EDITABLE
+    - stop_words: stop_words that stop text generation. This can be useful for getting more control over when modelgeneration should stop. Pass these like `['stop', 'word']`, Type: OptionType.EDITABLE
     - max_new_tokens: Maximum amount of tokens to generate, Options: 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, Type: OptionType.TOGGLE
     - temperature: Temperature for model generation, Options: 0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, Type: OptionType.TOGGLE
     - generation_kwargs: Additional generation parameters, like top_k, top_p, etc. Pass these like `{'top_k': 4, 'top_p': 0.9}`, Type: OptionType.EDITABLE
@@ -370,7 +450,7 @@ Here is an example of what the default configuration looks like:
         "onnx__n_cpu_threads": 8
     },
     "generate": {
-        "stopwords": [],
+        "stop_words": [],
         "max_new_tokens": 2048,
         "temperature": 0.7,
         "generation_kwargs": {}
@@ -585,19 +665,21 @@ Notes
   - Apply chat template to the input text.
 - `clear_history(self) -> None`
   - Clear the chat history.
-- `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, buffer_wordsize: int = 10, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
+- `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stop_words: Optional[List[str]] = None, buffer_wordsize: int = 10, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
   - Generate text response for the given input.
-- `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None)`
+- `generate_openai_comp(self, messages: List[Dict[str, str]], **openai_kwargs: Any) -> Union[Dict[str, Any], Generator[Dict[str, Any], NoneType, NoneType]]`
+  - OpenAI-compatible wrapper around ``generate`` / ``generate_stream``.
+- `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stop_words: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None)`
   - Stream generated text tokens one by one.
 - `get_history(self) -> List[Dict[str, str]]`
-  - Get complete chat history of inputs and outputs and system prompt.
+  - Get the chat history.
 - `get_max_context_length(self) -> Optional[int]`
   - Get maximum context length for the model.
 - `list_valid_repo_files(repo_id: str) -> List[str]`
 - `pre_validate_model_id(model_id: str, onnx__model_dir: str)`
   - Validate the model_id and model_directory before using `snapshot_download`.
 - `update_history(self, input_data: str, generated_text: str) -> None`
-  - Update the history with the input and generated text.
+  - Update the chat history with the input and generated text.
 
 #### TextGenerationProcessorTransformers
 
@@ -613,20 +695,22 @@ Text generation processor using transformers library.
   - Apply chat template to the input text.
 - `clear_history(self) -> None`
   - Clear the chat history.
-- `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
+- `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stop_words: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
   - Generate text response.
-- `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> Generator[str, NoneType, NoneType]`
+- `generate_openai_comp(self, messages: List[Dict[str, str]], **openai_kwargs: Any) -> Union[Dict[str, Any], Generator[Dict[str, Any], NoneType, NoneType]]`
+  - OpenAI-compatible wrapper around ``generate`` / ``generate_stream``.
+- `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.0, stop_words: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> Generator[str, NoneType, NoneType]`
   - Generate streaming text response.
 - `get_history(self) -> List[Dict[str, str]]`
-  - Get complete chat history of inputs and outputs and system prompt.
+  - Get the chat history.
 - `get_max_context_length(self) -> Optional[int]`
-  - Retrieve the maximum context length of the model.
+  - Get the maximum context length for the model.
 - `pipe_call(self, input_data: Union[str, List[str]], **gen_kwargs) -> Any`
   - Call the pipeline with input data and kwargs, supporting batch processing.
-- `prepare_generation(self, input_data: str, max_new_tokens: int, temperature: float, stopwords: Optional[List[str]], generation_kwargs: Optional[Dict[str, Any]], streaming: bool = False, apply_chat_template: bool = True) -> Tuple[str, Dict[str, Any]]`
+- `prepare_generation(self, input_data: str, max_new_tokens: int, temperature: float, stop_words: Optional[List[str]], generation_kwargs: Optional[Dict[str, Any]], streaming: bool = False, apply_chat_template: bool = True) -> Tuple[str, Dict[str, Any]]`
   - Prepare generation parameters.
 - `update_history(self, input_data: str, generated_text: str) -> None`
-  - Update the history with the input and generated text.
+  - Update the chat history with the input and generated text.
 
 #### TextGenerationProcessorGGUF
 
@@ -692,16 +776,18 @@ Notes
   - Apply chat template to the input text.
 - `clear_history(self) -> None`
   - Clear the chat history.
-- `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, stopwords: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
+- `generate(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, stop_words: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
   - Generate text response for the given input.
-- `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, generation_kwargs: Optional[Dict[str, Any]] = None) -> Generator[str, NoneType, NoneType]`
+- `generate_openai_comp(self, messages: List[Dict[str, str]], **openai_kwargs: Any) -> Union[Dict[str, Any], Generator[Dict[str, Any], NoneType, NoneType]]`
+  - OpenAI-compatible wrapper around ``generate`` / ``generate_stream``.
+- `generate_stream(self, input_data: str, max_new_tokens: int = 512, temperature: float = 0.1, stop_words: Optional[List[str]] = None, generation_kwargs: Optional[Dict[str, Any]] = None) -> Generator[str, NoneType, NoneType]`
   - Stream generated text tokens one by one.
 - `get_history(self) -> List[Dict[str, str]]`
-  - Get complete chat history of inputs and outputs and system prompt.
+  - Get the chat history.
 - `get_max_context_length(self) -> Optional[int]`
-  - Retrieve the maximum context length of the model.
+  - Get the maximum context length for the model.
 - `update_history(self, input_data: str, generated_text: str) -> None`
-  - Update the history with the input and generated text.
+  - Update the chat history with the input and generated text.
 
 #### MultiModalProcessorTransformers
 
@@ -752,16 +838,20 @@ Notes
   - Apply chat template to the input text.
 - `clear_history(self) -> None`
   - Clear the chat history.
-- `generate(self, input_data: str, media_objects: Dict[str, owlsight.utils.custom_classes.MediaObject], stopwords: Optional[List[str]] = None, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
+- `generate(self, input_data: str, media_objects: Dict[str, owlsight.utils.custom_classes.MediaObject], stop_words: Optional[List[str]] = None, max_new_tokens: int = 512, temperature: float = 0.0, generation_kwargs: Optional[Dict[str, Any]] = None) -> str`
   - Generate text based on input text and media objects.
+- `generate_openai_comp(self, messages: List[Dict[str, str]], **openai_kwargs: Any) -> Union[Dict[str, Any], Generator[Dict[str, Any], NoneType, NoneType]]`
+  - OpenAI-compatible wrapper around ``generate`` / ``generate_stream``.
+- `generate_stream(self, input_data: str, max_new_tokens: int, temperature: float, generation_kwargs: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Generator[str, NoneType, NoneType]`
+  - Generate streaming text response. This method should be overridden by subclasses.
 - `get_history(self) -> List[Dict[str, str]]`
-  - Get complete chat history of inputs and outputs and system prompt.
+  - Get the chat history.
 - `get_max_context_length(self)`
-  - Retrieve the maximum context length of the model.
+  - Get the maximum context length for the model.
 - `preprocess_input(self, input_data: Union[str, bytes, pathlib.Path], question: Optional[str] = None) -> Any`
   - Preprocess media input data for the model.
 - `update_history(self, input_data: str, generated_text: str) -> None`
-  - Update the history with the input and generated text.
+  - Update the chat history with the input and generated text.
 
 #### PythonLibSearcher
 
@@ -1455,5 +1545,8 @@ Current flow is now: `PlanAgent` -> `PlanValidationAgent` -> `ToolCreationAgent`
 - Some critical (regression-related) bugfixes, like:
   * fixed error where GGUF models could not be loaded through config:huggingface.
   * fixed error where generated pythoncode was not correctly parsed from modelresponse.
+
+**2.7.0(beta)**
+- Added support for Owlsight servers in the CLI. This allows you to serve a model behind an OpenAI-compatible server.
 
 If you encounter any issues, feel free to shoot me an email at v.ouwendijk@gmail.com
